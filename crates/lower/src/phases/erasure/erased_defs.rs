@@ -11,7 +11,7 @@ use super::super::walk::subtrees;
 use crate::symbols::has;
 use crate::{Lower, Result, unsupported};
 use rustc_hash::FxHashSet;
-use tasty::tags::{ERASED, INLINE};
+use tasty::tags::{ERASED, INLINE, PRIVATE};
 use tasty::{Kind, SymbolId, Type};
 use typer::tpd::{TNodeId, Tree};
 
@@ -24,7 +24,7 @@ pub fn drop(l: &mut Lower, root: TNodeId, inits: &FxHashSet<SymbolId>) -> Result
         match *l.tpd.tree(t) {
             Tree::Block { stats: list, .. } | Tree::Template { body: list, .. } => {
                 let (erased, kept): (Vec<TNodeId>, Vec<TNodeId>) =
-                    l.tpd.items(list).iter().partition(|&&s| is_effectively_erased(l, s));
+                    l.tpd.items(list).to_vec().into_iter().partition(|&s| is_effectively_erased(l, s));
                 if erased.is_empty() {
                     continue;
                 }
@@ -167,9 +167,32 @@ fn is_erased_sym(l: &Lower, s: SymbolId) -> bool {
 }
 
 /// Whether `stat` defines an inline or erased method or value (an erased value's getter too).
-fn is_effectively_erased(l: &Lower, stat: TNodeId) -> bool {
+fn is_effectively_erased(l: &mut Lower, stat: TNodeId) -> bool {
     matches!(l.tpd.tree(stat), Tree::DefDef { .. } | Tree::ValDef { .. })
-        && l.tpd.sym(stat).is_some_and(|s| has(l.u, s, INLINE) || is_erased_sym(l, s))
+        && l.tpd
+            .sym(stat)
+            .is_some_and(|s| has(l.u, s, INLINE) && !is_retained_value(l, s) || is_erased_sym(l, s))
+}
+
+/// Whether `s` is an inline value overriding a member that is not inline (dotty's
+/// `isRetainedInline`).
+fn is_retained_value(l: &mut Lower, s: SymbolId) -> bool {
+    let Some(owner) = l.u.symbol(s).owner.filter(|&o| l.u.symbol(s).kind == Kind::Val && l.u.is_class(o))
+    else {
+        return false;
+    };
+    let name = l.u.symbol(s).name.clone();
+    let site = l.u.this_type(owner);
+    let bases = l.u.linearization(owner);
+    bases.into_iter().skip(1).any(|b| {
+        l.u.decls_named(b, &name).into_iter().any(|m| {
+            let other = l.u.symbol(m);
+            other.kind.is_term()
+                && !other.flags.has(INLINE)
+                && !other.flags.has(PRIVATE)
+                && l.u.info_matches(site, s, m)
+        })
+    })
 }
 
 /// Whether `stat` defines an erased value or parameter.

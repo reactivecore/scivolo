@@ -34,7 +34,7 @@ impl OverrideChecks {
             for &b in &self.bases {
                 for m in overridable(t.u, b, &name) {
                     let inline = |t: &Typer<'_>, s: SymbolId| t.u.symbol(s).flags.has(INLINE);
-                    let inline_value = inline(t, d) && kind != Kind::Def;
+                    let inline_value = inline(t, d) && kind != Kind::Def && inline(t, m);
                     let changed = inline(t, d) && t.inline_params(d) != t.inline_params(m);
                     let final_inline = inline(t, m) && t.is_concrete(m);
                     if (inline(t, m) && !inline(t, d) || inline_value || changed || final_inline)

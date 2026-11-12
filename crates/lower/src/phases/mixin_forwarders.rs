@@ -62,7 +62,8 @@ fn needs_forwarder(l: &mut Lower, class: SymbolId, meth: SymbolId) -> bool {
 /// overrides or any method of a class it overrides, or it is `readResolve()` or `writeReplace()`.
 fn needed_unforced(l: &mut Lower, class: SymbolId, meth: SymbolId) -> bool {
     let name = l.u.symbol(meth).name.clone();
-    if matches!(name.as_str(), nme::READ_RESOLVE | nme::WRITE_REPLACE) && l.u.erased_method(meth).0.is_empty() {
+    if matches!(name.as_str(), nme::READ_RESOLVE | nme::WRITE_REPLACE) && l.u.erased_method(meth).0.is_empty()
+    {
         return true;
     }
     let owner = l.u.symbol(meth).owner;
