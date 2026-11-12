@@ -28,6 +28,9 @@ pub struct Decoder<'a> {
     /// The captures of the match type cases being decoded: the `BIND` tree, the case's binder
     /// and the capture's index.
     captures: Vec<(NodeId, Binder, u32)>,
+    /// The members of the refinements being decoded, by the binder of their recursive type, and
+    /// whether a member refers to one of them.
+    selves: Vec<(NodeId, Binder, bool)>,
 }
 
 /// How deep types nest at most; deeper ones decode as `Other`.
@@ -50,6 +53,7 @@ impl<'a> Decoder<'a> {
             depth: 0,
             refining: Vec::new(),
             captures: Vec::new(),
+            selves: Vec::new(),
         }
     }
 
@@ -129,12 +133,7 @@ impl<'a> Decoder<'a> {
         match n.tag {
             SHAREDtype | SHAREDterm => self.decode(ast.deref(id)),
             REFINEDtpt if self.refining.contains(&id) => Type::Other(n.tag),
-            REFINEDtpt if !k.is_empty() => {
-                self.refining.push(id);
-                let t = self.refined(k[0], &k[1..]);
-                self.refining.pop();
-                *self.types.get(t)
-            }
+            REFINEDtpt if !k.is_empty() => self.refined_tpt(id),
             IDENTtpt | IDENT | SINGLETONtpt | INLINED if !k.is_empty() => self.decode(k[0]),
             FLEXIBLEtype if !k.is_empty() => Type::Flexible(self.kid(id, 0)),
             SUPERtype if k.len() > 1 => self.decode(k[1]),
