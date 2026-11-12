@@ -62,3 +62,7 @@ object Attributes:
     r.run()
     val trace = Thread.currentThread.getStackTrace()(1)
     println(trace.getLineNumber)
+    println(IntOrd.getClass.getMethod("mkOrderingOps", classOf[Object]).getGenericReturnType)
+
+object IntOrd extends Ordering[Int]:
+  def compare(x: Int, y: Int): Int = x - y

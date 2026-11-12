@@ -9,3 +9,4 @@ local
 List(a, b)
 anon
 63
+scala.math.Ordering<java.lang.Object>$OrderingOps

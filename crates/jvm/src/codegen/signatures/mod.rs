@@ -4,12 +4,14 @@
 
 mod applied;
 mod classes;
+mod erased;
 mod methods;
 mod needed;
 mod refs;
 mod values;
 
 pub use classes::class;
+pub use erased::{descriptor_parts, erased_member};
 pub use needed::erases_to;
 
 use super::descriptors::descriptor;

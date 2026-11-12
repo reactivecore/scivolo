@@ -70,7 +70,8 @@ impl Sig<'_> {
     }
 
     /// The class `c` is a member of and its type arguments, if the prefix of reference `tycon`
-    /// applies it to some (dotty's `classSig` of a `pre` with arguments).
+    /// seen as an instance of it applies it to some (dotty's `classSig` of a `pre` with
+    /// arguments, `pre.baseType(sym.owner)`).
     fn generic_outer(&mut self, c: SymbolId, tycon: TypeId) -> Option<(SymbolId, Vec<TypeId>)> {
         let outer = self.u.symbol(c).owner.filter(|&o| self.u.is_class(o))?;
         let prefix = match *self.u.ty(tycon) {
@@ -83,10 +84,15 @@ impl Sig<'_> {
             Type::And(a, b) => vec![a, b],
             _ => vec![prefix],
         };
-        parts.into_iter().find_map(|p| {
+        let direct = parts.into_iter().find_map(|p| {
             let (t, args) = self.u.applied(p).filter(|(_, args)| !args.is_empty())?;
             let args = args.to_vec();
             (self.u.class_symbol(t) == Some(outer)).then_some((outer, args))
+        });
+        direct.or_else(|| {
+            let base = self.u.base_type(prefix, outer)?;
+            let (_, args) = self.u.applied(base).filter(|(_, args)| !args.is_empty())?;
+            Some((outer, args.to_vec()))
         })
     }
 

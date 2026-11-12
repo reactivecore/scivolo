@@ -40,16 +40,18 @@ pub fn may_need(u: &mut Universe, t: TypeId) -> bool {
 }
 
 /// Whether method or field signature `sig` erases to descriptor `desc`: a type variable of the
-/// signature to the erasure of its first bound, another matching any type.
-pub fn erases_to(sig: &str, desc: &str) -> bool {
-    let (sig, desc) = (types(sig), types(desc));
+/// signature to the erasure of its first bound, one of `scope` (the enclosing classes' type
+/// variables and their erasures) to its erasure, another matching any type.
+pub fn erases_to(sig: &str, desc: &str, scope: &[(String, String)]) -> bool {
+    let (sig, desc) = (types(sig, scope), types(desc, &[]));
     sig.len() == desc.len() && sig.iter().zip(&desc).all(|(s, d)| s == d || s.ends_with('?'))
 }
 
-/// The erased types of a signature in order, `?` for a type variable it does not declare.
-fn types(sig: &str) -> Vec<String> {
+/// The erased types of a signature in order, `?` for a type variable neither it nor `scope`
+/// declares.
+fn types(sig: &str, scope: &[(String, String)]) -> Vec<String> {
     let b = sig.as_bytes();
-    let mut params = Vec::new();
+    let mut params = scope.to_vec();
     let mut i = usize::from(b.first() == Some(&b'<'));
     while i > 0 && i < b.len() && b[i] != b'>' {
         let start = i;
@@ -124,20 +126,26 @@ mod tests {
 
     #[test]
     fn erases_signatures() {
-        assert!(erases_to("<T:Ljava/lang/Object;>([TT;)I", "(Ljava/lang/Object;)I"));
+        assert!(erases_to("<T:Ljava/lang/Object;>([TT;)I", "(Ljava/lang/Object;)I", &[]));
         assert!(erases_to(
             "()Lscala/Function1<Ljava/lang/Object;Ljava/lang/Object;>;",
-            "()Lscala/Function1;"
+            "()Lscala/Function1;",
+            &[]
         ));
-        assert!(erases_to("()LBox<TA;>.Nested$;", "()LBox$Nested$;"));
+        assert!(erases_to("()LBox<TA;>.Nested$;", "()LBox$Nested$;", &[]));
         assert!(!erases_to(
             "<U:LElement;>(TU;TU;)TU;",
-            "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;"
+            "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;",
+            &[]
         ));
-        assert!(erases_to("<U::Ljava/lang/Comparable<-TU;>;>(TU;)V", "(Ljava/lang/Comparable;)V"));
+        assert!(erases_to("<U::Ljava/lang/Comparable<-TU;>;>(TU;)V", "(Ljava/lang/Comparable;)V", &[]));
         assert!(!erases_to(
             "(Lscala/Product;)LSingle$;",
-            "(Lscala/Product;)Lscala/deriving/Mirror$Singleton;"
+            "(Lscala/Product;)Lscala/deriving/Mirror$Singleton;",
+            &[]
         ));
+        let scope = [("CC".to_owned(), "Lscala/collection/Iterable;".to_owned())];
+        assert!(!erases_to("(TCC;TCC;)Z", "(Ljava/lang/Object;Ljava/lang/Object;)Z", &scope));
+        assert!(erases_to("(TCC;)Z", "(Lscala/collection/Iterable;)Z", &scope));
     }
 }

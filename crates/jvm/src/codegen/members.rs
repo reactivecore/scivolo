@@ -19,7 +19,7 @@ const DEPRECATED: &str = "scala.deprecated";
 
 impl Gen<'_, '_> {
     /// Adds to the method of `cf` added last, `sym` of descriptor `desc`, its generic signature
-    /// unless `erased`, `Deprecated` if `deprecated`, and the names of its parameters `params`,
+    /// (from `desc` alone if `erased`), `Deprecated` if `deprecated`, and the names of its parameters `params`,
     /// `$this` first if `this_param`.
     pub fn method_attributes(
         &mut self,
@@ -29,7 +29,11 @@ impl Gen<'_, '_> {
         params: &[SymbolId],
         (erased, this_param): (bool, bool),
     ) {
-        if !erased && let Some(sig) = self.generic_signature(sym, desc) {
+        let sig = match erased {
+            true => self.erased_signature(sym, desc),
+            false => self.generic_signature(sym, desc),
+        };
+        if let Some(sig) = sig {
             cf.member_signature(Last::Method, &sig);
         }
         if deprecated {

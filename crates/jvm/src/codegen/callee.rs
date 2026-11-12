@@ -4,7 +4,7 @@
 //! `genCallMethod`).
 
 use super::body::Body;
-use super::descriptors::{class_descriptor, descriptor};
+use super::descriptors::{class_descriptor, descriptor, internal};
 use super::{Gen, unsupported};
 use classfile::FieldOp;
 use lower::Result;
@@ -144,7 +144,10 @@ impl Gen<'_, '_> {
             }
             Erased::Array(_) => Some(Receiver::Array("java/lang/Object".into())),
             Erased::Class(name) => {
-                let c = self.l.u.class_symbol(t)?;
+                let c = match self.l.u.class_symbol(t) {
+                    Some(c) => c,
+                    None => self.resolve_class(&internal(&name))?,
+                };
                 let c = match self.l.u.binary_name(c) == name {
                     true => c,
                     false => {
