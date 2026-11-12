@@ -11,5 +11,9 @@ object Units {
     println(label.of(Version(3, 9), "!"))
     println(new Release(Major.of(3), 9).major.n)
     println(new units.text.Line().of(3))
+    println(Thread("x"))
+    println(new Record(2).n)
+    println(io.Top.name)
+    println(units.Labels.top)
   }
 }

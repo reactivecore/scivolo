@@ -13,12 +13,13 @@ use tasty::{Kind, SymbolId, Type};
 
 impl Typer<'_> {
     /// `found` at level `l` without the members of the empty package if `ctx` is in another
-    /// package; the root package stands for both; for an extractor's name, none of methods with
+    /// package or `l` is the outermost level; the root package stands for both, the outermost
+    /// level for the root package only; for an extractor's name, none of methods with
     /// parameters only; for an extension method's, its extension methods.
     pub fn qualifying(&mut self, mut found: Found, l: LevelId, ctx: Ctx) -> Option<Found> {
         let root = self.u.root();
         if matches!(*self.levels.get(l), Level::Members(o) if o == root)
-            && self.enclosing_package(ctx.owner) != root
+            && (self.levels.outer(l).is_none() || self.enclosing_package(ctx.owner) != root)
         {
             found.syms.retain(|&s| self.u.symbol(s).kind == Kind::Package);
         }

@@ -76,20 +76,7 @@ fn library_java_classes_redefined_and_lifted_classes_in_units() {
         eprintln!("skipped: the library jars are not in ref/libs");
         return;
     }
-    let dump = |sources: &[SourceFile], name: &str| {
-        let mut u = Universe::open(&jars).unwrap();
-        let files = match sources {
-            [one] => lower::compile(&mut u, one, &[]).map_err(|r| r.what),
-            many => lower::compile_sources(&mut u, many, Config::from_options(&[]), None)
-                .map(|(files, _)| files)
-                .map_err(|r| r.what),
-        };
-        let files = files.expect("lowered");
-        let file = files.iter().find(|f| f.name == name).unwrap_or_else(|| panic!("{name} missing"));
-        let (mut caches, mut pool) = (nir::Caches::default(), nir::Pool::default());
-        let defs = nir::Reader::new(&file.bytes, &mut caches, &mut pool).unwrap().all().unwrap();
-        defs.iter().map(|d| nir::show::defn_with_debug_info(&pool, d)).collect::<Vec<_>>().join("\n")
-    };
+    let dump = |sources: &[SourceFile], name: &str| dump(&jars, sources, name);
     let a = SourceFile::new("a.scala", "package p\nobject A { val x = new Object {} }");
     let anon = dump(&[a, SourceFile::new("b.scala", "package p\nclass B")], "p.A$$anon$1");
     assert_eq!(anon.matches("class @p.A$$anon$1").count(), 1, "{anon}");
@@ -114,6 +101,42 @@ fn library_java_classes_redefined_and_lifted_classes_in_units() {
     let c = SourceFile::new("c.scala", "package q\nobject O { object x; trait T }");
     let a = dump(&[a, SourceFile::new("b.scala", b), c], "A$");
     assert!(a.contains("@p.x$") && !a.contains("@q.O$x$"), "{a}");
+}
+
+#[test]
+fn empty_package_definitions_and_top_level_packages_shadow_root_imports() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let jars = typer::dump::library_jars(&root.join("ref/libs"));
+    if !jars[0].exists() && std::env::var_os("CI").is_none() {
+        eprintln!("skipped: the library jars are not in ref/libs");
+        return;
+    }
+    let a =
+        SourceFile::new("a.scala", "object Thread { def apply(s: String) = s }\nclass Record(val n: Int)");
+    let b = "package p\nobject B { def f = io.Top.n }";
+    let c = "object C { def f = Thread(\"x\"); def g = new Record(1).n; def h = io.Top.n + p.B.f }";
+    let io = SourceFile::new("io.scala", "package io\nobject Top { def n = 1 }");
+    let sources = [a, SourceFile::new("b.scala", b), SourceFile::new("c.scala", c), io];
+    let c = dump(&jars, &sources, "C$");
+    assert!(c.contains("@Thread$") && c.contains("@Record") && c.contains("@io.Top$"), "{c}");
+    assert!(!c.contains("@java.lang.Thread") && !c.contains("@java.lang.Record"), "{c}");
+    assert!(dump(&jars, &sources, "p.B$").contains("@io.Top$"));
+}
+
+/// Lowers `sources` together and shows the NIR of class `name`.
+fn dump(jars: &[std::path::PathBuf], sources: &[SourceFile], name: &str) -> String {
+    let mut u = Universe::open(jars).unwrap();
+    let files = match sources {
+        [one] => lower::compile(&mut u, one, &[]).map_err(|r| r.what),
+        many => lower::compile_sources(&mut u, many, Config::from_options(&[]), None)
+            .map(|(files, _)| files)
+            .map_err(|r| r.what),
+    };
+    let files = files.expect("lowered");
+    let file = files.iter().find(|f| f.name == name).unwrap_or_else(|| panic!("{name} missing"));
+    let (mut caches, mut pool) = (nir::Caches::default(), nir::Pool::default());
+    let defs = nir::Reader::new(&file.bytes, &mut caches, &mut pool).unwrap().all().unwrap();
+    defs.iter().map(|d| nir::show::defn_with_debug_info(&pool, d)).collect::<Vec<_>>().join("\n")
 }
 
 #[test]

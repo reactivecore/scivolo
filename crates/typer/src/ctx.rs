@@ -163,8 +163,9 @@ pub struct Ctx {
 }
 
 impl Ctx {
-    /// The context of a unit: the members of the root package, then the wildcard imports of
-    /// `java.lang`, `scala` and `Predef` (dotty's `rootImports`), outermost first.
+    /// The context of a unit: the top-level packages, then the wildcard imports of `java.lang`,
+    /// `scala` and `Predef` (dotty's `rootImports`), outermost first; the empty package's
+    /// members are the level of its package clause.
     pub fn root(t: &mut crate::Typer) -> Ctx {
         let root = t.u.root();
         let java_lang = t.u.intern_type(tasty::Type::Package(t.defn.java_lang));
