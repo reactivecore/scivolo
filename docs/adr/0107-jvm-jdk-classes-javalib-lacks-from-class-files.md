@@ -9,9 +9,9 @@ which dotty reads from the JDK's class files (`ClassfileParser`). ADR 0106 found
 
 ## Decision
 - A universe has a JDK only for the JVM backend (`Universe::set_jdk`); the NIR path has none.
-- A name a `java.*` or `javax.*` package (or the root, for `java`, `javax`) lacks in the library,
-  its files and its package objects is looked up in the JDK last: a JDK package is entered, a
-  public top-level class is entered with its object and object's class (an annotation class as
+- A name a `java.*`, `javax.*` or `sun.*` package (or the root, for `java`, `javax`, `sun`)
+  lacks in the library, its files and its package objects is looked up in the JDK last: a JDK
+  package is entered, a public top-level class is entered with its object and object's class (an annotation class as
   ADR 0117 says), and with its public static nested classes as ADR 0117 enters a jar's.
 - The class's type parameters and parents come from its `Signature`, else from its superclass
   and interfaces; a member's type from its `Signature`, else its descriptor, as dotty's

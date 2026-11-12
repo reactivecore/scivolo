@@ -50,5 +50,6 @@ object Jdkclasses {
     println(lookup.lookupClass().getSimpleName)
     val names = new Names[String] { def name(cls: Class[?]): String = cls.getSimpleName }
     println(new names.Cache().get(classOf[Point]))
+    println(classOf[sun.misc.Unsafe].getDeclaredField("theUnsafe").getType == classOf[sun.misc.Unsafe])
   }
 }
