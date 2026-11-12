@@ -158,7 +158,7 @@ impl<'a> Sig<'a> {
     }
 
     /// The parameter and result types of a method signature, the last array parameter of a
-    /// varargs method `Array[T] @Repeated`; exceptions are skipped.
+    /// varargs method `Array[T] @Repeated`, `T` without `Object &`; exceptions are skipped.
     pub fn method(
         &mut self,
         u: &mut Universe,
@@ -175,8 +175,9 @@ impl<'a> Sig<'a> {
         if let Some(last) = params.last_mut().filter(|_| varargs)
             && u.is_array(*last)
         {
+            let array = repeated_array(u, *last, vars);
             let repeated = u.class_ref("scala.annotation.internal.Repeated");
-            *last = u.types.intern(Type::Annotated(*last, repeated));
+            *last = u.types.intern(Type::Annotated(array, repeated));
         }
         Ok((params, result))
     }
@@ -184,6 +185,17 @@ impl<'a> Sig<'a> {
     /// Whether the signature is read to its end.
     pub fn at_end(&self) -> bool {
         self.at == self.text.len()
+    }
+}
+
+/// Array type `array` of a varargs parameter with element `Object & T` read as `T`, for a type
+/// variable `T` bounded by `Object` only (dotty's `sig2type` of a repeated parameter).
+fn repeated_array(u: &mut Universe, array: TypeId, vars: &[Var]) -> TypeId {
+    let Some((tycon, &[elem])) = u.applied(array) else { return array };
+    let Type::And(_, var) = *u.ty(elem) else { return array };
+    match vars.iter().any(|&(_, t, plain)| t == var && plain) {
+        true => u.types.intern_applied(tycon, &[var]),
+        false => array,
     }
 }
 

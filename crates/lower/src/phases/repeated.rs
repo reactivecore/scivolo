@@ -9,7 +9,7 @@ use super::walk::try_walk_class;
 use crate::{Lower, Result, unsupported};
 use names::nme;
 use syntax::ast::Span;
-use tasty::{Erased, SymbolId, Type, TypeId};
+use tasty::{SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree, Walk};
 
 /// Rewrites the repeated arguments of the calls in class definition `td`.
@@ -65,11 +65,7 @@ fn repeated_arg(l: &mut Lower, app: TNodeId, i: usize, a: TNodeId) -> Result<TNo
     let elem = l.tpd.tpe(elemtpt);
     let array = array_of(l, elem);
     l.tpd.get_mut(seq).tpe = Some(array);
-    if let Some(param) = java_varargs(l, method, clause, i) {
-        let (ours, theirs) = (l.u.erase(array), l.u.erase(param));
-        if ours != theirs && matches!(&ours, Erased::Array(e) if matches!(**e, Erased::Prim(_))) {
-            return unsupported(span, "primitive arrays passed to Java varargs of references");
-        }
+    if java_varargs(l, method, clause, i).is_some() {
         return Ok(seq);
     }
     wrap_seq(l, seq, elem, ascribed, span)
