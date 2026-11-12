@@ -370,13 +370,13 @@ sources jar is compiled alone by `scivolo-jvm --scalalib` and its class files co
 javap text, code and attributes apart, with dotty 3.9.0's from one run over the whole sources jar
 with the library build's options without `-opt`. The published jar is no oracle: its build adds
 the optimizer (1883 of its 3134 classes dotty also writes differ in code from dotty's) and takes
-139 classes and 2.13's specialized ones from Scala 2.13. Results (2026-11-11):
+139 classes and 2.13's specialized ones from Scala 2.13. Results (2026-11-12):
 
 | Outcome | Files | Classes |
 |---|---:|---:|
-| same | 251 | 2017 |
-| attributes differ | 175 | 501 |
-| code differs | 192 | 519 |
+| same | 254 | 2046 |
+| attributes differ | 184 | 522 |
+| code differs | 180 | 469 |
 | refused | 31 | |
 
 - **Refused:** no applicable alternative (8); adaptation (8); TASTy pickling (6: a type annotation
