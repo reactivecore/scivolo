@@ -8,10 +8,13 @@ use tasty::{MAX_IMPLEMENTED_ARITY, SymbolId};
 
 /// The arity of class `c` if it is `scala.FunctionN`, and whether it is `scala.ContextFunctionN`.
 pub fn function_class_arity(l: &Lower, c: SymbolId) -> Option<(u32, bool)> {
-    let full = l.u.full_name(c);
-    let (rest, context) = match full.strip_prefix("scala.Context") {
+    let s = l.u.symbol(c);
+    if s.owner != Some(l.u.defn().scala) {
+        return None;
+    }
+    let (rest, context) = match s.name.strip_prefix("Context") {
         Some(rest) => (rest, true),
-        None => (full.strip_prefix("scala.")?, false),
+        None => (s.name.as_str(), false),
     };
     Some((rest.strip_prefix("Function")?.parse().ok()?, context))
 }
