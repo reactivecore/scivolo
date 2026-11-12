@@ -42,7 +42,13 @@ impl TreePickler<'_> {
         }
         self.byte(if name.is_type { IDENTtpt } else { IDENT });
         self.name(&self.tree_name(name, sym));
-        self.ty(tpe, false)
+        if self.names.text(name.name) != nme::WILDCARD {
+            return self.ty(tpe, false);
+        }
+        self.type_tree = Some(id);
+        let pickled = self.ty(tpe, false);
+        self.type_tree = None;
+        pickled
     }
 
     /// Selection `id`, of a method through its owner unless the qualifier is a hole; of a Java
