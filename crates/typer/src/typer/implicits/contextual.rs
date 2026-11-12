@@ -112,7 +112,8 @@ fn combined<'a>(
     own.filter(|(_, n, _)| !shadowed.contains(n) || names.contains(n)).chain(kept_outer).collect()
 }
 
-/// The implicits level `l` makes visible, if any.
+/// The implicits level `l` makes visible, if any; the outermost level, the root package, has
+/// none, the empty package's being those of its package clause's level.
 fn level_refs(t: &mut Typer<'_>, l: LevelId) -> Result<Option<Refs>, &'static str> {
     let refs = match t.levels.get(l) {
         Level::Scope(entries) => {
@@ -135,6 +136,7 @@ fn level_refs(t: &mut Typer<'_>, l: LevelId) -> Result<Option<Refs>, &'static st
                 .collect();
             Refs { cands, prec: Prec::Definition, owner: Some(owner) }
         }
+        &Level::Members(pkg) if pkg == t.u.root() && t.levels.outer(l).is_none() => return Ok(None),
         &Level::Members(pkg) if t.u.symbol(pkg).is_package() => {
             let members = match t.package_implicits.get(&pkg) {
                 Some(members) => members.clone(),

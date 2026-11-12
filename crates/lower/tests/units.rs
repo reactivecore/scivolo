@@ -123,6 +123,23 @@ fn empty_package_definitions_and_top_level_packages_shadow_root_imports() {
     assert!(dump(&jars, &sources, "p.B$").contains("@io.Top$"));
 }
 
+#[test]
+fn empty_package_givens_are_not_seen_from_a_named_package() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let jars = typer::dump::library_jars(&root.join("ref/libs"));
+    if !jars[0].exists() && std::env::var_os("CI").is_none() {
+        eprintln!("skipped: the library jars are not in ref/libs");
+        return;
+    }
+    let a = "given Ordering[String] = Ordering.String.reverse\nobject E { def o = summon[Ordering[String]] }";
+    let b = "package p\nobject P { def o = summon[Ordering[String]] }";
+    let sources = [SourceFile::new("a.scala", a), SourceFile::new("b.scala", b)];
+    let e = dump(&jars, &sources, "E$");
+    assert!(e.contains("@a$package$"), "{e}");
+    let p = dump(&jars, &sources, "p.P$");
+    assert!(!p.contains("@a$package$") && p.contains("@scala.math.Ordering$String$"), "{p}");
+}
+
 /// Lowers `sources` together and shows the NIR of class `name`.
 fn dump(jars: &[std::path::PathBuf], sources: &[SourceFile], name: &str) -> String {
     let mut u = Universe::open(jars).unwrap();
