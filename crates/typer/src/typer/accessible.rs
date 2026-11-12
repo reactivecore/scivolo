@@ -60,12 +60,16 @@ impl Typer<'_> {
             || self.linked_class(boundary).is_some_and(|linked| self.access_within(linked, ctx))
     }
 
-    /// The class, package or term up to which `sym` is accessible, `None` if it is public or a
-    /// JDK class Scala Native defines under another name (dotty's `accessBoundary(owner)`).
+    /// The class, package or term up to which `sym` is accessible, `None` if it is public, a
+    /// protected static Java member or a JDK class Scala Native defines under another name
+    /// (dotty's `accessBoundary(owner)`).
     fn access_boundary(&mut self, sym: SymbolId) -> Option<SymbolId> {
         let (owner, flags) = (self.u.symbol(sym).owner?, self.u.symbol(sym).flags);
         if flags.has(PRIVATE) {
             return Some(owner);
+        }
+        if flags.has(PROTECTED) && self.u.is_module_class(owner) && self.u.is_java_defined(sym) {
+            return None;
         }
         if let Some(&within) = self.syms.private_within.get(&sym) {
             return Some(within);

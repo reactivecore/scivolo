@@ -45,6 +45,10 @@ public class Box<T> {
         }
     }
 
+    protected static int sprot() {
+        return 7;
+    }
+
     public class Inner {
         public T value() {
             return value;

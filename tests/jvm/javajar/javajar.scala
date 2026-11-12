@@ -2,6 +2,12 @@ package shapes
 
 class Named extends Box[String]("named")
 
+package extra {
+  class Sub extends shapes.Box[String]("sub") {
+    def prot: Int = shapes.Box.sprot()
+  }
+}
+
 object Javajar {
   def main(args: Array[String]): Unit = {
     val b = new Box[String]("hi")
@@ -19,5 +25,6 @@ object Javajar {
     c.next()
     println(c.next() + " " + c.count + " " + Counter.PREFIX.length)
     println(new Named().inner().value())
+    println(new extra.Sub().prot)
   }
 }
