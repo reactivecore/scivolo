@@ -41,24 +41,26 @@ pub fn split(l: &mut Lower, body: TNodeId) -> Result<Vec<TNodeId>> {
         patterns.push(pattern);
         let (tpe, span) = (l.tpd.tpe(splice), l.tpd.span(splice));
         let (typeargs, args) = (l.tpd.items(typeargs).to_vec(), l.tpd.items(args).to_vec());
+        let none = Span::NONE;
         let hole = match (typeargs.is_empty(), args.is_empty()) {
             (true, true) => {
-                let hole = runtime(l, PATTERNS, "patternHole", span);
-                poly_call(l, hole, &[tpe], span)
+                let hole = runtime(l, PATTERNS, "patternHole", none);
+                poly_call(l, hole, &[tpe], none)
             }
             (true, false) => {
-                let hole = runtime(l, PATTERNS, "higherOrderHole", span);
-                let hole = poly_call(l, hole, &[tpe], span);
-                applied_to_seq(l, hole, &args, span)
+                let hole = runtime(l, PATTERNS, "higherOrderHole", none);
+                let hole = poly_call(l, hole, &[tpe], none);
+                applied_to_seq(l, hole, &args)
             }
             (false, _) => {
                 let typeargs: Vec<_> = typeargs.iter().map(|&a| l.tpd.tpe(a)).collect();
                 let pairs = super::nested_pairs(l, &typeargs);
-                let hole = runtime(l, PATTERNS, "higherOrderHoleWithTypes", span);
-                let hole = poly_call(l, hole, &[tpe, pairs], span);
-                applied_to_seq(l, hole, &args, span)
+                let hole = runtime(l, PATTERNS, "higherOrderHoleWithTypes", none);
+                let hole = poly_call(l, hole, &[tpe, pairs], none);
+                applied_to_seq(l, hole, &args)
             }
         };
+        let hole = l.with_span(hole, span);
         l.copy_node(t, hole);
     }
     Ok(patterns)
@@ -86,13 +88,17 @@ pub fn with_bindings(l: &mut Lower, body: TNodeId, bindings: &[TNodeId], owner: 
         let info = l.u.map_type(info, &mut |_, x| map.get(&x).copied());
         l.u.set_info(new, info);
         let span = l.tpd.span(b);
-        let [pattern_type, from_above] = ["patternType", "fromAbove"].map(|n| patterns_class(l, n));
-        annotate_new(l, new, pattern_type, span);
-        if l.u.annotations(old).contains(&from_above) {
-            annotate_new(l, new, from_above, span);
-        }
-        let name = TName { name: l.names.intern(&l.u.symbol(new).name.clone()), is_type: true };
         let at = Span::at(span.point());
+        let [pattern_type, from_above] = ["patternType", "fromAbove"].map(|n| patterns_class(l, n));
+        if l.u.annotations(old).contains(&from_above) {
+            let tpe = l.u.intern_type(Type::Sym(None, from_above));
+            let tpt = l.type_tree(tpe, at);
+            let annot = l.tpd.node(Tree::New { tpt }, span, Some(tpe), None);
+            l.u.annotate(new, from_above);
+            l.tpd.annotate(new, annot);
+        }
+        annotate_new(l, new, pattern_type, at);
+        let name = TName { name: l.names.intern(&l.u.symbol(new).name.clone()), is_type: true };
         let rhs = l.type_tree(info, at);
         let tpe = l.u.intern_type(Type::Sym(None, new));
         defs.push(l.tpd.node(Tree::TypeDef { name, rhs }, at, Some(tpe), Some(new)));
@@ -112,7 +118,7 @@ fn patterns_class(l: &mut Lower, name: &str) -> SymbolId {
 }
 
 /// `fun(SeqLiteral(args): Seq[Any])`, of the result type of `fun`.
-fn applied_to_seq(l: &mut Lower, fun: TNodeId, args: &[TNodeId], span: Span) -> TNodeId {
+fn applied_to_seq(l: &mut Lower, fun: TNodeId, args: &[TNodeId]) -> TNodeId {
     let [any, seq] = ["scala.Any", "scala.collection.immutable.Seq"].map(|c| l.u.class_ref(c));
     let elemtpt = l.type_tree(any, Span::NONE);
     let elems = l.tpd.list(args);
@@ -121,7 +127,8 @@ fn applied_to_seq(l: &mut Lower, fun: TNodeId, args: &[TNodeId], span: Span) -> 
     let literal = l.positioned(literal);
     let method = l.u.widen(l.tpd.tpe(fun));
     let Some(result) = l.u.method(method).map(|m| m.result) else { panic!("a hole method") };
-    l.apply(fun, &[literal], result, span)
+    let apply = l.apply(fun, &[literal], result, Span::NONE);
+    l.positioned(apply)
 }
 
 /// Whether `t` is a splice pattern without type or term arguments.
