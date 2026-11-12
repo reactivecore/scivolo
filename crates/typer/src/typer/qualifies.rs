@@ -82,14 +82,28 @@ impl Typer<'_> {
         o
     }
 
-    /// Whether the term `found`, shadowed by a constructor proxy, may be what the proxy's name
-    /// means: any term but one of the empty package (dotty's `checkNotShadowed`).
-    pub fn shadows_proxy(&self, found: &Found) -> bool {
+    /// Whether the term `found`, shadowed by a constructor proxy, makes a call of the proxy
+    /// ambiguous (dotty's `checkNotShadowed`): a method or a term with an `apply` method, its own
+    /// or the constructor proxies of its companion class, outside the empty package.
+    pub fn shadows_proxy(&mut self, found: &Found, ctx: Ctx) -> bool {
         let root = self.u.root();
-        found
-            .syms
-            .iter()
-            .any(|&s| self.u.symbol(s).owner != Some(root) || self.u.symbol(s).kind == Kind::Package)
+        for &s in &found.syms {
+            let sym = self.u.symbol(s);
+            if sym.owner == Some(root) && sym.kind != Kind::Package {
+                continue;
+            }
+            if sym.kind == Kind::Def {
+                return true;
+            }
+            let tpe = crate::defn::ref_type(self.u, found.prefix, s);
+            let class = self.u.module_class(s).and_then(|m| self.u.companion_class(m));
+            if self.members_found_in(tpe, names::nme::APPLY, false, ctx).is_some()
+                || class.is_some_and(|c| self.needs_constructor_proxies(c))
+            {
+                return true;
+            }
+        }
+        false
     }
 
     /// Whether `found` at class members level `l` refers only to members the class inherits.

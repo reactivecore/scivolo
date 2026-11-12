@@ -460,6 +460,8 @@ fn no_false_errors_behind_unsupported_constructs() {
     }
     let empty_package = "object I:\n  class P(x: Int)\nobject P:\n  def apply(x: Int) = 0\nobject M:\n  export I.P\n  val p = P(1)\n";
     assert_eq!(errors_first(empty_package), Ok(()));
+    let applyless = "package p\nclass Record(val k: String) { def c = Record(\"a\") }\n";
+    assert_eq!(errors_first(applyless), Ok(()));
     assert_eq!(errors_first("object M:\n  val x = y\n"), Err("type errors [\"Not found: y\"]".into()));
     let selfless = "trait B\ntrait A { self: B => }\nclass C extends A\n";
     let illegal =
