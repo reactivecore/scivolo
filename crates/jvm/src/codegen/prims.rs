@@ -96,6 +96,9 @@ impl Gen<'_, '_> {
                 b.code.insn(ICONST_0);
                 b.code.place(after);
             }
+            (nme::UNARY_MINUS | nme::UNARY_TILDE, []) if to.numeric_offset().is_none() => {
+                return unsupported(self.l.tpd.span(t), format!("the primitive operation {name}"));
+            }
             (nme::UNARY_PLUS, []) => self.operand(b, receiver, to)?,
             (nme::UNARY_MINUS, []) => {
                 self.operand(b, receiver, to)?;
