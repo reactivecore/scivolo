@@ -42,8 +42,9 @@ impl Typer<'_> {
             let info = self.method_info(tpe).unwrap_or(tpe);
             let meth = self.tpd.sym(self.tpd.meth_part(tree));
             let _ = self.constrain_applied_result(meth, info, pt);
-            let applied =
-                self.refinement_result((info, meth), pt).and_then(|()| self.implicit_clause_applied(tree, ctx));
+            let applied = self
+                .refinement_result((info, meth), pt)
+                .and_then(|()| self.implicit_clause_applied(tree, ctx));
             return match applied.inspect(|&apply| self.settle_adapted(apply, pt, ctx)) {
                 Ok(apply) => self.adapt(apply, pt, ctx),
                 Err(what) => {

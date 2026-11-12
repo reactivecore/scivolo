@@ -56,7 +56,9 @@ impl Typer<'_> {
             return Ok(());
         }
         if self.lambda_of_implicit_params(result, stripped, meth) {
-            return Err("implicit method result with a type lambda over its implicit parameters under type variables");
+            return Err(
+                "implicit method result with a type lambda over its implicit parameters under type variables",
+            );
         }
 
         let mut found = false;
