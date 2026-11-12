@@ -69,6 +69,7 @@ impl Gen<'_, '_> {
             b.bind(self.l.tpd.sym(p).expect("a parameter's symbol"), param.to_owned());
         }
         b.result = result.to_owned();
+        self.line(&mut b, rhs);
         self.method_body(&mut b, rhs, result)?;
         let code = b.code;
         cf.method(flags, &name, &desc, Some(code), &mut |a, b| self.jvm_lub(a, b));

@@ -4,7 +4,7 @@
 
 use super::{Boxing, Sig};
 use names::nme;
-use tasty::{Kind, Type, TypeId};
+use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Sig<'_> {
     /// A method type: type parameters at the top, of an extension method then its value
@@ -75,7 +75,8 @@ impl Sig<'_> {
             if !shadowed.contains(name) {
                 continue;
             }
-            let fresh = (1..).map(|i| format!("{name}{i}")).find(|n| !shadowed.contains(n)).expect("a fresh name");
+            let fresh =
+                (1..).map(|i| format!("{name}{i}")).find(|n| !shadowed.contains(n)).expect("a fresh name");
             shadowed.push(fresh.clone());
             renamed.push((std::mem::replace(name, fresh.clone()), fresh));
         }
@@ -88,7 +89,7 @@ impl Sig<'_> {
         }
     }
 
-    /// The names of the type parameters of classes in the top-level class that `t` mentions.
+    /// The names of the type parameters of the classes in the top-level class that `t` mentions.
     fn class_params_in(&mut self, t: TypeId) -> Vec<String> {
         let top = self.tops[0];
         let mut out = Vec::new();
@@ -98,7 +99,10 @@ impl Sig<'_> {
                 Type::TypeRef(..) => u.resolve_ref(part),
                 _ => None,
             };
-            if let Some(s) = s.filter(|&s| u.symbol(s).kind == Kind::TypeParam) {
+            let class_param = |s: SymbolId| {
+                u.symbol(s).kind == Kind::TypeParam && u.symbol(s).owner.is_some_and(|o| u.is_class(o))
+            };
+            if let Some(s) = s.filter(|&s| class_param(s)) {
                 let mut o = u.symbol(s).owner;
                 while let Some(x) = o.filter(|&x| x != top) {
                     o = u.symbol(x).owner;

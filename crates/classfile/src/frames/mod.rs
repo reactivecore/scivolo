@@ -67,13 +67,21 @@ pub fn stack_map(
     starts.extend(handlers.iter().flat_map(|h| [h[0], h[1]]));
     let mut at = 0;
     while at < bytes.len() {
-        let next = at + length(bytes, at);
         let to = targets(bytes, at);
-        if !to.is_empty() || matches!(bytes[at], 0xac..=0xb1 | 0xbf) {
-            starts.insert(next);
-        }
         jumped.extend(&to);
         starts.extend(to);
+        at += length(bytes, at);
+    }
+    let labels = starts.clone();
+    let (mut at, mut in_block) = (0, true);
+    while at < bytes.len() {
+        in_block |= labels.contains(&at);
+        let next = at + length(bytes, at);
+        let ends = matches!(bytes[at], 0xa7 | 0xaa | 0xab | 0xac..=0xb1 | 0xbf | 0xc8);
+        if in_block && (ends || !targets(bytes, at).is_empty()) {
+            starts.insert(next);
+        }
+        in_block &= !ends;
         at = next;
     }
     let starts: Vec<usize> = starts.into_iter().filter(|&s| s < bytes.len()).collect();
