@@ -1,7 +1,7 @@
-# Interpreter performance
+# Performance
 
-State of the VM's speed, how to measure it, and the ideas not yet done, roughly in order of
-expected gain per effort.
+State of the VM's speed, how to measure it, compile speed against scalac, and the ideas not yet
+done, roughly in order of expected gain per effort.
 
 ## Measuring
 
@@ -35,6 +35,40 @@ and it keeps the code alive while tier-up replaces it.
 Generic `==` (`BoxesRunTime.equals`) is never inlined; its call compares two references
 or two `java.lang` boxes of one class directly (`Instr::BoxedEquals`), which made building a
 `ListSet` of boxed `Int`s 3× faster.
+
+## Compile speed against scalac
+
+`just bench-compile [CODEBASE] [RUNS]` compiles each codebase as one unit, with the same sources
+and classpath, by `scivolo-jvm`, `scivolo-lower` and scalac 3.9.0 on a fresh JVM (cold) and in
+one JVM after three compilations (warm, as a compile server). Minima of 3 runs, M4 Pro, release,
+on a shared machine; CPU is user + sys, so scalac's includes its JIT and GC threads.
+
+| codebase | files | tool | refused | wall s | CPU s | peak RSS MB |
+|---|--:|---|--:|--:|--:|--:|
+| tasty-core | 8 | scivolo-jvm | 0 | 0.28 | 0.28 | 59 |
+| | | scivolo-lower | 0 | 0.19 | 0.19 | 49 |
+| | | scalac cold | | 1.77 | 6.60 | 286 |
+| | | scalac warm | | 0.20 | 0.86 | 585 |
+| upickle-core 4.4.3 | 27 | scivolo-jvm | 0 | 0.67 | 0.67 | 97 |
+| | | scivolo-lower | 0 | 0.58 | 0.58 | 90 |
+| | | scalac cold | | 2.85 | 11.79 | 378 |
+| | | scalac warm | | 0.36 | 1.57 | 692 |
+| Scala's library (JVM) | 649 | scivolo-jvm, file by file | 31 | 51.4 | 51.0 | 140 |
+| | | scalac cold | | 16.7 | 74.8 | 1,388 |
+| | | scalac warm | | 6.4 | 10.6 | 2,163 |
+| javalib (Native) | 601 | scivolo-lower | 2 | 84.9 | 84.9 | 2,174 |
+| | | scalac cold | | 11.1 | 48.6 | 845 |
+| | | scalac warm | | 3.3 | 5.4 | 1,541 |
+
+- Against cold scalac, scivolo is 4–9× faster in wall time on tasty-core and upickle-core;
+  against warm scalac it is 0.5–1.1× in wall time and 2.3–4.5× in CPU time. Neither reaches
+  2× against warm scalac: #247 (tasty-core), #248 (upickle-core), #249 (Scala's library), #250
+  (javalib) name the hot spots.
+- Scala's library does not compile as one unit yet (#249), so scivolo compiles it file by file,
+  each run starting `java` to find the JDK (~40 ms), while scalac compiles its Scala and Java
+  sources as one unit: its rows are not comparable.
+- javalib's two refused files make the unit typed three times, and scalac compiles it to class
+  files without Scala Native's plugin: its rows are not comparable either.
 
 ## Ideas
 
