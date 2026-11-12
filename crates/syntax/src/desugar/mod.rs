@@ -125,6 +125,11 @@ impl<'a> Desugar<'a> {
         }
     }
 
+    /// Desugars expression `root`, owned by a term.
+    pub fn expr(&mut self, root: NodeId) -> NodeId {
+        self.in_owner(Owner::Term { is_constructor: false }, |d| d.unit(root))
+    }
+
     fn in_mode<T>(&mut self, mode: Mode, f: impl FnOnce(&mut Self) -> T) -> T {
         let saved = std::mem::replace(&mut self.mode, mode);
         let result = f(self);

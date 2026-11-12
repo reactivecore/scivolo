@@ -32,7 +32,7 @@ impl Typer<'_> {
         let cfg = p.s.cfg;
         let block = match stats[..] {
             [block] if !p.s.diags.has_errors() => Some(
-                Desugar::new(&mut p.ast, p.s.names, &mut p.s.diags, &mut p.fresh, &source, cfg).unit(block),
+                Desugar::new(&mut p.ast, p.s.names, &mut p.s.diags, &mut p.fresh, &source, cfg).expr(block),
             ),
             _ => None,
         };
