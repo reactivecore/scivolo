@@ -5,7 +5,7 @@
 //! class has one: `hashCode`, `equals` (not for objects), `toString`, `canEqual`,
 //! `productArity`, `productPrefix`, `productElement`, `productElementName`.
 
-use super::synthetic::pickled_ref;
+use super::synthetic::{any_override_info, pickled_ref};
 use super::value_members::hash_code_body as value_hash_code_body;
 use crate::definitions::{CaseClasses, applied, type_ref};
 use crate::symbols::has;
@@ -40,7 +40,7 @@ pub fn case_members(l: &mut Lower, class: SymbolId, span: Span) -> Result<Vec<TN
             continue;
         }
         let flags = Flags::default().with(SYNTHETIC).with(OVERRIDE);
-        let info = l.u.info(sym);
+        let info = any_override_info(l, sym);
         let mut locals = Vec::new();
         let (method, def) = l.method_like(class, sym, flags, info, focus, |l, args, _| {
             body(l, class, sym, args, can_equal, &mut locals, cc)
