@@ -39,5 +39,7 @@ object Jdkclasses {
     println(point.getConstructors.length)
     println(classOf[DayOfWeek].getEnumConstants.length)
     println(java.util.EnumSet.allOf(classOf[DayOfWeek]).size())
+    val lookup: java.lang.invoke.MethodHandles.Lookup = java.lang.invoke.MethodHandles.lookup()
+    println(lookup.lookupClass().getSimpleName)
   }
 }

@@ -24,7 +24,8 @@ impl Universe {
 
     /// Package or public class `name` of package `pkg` (an object `C$` stands for its class `C`)
     /// entered from the JDK, if it has it in a `java.*` or `javax.*` package and the universe has
-    /// a JDK and the package lacks the class and its object; nested classes are not entered.
+    /// a JDK and the package lacks the class and its object, with its public static nested
+    /// classes.
     pub fn jdk_decl(&mut self, pkg: SymbolId, name: crate::NameId) -> Vec<SymbolId> {
         if self.jdk.is_none() {
             return Vec::new();
@@ -51,7 +52,7 @@ impl Universe {
         if info.access & ACC_PUBLIC == 0 || info.access & ACC_MODULE != 0 {
             return Vec::new();
         }
-        let entered = class::enter(self, pkg, class, &info).unwrap_or_default();
+        let entered = classpath::enter(self, pkg, class, &info);
         entered.into_iter().filter(|&d| self.symbol(d).name == name).collect()
     }
 

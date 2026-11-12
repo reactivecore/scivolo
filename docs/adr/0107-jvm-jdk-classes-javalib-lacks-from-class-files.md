@@ -12,7 +12,7 @@ which dotty reads from the JDK's class files (`ClassfileParser`). ADR 0106 found
 - A name a `java.*` or `javax.*` package (or the root, for `java`, `javax`) lacks in the library,
   its files and its package objects is looked up in the JDK last: a JDK package is entered, a
   public top-level class is entered with its object and object's class (an annotation class as
-  ADR 0117 says).
+  ADR 0117 says), and with its public static nested classes as ADR 0117 enters a jar's.
 - The class's type parameters and parents come from its `Signature`, else from its superclass
   and interfaces; a member's type from its `Signature`, else its descriptor, as dotty's
   `sigToType` and `cook` read them (`Object` as `<FromJavaObject>`, a raw type applied to
@@ -21,8 +21,8 @@ which dotty reads from the JDK's class files (`ClassfileParser`). ADR 0106 found
   library. Private, package-private, synthetic and bridge members are not entered. A field's
   `ConstantValue` is its constant type. An enum with constants is sealed and abstract.
 - A method's erasure is its descriptor's.
-- Not entered (unknown to the typer, so refused as a member not found): classes nested in such a
-  class, signature-polymorphic methods (native varargs), constructors with
+- Not entered (unknown to the typer, so refused as a member not found): protected and non-static
+  nested classes, signature-polymorphic methods (native varargs), constructors with
   type parameters of their own, and members whose signature names a class nested in a generic
   one.
 

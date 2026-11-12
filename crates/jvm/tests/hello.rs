@@ -154,6 +154,11 @@ fn jdk_classes_javalib_lacks_run_on_the_jvm() {
 }
 
 #[test]
+fn jdk_members_under_explicit_nulls_run_on_the_jvm() {
+    runs_on_the_jvm("explicitnulls", "Explicitnulls");
+}
+
+#[test]
 fn java_annotations_run_on_the_jvm() {
     runs_on_the_jvm("javaannotations", "Javaannotations");
 }
