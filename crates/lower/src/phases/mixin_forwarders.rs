@@ -21,7 +21,7 @@ pub fn forwarded(l: &mut Lower, class: SymbolId, mixin: SymbolId) -> Vec<SymbolI
                 && !has(l.u, meth, INLINE)
                 && !beyond_jdk_view(l.u, meth)
                 && needs_forwarder(l, class, meth)
-                && (l.force_forwarders || needed_unforced(l, class, meth))
+                && (l.force_forwarders || needed_unforced(l, class, mixin, meth))
         })
         .collect()
 }
@@ -57,23 +57,24 @@ fn needs_forwarder(l: &mut Lower, class: SymbolId, meth: SymbolId) -> bool {
     false
 }
 
-/// Whether `class` needs a forwarder to inherited trait method `meth` under
-/// `-Xmixin-force-forwarders:false`: another base class than its trait has a concrete method it
-/// overrides or any method of a class it overrides, or it is `readResolve()` or `writeReplace()`.
-fn needed_unforced(l: &mut Lower, class: SymbolId, meth: SymbolId) -> bool {
+/// Whether `class` needs a forwarder to method `meth` of trait `mixin` under
+/// `-Xmixin-force-forwarders:false`: it overrides a method of a class, or a concrete method of a
+/// trait `mixin` does not extend, or it is `readResolve()` or `writeReplace()`.
+fn needed_unforced(l: &mut Lower, class: SymbolId, mixin: SymbolId, meth: SymbolId) -> bool {
     let name = l.u.symbol(meth).name.clone();
     if matches!(name.as_str(), nme::READ_RESOLVE | nme::WRITE_REPLACE) && l.u.erased_method(meth).0.is_empty()
     {
         return true;
     }
-    let owner = l.u.symbol(meth).owner;
     let site = l.u.this_type(class);
+    let mixin_bases = erased_linearization(l, mixin);
     for base in erased_linearization(l, class) {
-        if Some(base) == owner {
+        if base == mixin {
             continue;
         }
+        let is_trait = l.u.is_trait(base);
         for other in matching_decls(l, base, meth, site) {
-            if !is_deferred(l, other) || !l.u.is_trait(base) {
+            if !is_trait || !is_deferred(l, other) && !mixin_bases.contains(&base) {
                 return true;
             }
         }

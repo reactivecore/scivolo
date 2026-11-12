@@ -11,7 +11,7 @@ use names::name_kinds;
 use rustc_hash::FxHashSet;
 use syntax::ast::Span;
 use tasty::tags::{
-    ERASED, FIELDaccessor, FINAL, INLINE, LAZY, LOCAL, MUTABLE, PARAMsetter, PRIVATE, STATIC, SYNTHETIC,
+    ERASED, FIELDaccessor, FINAL, LAZY, LOCAL, MUTABLE, PARAMsetter, PRIVATE, STATIC, SYNTHETIC,
 };
 use tasty::{Flags, Kind, SymbolId, Type};
 use typer::tpd::{TNodeId, Template, Tree};
@@ -149,10 +149,10 @@ pub fn is_param_accessor(l: &Lower, s: SymbolId) -> bool {
     has(l.u, s, PARAMsetter)
 }
 
-/// Whether `s` is a `final` or `inline` value, not a variable, of a constant type.
+/// Whether `s` is a `final` value, not a variable, of a constant type.
 pub fn is_const_final(l: &mut Lower, s: SymbolId) -> bool {
     let value = l.u.symbol(s).kind == Kind::Val || has(l.u, s, FIELDaccessor);
-    if !(has(l.u, s, FINAL) || has(l.u, s, INLINE)) || has(l.u, s, MUTABLE) || !value {
+    if !has(l.u, s, FINAL) || has(l.u, s, MUTABLE) || !value {
         return false;
     }
     let info = l.u.info(s);
