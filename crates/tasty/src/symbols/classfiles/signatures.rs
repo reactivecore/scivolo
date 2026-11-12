@@ -229,8 +229,8 @@ pub fn cooked(u: &mut Universe, internal: &str) -> TypeId {
 /// one of a jar's class file as `A#B` (dotty's `innerType`).
 fn class_ref(u: &mut Universe, internal: &str) -> TypeId {
     let nesting = super::classpath::java_class(u, internal).and_then(|info| {
-        let entry = info.inner_classes.iter().find(|e| e.inner == internal)?;
-        (entry.flags & ACC_STATIC == 0).then(|| Some((entry.outer.clone()?, entry.name.clone()?)))?
+        let entry = info.inner_classes.iter().find(|e| e.inner == internal && e.flags & ACC_STATIC == 0)?;
+        Some((entry.outer.clone()?, entry.name.clone()?))
     });
     if let Some((outer, name)) = nesting {
         let outer = class_ref(u, &outer);

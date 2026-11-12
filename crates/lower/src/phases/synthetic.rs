@@ -92,13 +92,17 @@ pub fn private_method(l: &mut Lower, class: SymbolId, name: &str) -> (SymbolId, 
     (sym, any_ref)
 }
 
-/// The type of a reference to `s` as the typer gives it: a member of a package through the
-/// package's `this` (dotty's `typeRef`).
+/// The type of a reference to `s` as the typer gives it: a member of a class through the class's
+/// `this`, else without prefix (dotty's `typeRef`).
 fn pickled_ref(l: &mut Lower, s: SymbolId) -> TypeId {
-    match l.u.symbol(s).owner.map(|o| l.u.symbol(o).kind) {
-        Some(Kind::Package) => l.u.intern_type(Type::Sym(None, s)),
-        _ => type_ref(l.u, s),
-    }
+    let prefix = match l.u.symbol(s).owner {
+        Some(o) if l.u.symbol(o).kind == Kind::Class => {
+            let class = pickled_ref(l, o);
+            Some(l.u.intern_type(Type::This(class)))
+        }
+        _ => None,
+    };
+    l.u.intern_type(Type::Sym(prefix, s))
 }
 
 /// The member synthetic member `m` of a class compiled in the same run overrides, the first
