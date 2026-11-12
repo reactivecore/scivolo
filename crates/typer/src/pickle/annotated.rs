@@ -6,7 +6,7 @@
 
 use super::{Refusal, TreePickler};
 use crate::defn::type_ref;
-use crate::tpd::{List, TNodeId};
+use crate::tpd::{List, TNodeId, Tree as T};
 use names::nme;
 use tasty::defn::{NON_BEAN_TARGETS, UNUSED};
 use tasty::tags::{ANNOTATEDtpt, ANNOTATEDtype, APPLY, NEW, REFINEDtpt, SELECTin};
@@ -60,6 +60,21 @@ impl TreePickler<'_> {
             trees[..=i].rotate_right(1);
         }
         trees
+    }
+
+    /// Marks the calls and selections of annotation `annot` of parameter `sym` to be pickled
+    /// anew if pickled before, their other parts shared (a field's annotation its constructor
+    /// parameter has too).
+    pub fn param_annotation_anew(&mut self, sym: SymbolId, annot: TNodeId) {
+        if self.u.symbol(sym).kind != Kind::Param || self.buf.addr_of_tree(self.tree_key(annot)).is_none() {
+            return;
+        }
+        let mut t = annot;
+        self.anew.insert(t);
+        while let T::Apply { fun, .. } | T::TypeApply { fun, .. } = *self.tpd.tree(t) {
+            t = fun;
+            self.anew.insert(t);
+        }
     }
 
     /// Whether class type `class` is capture checking's `caps.internal.inferred`.
