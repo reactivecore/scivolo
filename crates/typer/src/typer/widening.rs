@@ -33,9 +33,9 @@ impl TypeOps<'_> {
     /// The full name of the value class `t` widens to, if it is one.
     pub fn value_class(&mut self, t: TypeId) -> Option<String> {
         let widened = self.u.widen(t);
-        let name = self.u.class_symbol(widened).map(|c| self.u.full_name(c))?;
-        let value = WIDENINGS.iter().any(|(n, _)| *n == name) || OTHER_VALUE_CLASSES.contains(&name.as_str());
-        value.then_some(name)
+        let c = self.u.class_symbol(widened)?;
+        let mut names = WIDENINGS.iter().map(|&(n, _)| n).chain(OTHER_VALUE_CLASSES);
+        names.find(|n| self.u.has_full_name(c, n)).map(str::to_owned)
     }
 
     /// Whether the value class of `from` widens numerically to that of `to`.

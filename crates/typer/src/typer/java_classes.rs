@@ -17,14 +17,25 @@ pub fn is_java_class_name(u: &mut Universe, c: SymbolId) -> bool {
     if !u.may_be_java(c) && u.symbol(c).kind != tasty::Kind::Package {
         return false;
     }
-    let name = u.full_name(c);
-    let library_java = || {
-        name.rsplit_once('.').is_some_and(|(pkg, simple)| {
-            let simple = tasty::module_name(simple).unwrap_or(simple);
-            java_classes(pkg).any(|c| c == simple)
-        })
-    };
-    name.starts_with("java.") || name.starts_with("javax.") || library_java()
+    if crate::protected_access::in_jdk_package(u, c) {
+        return true;
+    }
+    let name = &u.symbol(c).name;
+    if name.contains('.') {
+        return is_library_java(&u.full_name(c));
+    }
+    let Some(owner) = u.symbol(c).owner.filter(|&o| o != u.root()) else { return false };
+    let simple = tasty::module_name(name).unwrap_or(name);
+    let package = PACKAGES.iter().find(|&&(p, _)| u.has_full_name(owner, p));
+    package.is_some_and(|&(_, classes)| classes.split_whitespace().any(|c| c == simple))
+}
+
+/// Whether the last part of `full` names a Java class of its package the universe may lack.
+fn is_library_java(full: &str) -> bool {
+    full.rsplit_once('.').is_some_and(|(pkg, simple)| {
+        let simple = tasty::module_name(simple).unwrap_or(simple);
+        java_classes(pkg).any(|c| c == simple)
+    })
 }
 
 impl Typer<'_> {
@@ -78,18 +89,20 @@ pub fn is_scala_library_java(full: &str) -> bool {
 
 /// The names of the Java classes of package `package` the universe may lack.
 pub fn java_classes(package: &str) -> impl Iterator<Item = &'static str> {
-    let classes = match package {
-        "java.lang" => JAVA_LANG,
-        "scala.annotation.internal" => "TASTYLongSignature TASTYSignature",
-        "scala.collection.concurrent" => "BasicNode CNodeBase Gen INodeBase MainNode",
-        "scala.math" => "ScalaNumber",
-        "scala.reflect" => "ScalaLongSignature ScalaSignature",
-        "scala.runtime" => SCALA_RUNTIME,
-        "scala.runtime.function" => SCALA_RUNTIME_FUNCTION,
-        _ => "",
-    };
+    let classes = PACKAGES.iter().find(|&&(p, _)| p == package).map_or("", |&(_, classes)| classes);
     classes.split_whitespace()
 }
+
+/// The packages of `java_classes` and the names of their classes.
+const PACKAGES: [(&str, &str); 7] = [
+    ("java.lang", JAVA_LANG),
+    ("scala.annotation.internal", "TASTYLongSignature TASTYSignature"),
+    ("scala.collection.concurrent", "BasicNode CNodeBase Gen INodeBase MainNode"),
+    ("scala.math", "ScalaNumber"),
+    ("scala.reflect", "ScalaLongSignature ScalaSignature"),
+    ("scala.runtime", SCALA_RUNTIME),
+    ("scala.runtime.function", SCALA_RUNTIME_FUNCTION),
+];
 
 const JAVA_LANG: &str = "AbstractMethodError AbstractStringBuilder Appendable ApplicationShutdownHooks \
     ArithmeticException ArrayIndexOutOfBoundsException ArrayStoreException AssertionError \

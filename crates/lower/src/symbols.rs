@@ -21,10 +21,9 @@ pub fn is_erased(u: &Universe, s: SymbolId) -> bool {
     if !sym.kind.is_term() {
         return false;
     }
-    let full = u.full_name(s);
     has(u, s, ERASED)
         || matches!(sym.name.as_str(), "erasedValue" | "unsafeErasedValue")
-            && (full.starts_with("scala.compiletime.") || full.starts_with("scala.caps."))
+            && (u.full_name_starts_with(s, "scala.compiletime.") || u.full_name_starts_with(s, "scala.caps."))
 }
 
 /// Whether `tpe` is the type of a single value or an object's class, which `null` does not

@@ -7,9 +7,8 @@ use tasty::{SymbolId, Universe};
 
 /// Whether `sym` is `erasedValue` of `scala.compiletime` or `scala.caps`.
 pub fn is_erased_value(u: &Universe, sym: SymbolId) -> bool {
-    let full = u.full_name(sym);
     matches!(u.symbol(sym).name.as_str(), "erasedValue" | "unsafeErasedValue")
-        && (full.starts_with("scala.compiletime.") || full.starts_with("scala.caps."))
+        && (u.full_name_starts_with(sym, "scala.compiletime.") || u.full_name_starts_with(sym, "scala.caps."))
 }
 
 impl Inlining<'_> {
