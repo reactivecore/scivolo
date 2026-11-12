@@ -8,6 +8,7 @@ use std::fs::File;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::rc::Rc;
 use zip::ZipArchive;
 
 enum Source {
@@ -24,15 +25,16 @@ enum Source {
 #[derive(Default)]
 pub struct Jdk {
     source: Option<Option<Source>>,
-    classes: HashMap<String, Option<ClassInfo>>,
+    classes: HashMap<String, Option<Rc<ClassInfo>>>,
     packages: Option<HashSet<String>>,
 }
 
 impl Jdk {
     /// The JDK's class of internal name `name`, none if no JDK is found or it lacks the class.
-    pub fn class(&mut self, name: &str) -> Option<&ClassInfo> {
+    pub fn class(&mut self, name: &str) -> Option<&Rc<ClassInfo>> {
         if !self.classes.contains_key(name) {
-            let info = self.source().and_then(|s| s.bytes(name)).and_then(|b| super::read(&b).ok());
+            let info =
+                self.source().and_then(|s| s.bytes(name)).and_then(|b| super::read(&b).ok()).map(Rc::new);
             self.classes.insert(name.to_owned(), info);
         }
         self.classes[name].as_ref()

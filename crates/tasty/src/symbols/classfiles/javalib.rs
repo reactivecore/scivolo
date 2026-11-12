@@ -8,6 +8,7 @@ use crate::tags::OBJECT;
 use crate::types::Type;
 use classfile::{ACC_STATIC, ClassInfo, MemberInfo};
 use rustc_hash::FxHashSet;
+use std::rc::Rc;
 
 impl Universe {
     /// Enters into class `c`, a `java.*` or `javax.*` class of the library other than `Object`,
@@ -72,7 +73,7 @@ impl Universe {
 
     /// The JDK class file of class `c` if the universe has a JDK and `c` is a `java.*` or
     /// `javax.*` class (or object's class) of the library other than `Object`.
-    pub fn jdk_class_of(&mut self, c: SymbolId) -> Option<ClassInfo> {
+    pub fn jdk_class_of(&mut self, c: SymbolId) -> Option<Rc<ClassInfo>> {
         let s = self.symbol(c);
         if self.jdk.is_none() || self.javalib_sources || s.kind != Kind::Class || s.tree.is_none() {
             return None;

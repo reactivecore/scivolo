@@ -10,6 +10,7 @@ use crate::symbols::has;
 use crate::{Lower, Result, unsupported};
 use nir::{Attr, StrId};
 use tasty::SymbolId;
+use tasty::defn::META_TARGETS;
 use tasty::tags::FIELDaccessor;
 use typer::tpd::{TNodeId, Tree};
 
@@ -136,7 +137,10 @@ impl Gen<'_, '_> {
         for (sym, of_class) in field.into_iter().flatten().map(|s| (s, false)).chain([(c, true)]) {
             let classes = match of_class || sym == f {
                 true => self.l.u.annotations(sym).to_vec(),
-                false => self.l.u.annotations_carrying(sym, &["field"], !is_param_accessor(self.l, sym)),
+                false => {
+                    let none_of = if is_param_accessor(self.l, sym) { &[] } else { META_TARGETS };
+                    self.l.u.annotations_carrying(sym, &["field"], none_of)
+                }
             };
             for class in classes {
                 if matches!(gives(self.l, class), Some(Gives::Align)) && !aligned {
@@ -166,13 +170,14 @@ impl Gen<'_, '_> {
             annotated.filter(|(_, g)| !matches!(g, Gives::Named(_))).map(|&(_, g)| (g, None)).collect()
         } else {
             let mut found = Vec::new();
-            let (targets, unmarked): (&[&str], _) = match () {
-                _ if is_setter(self.l, sym) => (&["setter"], false),
-                _ if self.l.fields.iter().any(|(&f, &g)| g == sym && f != g) => (&["getter"], false),
-                _ => (&["getter", "field"], !is_param_accessor(self.l, sym)),
+            let (targets, none_of): (&[&str], &[&str]) = match () {
+                _ if is_setter(self.l, sym) => (&["setter"], &[]),
+                _ if self.l.fields.iter().any(|(&f, &g)| g == sym && f != g) => (&["getter"], &[]),
+                _ if is_param_accessor(self.l, sym) => (&["getter", "field"], &[]),
+                _ => (&["getter", "field"], META_TARGETS),
             };
             let classes = match method && has(self.l.u, sym, FIELDaccessor) {
-                true => self.l.u.annotations_carrying(sym, targets, unmarked),
+                true => self.l.u.annotations_carrying(sym, targets, none_of),
                 false => self.l.u.annotations(sym).to_vec(),
             };
             for &c in classes.iter().rev() {
