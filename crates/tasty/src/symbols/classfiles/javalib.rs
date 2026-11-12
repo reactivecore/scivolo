@@ -6,7 +6,7 @@ use super::class::{Owners, member};
 use super::signatures::{Sig, bounded_by_object};
 use crate::tags::OBJECT;
 use crate::types::Type;
-use classfile::{ACC_STATIC, ClassInfo};
+use classfile::{ACC_STATIC, ClassInfo, MemberInfo};
 use rustc_hash::FxHashSet;
 
 impl Universe {
@@ -19,7 +19,6 @@ impl Universe {
             return;
         }
         let Some(info) = self.jdk_class_of(c) else { return };
-        let statics = self.symbol(c).flags.has(OBJECT);
         let bases = self.linearization(c);
         for &base in &bases[1..] {
             self.enter_jdk_members(base);
@@ -30,10 +29,24 @@ impl Universe {
             .filter(|d| !self.classfile_descriptors.contains_key(d))
             .map(|&d| self.symbol(d).name.clone())
             .collect();
-        let Some(owners) = library_owners(self, c, statics, &info) else { return };
+        self.enter_jdk_where(c, &info, |m| !present.contains(&m.name));
+    }
+
+    /// Enters into class `c` the members named `name` of its JDK class file, as
+    /// `enter_jdk_members` does, once the library's members of that name are hidden.
+    pub fn enter_jdk_named(&mut self, c: SymbolId, name: &str) {
+        let Some(info) = self.jdk_class_of(c) else { return };
+        self.enter_jdk_where(c, &info, |m| m.name == name);
+    }
+
+    /// Enters into class `c` the members of its JDK class file `info` that `keep` selects and
+    /// `c` does not have yet.
+    fn enter_jdk_where(&mut self, c: SymbolId, info: &ClassInfo, keep: impl Fn(&MemberInfo) -> bool) {
+        let statics = self.symbol(c).flags.has(OBJECT);
+        let Some(owners) = library_owners(self, c, statics, info) else { return };
         let members = info.fields.iter().map(|f| (f, false)).chain(info.methods.iter().map(|m| (m, true)));
         let wanted: Vec<_> = members
-            .filter(|(m, _)| (m.access & ACC_STATIC != 0) == statics && !present.contains(&m.name))
+            .filter(|(m, _)| (m.access & ACC_STATIC != 0) == statics && keep(m) && !self.has_jdk_member(c, m))
             .collect();
         let mut entered: Vec<SymbolId> = Vec::new();
         let mut refused: FxHashSet<&str> = FxHashSet::default();
@@ -49,6 +62,12 @@ impl Universe {
                 self.unenter(s);
             }
         }
+    }
+
+    /// Whether class `c` has a member entered from JDK class file member `m`.
+    fn has_jdk_member(&self, c: SymbolId, m: &MemberInfo) -> bool {
+        let entered = |d: &SymbolId| self.classfile_descriptors.get(d) == Some(&m.descriptor);
+        self.symbol(c).decls.iter().any(|d| self.symbol(*d).name == m.name && entered(d))
     }
 
     /// The JDK class file of class `c` if the universe has a JDK and `c` is a `java.*` or

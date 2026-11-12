@@ -58,6 +58,7 @@ impl Universe {
             classfile_descriptors: Default::default(),
             classfile_annotations: Default::default(),
             jdk_member_classes: Default::default(),
+            jdk_checked: Default::default(),
             self_types: Default::default(),
             annotations: Default::default(),
             annotation_strings: Default::default(),

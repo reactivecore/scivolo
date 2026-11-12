@@ -39,5 +39,11 @@ object Jdkclasses {
     println(point.getConstructors.length)
     println(classOf[DayOfWeek].getEnumConstants.length)
     println(java.util.EnumSet.allOf(classOf[DayOfWeek]).size())
+    val byKey = java.util.Comparator.naturalOrder[String]().thenComparing((s: String) => new Key(s.length))
+    println(byKey.compare("ab", "ab"))
   }
+}
+
+class Key(val n: Int) extends Comparable[Any] {
+  def compareTo(o: Any): Int = 0
 }

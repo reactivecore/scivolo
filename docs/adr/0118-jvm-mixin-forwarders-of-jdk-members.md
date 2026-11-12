@@ -1,4 +1,4 @@
-# ADR 0118 — On the JVM, mixin forwarders of JDK members follow the JDK's class files
+# ADR 0118 — On the JVM, JDK members and their mixin forwarders follow the JDK's class files
 
 Status: accepted · Date: 2026-11-12 · Amends ADR 0108
 
@@ -17,8 +17,13 @@ their generic signatures.
 - A mixin forwarder of a JDK member takes its type from that declaration (`Universe::jdk_info`),
   the JDK class's type parameters standing for javalib's by position; javalib's type when the
   signature is refused.
+- The typer sees the same: a lookup by name hides the library's methods and values the JDK
+  lacks (`Universe::jdk_lacking`), and enters the JDK's members of that name where none is
+  left; a method the JDK has, but a constructor, takes the declaration's type.
 
 ## Consequences
-- The typer still sees javalib's members and types: a call of a javalib-only public member
-  compiles and fails at run time; overrides keep their own types.
+- A call of a javalib-only member is refused as "member not found", as dotty reports it.
+- Members are checked when first looked up by name; code that walks a class's declarations
+  without a lookup (overriding checks) still sees javalib's.
+- Values keep javalib's types, so their constants still fold.
 - The NIR path, without a JDK, is unchanged.
