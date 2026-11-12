@@ -12,8 +12,14 @@ use typer::tpd::{TNodeId, Tree as T};
 
 impl Host {
     pub fn fresh_name(&mut self, name: String) -> String {
-        let fresh = self.fresh.next(&mut self.names, &format!("{name}$macro$"));
+        let fresh = self.fresh_in_file(&format!("{name}$macro$"));
         self.names.text(fresh).to_owned()
+    }
+
+    /// Makes `prefix` followed by the next number for it in the file of the expansion.
+    pub fn fresh_in_file(&mut self, prefix: &str) -> syntax::names::Name {
+        let file = self.expansion_file();
+        self.fresh.next_in(file, &mut self.names, prefix)
     }
 
     pub fn new_val(&mut self, owner: SymbolId, info: TypeId, flags: u64, name: String) -> Fallible<SymbolId> {

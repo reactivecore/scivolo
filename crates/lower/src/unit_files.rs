@@ -23,14 +23,15 @@ impl Lower<'_> {
         }
     }
 
-    /// Determines the index of the file of the unit `s` is defined in, by its top-level class.
+    /// Determines the index of the file of the unit `s` is defined in, by its top-level class
+    /// before lifting local classes.
     pub fn file_of(&self, s: SymbolId) -> usize {
         let mut s = Some(s);
         while let Some(sym) = s {
             if let Some(&file) = self.class_files.get(&sym) {
                 return file;
             }
-            s = self.u.symbol(sym).owner;
+            s = self.original_owner(sym);
         }
         0
     }
