@@ -13,8 +13,8 @@ a whole at its first refusal. dotty keeps the source version and the unit-wide f
 - Each `SourceUnit` carries the `Config` its parser ended with. The typer enters, completes and
   types each definition under the features and source version of its file
   (`Typer::enter_file`); the other settings are options, the same for all files. The lowering
-  reads source version `2.13` per file, through the top-level class of a definition; a file
-  without definitions has no source version.
+  reads source version `2.13` per file, through the top-level class of a definition; an empty
+  file, as a left-out one, has no source version.
 - `compile_isolated` refuses a file, not the run: the refusals of an attempt that lie in some
   files (each file's first refusal while typing, its syntax errors, or the one refusal of a
   later stage) blank them (spaces, line breaks kept, so the others keep their offsets) and
