@@ -48,6 +48,10 @@ impl Host for NoHost {
         false
     }
 
+    fn file_of(&self, _: Span) -> usize {
+        0
+    }
+
     fn error_count(&self) -> (usize, usize) {
         (0, 0)
     }

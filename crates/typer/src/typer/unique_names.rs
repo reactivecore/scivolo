@@ -19,6 +19,12 @@ pub struct UniqueOrder {
 }
 
 impl Typer<'_> {
+    /// Makes `prefix` followed by the next number for it in the file of `span`.
+    pub fn fresh_name(&mut self, span: Span, prefix: &str) -> Name {
+        let file = self.file_of(span);
+        self.fresh.next_in(file, self.names, prefix)
+    }
+
     /// Meets the names of the pattern definition the namer enters at `stat`, if any.
     pub fn enter_uniques(&mut self, stat: NodeId) {
         let span = self.ast.span(stat);

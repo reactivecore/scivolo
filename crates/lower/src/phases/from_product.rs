@@ -84,7 +84,7 @@ pub fn from_product(
             }
             let rhs = l.type_cast_unless_conforms(element, tpe);
             let name = l.u.symbol(accessor).name.clone();
-            let name = fresh(l, &name);
+            let name = fresh(l, class, &name);
             let (def, binding) = val_def(l, class, &name, tpe, rhs);
             locals.push(binding);
             defs.push(def);

@@ -63,7 +63,7 @@ impl Typer<'_> {
                     let n = self.u.name(n).to_owned();
                     self.name(&n)
                 }
-                None => self.fresh.next(self.names, "contextual$"),
+                None => self.fresh_name(span, "contextual$"),
             };
             let name = TName { name, is_type: false };
             let flags = if erased.get(i) == Some(&true) { f::GIVEN.or(f::ERASED) } else { f::GIVEN };

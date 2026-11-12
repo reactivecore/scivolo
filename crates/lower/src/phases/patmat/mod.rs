@@ -139,8 +139,7 @@ impl<'t, 'a> Translator<'t, 'a> {
 
     /// A fresh label `<prefix>N` of type `tpe`.
     fn label(&mut self, prefix: &'static str, tpe: TypeId) -> SymbolId {
-        let name = self.l.fresh.next(self.l.names, prefix);
-        let name = self.l.names.text(name).to_owned();
+        let name = self.l.fresh_name(self.owner, prefix);
         let label = self.l.u.define(symbol(&name, Kind::Val, self.owner, Flags::default()));
         self.l.u.set_info(label, tpe);
         label
@@ -159,8 +158,7 @@ impl<'t, 'a> Translator<'t, 'a> {
             tasty::Type::This(_) => self.l.u.widen(tpe),
             _ => self.sanitized(tpe),
         };
-        let name = self.l.fresh.next(self.l.names, "x");
-        let name = self.l.names.text(name).to_owned();
+        let name = self.l.fresh_name(self.owner, "x");
         let var = self.l.u.define(symbol(&name, Kind::Val, self.owner, Flags::default()));
         self.l.u.set_info(var, tpe);
         self.generated.insert(var);

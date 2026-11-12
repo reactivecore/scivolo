@@ -58,13 +58,13 @@ pub fn plan(
     let erased_result = l.u.erase_value(result);
     let needed = adaptation_needed(&erased, &erased_result, &sam_params, &sam_result);
     let specialized_interface =
-        function.then(|| specialized_interface(l, needed, &erased, &erased_result)).flatten();
+        function.then(|| specialized_interface(l, class, needed, (&erased, &erased_result))).flatten();
     let Ok(specialized_interface) = specialized_interface.transpose() else {
         return unsupported(span, "lambdas of this function type");
     };
     let adapted = (specialized_interface.is_none() && needed != (false, false)).then(|| {
         let (types, result) = adapted_types(l, sam, needed, params, result);
-        let name = fresh(l, &name_kinds::adapted_closure(&name_kinds::anon_fun(prefix)));
+        let name = fresh(l, f.sym, &name_kinds::adapted_closure(&name_kinds::anon_fun(prefix)));
         let adapted = define(l, home(l, class, f), &name, &f.captured, &types, result, f.instance());
         l.bridges.insert(adapted.sym);
         if let Some(owner) = l.u.symbol(f.sym).owner {

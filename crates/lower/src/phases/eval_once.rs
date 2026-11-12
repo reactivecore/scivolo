@@ -11,6 +11,7 @@ use crate::symbols::has;
 use names::name_kinds;
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::cmp::Reverse;
+use syntax::ast::Span;
 use tasty::tags::{MUTABLE, SYNTHETIC};
 use tasty::{Flags, Kind, SymbolId, TypeId};
 use typer::tpd::{TNodeId, Tree};
@@ -65,8 +66,7 @@ pub fn eval_once(l: &mut Lower, expr: TNodeId, owner: SymbolId) -> (SymbolId, TN
 
 /// `eval_once` with a value of type `tpe`.
 pub fn eval_once_as(l: &mut Lower, expr: TNodeId, owner: SymbolId, tpe: TypeId) -> (SymbolId, TNodeId) {
-    let name = l.fresh.next(l.names, name_kinds::TEMP_RESULT);
-    let name = l.names.text(name).to_owned();
+    let name = l.fresh_name(owner, name_kinds::TEMP_RESULT);
     let ev = l.u.define(symbol(&name, Kind::Val, owner, Flags::default().with(SYNTHETIC)));
     l.u.set_info(ev, tpe);
     let span = l.tpd.span(expr);
@@ -92,6 +92,17 @@ pub fn renumber(l: &mut Lower, root: TNodeId) {
             at.extend(l.tpd.sym(s).filter(|v| span.exists() && syms.contains(v)).map(|v| (v, span)));
         }
     }
+    let mut files: FxHashMap<usize, Vec<(SymbolId, Span, bool)>> = FxHashMap::default();
+    for value in values {
+        files.entry(l.file_of(value.0)).or_default().push(value);
+    }
+    for values in files.into_values() {
+        renumber_file(l, values, &at);
+    }
+}
+
+/// `renumber` of the values of one file, `at` the span of the tree each value's block yields.
+fn renumber_file(l: &mut Lower, values: Vec<(SymbolId, Span, bool)>, at: &FxHashMap<SymbolId, Span>) {
     let number = |n: &str| n.trim_start_matches(name_kinds::TEMP_RESULT).parse::<u32>().unwrap_or(0);
     let mut names: Vec<String> = values.iter().map(|&(v, ..)| l.u.symbol(v).name.clone()).collect();
     names.sort_by_key(|n| number(n));

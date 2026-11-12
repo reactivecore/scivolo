@@ -486,7 +486,6 @@ impl<'a> Typer<'a> {
             file: 0,
             macros: None,
         };
-        typer.tpd.scala2 = typer.scala2;
         typer.enter_and_or();
         typer.u.set_comparison_owner(None);
         Ok(typer)

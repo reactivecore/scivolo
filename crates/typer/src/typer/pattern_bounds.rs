@@ -106,7 +106,7 @@ impl Typer<'_> {
             if var.is_none() && !matches!(*self.tpd.tree(*a), T::TypeBoundsTree { alias: None, .. }) {
                 continue;
             }
-            let name = var.map_or_else(|| self.fresh.next(self.names, "_$"), |(v, _)| v.name);
+            let name = var.map_or_else(|| self.fresh_name(self.tpd.span(*a), "_$"), |(v, _)| v.name);
             let text = self.text(name).to_owned();
             let sym = self.syms.define(self.u, &text, Kind::Type, ctx.owner, CASE);
             if var.is_some() {

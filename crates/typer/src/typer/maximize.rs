@@ -56,7 +56,7 @@ impl Typer<'_> {
                 continue;
             }
             let param = names.iter().find(|(w, _)| *w == v).map_or("T", |&(_, n)| self.u.name(n));
-            let name = self.fresh.next(self.names, &format!("{param}$"));
+            let name = self.fresh_name(self.tpd.span(unapp), &format!("{param}$"));
             let text = self.text(name).to_owned();
             let sym = self.syms.define(self.u, &text, Kind::Type, ctx.owner, CASE);
             let tpe = self.u.intern_type(Type::Sym(None, sym));

@@ -44,8 +44,6 @@ pub struct Tpd {
     /// The annotation tree of each annotated type an annotated expression `e: @a(args)` gave;
     /// `None` for one that several trees gave.
     type_annotations: FxHashMap<TypeId, Option<TNodeId>>,
-    /// Whether the unit behaves as the Scala 2 library (dotty's `shouldBehaveAsScala2`).
-    pub scala2: bool,
 }
 
 /// What an anonymous class the typer made for a mirror becomes (dotty's

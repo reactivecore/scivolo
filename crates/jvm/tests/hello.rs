@@ -59,6 +59,27 @@ fn several_files_run_on_the_jvm() {
 }
 
 #[test]
+fn a_file_of_a_unit_compiles_as_alone() {
+    let dir = root().join("tests/jvm/units");
+    let mut sources: Vec<PathBuf> = std::fs::read_dir(&dir)
+        .expect("a test directory")
+        .map(|e| e.expect("a directory entry").path())
+        .filter(|p| p.extension().is_some_and(|x| x == "scala"))
+        .collect();
+    sources.sort();
+    let (unit, compiled) = compile_all("units-unit", &sources);
+    assert!(compiled.status.success(), "{}", String::from_utf8_lossy(&compiled.stderr));
+    let (alone, compiled) = compile("units-alone", &dir.join("words.scala"));
+    assert!(compiled.status.success(), "{}", String::from_utf8_lossy(&compiled.stderr));
+    let classes = std::fs::read_dir(alone.join("units")).expect("the classes of words.scala");
+    for class in classes {
+        let name = class.expect("a directory entry").file_name();
+        let bytes = |out: &Path| std::fs::read(out.join("units").join(&name)).expect("a class file");
+        assert!(bytes(&unit) == bytes(&alone), "{name:?} differs");
+    }
+}
+
+#[test]
 fn objects_run_on_the_jvm() {
     runs_on_the_jvm("objects", "Objects");
 }

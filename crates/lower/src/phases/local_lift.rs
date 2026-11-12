@@ -92,8 +92,8 @@ pub fn name_class(l: &mut Lower, class: SymbolId, outer: SymbolId) {
     };
     let flags = l.u.symbol(class).flags.without(OBJECT);
     l.u.set_flags(class, flags);
-    let local = l.fresh.next(l.names, &name_kinds::unique_prefix(base));
-    let local = [l.names.text(local), module].concat();
+    let local = l.fresh_name(outer, &name_kinds::unique_prefix(base));
+    let local = [local.as_str(), module].concat();
     let outer_name = l.u.binary_name(outer);
     let outer_name = outer_name.rsplit('.').next().unwrap_or(&outer_name).to_owned();
     let name = match outer_name.strip_suffix('$') {

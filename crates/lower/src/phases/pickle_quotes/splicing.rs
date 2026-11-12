@@ -143,7 +143,7 @@ impl Splicer<'_> {
         if let Some(i) = c.of.iter().position(|&o| o == s) {
             return c.params[i];
         }
-        let name = fresh(l, name);
+        let name = fresh(l, s, name);
         let owner = l.u.symbol(s).owner.expect("a local definition's owner");
         let param = l.u.define(symbol(&name, Kind::Val, owner, Flags::default()));
         let class = l.u.class_ref(class);

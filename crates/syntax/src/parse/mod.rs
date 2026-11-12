@@ -40,6 +40,7 @@ use crate::scan::Scanner;
 use crate::source::{Offset, SourceFile};
 use crate::token::Token;
 
+pub use language::language_prefix;
 pub use location::{Location, ParseKind};
 
 /// Quote and splice nesting (dotty's `StageKind`).

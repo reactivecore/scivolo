@@ -46,7 +46,7 @@ pub fn anon_mirror_support(
             if l.before_inlining && l.u.symbol(class).owner.is_some_and(|o| has(l.u, o, INLINEPROXY)) {
                 for accessor in case_accessors(l, linked) {
                     let name = l.u.symbol(accessor).name.clone();
-                    fresh(l, &name);
+                    fresh(l, class, &name);
                 }
             }
             (cc.mirror_product, from_product(l, class, linked, mono, focus)?.into_iter().collect())

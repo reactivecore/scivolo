@@ -117,6 +117,52 @@ fn library_java_classes_redefined_and_lifted_classes_in_units() {
 }
 
 #[test]
+fn files_of_a_unit_lower_as_alone() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let jars = typer::dump::library_jars(&root.join("ref/libs"));
+    if !jars[0].exists() && std::env::var_os("CI").is_none() {
+        eprintln!("skipped: the library jars are not in ref/libs");
+        return;
+    }
+    let dumps = |sources: &[SourceFile]| {
+        let mut u = Universe::open(&jars).unwrap();
+        let (files, _) = lower::compile_sources(&mut u, sources, Config::from_options(&[]), None)
+            .unwrap_or_else(|r| panic!("{}", r.what));
+        let (mut caches, mut pool) = (nir::Caches::default(), nir::Pool::default());
+        let mut out: Vec<(String, String)> = files
+            .iter()
+            .map(|f| {
+                let defs = nir::Reader::new(&f.bytes, &mut caches, &mut pool).unwrap().all().unwrap();
+                let dump = defs.iter().map(|d| nir::show::defn_with_debug_info(&pool, d));
+                (f.name.clone(), dump.collect::<Vec<_>>().join("\n"))
+            })
+            .collect();
+        out.sort();
+        out
+    };
+    let same = |a: &str, b: &str| {
+        let (a, b) = (|| SourceFile::new("a.scala", a), || SourceFile::new("b.scala", b));
+        let mut alone = dumps(&[a()]);
+        alone.extend(dumps(&[b()]));
+        alone.sort();
+        assert_eq!(dumps(&[a(), b()]), alone);
+    };
+    let file = |o: &str| {
+        format!(
+            "case class P{o}(a: Int, b: String)\nobject {o} {{ var r = Array(1)\n def i = r(0) += 1\n \
+             def f = List(1, 2).map(_ + 1).filter(_ > 1)\n def t = (8, 9)._1\n \
+             def g = for {{ (x, y) <- Option((1, 2)) }} yield x\n \
+             lazy val z = 1\n def l = {{ lazy val y = 2; y }}\n def n = new Object {{ override def toString = \"n\" }}\n \
+             def m(x: Any) = x match {{ case P{o}(a, _) => a; case _ => 0 }}\n \
+             @annotation.tailrec def t(k: Int): Int = if k == 0 then 0 else t(k - 1)\n \
+             def c = summon[deriving.Mirror.ProductOf[P{o}]].fromProduct((1, \"s\")) }}"
+        )
+    };
+    same(&file("A"), &file("B"));
+    same(&["import scala.language.`2.13`\n", &file("A")].concat(), &file("B"));
+}
+
+#[test]
 fn array_branches_in_reference_contexts() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let jars = typer::dump::library_jars(&root.join("ref/libs"));
