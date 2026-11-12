@@ -55,7 +55,7 @@ impl Gen<'_, '_> {
             Tree::Typed { expr, .. } => return self.expr_to(b, expr, slots, dest),
             Tree::Block { stats, expr } => {
                 for s in self.l.tpd.items(stats).to_vec() {
-                    self.stat(b, s)?;
+                    self.block_stat(b, s)?;
                 }
                 return self.expr_to(b, expr, slots, dest);
             }

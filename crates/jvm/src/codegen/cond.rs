@@ -105,7 +105,7 @@ impl Gen<'_, '_> {
         match *self.l.tpd.tree(t) {
             Tree::Block { stats, expr } => {
                 for s in self.l.tpd.items(stats).to_vec() {
-                    self.stat(b, s)?;
+                    self.block_stat(b, s)?;
                 }
                 return self.cond(b, expr, success, failure, fall);
             }
