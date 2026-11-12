@@ -110,6 +110,11 @@ fn traits_run_on_the_jvm() {
 }
 
 #[test]
+fn inline_vals_run_on_the_jvm() {
+    runs_on_the_jvm("inlinevals", "Inlinevals");
+}
+
+#[test]
 fn closures_run_on_the_jvm() {
     runs_on_the_jvm("closures", "Closures");
 }
