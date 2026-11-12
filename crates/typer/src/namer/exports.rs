@@ -183,6 +183,7 @@ impl Typer<'_> {
                 self.unsupported_at(span, "export forwarder of a context function result");
             }
         }
+        self.forward_annotations(sym, m);
         e.out.push(Forwarder { sym, target: m, span });
         self.add_default_forwarders(e, m, alias, span);
     }

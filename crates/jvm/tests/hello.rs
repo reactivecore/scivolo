@@ -134,6 +134,11 @@ fn jdkstatics_run_on_the_jvm() {
 }
 
 #[test]
+fn jdk_mixin_forwarders_run_on_the_jvm() {
+    runs_on_the_jvm("jdkmixins", "Jdkmixins");
+}
+
+#[test]
 fn attributes_run_on_the_jvm() {
     runs_on_the_jvm("attributes", "Attributes");
 }
@@ -210,13 +215,15 @@ fn a_definition_the_tasty_pickler_lacks_is_refused() {
 }
 
 #[test]
-fn a_javalib_value_the_jdk_lacks_is_refused() {
+fn a_javalib_member_the_jdk_lacks_is_not_found() {
     if Command::new("java").arg("-version").output().is_err() {
         eprintln!("no java on the PATH: skipped");
         return;
     }
     let code = "object R { def f = java.lang.ProcessBuilder.nullFile }";
-    refuses("refusedjdk", code, "ProcessBuilder.nullFile, a static member the JDK lacks");
+    refuses("refusedjdk", code, "member not found");
+    let code = "object R { def f(m: java.util.HashMap[String, String]) = m.usingEntry }";
+    refuses("refusedjdkhelper", code, "member not found");
 }
 
 #[test]

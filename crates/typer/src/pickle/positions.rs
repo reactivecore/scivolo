@@ -104,7 +104,10 @@ impl TreePickler<'_> {
                 false => self.tpd.children(t).iter().copied().collect(),
             };
             let children = annots.into_iter().chain(own).chain(hole_args).collect::<Vec<_>>();
-            todo.extend(children.into_iter().rev().map(|c| (c, current, library)));
+            for c in children.into_iter().rev() {
+                let read = self.tpd.read_from(c).map(|_| path_index(&mut paths, String::new()));
+                todo.push((c, current, read.or(library)));
+            }
         }
         while let Some((_, addr, span)) = synthetic.pop() {
             out.span(addr, source.tasty_span(span, false)?);

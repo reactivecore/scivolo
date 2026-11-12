@@ -62,6 +62,9 @@ pub struct TreePickler<'a> {
     /// The trees that are one tree in dotty's, by the tree pickled first: the class of a module
     /// val's `new` its type's.
     shared: FxHashMap<TNodeId, TNodeId>,
+    /// The trees pickled anew where pickled before: the calls of a parameter's annotation that
+    /// its field has too.
+    anew: FxHashSet<TNodeId>,
     /// The references to a self pickled as `C.this`, the class name after their tag.
     self_refs: FxHashSet<TNodeId>,
     /// The type tree of each parameter pickled.
@@ -139,6 +142,7 @@ fn pickle<'a>(
         defs: FxHashMap::default(),
         forward: FxHashMap::default(),
         shared: FxHashMap::default(),
+        anew: FxHashSet::default(),
         self_refs: FxHashSet::default(),
         param_tpts: FxHashMap::default(),
         file,

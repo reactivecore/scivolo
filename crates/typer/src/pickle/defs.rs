@@ -173,6 +173,7 @@ impl TreePickler<'_> {
         let flags = self.access_qualifier(sym, flags)?;
         self.flags(if term && !setter { flags.without(PARAMsetter) } else { flags }, term);
         for (class, annot) in classes.into_iter().zip(trees) {
+            self.param_annotation_anew(sym, annot);
             let class = type_ref(self.u, class);
             self.with_length(ANNOTATION, &mut |p| {
                 p.ty(class, false)?;

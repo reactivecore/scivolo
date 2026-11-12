@@ -143,7 +143,7 @@ pub fn member(
 /// The type of method `m` of signature `text`: polymorphic in its type parameters, a
 /// constructor in the class's instead, returning the class's type (dotty's
 /// `normalizeConstructorInfo`); a constructor with type parameters of its own is refused.
-fn method_type(u: &mut Universe, owners: &Owners, m: &MemberInfo, text: &str) -> Result<TypeId, String> {
+pub fn method_type(u: &mut Universe, owners: &Owners, m: &MemberInfo, text: &str) -> Result<TypeId, String> {
     let mut sig = Sig::new(text);
     let own = sig.type_params(u)?;
     let constructor = m.name == nme::CONSTRUCTOR;
