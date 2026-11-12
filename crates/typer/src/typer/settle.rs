@@ -46,7 +46,7 @@ impl Typer<'_> {
 
     /// The type of term tree `tree` simplified and its match types reduced, unless it is a
     /// method's or a match type that reduces using a type parameter `ctx` may narrow (dotty's
-    /// `simplify` of a typed tree).
+    /// `simplify` of a typed tree); a reduction that leaves a match type is not taken.
     fn simplify_tree_type(&mut self, tree: TNodeId, ctx: Ctx) {
         let is_type = match *self.tpd.tree(tree) {
             T::Ident { name } | T::Select { name, .. } => name.is_type,
@@ -66,8 +66,14 @@ impl Typer<'_> {
         }
 
         let t = self.with_match_alias_vars_defined(t);
-        let simplified = self.simplified_inferred(t);
-        let kept = if self.reduces_using_gadt(t, ctx) { t } else { simplified };
+        let reduced = self.simplified_inferred(t);
+        let kept = if self.reduces_using_gadt(t, ctx) {
+            t
+        } else if has_match_type(self.u, reduced) {
+            self.simplified(t)
+        } else {
+            reduced
+        };
         self.tpd.get_mut(tree).tpe = Some(kept);
     }
 
@@ -106,4 +112,14 @@ impl Typer<'_> {
         });
         params.into_iter().any(|s| self.gadt.is_symbol(self.u, s, ctx))
     }
+}
+
+/// Whether `t` contains a match type.
+fn has_match_type(u: &mut tasty::Universe, t: TypeId) -> bool {
+    let mut found = false;
+    u.map_type(t, &mut |u, part| {
+        found |= matches!(u.ty(part), Type::Match { .. });
+        None
+    });
+    found
 }
