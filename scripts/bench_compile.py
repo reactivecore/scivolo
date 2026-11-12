@@ -6,8 +6,8 @@ Usage: scripts/bench_compile.py CODEBASE [RUNS]
 CODEBASE is one of CODEBASES or `all`. All files of a codebase are compiled as one unit, with the
 same sources and classpath, by scivolo-jvm, scivolo-lower (Native), scalac on a fresh JVM (cold)
 and scalac WARM_RUNS times in one JVM (warm, scripts/ScalacWarm.java), each RUNS times, the tools
-alternating; scivolo compiles scalalib file by file, as `just jvm-lib-compile` does, its times
-summed. Prints and writes to tmp/bench-compile/CODEBASE.md, per tool: files refused, wall and
+alternating; scivolo compiles scalalib as two units, its files of source version `2.13` and
+the others, its times summed. Prints and writes to tmp/bench-compile/CODEBASE.md, per tool: files refused, wall and
 user+sys CPU seconds (min of the runs; warm: of the runs after WARMUP), peak RSS, and the ratios
 scalac / scivolo. The machine may be loaded: CPU time and minima are the numbers to read. A
 refused file is left out of the unit and the rest compiled again, so its codebase's scivolo times
@@ -84,7 +84,9 @@ def scalalib():
     java = sorted(str(f.relative_to(root)) for f in root.rglob("*.java"))
     scalac = ["-classpath", "", "-sourcepath", ".", *jvm_lib_oracle.LIBRARY_OPTIONS, *java]
     files = scala_files(root)
-    return Codebase(root, files, jvm_lib_compile.OPTIONS, scalac=scalac, units=[[f] for f in files])
+    scala2 = [f for f in files if "import scala.language.`2.13`" in (root / f).read_text()]
+    units = [scala2, [f for f in files if f not in scala2]]
+    return Codebase(root, files, jvm_lib_compile.OPTIONS, scalac=scalac, units=units)
 
 
 def javalib():

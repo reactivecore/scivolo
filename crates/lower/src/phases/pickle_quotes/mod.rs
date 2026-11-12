@@ -129,7 +129,8 @@ fn pickle(l: &mut Lower, t: TNodeId, q: Quoted, owner: SymbolId) -> Result<()> {
 /// The string literal of the TASTy of quote `root` at `span` with holes `holes`.
 fn pickled(l: &mut Lower, root: TNodeId, holes: &[QuoteHole], span: Span) -> Result<TNodeId> {
     let (base, file) = l.sources.files()[l.sources.index(span.in_own_source().start())];
-    let source = QuoteSource::of(file.tasty_path().to_owned(), file, base);
+    let mut source = QuoteSource::of(file.tasty_path().to_owned(), file, base);
+    source.others = l.sources.files().iter().filter(|&&(b, _)| b != base).map(|&(b, f)| (f, b)).collect();
     let bytes = pickle_positioned_quote((l.u, l.tpd, l.names), root, holes, &source)
         .or_else(|r| unsupported(span, format!("quotes with {r}")))?;
     strings::pickled(l, &bytes).or_else(|()| unsupported(span, "quotes whose TASTy takes several strings"))

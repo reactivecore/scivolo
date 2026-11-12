@@ -22,21 +22,36 @@ pub struct QuoteSource<'a> {
     /// The file the quote's spans are in, at its offset among the sources; without it, the spans
     /// are read from the quote's TASTy and count in its UTF-16 units already.
     pub file: Option<(&'a SourceFile, Offset)>,
+    /// The other source files of the quote's unit, each at its offset among the sources.
+    pub others: Vec<(&'a SourceFile, Offset)>,
 }
 
 impl<'a> QuoteSource<'a> {
     /// The source `file` at offset `base` among the sources, its path `path`.
     pub fn of(path: String, file: &'a SourceFile, base: Offset) -> QuoteSource<'a> {
-        QuoteSource { path, line_sizes: text_line_sizes(&file.text), file: Some((file, base)) }
+        let line_sizes = text_line_sizes(&file.text);
+        QuoteSource { path, line_sizes, file: Some((file, base)), others: Vec::new() }
     }
 
-    /// Offset `o` of a span in UTF-16 units of the source.
+    /// The path of the other file of the unit that `span` starts in, if it starts in one.
+    fn unit_file(&self, span: Span) -> Option<String> {
+        if !span.exists() || span.without_inlined_call().is_in_other_source() {
+            return None;
+        }
+        let start = span.without_inlined_call().in_own_source().start();
+        let (file, _) = self.others.iter().find(|&&(f, base)| within(f, base, start))?;
+        Some(file.tasty_path().to_owned())
+    }
+
+    /// Offset `o` of a span in UTF-16 units of the file of the unit it is in.
     fn units(&self, o: Offset, own: bool) -> Result<u32, Refusal> {
         if !own {
             return Ok(o);
         }
         let (file, base) = self.file.ok_or("a span of the quote's source without the source")?;
-        let text = o.checked_sub(base).and_then(|o| file.text.get(..o as usize));
+        let in_unit =
+            std::iter::once((file, base)).chain(self.others.iter().copied()).find(|&(f, b)| within(f, b, o));
+        let text = in_unit.and_then(|(file, base)| file.text.get(..(o - base) as usize));
         let text = text.ok_or("a quote with a span in another of the sources")?;
         Ok(if text.is_ascii() { text.len() as u32 } else { text.encode_utf16().count() as u32 })
     }
@@ -52,6 +67,19 @@ impl<'a> QuoteSource<'a> {
         let point = (!span.is_synthetic()).then(|| self.units(span.point(), own)).transpose()?;
         Ok(TastySpan { start: self.units(span.start(), own)?, end: self.units(span.end(), own)?, point })
     }
+}
+
+/// Whether offset `o` lies in `file` at offset `base`, its end included.
+fn within(file: &SourceFile, base: Offset, o: Offset) -> bool {
+    o >= base && o - base <= file.text.len() as Offset
+}
+
+/// The index of `path` in `paths`, pushed if missing.
+fn path_index(paths: &mut Vec<String>, path: String) -> usize {
+    paths.iter().position(|p| *p == path).unwrap_or_else(|| {
+        paths.push(path);
+        paths.len() - 1
+    })
 }
 
 impl TreePickler<'_> {
@@ -91,7 +119,10 @@ impl TreePickler<'_> {
             let other = span.exists() && span.without_inlined_call().is_in_other_source();
             let own = match other && self.file.is_some() {
                 true => library,
-                false => Some(0),
+                false => match source.unit_file(span) {
+                    Some(path) => Some(path_index(&mut paths, path)),
+                    None => Some(0),
+                },
             };
             let in_library = own.is_some_and(|i| i > 0);
             let key = self.tpd.copy_of(t).unwrap_or(t).index() as u32;
@@ -121,10 +152,7 @@ impl TreePickler<'_> {
             }
             let current = if span.exists() { own } else { current };
             let library = match self.inline_source(t) {
-                Some(path) => Some(paths.iter().position(|p| *p == path).unwrap_or_else(|| {
-                    paths.push(path);
-                    paths.len() - 1
-                })),
+                Some(path) => Some(path_index(&mut paths, path)),
                 None => library,
             };
             let hole_args = self.holes.get(&t).map(|(_, args)| args.clone()).unwrap_or_default();

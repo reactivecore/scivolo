@@ -62,17 +62,17 @@ impl Jdk {
     }
 }
 
-/// The JDK's directory: the `java.home` of `JAVA_HOME`'s `java`, else of the `java` on the
-/// `PATH` (a launcher stub such as macOS's `/usr/bin/java` reports the JDK it starts), else the
-/// directory above the `java` binary, links resolved.
+/// The JDK's directory, the `java.home` of `JAVA_HOME`'s `java`, else of the `java` on the
+/// `PATH`: the directory above the `java` binary, links resolved, if it holds the JDK's classes,
+/// else the `java.home` that `java` reports (a launcher stub such as macOS's `/usr/bin/java`).
 fn home() -> Option<PathBuf> {
     let java_home = std::env::var_os("JAVA_HOME").map(|h| PathBuf::from(h).join("bin"));
     let path = std::env::var_os("PATH").unwrap_or_default();
     let mut dirs = java_home.into_iter().chain(std::env::split_paths(&path));
     let java = dirs.find_map(|d| Some(d.join("java")).filter(|j| j.is_file()))?;
-    let beside = || Some(java.canonicalize().ok()?.parent()?.parent()?.to_owned());
     let has_classes = |h: &PathBuf| ["lib/modules", "lib/ct.sym"].iter().any(|f| h.join(f).is_file());
-    reported_home(&java).or_else(beside).filter(has_classes)
+    let beside = java.canonicalize().ok().and_then(|j| Some(j.parent()?.parent()?.to_owned()));
+    beside.filter(has_classes).or_else(|| reported_home(&java).filter(has_classes))
 }
 
 /// The `java.home` property `java` reports.
