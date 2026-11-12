@@ -123,10 +123,12 @@ pub fn lift(l: &mut Lower, root: TNodeId, td: TNodeId, class: SymbolId) -> Optio
         })
         .collect();
     let mut around = FxHashSet::default();
-    let mut at = trees.iter().position(|&t| t == td);
-    while let Some(i) = at {
-        around.insert(trees[i]);
-        at = parents[i];
+    for i in (0..trees.len()).filter(|&i| trees[i] == td) {
+        let mut at = Some(i);
+        while let Some(i) = at {
+            around.insert(trees[i]);
+            at = parents[i];
+        }
     }
     let enclosing = package_defs.iter().rfind(|&t| around.contains(t));
     let target = enclosing.or(package_defs.first()).copied();
