@@ -62,7 +62,7 @@ pub fn transform(l: &mut Lower, td: TNodeId) {
 
 /// Makes `{ qual; g }(args)` `{ qual; g(args) }` for a block `transform` made, or one in
 /// `lifted`, which then holds `t` (dotty's `SelectStatic.normalize`).
-fn normalize(l: &mut Lower, t: TNodeId, lifted: &mut FxHashSet<TNodeId>) {
+pub fn normalize(l: &mut Lower, t: TNodeId, lifted: &mut FxHashSet<TNodeId>) {
     let (Tree::Apply { fun, args } | Tree::TypeApply { fun, args }) = *l.tpd.tree(t) else { return };
     let Tree::Block { stats, expr } = *l.tpd.tree(fun) else { return };
     if !l.static_selects.contains(&fun) && !lifted.contains(&fun) {
