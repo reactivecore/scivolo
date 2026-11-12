@@ -248,16 +248,16 @@ compiled by Scala Native (`dotty-report`) are counted apart; refusals are groupe
 the typer or the lowering gives. The programs `tests/programs/lowered.txt` lists run as
 `scivolo FILE.scala` with `SCIVOLO_FRONTEND=strict` (`crates/scivolo/tests/lowered.rs`).
 
-Results (2026-11-11):
+Results (2026-11-12):
 
 | Outcome | Tests |
 |---|---:|
-| passed | 1496 |
+| passed | 1497 |
 | wrong output | 0 |
 | crashed | 0 |
 | timeout | 0 |
-| lowering refused | 0 |
-| typer refused | 10 |
+| lowering refused | 1 |
+| typer refused | 8 |
 | parser refused | 0 |
 | macro refused | 0 |
 | frontend crashed | 0 |
@@ -265,9 +265,9 @@ Results (2026-11-11):
 | skipped | 173 |
 | **total** | **1711** |
 
-- **Typer refused:** adaptation (2); one each for a local type escaping through a type
-  variable, source versions other than 3.7 to 3.9, a context function result of an extension
-  method, a context bound of a type without parameters, implicit search with local implicits of
+- **Lowering refused:** `Parser`, a boxing, unboxing or primitive conversion.
+- **Typer refused:** one each for adaptation, source versions other than 3.7 to 3.9, a context
+  function result of an extension method, a context bound of a type without parameters, implicit search with local implicits of
   an inline body, `Printer.TypeReprStructure` of a type the frontend does not print, the
   unresolved name `AnyNamedTuple`, `typeChecks` of a non-constant string. `Runtime.totalMemory`,
   `maxMemory` and `freeMemory`, which Scala Native's javalib lacks and the overlay adds (ADR
@@ -307,11 +307,11 @@ for a macro call also for Scala Native, whose NIR the macro runs from in the VM 
 Skipped as in the VM's report, but for APIs Scala Native's javalib lacks. Failures are grouped by
 the refusal or the first exception line.
 
-Results (tests/run 2026-11-12, run-macros 2026-11-09):
+Results (2026-11-12):
 
 | Outcome | tests/run | tests/run-macros |
 |---|---:|---:|
-| passed | 1597 | 307 |
+| passed | 1603 | 307 |
 | wrong output | 0 | 0 |
 | verify error | 0 | 0 |
 | linkage error | 0 | 0 |
@@ -320,12 +320,12 @@ Results (tests/run 2026-11-12, run-macros 2026-11-09):
 | frontend crashed | 0 | 0 |
 | jvm refused | 0 | 0 |
 | lowering refused | 0 | 0 |
-| typer refused | 22 | 7 |
+| typer refused | 16 | 7 |
 | skipped | 91 | 7 |
 | **total** | **1711** | **321** |
 
-- **Typer refused (run):** TASTy pickling (2), members not found (2), default getters (2),
-  `-Xmixin-force-forwarders:false` (2), `Printer.TypeReprStructure` (`i22649`), the rest singles.
+- **Typer refused (run):** members not found (2), default getters (2), TASTy pickling (`lst`),
+  `Printer.TypeReprStructure` (`i22649`), the rest singles.
 - **Typer refused (run-macros):** `-Xread-docs` (2), a concrete class with an unimplemented member,
   `SuppressWarnings`, adaptation, `Symbol.newClass` with a self type, a source version.
 - **Crash:** `lambda-serialization-gc` casts the application class loader to `URLClassLoader`,
@@ -371,16 +371,14 @@ the optimizer (1883 of its 3134 classes dotty also writes differ in code from do
 
 | Outcome | Files | Classes |
 |---|---:|---:|
-| same | 497 | 2832 |
-| attributes differ | 8 | 31 |
-| code differs | 140 | 344 |
-| refused | 4 | |
+| same | 529 | 2895 |
+| attributes differ | 12 | 27 |
+| code differs | 97 | 179 |
+| refused | 11 | |
 
-- **Refused:** TASTy pickling (3: a tree outside the subset 2, a type annotation without a
-  constructor of no parameters 1); a static member of a qualifier with effects (1).
-- **Code differs**, by first differing line: `mkOrderingOps` and `mkNumericOps` without the
-  generic signature of their result (`Ordering<Object>.OrderingOps`, 35), branch offsets after
-  dotty's dead second `athrow` following an inlined `.nn` (`if_icmpne`, `ifeq`, `ifnonnull`,
+- **Refused:** TASTy pickling of an annotated type of several annotation trees (11).
+- **Code differs**, by first differing line: branch offsets after dotty's dead second `athrow`
+  following an inlined `.nn` (`if_icmpne`, `ifeq`, `ifnonnull`,
   `goto`; the library oracle inlines from source, dotty compiling against the jar writes ours).
 - **Attributes differ:** mostly line numbers.
 
@@ -411,8 +409,8 @@ not exist yet while a class of the same run is typed. `ToExpr$ArrayOf*ToExpr$` (
 `ToExpr$BigIntToExpr$` and `ToExpr$MapToExpr` differ in quote type sharing (case 1, as in
 **Quote type sharing** above, types shared across the files of the whole-module build);
 scala-cli's build of `ToExpr.scala` alone has the quotes of all 106 classes as ours, up to
-positions. Open: `FromExpr$MapFromExpr`'s quotes differ beyond positions, 31 other `FromExpr`
-classes in the positions of their quotes; `CNode` calls `RandomGenerator.nextInt(int, int)`
+positions. Open: `FromExpr$MapFromExpr`'s quotes differ beyond positions; `CNode` calls
+`RandomGenerator.nextInt(int, int)`
 where Scala Native, compiling against the JDK, calls `ThreadLocalRandom`'s override, which
 javalib lacks.
 
