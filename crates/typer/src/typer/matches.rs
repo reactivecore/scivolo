@@ -165,7 +165,8 @@ impl Typer<'_> {
         };
         let bound: Vec<SymbolId> = types.iter().map(|&(t, _)| t).collect();
         let body_type = self.tpd.tpe(body);
-        if self.types().any_var_bounds_refer_to(body_type, &bound) {
+        let pt_defined = matches!(pt, Pt::Type(p) if self.is_fully_defined(p));
+        if !pt_defined && self.types().any_var_bounds_refer_to(body_type, &bound) {
             return self.unsupported(id, "case type inferred from a type its pattern binds");
         }
         let span = self.ast.span(id);
