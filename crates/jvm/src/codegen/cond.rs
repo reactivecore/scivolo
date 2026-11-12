@@ -68,7 +68,11 @@ impl Gen<'_, '_> {
                     if mixed || kind == 'L' && !matches!(test, Test::Eq | Test::Ne) {
                         return unsupported(self.l.tpd.span(t), "an ordering of references");
                     }
-                    if kind == 'L' && matches!(op, nme::EQ | nme::NE) {
+                    let universal = matches!(op, nme::EQ | nme::NE);
+                    if kind == 'L'
+                        && universal
+                        && !matches!(lower::erased_type(self.l, receiver), Erased::Array(_))
+                    {
                         let labels = match test {
                             Test::Eq => [success, failure, fall],
                             _ => [failure, success, fall],
@@ -83,6 +87,7 @@ impl Gen<'_, '_> {
                         _ => None,
                     };
                     if kind == 'L'
+                        && !universal
                         && let Some(x) = non_null
                     {
                         self.expr(b, x)?;

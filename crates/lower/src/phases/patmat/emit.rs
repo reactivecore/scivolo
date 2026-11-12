@@ -93,7 +93,11 @@ impl Translator<'_, '_> {
             Test::Equal(tree) => self.l.equal(tree, scrutinee),
             Test::Type(tpt) => self.type_test(scrutinee, tpt),
             Test::NonNull => {
-                let null = self.l.null_literal(Span::NONE);
+                let mut null = self.l.null_literal(Span::NONE);
+                if self.l.explicit_nulls {
+                    let object = self.l.u.class_ref(tasty::defn::OBJECT);
+                    null = self.cast(null, object);
+                }
                 self.l.call(scrutinee, self.l.defs.ne, &[null])
             }
             Test::NonEmpty => self.non_empty(scrutinee),
