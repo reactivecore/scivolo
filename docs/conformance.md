@@ -248,16 +248,16 @@ compiled by Scala Native (`dotty-report`) are counted apart; refusals are groupe
 the typer or the lowering gives. The programs `tests/programs/lowered.txt` lists run as
 `scivolo FILE.scala` with `SCIVOLO_FRONTEND=strict` (`crates/scivolo/tests/lowered.rs`).
 
-Results (2026-11-12):
+Results (2026-11-11):
 
 | Outcome | Tests |
 |---|---:|
-| passed | 1497 |
+| passed | 1496 |
 | wrong output | 0 |
 | crashed | 0 |
 | timeout | 0 |
 | lowering refused | 0 |
-| typer refused | 9 |
+| typer refused | 10 |
 | parser refused | 0 |
 | macro refused | 0 |
 | frontend crashed | 0 |
@@ -265,9 +265,9 @@ Results (2026-11-12):
 | skipped | 173 |
 | **total** | **1711** |
 
-- **Typer refused:** one each for adaptation, a local type escaping through a type variable,
-  source versions other than 3.7 to 3.9, a context function result of an extension method, a
-  context bound of a type without parameters, implicit search with local implicits of
+- **Typer refused:** adaptation (2); one each for a local type escaping through a type
+  variable, source versions other than 3.7 to 3.9, a context function result of an extension
+  method, a context bound of a type without parameters, implicit search with local implicits of
   an inline body, `Printer.TypeReprStructure` of a type the frontend does not print, the
   unresolved name `AnyNamedTuple`, `typeChecks` of a non-constant string. `Runtime.totalMemory`,
   `maxMemory` and `freeMemory`, which Scala Native's javalib lacks and the overlay adds (ADR
