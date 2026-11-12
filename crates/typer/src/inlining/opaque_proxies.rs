@@ -58,7 +58,7 @@ impl Expansion<'_, '_> {
             Some(p) => p,
             None => {
                 let refined = self.i.opaques_exposed(module_ref, module);
-                let name = self.i.fresh.next(self.i.names, "$proxy");
+                let name = self.i.fresh_name("$proxy");
                 let text = self.i.names.text(name).to_owned();
                 let opaque = self.local(text, Flags::default().with(SYNTHETIC), refined);
                 let module_tree = self.i.singleton(module_ref, point).ok_or(self.err("object reference"))?;

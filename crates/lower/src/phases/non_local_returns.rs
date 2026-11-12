@@ -76,8 +76,7 @@ fn nlrc(l: &mut Lower) -> Result<SymbolId> {
 
 /// The key `nonLocalReturnKeyN` of the non-local returns from `method`.
 fn new_key(l: &mut Lower, method: SymbolId) -> SymbolId {
-    let name = l.fresh.next(l.names, "nonLocalReturnKey");
-    let name = l.names.text(name).to_owned();
+    let name = l.fresh_name(method, "nonLocalReturnKey");
     let key = l.u.define(symbol(&name, Kind::Val, method, Flags::default().with(SYNTHETIC)));
     let object = type_ref(l.u, l.u.defn().object);
     l.u.set_info(key, object);

@@ -121,42 +121,49 @@ impl Names {
     }
 }
 
-/// The counters of a compilation unit's fresh names, one per prefix (dotty's `FreshNameCreator`),
-/// and the `$N$` names made.
+/// The counters of the fresh names of each file of a unit, one per prefix (dotty's
+/// `FreshNameCreator` of a compilation unit), and the `$N$` names made.
 #[derive(Default)]
 pub struct FreshNames {
-    counts: rustc_hash::FxHashMap<String, u32>,
+    files: Vec<rustc_hash::FxHashMap<String, u32>>,
+    /// The counter of the `$N$` names of all files, renumbered per file after typing.
+    unique_count: u32,
     pub uniques: crate::desugar::uniques::Uniques,
 }
 
 impl FreshNames {
-    /// `prefix` followed by the next number for it: `_$1`, `evidence$2`.
+    /// Makes `prefix` followed by the next number for it in the unit's first file: `_$1`.
     pub fn next(&mut self, names: &mut Names, prefix: &str) -> Name {
-        let n = self.count(prefix);
+        self.next_in(0, names, prefix)
+    }
+
+    /// Makes `prefix` followed by the next number for it in the unit's `file`th file.
+    pub fn next_in(&mut self, file: usize, names: &mut Names, prefix: &str) -> Name {
+        if self.files.len() <= file {
+            self.files.resize_with(file + 1, Default::default);
+        }
+        let n = self.files[file].entry(prefix.to_owned()).or_insert(0);
+        *n += 1;
         names.intern(&format!("{prefix}{n}"))
     }
 
-    /// The next `$N$` (dotty's `UniqueName`).
+    /// Makes the next `$N$` (dotty's `UniqueName`).
     pub fn unique(&mut self, names: &mut Names) -> Name {
-        let n = self.count("$");
-        let name = names.intern(&format!("${n}$"));
+        self.unique_count += 1;
+        let name = names.intern(&format!("${}$", self.unique_count));
         self.uniques.push(name);
         name
     }
 
-    /// Raises each counter to at least that of `other`; takes its `$N$` names.
-    pub fn include(&mut self, other: &FreshNames) {
-        for (prefix, &n) in &other.counts {
-            let mine = self.counts.entry(prefix.clone()).or_insert(0);
-            *mine = (*mine).max(n);
+    /// Takes the counters of `other`, a single file's, for the unit's `file`th file; raises the
+    /// `$N$` counter to at least `other`'s and takes its `$N$` names.
+    pub fn include(&mut self, file: usize, other: &FreshNames) {
+        if self.files.len() <= file {
+            self.files.resize_with(file + 1, Default::default);
         }
+        self.files[file] = other.files.first().cloned().unwrap_or_default();
+        self.unique_count = self.unique_count.max(other.unique_count);
         self.uniques.include(&other.uniques);
-    }
-
-    fn count(&mut self, prefix: &str) -> u32 {
-        let n = self.counts.entry(prefix.to_owned()).or_insert(0);
-        *n += 1;
-        *n
     }
 }
 

@@ -60,7 +60,7 @@ fn name_ranked(l: &mut Lower, mut ranked: Vec<((usize, usize), SymbolId)>) {
     ranked.sort_by_key(|&(rank, _)| rank);
     for (_, p) in ranked {
         let base = l.u.symbol(p).name.clone();
-        let name = fresh(l, &base);
+        let name = fresh(l, p, &base);
         l.u.rename(p, &name);
     }
 }

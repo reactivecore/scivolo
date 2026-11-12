@@ -55,6 +55,8 @@ pub trait Host {
     fn warning(&mut self, at: Span, msg: String);
     /// Whether an error has been reported.
     fn has_errors(&self) -> bool;
+    /// Determines the index of the file of the unit that `at` is in.
+    fn file_of(&self, at: Span) -> usize;
     /// How many diagnostics and errors of expansions have been reported (for `typeChecks`).
     fn error_count(&self) -> (usize, usize);
     /// The errors reported since `mark`, which it takes back.

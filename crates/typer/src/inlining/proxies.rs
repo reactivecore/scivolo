@@ -64,7 +64,7 @@ impl Expansion<'_, '_> {
             flags = flags.with(INLINE);
         }
         let base = i.u.symbol(p).name.clone();
-        let name = i.fresh.next(i.names, &format!("{base}$proxy"));
+        let name = i.fresh_name(&format!("{base}$proxy"));
         let text = i.names.text(name).to_owned();
         let kind = if by_name { Kind::Def } else { Kind::Val };
         let s = i.u.define(Symbol {

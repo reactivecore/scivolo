@@ -175,12 +175,12 @@ pub fn define_members(l: &mut Lower, class: SymbolId, accessor: SymbolId, rhs: T
 pub fn name_members(l: &mut Lower, accessor: SymbolId) {
     let name = l.u.symbol(accessor).name.clone();
     let members = l.lazy_members[&accessor];
-    let field_name = fresh(l, &name_kinds::lazy_local(&name));
+    let field_name = l.fresh_name(accessor, &name_kinds::lazy_local(&name));
     l.u.rename(members.field, &field_name);
     if is_eager_module(l, accessor) || thread_unsafe::is_thread_unsafe(l, accessor) {
         return;
     }
-    let init_name = fresh(l, &name_kinds::lazy_local_init(&name));
+    let init_name = l.fresh_name(accessor, &name_kinds::lazy_local_init(&name));
     l.u.rename(members.init, &init_name);
 }
 
@@ -253,10 +253,4 @@ pub fn null_out(l: &mut Lower, lazy: &Lazy) -> Vec<TNodeId> {
         out.push(l.positioned(t));
     }
     out
-}
-
-/// `base` followed by the number of names made from it in the unit.
-pub fn fresh(l: &mut Lower, base: &str) -> String {
-    let name = l.fresh.next(l.names, base);
-    l.names.text(name).to_owned()
 }

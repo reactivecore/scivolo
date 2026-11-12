@@ -8,9 +8,9 @@ use crate::tpd::TNodeId;
 use crate::{Fallback, Typed, Units};
 use syntax::ast::Span;
 
-/// Adds the synthetic members of the classes of typed unit `root` (dotty's `SyntheticMembers` as
-/// PostTyper runs it), or why it cannot.
-pub type SyntheticMembers = fn(Lent<'_>, TNodeId) -> Result<(), (Span, String)>;
+/// Adds the synthetic members of the classes of typed unit `root`, its files starting at the
+/// offsets given but the first (dotty's `SyntheticMembers` as PostTyper runs it), or why it cannot.
+pub type SyntheticMembers = fn(Lent<'_>, TNodeId, &[syntax::source::Offset]) -> Result<(), (Span, String)>;
 
 /// Wraps typed source files `files` in a package clause of the root package.
 pub fn root_package(typer: &mut Typer, files: &[TNodeId]) -> TNodeId {
@@ -45,7 +45,8 @@ impl Units {
         }
         if !self.typer_only && typer.unsupported.is_none() && !typer.diags.has_errors() {
             let lent = (&mut *typer.u, &mut typer.tpd, &mut *typer.names, &mut *typer.fresh);
-            if let Err((at, what)) = self.synthetic_members.map_or(Ok(()), |add| add(lent, typed)) {
+            let starts = &typer.file_starts;
+            if let Err((at, what)) = self.synthetic_members.map_or(Ok(()), |add| add(lent, typed, starts)) {
                 typer.unsupported_at(at, &what);
             } else if let Err((at, what)) = self.pickle_files(&mut typer, files, &mut pickles) {
                 typer.unsupported_at(at, &format!("pickling {what} into TASTy"));

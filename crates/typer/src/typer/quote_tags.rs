@@ -69,7 +69,7 @@ impl Typer<'_> {
         for &b in bindings {
             let Some(t) = self.tpd.sym(b) else { continue };
             let name = format!("{}$given", self.u.symbol(t).name);
-            let name = self.fresh.next(self.names, &name);
+            let name = self.fresh_name(self.tpd.span(b), &name);
             let name = self.names.text(name).to_owned();
             let given = self.syms.define(self.u, &name, Kind::Val, ctx.owner, GIVEN.or(CASE));
             let arg = self.u.intern_type(Type::Sym(None, t));

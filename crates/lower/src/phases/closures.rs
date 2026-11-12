@@ -64,7 +64,7 @@ pub fn plan(
     };
     let adapted = (specialized_interface.is_none() && needed != (false, false)).then(|| {
         let (types, result) = adapted_types(l, sam, needed, params, result);
-        let name = fresh(l, &name_kinds::adapted_closure(&name_kinds::anon_fun(prefix)));
+        let name = fresh(l, f.sym, &name_kinds::adapted_closure(&name_kinds::anon_fun(prefix)));
         let adapted = define(l, home(l, class, f), &name, &f.captured, &types, result, f.instance());
         l.bridges.insert(adapted.sym);
         if let Some(owner) = l.u.symbol(f.sym).owner {

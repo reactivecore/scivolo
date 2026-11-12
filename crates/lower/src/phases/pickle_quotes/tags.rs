@@ -36,7 +36,7 @@ pub fn encode(
         let Some(evidence) = l.u.sym_of(tag) else { unreachable!("a tag") };
         refs.push(tag_ref(l, tag, at).or_else(|()| unsupported(span, TAG_PATH))?);
         let tpe = tags.iter().find(|(_, t)| *t == tag).map(|&(s, _)| s).expect("a tag's type");
-        let name = fresh(l, &l.u.symbol(evidence).name.clone());
+        let name = fresh(l, owner, &l.u.symbol(evidence).name.clone());
         let local = l.u.define(symbol(&name, Kind::Type, owner, Flags::default().with(SYNTHETIC)));
         let underlying = l.u.intern_name(UNDERLYING);
         let underlying = l.u.intern_type(Type::TypeRef(tag, underlying));

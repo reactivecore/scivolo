@@ -19,7 +19,7 @@ impl Lifter {
         }
         let name = match prefix {
             "" => t.fresh.unique(t.names),
-            p => t.fresh.next(t.names, &format!("{p}$")),
+            p => t.fresh_name(t.tpd.span(expr), &format!("{p}$")),
         };
         let text = t.text(name).to_owned();
         let tpe = t.tpd.tpe(expr);

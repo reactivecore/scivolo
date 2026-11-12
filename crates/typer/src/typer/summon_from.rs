@@ -69,7 +69,7 @@ impl Typer<'_> {
                 if self.text(name.name) != nme::WILDCARD {
                     return Some(pat);
                 }
-                let name = TName { name: self.fresh.next(self.names, "_$"), is_type: false };
+                let name = TName { name: self.fresh_name(self.ast.span(pat), "_$"), is_type: false };
                 let mods = self.ast.mods(Modifiers::default());
                 let bind = self.ast.node(Tree::Bind { name, body: pat, mods });
                 self.ast.with_span(bind, self.ast.span(pat).to_synthetic());

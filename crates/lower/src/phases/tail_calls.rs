@@ -4,7 +4,6 @@
 //! assignment of its arguments to variables for the receiver and the parameters, and a jump.
 
 use super::lazy_trees::{assign, local, return_, val_def};
-use super::tailrec::fresh;
 use super::walk::children;
 use crate::Lower;
 use names::{name_kinds, nme};
@@ -154,7 +153,7 @@ impl TailCalls {
             _ => {
                 let (mut defs, mut assigns) = (Vec::new(), Vec::new());
                 for (var, rhs) in pairs {
-                    let name = fresh(l, &name_kinds::tail_temp(&l.u.symbol(var).name));
+                    let name = l.fresh_name(var, &name_kinds::tail_temp(&l.u.symbol(var).name));
                     let info = l.u.info(var);
                     let temp = local(l, self.method, &name, info, false);
                     defs.push(val_def(l, temp, rhs));

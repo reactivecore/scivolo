@@ -5,7 +5,6 @@
 
 use super::casts::class_named;
 use super::lazy_trees::{call, dup, if_, method, method_def, method_symbol, object, val_def};
-use super::lazy_vals::fresh;
 use super::walk::{children, subtrees};
 use crate::definitions::{symbol, type_ref};
 use crate::symbols::has;
@@ -118,7 +117,7 @@ fn expand(l: &mut Lower, stat: TNodeId) -> Result<Expanded> {
     let receiver = dup(l, holder_ref);
     let initialized = holder_call(l, &holder, receiver, "initialized", &[], span)?;
     l.tpd.get_mut(initialized).tpe = Some(l.u.class_ref(tasty::defn::BOOLEAN));
-    let init_name = fresh(l, &name_kinds::lazy_local_init(&name));
+    let init_name = l.fresh_name(owner, &name_kinds::lazy_local_init(&name));
     let init = method_symbol(l, &init_name, owner, info);
     for s in subtrees(l.tpd, rhs) {
         if let Some(sym) = l.tpd.sym(s).filter(|&sym| l.u.symbol(sym).owner == Some(value)) {
@@ -172,7 +171,7 @@ fn holder(l: &mut Lower, owner: SymbolId, name: &str, info: TypeId, span: Span) 
     let Some(class) = class_named(l, &class_name) else {
         return unsupported(span, format!("{class_name} missing"));
     };
-    let holder_name = fresh(l, &name_kinds::lazy_local(name));
+    let holder_name = l.fresh_name(owner, &name_kinds::lazy_local(name));
     let sym = l.u.define(symbol(&holder_name, Kind::Val, owner, Flags::default().with(SYNTHETIC)));
     let tpe = type_ref(l.u, class);
     l.u.set_info(sym, tpe);

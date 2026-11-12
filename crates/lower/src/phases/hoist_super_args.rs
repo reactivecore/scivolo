@@ -149,7 +149,7 @@ fn hoist(l: &mut Lower, h: &mut Hoister, arg: TNodeId, lifted: &[SymbolId], span
     }
     let mut originals = params(l, constr);
     originals.extend(lifted);
-    let name = fresh(l, &name_kinds::super_arg_base(&l.u.symbol(class).name));
+    let name = fresh(l, class, &name_kinds::super_arg_base(&l.u.symbol(class).name));
     let flags = Flags::default().with(PRIVATE).with(SYNTHETIC);
     let (flags, owner) = match h.nested {
         true => (flags, l.u.symbol(class).owner.expect("a nested class's owner")),
