@@ -30,6 +30,7 @@ impl Typer<'_> {
             _ => arg,
         };
         let annotated = self.u.intern_type(Type::Annotated(arg_tpe, annot_tpe));
+        self.tpd.set_type_annotation(annotated, annot);
         let span = self.ast.span(id);
         let tpt = self.type_tree(annotated, self.tpd.span(expr).end_pos(), false);
         self.tpd.node(T::Typed { expr, tpt }, span, Some(annotated), None)

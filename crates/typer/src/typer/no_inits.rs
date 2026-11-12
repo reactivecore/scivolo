@@ -45,13 +45,14 @@ impl Typer<'_> {
     }
 
     /// Whether class `c` initializes nothing: a script class by its definition, a library class
-    /// by its TASTy, a `java.*` or `javax.*` class other than `Object`, not an interface, never.
+    /// by its TASTy, a `java.*` or `javax.*` class other than `Object` or a class of a class file,
+    /// not an interface, never.
     pub fn is_no_inits(&self, c: SymbolId) -> bool {
         if let Some(&no_inits) = self.syms.no_inits.get(&c) {
             return no_inits;
         }
         let name = self.u.full_name(c);
-        let java = (name.starts_with("java.") || name.starts_with("javax."))
+        let java = (name.starts_with("java.") || name.starts_with("javax.") || self.u.is_from_classfile(c))
             && name != "java.lang.Object"
             && !self.u.symbol(c).flags.has(tasty::tags::TRAIT);
         !java && self.u.no_inits(c)

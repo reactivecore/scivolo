@@ -6,7 +6,7 @@ use super::class::{Owners, member};
 use super::signatures::{Sig, bounded_by_object};
 use crate::tags::OBJECT;
 use crate::types::Type;
-use classfile::{ACC_STATIC, ClassInfo, MemberInfo};
+use classfile::{ACC_PROTECTED, ACC_PUBLIC, ACC_STATIC, ClassInfo, MemberInfo};
 use rustc_hash::FxHashSet;
 use std::rc::Rc;
 
@@ -14,7 +14,8 @@ impl Universe {
     /// Enters into class `c`, a `java.*` or `javax.*` class of the library other than `Object`,
     /// the members of its JDK class file named as no library member of `c` is, its base classes'
     /// first, once per class: an object's class gets the static members, a class the instance
-    /// ones. A name of which a member is refused is not entered.
+    /// ones; package-private ones are left out. A name of which a member is refused is not
+    /// entered.
     pub fn enter_jdk_members(&mut self, c: SymbolId) {
         if !self.jdk_member_classes.insert(c) {
             return;
@@ -46,8 +47,11 @@ impl Universe {
         let statics = self.symbol(c).flags.has(OBJECT);
         let Some(owners) = library_owners(self, c, statics, info) else { return };
         let members = info.fields.iter().map(|f| (f, false)).chain(info.methods.iter().map(|m| (m, true)));
+        let visible = |m: &MemberInfo| m.access & (ACC_PUBLIC | ACC_PROTECTED) != 0;
         let wanted: Vec<_> = members
-            .filter(|(m, _)| (m.access & ACC_STATIC != 0) == statics && keep(m) && !self.has_jdk_member(c, m))
+            .filter(|(m, _)| {
+                visible(m) && (m.access & ACC_STATIC != 0) == statics && keep(m) && !self.has_jdk_member(c, m)
+            })
             .collect();
         let mut entered: Vec<SymbolId> = Vec::new();
         let mut refused: FxHashSet<&str> = FxHashSet::default();
@@ -99,7 +103,7 @@ pub fn library_owners<'a>(
     statics: bool,
     info: &'a ClassInfo,
 ) -> Option<Owners<'a>> {
-    let mut owners = Owners { class: c, statics: c, params: Vec::new(), vars: Vec::new() };
+    let mut owners = Owners { class: c, statics: c, params: Vec::new(), vars: Vec::new(), outer: 0 };
     let Some(signature) = info.signature.as_deref().filter(|_| !statics) else { return Some(owners) };
     let params = Sig::new(signature).type_params(u).ok()?;
     let syms = u.type_params(c);

@@ -94,6 +94,8 @@ pub struct TreePickler<'a> {
     /// `Apply` and `New`, and the type tree.
     type_tree: Option<TNodeId>,
     annots: Vec<(u32, u32, TNodeId)>,
+    /// The annotation trees pickled in types, in order (dotty's `typeAnnots`).
+    type_annots: Vec<TNodeId>,
 }
 
 /// The TASTy of quote `root`, `holes` its term holes, without positions (dotty's `pickleQuote`).
@@ -157,6 +159,7 @@ fn pickle<'a>(
         accessors: Vec::new(),
         type_tree: None,
         annots: Vec::new(),
+        type_annots: Vec::new(),
     };
     p.tree(root)?;
     if !p.forward.is_empty() {

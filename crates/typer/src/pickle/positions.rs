@@ -32,7 +32,8 @@ impl TreePickler<'_> {
         let mut paths = vec![source.path.clone()];
         // Each tree with the index in `paths` of its parent's source, if any, and of the source
         // of the inline expansion it is in, if any.
-        let mut todo = vec![(root, None, None)];
+        let mut todo: Vec<_> = self.type_annots.iter().rev().map(|&a| (a, None, None)).collect();
+        todo.push((root, None, None));
         let mut nodes: Vec<usize> =
             self.buf.trees().filter(|&(id, _)| id < SYNTHETIC).map(|(_, a)| a.0).collect();
         nodes.sort_unstable();

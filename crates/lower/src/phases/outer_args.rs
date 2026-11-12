@@ -32,7 +32,7 @@ pub fn pass_outer(l: &mut Lower, td: TNodeId) -> Result<()> {
         let tpe = l.tpd.tpe(new);
         let Some(created) = l.u.class_symbol(tpe) else { continue };
         let span = l.tpd.span(t);
-        let library = l.u.symbol(created).tree.is_some();
+        let library = l.u.symbol(created).tree.is_some() || l.u.is_from_classfile(created);
         match enclosing_instance(l, created) {
             Some(outer) if library => match l.tpd.sym(ctor) {
                 Some(c) if !has(l.u, created, PRIVATE) => declare_library(l, created, c, outer),
