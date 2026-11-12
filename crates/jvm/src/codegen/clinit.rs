@@ -29,8 +29,8 @@ pub struct StaticInit {
     /// The class's constructor, whose line the code starts at unless an object's constructor has
     /// statements, which start it at the first one's.
     pub constr: Option<TNodeId>,
-    /// The class definition, at whose name the code starts if its constructor starts with it, as
-    /// that of an empty class body does.
+    /// The definition of an object written in the source, at whose name the code starts if its
+    /// constructor starts with it, as that of an empty body does.
     pub class_def: Option<TNodeId>,
 }
 
