@@ -65,8 +65,8 @@ impl Typer<'_> {
         out
     }
 
-    /// Whether `s` is a member of `Any`, of a `java.*` or `javax.*` class, or of a class of the
-    /// Scala 2 standard library.
+    /// Whether `s` is a member of `Any`, of a Java class, or of a class of the Scala 2 standard
+    /// library.
     pub fn is_loose_member(&mut self, s: SymbolId) -> bool {
         let Some(owner) = self.u.symbol(s).owner else { return false };
         owner == self.u.defn().any || self.u.is_scala2(owner) || self.is_java_member(s)
