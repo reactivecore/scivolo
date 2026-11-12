@@ -30,10 +30,11 @@ impl TreePickler<'_> {
         let section = self.pickler.new_section("Positions");
         let mut out = PositionsBuffer::new(&source.line_sizes);
         let mut paths = vec![source.path.clone()];
-        // Each tree with the index in `paths` of its parent's source, if any, and of the source
-        // of the inline expansion it is in, if any.
-        let mut todo: Vec<_> = self.type_annots.iter().rev().map(|&a| (a, None, None)).collect();
-        todo.push((root, None, None));
+        // Each tree with the index in `paths` of its parent's source, if any, of the source of
+        // the inline expansion it is in, if any, and the definition whose annotation pickled
+        // anew it is in, if any.
+        let mut todo: Vec<_> = self.type_annots.iter().rev().map(|&a| (a, None, None, None)).collect();
+        todo.push((root, None, None, None));
         let mut nodes: Vec<usize> =
             self.buf.trees().filter(|&(id, _)| id < SYNTHETIC).map(|(_, a)| a.0).collect();
         nodes.sort_unstable();
@@ -54,7 +55,7 @@ impl TreePickler<'_> {
             .iter()
             .filter_map(|&(id, s, after)| Some((after?, (self.buf.addr_of_tree(id)?, s))))
             .collect();
-        while let Some((t, current, library)) = todo.pop() {
+        while let Some((t, current, library, copy_owner)) = todo.pop() {
             let span = self.tpd.span(t);
             let other = span.exists() && span.without_inlined_call().is_in_other_source();
             let own = match other && self.file.is_some() {
@@ -71,7 +72,8 @@ impl TreePickler<'_> {
                 out.span(addr, source.tasty_span(span, false)?);
                 synthetic.pop();
             }
-            if let Some(addr) = self.buf.addr_of_tree(key).filter(|_| span.exists()) {
+            let copy = copy_owner.and_then(|s| self.anew_at.get(&(s, t)).copied());
+            if let Some(addr) = self.buf.addr_of_tree(copy.unwrap_or(key)).filter(|_| span.exists()) {
                 if own != current {
                     out.span(addr, source.tasty_span(span, in_library)?);
                     let path = own.map_or(&source.path, |i| &paths[i]);
@@ -96,18 +98,18 @@ impl TreePickler<'_> {
                 None => library,
             };
             let hole_args = self.holes.get(&t).map(|(_, args)| args.clone()).unwrap_or_default();
-            let annots = match self.tpd.sym(t).filter(|_| self.needs_pos(t)) {
-                Some(s) => self.annotation_trees(s),
-                None => Vec::new(),
-            };
+            let annotated = self.tpd.sym(t).filter(|_| self.needs_pos(t));
+            let annots = annotated.map(|s| self.annotation_trees(s)).unwrap_or_default();
             let own: Vec<TNodeId> = match self.call_traces.contains(&t) {
                 true => Vec::new(),
                 false => self.tpd.children(t).iter().copied().collect(),
             };
-            let children = annots.into_iter().chain(own).chain(hole_args).collect::<Vec<_>>();
-            for c in children.into_iter().rev() {
+            let annots = annots.into_iter().map(|a| (a, annotated));
+            let own = own.into_iter().chain(hole_args).map(|c| (c, copy.and(copy_owner)));
+            let children = annots.chain(own).collect::<Vec<_>>();
+            for (c, owner) in children.into_iter().rev() {
                 let read = self.tpd.read_from(c).map(|_| path_index(&mut paths, String::new()));
-                todo.push((c, current, read.or(library)));
+                todo.push((c, current, read.or(library), owner));
             }
         }
         while let Some((_, addr, span)) = synthetic.pop() {

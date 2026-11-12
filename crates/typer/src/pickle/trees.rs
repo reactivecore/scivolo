@@ -8,6 +8,9 @@ use crate::tpd::{List, TNodeId, Tree as T, constant_type_of};
 use tasty::Type;
 use tasty::tags::*;
 
+/// The first key of the trees pickled anew, among those of the trees registered without a node.
+const ANEW: u32 = u32::MAX / 4 * 3;
+
 impl TreePickler<'_> {
     /// The key tree `id` is registered under: the tree it is shared with or a copy of, else itself.
     pub fn tree_key(&self, id: TNodeId) -> u32 {
@@ -18,8 +21,12 @@ impl TreePickler<'_> {
     /// Tree `id`, a `SHAREDterm` if pickled before and not to be pickled anew.
     pub fn tree(&mut self, id: TNodeId) -> Result<(), Refusal> {
         let at = match self.anew.remove(&id) {
-            true => self.buf.buf.current_addr(),
-            false => self.buf.register_tree(self.tree_key(id)),
+            Some(owner) => {
+                let key = ANEW + self.anew_at.len() as u32;
+                self.anew_at.insert((owner, id), key);
+                self.buf.register_tree(key)
+            }
+            None => self.buf.register_tree(self.tree_key(id)),
         };
         if at != self.buf.buf.current_addr() {
             self.byte(SHAREDterm);

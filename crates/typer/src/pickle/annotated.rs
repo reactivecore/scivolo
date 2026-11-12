@@ -7,25 +7,36 @@
 use super::{Refusal, TreePickler};
 use crate::defn::type_ref;
 use crate::tpd::{List, TNodeId, Tree as T};
+use names::name_kinds::SETTER_SUFFIX;
 use names::nme;
 use tasty::defn::{NON_BEAN_TARGETS, UNUSED};
-use tasty::tags::{ANNOTATEDtpt, ANNOTATEDtype, APPLY, NEW, REFINEDtpt, SELECTin};
+use tasty::tags::{ANNOTATEDtpt, ANNOTATEDtype, APPLY, FIELDaccessor, NEW, REFINEDtpt, SELECTin};
 use tasty::{Kind, SymbolId, TypeId};
 
 /// The meta-annotation target of parameters, `scala.annotation.meta.param`.
 const PARAM_TARGET: &str = "param";
 
+/// The meta-annotation target of setters, `scala.annotation.meta.setter`.
+const SETTER_TARGET: &str = "setter";
+
 impl TreePickler<'_> {
     /// Type `annotated`, `parent` annotated with class type `annot`: with the annotation tree an
-    /// annotated expression of the file gave it, else `new annot()`.
+    /// annotated expression of the file gave it, else `new annot()`; told from the others by its
+    /// tree when keyed.
     pub fn annotated(&mut self, annotated: TypeId, parent: TypeId, annot: TypeId) -> Result<(), Refusal> {
-        if let Some(tree) = self.tpd.type_annotation(annotated) {
+        let tree = self.tpt_annotation(annotated).or_else(|| self.tpd.type_annotation(annotated));
+        if let Some(tree) = tree {
             if !self.keying {
                 self.type_annots.push(tree);
             }
             return self.with_length(ANNOTATEDtype, &mut |p| {
                 p.ty(parent, false)?;
-                p.tree(tree)
+                if !p.keying {
+                    return p.tree(tree);
+                }
+                let key = p.tree_key(tree);
+                p.buf.buf.write_bytes(&key.to_le_bytes());
+                Ok(())
             });
         }
         let class = self.u.class_symbol(annot).ok_or("an annotation of no class")?;
@@ -45,10 +56,17 @@ impl TreePickler<'_> {
         })
     }
 
+    /// The annotation tree of the type tree pickled, if its type is `annotated` and an annotated
+    /// expression gave it.
+    pub fn tpt_annotation(&self, annotated: TypeId) -> Option<TNodeId> {
+        let tpt = self.type_tree.filter(|&tpt| self.tpd.tpe(tpt) == annotated)?;
+        self.tpd.tpt_annotation(tpt)
+    }
+
     /// The annotation trees of `s`, in order; in a file, the ones of its definition last first
     /// (dotty's `addAnnotation` prepends), and on a value parameter its `@unused` first
-    /// (`PostTyper`'s `transform` of a parameter), and of a parameter only those meant for
-    /// parameters (`keepAnnotationsCarrying`).
+    /// (`PostTyper`'s `transform` of a parameter), and of a parameter or setter only those meant
+    /// for it (`keepAnnotationsCarrying`).
     pub fn annotation_trees(&mut self, s: SymbolId) -> Vec<TNodeId> {
         let own = self.tpd.annotations(s).to_vec();
         let Some(file) = self.file else { return own };
@@ -58,7 +76,13 @@ impl TreePickler<'_> {
             trees[i] = a;
         }
 
-        if self.u.symbol(s).kind != Kind::Param {
+        let symbol = self.u.symbol(s);
+        if symbol.flags.has(FIELDaccessor) && symbol.name.ends_with(SETTER_SUFFIX) {
+            let kept = self.u.annotations_carrying(s, &[SETTER_TARGET], &[]);
+            trees.retain(|&a| self.u.class_symbol(self.tpd.tpe(a)).is_some_and(|c| kept.contains(&c)));
+            return trees;
+        }
+        if symbol.kind != Kind::Param {
             return trees;
         }
         let kept = self.u.annotations_carrying(s, &[PARAM_TARGET], NON_BEAN_TARGETS);
@@ -72,19 +96,39 @@ impl TreePickler<'_> {
         trees
     }
 
-    /// Marks the calls and selections of annotation `annot` of parameter `sym` to be pickled
-    /// anew if pickled before, their other parts shared (a field's annotation its constructor
-    /// parameter has too).
-    pub fn param_annotation_anew(&mut self, sym: SymbolId, annot: TNodeId) {
-        if self.u.symbol(sym).kind != Kind::Param || self.buf.addr_of_tree(self.tree_key(annot)).is_none() {
+    /// Marks parts of annotation `annot` of `sym` to be pickled anew if pickled before, its other
+    /// parts shared: of a parameter its calls and selections (a field's annotation its
+    /// constructor parameter has too), and of a parameter or setter with a meta-annotated class
+    /// those, the `new` and its annotated type tree (one its field has too).
+    pub fn annotation_anew(&mut self, sym: SymbolId, annot: TNodeId) {
+        if self.buf.addr_of_tree(self.tree_key(annot)).is_none() {
             return;
         }
+        let symbol = self.u.symbol(sym);
+        let setter = symbol.flags.has(FIELDaccessor) && symbol.name.ends_with(SETTER_SUFFIX);
+        if symbol.kind != Kind::Param && !setter {
+            return;
+        }
+
+        let mut parts = vec![annot];
         let mut t = annot;
-        self.anew.insert(t);
         while let T::Apply { fun, .. } | T::TypeApply { fun, .. } = *self.tpd.tree(t) {
             t = fun;
-            self.anew.insert(t);
+            parts.push(t);
         }
+        match self.meta_annotated_new(t) {
+            Some(new) => parts.extend(new),
+            None if setter => return,
+            None => {}
+        }
+        self.anew.extend(parts.into_iter().map(|p| (p, sym)));
+    }
+
+    /// The `new` of selection `select` and its type tree, if that is annotated.
+    fn meta_annotated_new(&self, select: TNodeId) -> Option<[TNodeId; 2]> {
+        let T::Select { qualifier, .. } = *self.tpd.tree(select) else { return None };
+        let T::New { tpt } = *self.tpd.tree(qualifier) else { return None };
+        matches!(self.tpd.tree(tpt), T::Annotated { .. }).then_some([qualifier, tpt])
     }
 
     /// Whether class type `class` is capture checking's `caps.internal.inferred`.

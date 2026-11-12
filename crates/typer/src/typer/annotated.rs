@@ -30,9 +30,9 @@ impl Typer<'_> {
             _ => arg,
         };
         let annotated = self.u.intern_type(Type::Annotated(arg_tpe, annot_tpe));
-        self.tpd.set_type_annotation(annotated, annot);
         let span = self.ast.span(id);
         let tpt = self.type_tree(annotated, self.tpd.span(expr).end_pos(), false);
+        self.tpd.set_type_annotation(annotated, annot, tpt);
         self.tpd.node(T::Typed { expr, tpt }, span, Some(annotated), None)
     }
 
@@ -55,7 +55,9 @@ impl Typer<'_> {
             return self.unsupported(id, "meta-annotated annotation other than deprecated");
         }
         let tpe = self.u.intern_type(Type::Annotated(self.tpd.tpe(arg), annot_tpe));
-        self.tpd.node(T::Annotated { arg, annot }, self.ast.span(id), Some(tpe), None)
+        let tree = self.tpd.node(T::Annotated { arg, annot }, self.ast.span(id), Some(tpe), None);
+        self.tpd.set_type_annotation(tpe, annot, tree);
+        tree
     }
 
     /// `t` without its annotations (dotty's `stripped`).
