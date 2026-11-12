@@ -45,12 +45,12 @@ on a shared machine; CPU is user + sys, so scalac's includes its JIT and GC thre
 
 | codebase | files | tool | refused | wall s | CPU s | peak RSS MB |
 |---|--:|---|--:|--:|--:|--:|
-| tasty-core | 8 | scivolo-jvm | 0 | 0.28 | 0.28 | 59 |
-| | | scivolo-lower | 0 | 0.19 | 0.19 | 49 |
+| tasty-core | 8 | scivolo-jvm | 0 | 0.15 | 0.15 | 48 |
+| | | scivolo-lower | 0 | 0.08 | 0.08 | 38 |
 | | | scalac cold | | 1.77 | 6.60 | 286 |
 | | | scalac warm | | 0.20 | 0.86 | 585 |
-| upickle-core 4.4.3 | 27 | scivolo-jvm | 0 | 0.67 | 0.67 | 97 |
-| | | scivolo-lower | 0 | 0.58 | 0.58 | 90 |
+| upickle-core 4.4.3 | 27 | scivolo-jvm | 0 | 0.34 | 0.34 | 60 |
+| | | scivolo-lower | 0 | 0.25 | 0.25 | 53 |
 | | | scalac cold | | 2.85 | 11.79 | 378 |
 | | | scalac warm | | 0.36 | 1.57 | 692 |
 | Scala's library (JVM) | 649 | scivolo-jvm, file by file | 31 | 51.4 | 51.0 | 140 |
@@ -60,10 +60,10 @@ on a shared machine; CPU is user + sys, so scalac's includes its JIT and GC thre
 | | | scalac cold | | 11.1 | 48.6 | 845 |
 | | | scalac warm | | 3.3 | 5.4 | 1,541 |
 
-- Against cold scalac, scivolo is 4–9× faster in wall time on tasty-core and upickle-core;
-  against warm scalac it is 0.5–1.1× in wall time and 2.3–4.5× in CPU time. Neither reaches
-  2× against warm scalac: #247 (tasty-core), #248 (upickle-core), #249 (Scala's library), #250
-  (javalib) name the hot spots.
+- Against cold scalac, scivolo is 8–22× faster in wall time on tasty-core and upickle-core;
+  against warm scalac it is 1.1–2.5× in wall time and 4.6–11× in CPU time. Only scivolo-lower
+  on tasty-core reaches 2× against warm scalac: #247 (tasty-core), #248 (upickle-core), #249
+  (Scala's library), #250 (javalib) name the hot spots.
 - Scala's library does not compile as one unit yet (#249), so scivolo compiles it file by file,
   each run starting `java` to find the JDK (~40 ms), while scalac compiles its Scala and Java
   sources as one unit: its rows are not comparable.
