@@ -24,7 +24,7 @@ impl Typer<'_> {
         let defined = self.is_fully_defined(p);
         let stripped = self.strip_implicit(result);
         let stripped = self.zonk(stripped);
-        self.refinement_result(result, pt)?;
+        self.refinement_result((result, meth), pt)?;
         if defined && self.u.class_symbol(p) == Some(self.defn.unit) {
             return Ok(());
         }
@@ -42,14 +42,23 @@ impl Typer<'_> {
         Ok(())
     }
 
-    /// Refuses implicit method type `result` whose result selects a type member only a
-    /// refinement has under a `pt` with type variables (dotty constrains by its approximation).
-    pub fn refinement_result(&mut self, result: TypeId, pt: Pt) -> Result<(), &'static str> {
+    /// Refuses implicit method type `result` of `meth` under a `pt` with type variables whose
+    /// result selects a type member only a refinement has, or holds a type lambda over the
+    /// implicit parameters (dotty constrains by their approximation).
+    pub fn refinement_result(
+        &mut self,
+        (result, meth): (TypeId, Option<SymbolId>),
+        pt: Pt,
+    ) -> Result<(), &'static str> {
         let Pt::Type(p) = pt else { return Ok(()) };
         let stripped = self.strip_implicit(result);
         if stripped == result || self.is_fully_defined(p) {
             return Ok(());
         }
+        if self.lambda_of_implicit_params(result, stripped, meth) {
+            return Err("implicit method result with a type lambda over its implicit parameters under type variables");
+        }
+
         let mut found = false;
         self.u.map_type(stripped, &mut |u, part| {
             found |= u.type_ref(part).is_some() && u.resolve_ref(part).is_none();
@@ -65,6 +74,25 @@ impl Typer<'_> {
     fn refers_to_implicit_params(&mut self, mut t: TypeId, stripped: TypeId, meth: Option<SymbolId>) -> bool {
         while let Type::Method { binder, result, implicit: true, .. } = *self.u.ty(t) {
             if self.mentions_params(stripped, binder, meth) {
+                return true;
+            }
+            t = result;
+        }
+        false
+    }
+
+    /// Whether `stripped` holds a type lambda that refers to a parameter of the leading implicit
+    /// clauses of `t` (`Bar[fn.R]` for a higher-kinded member `R` of `using fn: Fn`).
+    fn lambda_of_implicit_params(&mut self, mut t: TypeId, stripped: TypeId, meth: Option<SymbolId>) -> bool {
+        let mut lambdas = Vec::new();
+        self.u.map_type(stripped, &mut |u, part| {
+            if matches!(u.ty(part), Type::Lambda { .. }) {
+                lambdas.push(part);
+            }
+            None
+        });
+        while let Type::Method { binder, result, implicit: true, .. } = *self.u.ty(t) {
+            if lambdas.iter().any(|&l| self.mentions_params(l, binder, meth)) {
                 return true;
             }
             t = result;
