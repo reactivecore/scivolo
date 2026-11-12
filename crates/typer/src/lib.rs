@@ -87,6 +87,9 @@ pub struct Units {
     /// The next unit's source files, each at its offset among the sources, if the TASTy of its
     /// top-level classes is pickled before its inline calls expand.
     pub tasty_sources: Option<Vec<(SourceFile, syntax::source::Offset)>>,
+    /// Where and why `type_units` refused its last unit, the first refusal first; none where it
+    /// refused after typing.
+    pub refused: Vec<(Span, String)>,
 }
 
 impl Units {
@@ -143,17 +146,14 @@ impl Units {
         let trees = ast.list(&roots);
         let unit = ast.node(Tree::Thicket { trees });
         let unsupported = |what| Fallback::Unsupported { at: Span::NONE, what };
-        let scala2 = units.first().is_some_and(|unit| unit.cfg.source_version.is_scala2());
-        for unit in units {
-            let at = ast.span(unit.root);
-            typer::check_source_version(unit.cfg.source_version)
-                .map_err(|what| Fallback::Unsupported { at, what })?;
-            if unit.cfg.source_version.is_scala2() != scala2 {
-                let what = "source version `2.13` in some files of a unit only".to_owned();
-                return Err(Fallback::Unsupported { at, what });
-            }
+        let with_code: Vec<&SourceUnit> =
+            units.iter().zip(&file_roots).filter(|(_, roots)| !roots.is_empty()).map(|(u, _)| u).collect();
+        self.refused = typer::source_versions(ast, &with_code);
+        if let Some((at, what)) = self.refused.first().cloned() {
+            return Err(Fallback::Unsupported { at, what });
         }
-        let cfg = units.first().map_or_else(|| syntax::config::Config::from_options(&[]), |unit| unit.cfg);
+        let first = with_code.first().copied().or(units.first());
+        let cfg = first.map_or_else(|| syntax::config::Config::from_options(&[]), |unit| unit.cfg);
         let mut typer =
             Typer::new(u, (ast, unit), (names, fresh), cfg, &mut self.syms).map_err(unsupported)?;
         typer.file_starts = units.iter().skip(1).map(|unit| unit.start).collect();
@@ -163,19 +163,18 @@ impl Units {
         for (file, roots) in file_roots.iter().enumerate() {
             typer.enter_file(file);
             typer.index(roots, ctx);
+            self.refused.extend(typer.unsupported.take());
         }
         typer.check_split_companions();
+        self.refused.extend(typer.unsupported.take());
         let mut typed = Vec::new();
         for (file, roots) in file_roots.iter().enumerate() {
             typer.enter_file(file);
             typed.extend(roots.iter().map(|&r| typer.typed(r, typer::Pt::Any, ctx)));
+            self.refused.extend(typer.unsupported.take());
         }
-        let root = typer.u.root();
-        let tpe = typer.u.intern_type(tasty::Type::Package(root));
-        let name = syntax::ast::TName { name: typer.names.intern(names::nme::ROOT_PKG), is_type: false };
-        let pid = typer.tpd.node(tpd::Tree::Ident { name }, Span::NONE, Some(tpe), Some(root));
-        let stats = typer.tpd.list(&typed);
-        let unit = typer.tpd.node(tpd::Tree::PackageDef { pid, stats }, Span::NONE, Some(tpe), None);
+        typer.unsupported = self.refused.first().cloned();
+        let unit = finish::root_package(&mut typer, &typed);
         self.finish(typer, unit, &typed)
     }
 
