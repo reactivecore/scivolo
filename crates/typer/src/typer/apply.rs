@@ -88,7 +88,13 @@ impl Typer<'_> {
         let names: Vec<NameId> = params.iter().map(|&(n, _)| n).collect();
         let result = self.without_false_deps(result, binder, meth);
         let dependent = self.mentions_clause_params(result, (binder, &names), meth);
-        if !dependent && let Err(what) = self.constrain_applied_result(meth, result, pt) {
+        let approx = match dependent {
+            true => self.result_type_approx(result, (binder, &params), meth, pt),
+            false => Some(result),
+        };
+        if let Some(approx) = approx
+            && let Err(what) = self.constrain_applied_result(meth, approx, pt)
+        {
             return self.unsupported(id, what);
         }
         let repeated = params.last().and_then(|&(_, p)| self.repeated_param_elem(p));

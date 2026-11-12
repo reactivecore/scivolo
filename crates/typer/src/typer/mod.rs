@@ -177,6 +177,7 @@ pub(crate) mod seen_from;
 mod select;
 mod selectable_fields;
 mod selves;
+mod settle;
 mod shown_prefix;
 pub(crate) mod simplify;
 mod small_tuples;

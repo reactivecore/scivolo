@@ -3,10 +3,8 @@
 //! Intersection and union types `A & B`, `A | B`: dotty's aliases `scala.&` and `scala.|`
 //! (`Definitions.andType`, `orType`), applied as `AndType` and `OrType`.
 
-use super::{Pt, Typer};
-use crate::ctx::{Ctx, Mode};
+use super::Typer;
 use crate::special::entered;
-use crate::tpd::{TNodeId, Tree as T};
 use names::nme;
 use tasty::{Kind, SymbolId, Type, TypeId};
 
@@ -29,62 +27,6 @@ impl Typer<'_> {
             let alias = self.u.intern_type(Type::Alias(lambda));
             self.u.set_info(s, alias);
         }
-    }
-
-    /// The type of `tree` typed in `ctx` with its instantiated type variables replaced, and
-    /// simplified unless it is a typed pattern.
-    pub fn settle_type(&mut self, tree: TNodeId, ctx: Ctx) {
-        self.zonk_type(tree);
-        if !(ctx.mode.is(Mode::PATTERN) && matches!(self.tpd.tree(tree), T::Typed { .. })) {
-            self.simplify_tree_type(tree);
-        }
-    }
-
-    /// The type variables created while typing `tree` interpolated and its type settled (dotty's
-    /// `simplify` of a tree built by `adapt`).
-    pub fn settle_adapted(&mut self, tree: TNodeId, pt: Pt, ctx: Ctx) {
-        if let Err(what) = self.interpolate(tree, pt, self.locked_vars) {
-            let span = self.tpd.span(tree);
-            self.unsupported_at(span, what);
-        }
-        self.settle_type(tree, ctx);
-    }
-
-    /// `interpolate`, then the type of `tree` zonked (dotty's `simplify` of an application).
-    pub fn interpolate_zonked(&mut self, tree: TNodeId, pt: Pt, from: usize) -> Result<(), &'static str> {
-        self.interpolate(tree, pt, from)?;
-        self.zonk_type(tree);
-        Ok(())
-    }
-
-    /// The type of `tree` with its instantiated type variables replaced.
-    pub fn zonk_type(&mut self, tree: TNodeId) {
-        let Some(t) = self.tpd.get(tree).tpe else { return };
-        let t = self.zonk(t);
-        self.tpd.get_mut(tree).tpe = Some(t);
-    }
-
-    /// The type of term tree `tree` simplified, unless it is a method's (dotty's `simplify` of a
-    /// typed tree).
-    fn simplify_tree_type(&mut self, tree: TNodeId) {
-        let is_type = match *self.tpd.tree(tree) {
-            T::Ident { name } | T::Select { name, .. } => name.is_type,
-            T::TypeTree { .. }
-            | T::SingletonTypeTree { .. }
-            | T::ByNameTypeTree { .. }
-            | T::Annotated { .. }
-            | T::AppliedTypeTree { .. }
-            | T::RefinedTypeTree { .. }
-            | T::TypeBoundsTree { .. } => true,
-            _ => false,
-        };
-        let Some(t) = self.tpd.get(tree).tpe else { return };
-        let widened = self.u.widen(t);
-        if is_type || matches!(self.u.ty(widened), Type::Method { .. } | Type::Poly { .. }) {
-            return;
-        }
-        let simplified = self.simplified(t);
-        self.tpd.get_mut(tree).tpe = Some(simplified);
     }
 
     /// `a & b` if `alias` is `scala.&`, `a | b` if it is `scala.|`.
