@@ -49,7 +49,8 @@ fn add_synthetic_members(l: &mut Lower, root: TNodeId, td: TNodeId) -> Result<()
         let mut types = l.u.parents(class);
         types.push(parent);
         l.u.set_parents(class, types);
-        parents.push(l.type_tree(parent, Span::synthetic(span.point(), span.point())));
+        let focus = l.tpd.span(template).start_pos().to_synthetic();
+        parents.push(l.type_tree(parent, focus));
     }
     let body = l.tpd.list(&members);
     let parents = l.tpd.list(&parents);

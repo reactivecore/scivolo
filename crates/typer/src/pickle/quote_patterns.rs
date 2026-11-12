@@ -12,7 +12,9 @@ impl TreePickler<'_> {
     pub fn quote_pattern(
         &mut self,
         id: TNodeId,
-        (bindings, body, quotes): (List, TNodeId, TNodeId),
+        bindings: List,
+        body: TNodeId,
+        quotes: TNodeId,
     ) -> Result<(), Refusal> {
         let tpe = self.tpd.get(id).tpe.ok_or("a quote pattern without a type")?;
         let bindings = self.tpd.items(bindings).to_vec();
@@ -31,7 +33,9 @@ impl TreePickler<'_> {
     pub fn splice_pattern(
         &mut self,
         id: TNodeId,
-        (body, typeargs, args): (TNodeId, List, List),
+        body: TNodeId,
+        typeargs: List,
+        args: List,
     ) -> Result<(), Refusal> {
         let tpe = self.tpd.get(id).tpe.ok_or("a splice pattern without a type")?;
         let (typeargs, args) = (self.tpd.items(typeargs).to_vec(), self.tpd.items(args).to_vec());
