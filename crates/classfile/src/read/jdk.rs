@@ -43,15 +43,12 @@ impl Jdk {
     /// Whether the JDK has a class in package `pkg`, an internal name such as `java/time`.
     pub fn has_package(&mut self, pkg: &str) -> bool {
         if self.packages.is_none() {
-            let names = self.source().map_or_else(Vec::new, |s| s.names());
+            let names = self.source().map_or_else(Vec::new, |s| s.packages());
             let mut packages = HashSet::new();
             for name in names {
                 let mut pkg = name.as_str();
-                while let Some((outer, _)) = pkg.rsplit_once('/') {
-                    pkg = outer;
-                    if !packages.insert(pkg.to_owned()) {
-                        break;
-                    }
+                while !pkg.is_empty() && packages.insert(pkg.to_owned()) {
+                    pkg = pkg.rsplit_once('/').map_or("", |(outer, _)| outer);
                 }
             }
             self.packages = Some(packages);
@@ -107,11 +104,13 @@ fn ct_sym(home: &Path) -> Option<Source> {
 }
 
 impl Source {
-    /// The internal names of the classes.
-    fn names(&self) -> Vec<String> {
+    /// The internal names of the packages of the classes.
+    fn packages(&self) -> Vec<String> {
         match self {
-            Source::Jimage(image) => image.names(),
-            Source::CtSym { entries, .. } => entries.keys().cloned().collect(),
+            Source::Jimage(image) => image.packages(),
+            Source::CtSym { entries, .. } => {
+                entries.keys().filter_map(|n| Some(n.rsplit_once('/')?.0.to_owned())).collect()
+            }
         }
     }
 

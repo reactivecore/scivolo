@@ -15,6 +15,7 @@ mod define;
 pub mod defn;
 mod enter;
 mod entries;
+mod full_names;
 mod function_classes;
 mod gadt_bounds;
 mod higher_kinds;

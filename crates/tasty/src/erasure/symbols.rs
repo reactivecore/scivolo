@@ -38,8 +38,9 @@ impl Universe {
     pub fn erase_symbol(&mut self, s: SymbolId) -> Erased {
         match self.symbol(s).kind {
             Kind::Class => {
-                let full = self.full_name(s);
-                if let Some(e) = special(&full) {
+                let named =
+                    self.full_name_starts_with(s, "scala.") || self.has_full_name(s, crate::defn::OBJECT);
+                if named && let Some(e) = special(&self.full_name(s)) {
                     return e;
                 }
                 match self.underlying(s) {

@@ -122,7 +122,7 @@ pub fn subtrees(tpd: &Tpd, t: TNodeId) -> Vec<TNodeId> {
     let mut out = vec![t];
     let mut i = 0;
     while i < out.len() {
-        out.extend(children(tpd, out[i]));
+        tpd.extend_traversed(out[i], &mut out);
         i += 1;
     }
     out

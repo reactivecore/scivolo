@@ -29,6 +29,9 @@ const OPERATORS: [(char, &str); 18] = [
 /// `name` as the compiler spells it in file names: operators by their names, other characters
 /// that are not Java identifier parts as `$uXXXX`.
 pub fn encode(name: &str) -> String {
+    if name.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'$') {
+        return name.to_owned();
+    }
     let mut out = String::with_capacity(name.len());
     for c in name.chars() {
         match OPERATORS.iter().find(|(op, _)| *op == c) {

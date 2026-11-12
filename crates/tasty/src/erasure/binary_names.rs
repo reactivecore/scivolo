@@ -24,22 +24,35 @@ impl Universe {
         let name = encode(self.class_target(c).as_deref().unwrap_or(&s.name));
         match s.owner {
             Some(o) if self.symbol(o).kind == Kind::Class => {
-                let outer = self.class_name_with(o, compactify);
+                let mut outer = self.class_name_with(o, compactify);
                 let module = module_name(&outer);
-                let outer = match defined_name(module.unwrap_or(&outer)) {
-                    Some(d) if module.is_some() => module_class_name(d),
-                    Some(d) => d.to_owned(),
-                    None => outer.clone(),
-                };
-                let (pkg, flat) = outer.rsplit_once('.').map_or(("", outer.as_str()), |(p, f)| (p, f));
+                match defined_name(module.unwrap_or(&outer)) {
+                    Some(d) if module.is_some() => outer = module_class_name(d),
+                    Some(d) => outer = d.to_owned(),
+                    None => {}
+                }
+                let flat_start = outer.rfind('.').map_or(0, |i| i + 1);
                 let module = s.flags.has(MODULE).then(|| module_name(&name)).flatten();
                 let simple = module.unwrap_or(&name);
-                let sep = if flat.ends_with('$') { "" } else { "$" };
-                let flat =
-                    compactify(&format!("{flat}{sep}{simple}")) + if module.is_some() { "$" } else { "" };
-                if pkg.is_empty() { flat } else { format!("{pkg}.{flat}") }
+                let mut flat = String::with_capacity(outer.len() - flat_start + 1 + simple.len());
+                flat.push_str(&outer[flat_start..]);
+                if !flat.ends_with('$') {
+                    flat.push('$');
+                }
+                flat.push_str(simple);
+                outer.truncate(if flat_start > 1 { flat_start } else { 0 });
+                outer.push_str(&compactify(&flat));
+                if module.is_some() {
+                    outer.push('$');
+                }
+                outer
             }
-            Some(o) if o != self.root() => format!("{}.{name}", self.full_name(o)),
+            Some(o) if o != self.root() => {
+                let mut full = self.full_name(o);
+                full.push('.');
+                full.push_str(&name);
+                full
+            }
             _ => name,
         }
     }

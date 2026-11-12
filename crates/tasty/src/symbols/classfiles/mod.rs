@@ -28,6 +28,11 @@ impl Universe {
         self.jdk = Some(jdk);
     }
 
+    /// The JDK `set_jdk` gave, if any.
+    pub fn jdk_mut(&mut self) -> Option<&mut classfile::Jdk> {
+        self.jdk.as_mut()
+    }
+
     /// Package or public class `name` of package `pkg` (an object `C$` stands for its class `C`)
     /// entered from the JDK, if it has it in a package of `JDK_ROOTS` and the universe has
     /// a JDK and the package lacks the class and its object, with its nested classes.

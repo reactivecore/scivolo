@@ -15,6 +15,9 @@ const MAX_NAME_LENGTH: usize = {
 /// `s` itself if short enough, else its first and last quarter around the markers and its MD5
 /// (each byte in hex without padding).
 pub fn compactify(s: &str) -> String {
+    if s.len() <= MAX_NAME_LENGTH {
+        return s.to_owned();
+    }
     let chars: Vec<char> = s.chars().collect();
     if chars.len() <= MAX_NAME_LENGTH {
         return s.to_owned();

@@ -20,6 +20,7 @@ pub struct Slots {
 }
 
 impl Slots {
+    #[inline]
     fn of(slots: &[Slot]) -> Slots {
         let mut items = [Slot::Opt(None); 4];
         items[..slots.len()].copy_from_slice(slots);
@@ -30,6 +31,7 @@ impl Slots {
 impl Deref for Slots {
     type Target = [Slot];
 
+    #[inline]
     fn deref(&self) -> &[Slot] {
         &self.items[..self.len]
     }
@@ -43,6 +45,7 @@ impl DerefMut for Slots {
 
 impl Tree {
     /// The subtree fields of the tree, in the order of `Tree::fields`.
+    #[inline]
     pub fn slots(&self) -> Slots {
         use Slot::{List as L, Node as N, Opt as O};
         let s = Slots::of;

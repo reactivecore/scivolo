@@ -4,13 +4,14 @@
 //! package named `Outer$Name$N`, taking the local values it uses as its first constructor
 //! parameters, kept in private fields where its methods read them.
 
+use super::class_moves::{Placement, lift};
 use super::dependencies::{Dependencies, dependencies};
 use super::leading_params::add_params;
 use super::lift_names::{Caller, LocalClass, Pending, merged};
 use super::local_free::{
     Free, Local, enclosing_class, free_values, is_local, is_method, is_term, lifted_into, within,
 };
-use super::local_lift::{constructor_calls, lift, pass_values};
+use super::local_lift::{constructor_calls, pass_values};
 use super::local_proxies::{
     constructor, definition_order, definition_span, make_proxies, naming_key, val_def_spans,
 };
@@ -74,6 +75,7 @@ pub fn transform(l: &mut Lower, root: TNodeId, classes: &[TNodeId]) -> Result<Pe
     let (mut classes, mut named) = (Vec::new(), FxHashMap::default());
     let in_methods = locals.iter().any(|c| !c.free.in_methods.is_empty());
     let val_defs = if in_methods { val_def_spans(l, root) } else { FxHashMap::default() };
+    let mut placement = None;
     for (Local { td, class, named_in, free, .. }, (fields, params)) in locals.into_iter().zip(proxies) {
         let spans: Vec<Span> = free.in_methods.iter().map(|&v| definition_span(l, &val_defs, v)).collect();
         if !l.u.is_trait(class) {
@@ -94,7 +96,8 @@ pub fn transform(l: &mut Lower, root: TNodeId, classes: &[TNodeId]) -> Result<Pe
         }
         let (at, sequence) = naming_key(l, (all, &named), td, class);
         named.insert(class, (at, sequence));
-        if let Some((block, index)) = lift(l, root, td, class) {
+        let placement = placement.get_or_insert_with(|| Placement::of(l, root));
+        if let Some((block, index)) = lift(l, placement, td, class) {
             pending.definitions.push((block, index, free.values.clone()));
         }
         classes.push(Some((LocalClass { at, class, outer: named_in }, sequence)));

@@ -14,13 +14,13 @@ impl Universe {
         }
         let mut m = |u: &mut Self, x: TypeId| u.map_type(x, f);
         let params = |u: &mut Self, ps: ParamList, m: &mut dyn FnMut(&mut Self, TypeId) -> TypeId| {
-            let ps: Vec<_> = (0..u.params_of(ps).len())
+            let mapped: Vec<_> = (0..u.params_of(ps).len())
                 .map(|i| {
                     let (n, p) = u.params_of(ps)[i];
                     (n, m(u, p))
                 })
                 .collect();
-            u.intern_params(&ps)
+            if mapped[..] == *u.params_of(ps) { ps } else { u.intern_params(&mapped) }
         };
         let mapped = match *self.ty(t) {
             Type::TypeRef(p, n) => Type::TypeRef(m(self, p), n),
@@ -31,17 +31,20 @@ impl Universe {
                 let t = m(self, t);
                 Type::Super(t, m(self, p))
             }
-            Type::Applied(c, args) => {
+            Type::Applied(c, list) => {
                 let mapped = m(self, c);
                 if mapped != c && mapped == crate::NOTHING {
                     return mapped;
                 }
-                let args: Vec<_> = (0..self.types_of(args).len())
+                let args: Vec<_> = (0..self.types_of(list).len())
                     .map(|i| {
-                        let a = self.types_of(args)[i];
+                        let a = self.types_of(list)[i];
                         m(self, a)
                     })
                     .collect();
+                if mapped == c && args[..] == *self.types_of(list) {
+                    return t;
+                }
                 let applied = self.intern_applied(mapped, &args);
                 let lambda = self.lambda(mapped).is_some();
                 return if mapped != c && lambda { self.beta_reduced(applied) } else { applied };
@@ -97,6 +100,9 @@ impl Universe {
             }
             _ => return t,
         };
+        if mapped == *self.ty(t) {
+            return t;
+        }
         self.intern_type(mapped)
     }
 }

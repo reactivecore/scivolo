@@ -10,6 +10,7 @@ publish = false
 name = "classfile"
 
 [dependencies]
+hashbrown.workspace = true
 rustc-hash.workspace = true
 zip.workspace = true
 

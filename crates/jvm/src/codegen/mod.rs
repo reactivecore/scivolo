@@ -55,6 +55,7 @@ pub struct Gen<'l, 'a> {
     classes: HashMap<String, Option<SymbolId>>,
     /// The TASTy of each top-level class not generated yet.
     tasty: HashMap<SymbolId, Vec<u8>>,
+    /// The JDK's classes where the universe has no JDK.
     jdk: classfile::Jdk,
 }
 
