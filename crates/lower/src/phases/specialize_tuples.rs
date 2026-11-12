@@ -4,6 +4,7 @@
 //! `new Tuple2[Int, Int](a, b)` creates a `Tuple2$mcII$sp`, and `t._1` of a `Tuple2[Int, Int]`
 //! calls `t._1$mcI$sp`; likewise for the other specialized element types and `Tuple1`.
 
+use super::adapted::behaves_as_scala2;
 use super::elideable::is_elideable;
 use super::walk::walk_class_up;
 use crate::definitions::{Known, specialized_accessor, specialized_tuple_ctor, tuple_tags};
@@ -16,10 +17,10 @@ use tasty::{SymbolId, TypeId};
 use typer::tpd::{TNodeId, Tree, Walk};
 
 /// Specializes the tuple creations and element selections in class definition `td`; `inits`
-/// are the unit's objects with initialization code; nothing in a unit behaving as the Scala 2
+/// are the unit's objects with initialization code; nothing in a file behaving as the Scala 2
 /// library.
 pub fn transform(l: &mut Lower, td: TNodeId, inits: &FxHashSet<SymbolId>) -> Result<()> {
-    if l.tpd.scala2 {
+    if l.tpd.sym(td).is_some_and(|c| behaves_as_scala2(l, c)) {
         return Ok(());
     }
     let (mut result, mut specialized) = (Ok(()), FxHashSet::default());

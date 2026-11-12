@@ -4,38 +4,44 @@
 //! Language imports: features and the source version they enable.
 
 use super::Parser;
-use crate::ast::{NodeId, Tree};
+use crate::ast::{Ast, NodeId, Tree};
 use crate::config::{Features, SourceVersion};
+use crate::names::Names;
 use names::nme;
 
 const GLOBAL_FEATURES: [&str; 4] = ["pureFunctions", nme::CAPTURE_CHECKING, "separationChecking", "safe"];
 
+/// Determines `Some(prefix)` if import path `path` of `ast` is
+/// `[[_root_.]scala.]language[.prefix]`, decided by its names alone (dotty's `languageImport`).
+pub fn language_prefix(ast: &Ast, names: &Names, path: NodeId) -> Option<String> {
+    let text = |n: crate::ast::TName| names.text(n.name);
+    let named = |t: Option<NodeId>, want: &str| -> Option<Option<NodeId>> {
+        match *ast.tree(t?) {
+            Tree::Ident { name } if text(name) == want && !name.is_type => Some(None),
+            Tree::Select { qualifier, name } if text(name) == want && !name.is_type => Some(Some(qualifier)),
+            _ => None,
+        }
+    };
+    let is_empty = |t: Option<NodeId>| t.is_none_or(|t| matches!(ast.tree(t), Tree::Empty));
+    if let Tree::Select { qualifier, name } = *ast.tree(path)
+        && matches!(text(name), nme::EXPERIMENTAL | nme::DEPRECATED)
+    {
+        return (language_prefix(ast, names, qualifier).as_deref() == Some(""))
+            .then(|| text(name).to_string());
+    }
+    let q = named(Some(path), nme::LANGUAGE)?;
+    if is_empty(q) {
+        return Some(String::new());
+    }
+    let q2 = named(q, nme::SCALA)?;
+    let root_ok = is_empty(q2) || named(q2, nme::ROOT_PKG).is_some_and(|q3| q3.is_none());
+    root_ok.then(String::new)
+}
+
 impl Parser<'_> {
     /// `Some(prefix)` if `path` is `[[_root_.]scala.]language[.prefix]` (dotty's `languageImport`).
     pub fn language_prefix(&self, path: NodeId) -> Option<String> {
-        let text = |n: crate::ast::TName| self.s.names.text(n.name);
-        let named = |t: Option<NodeId>, want: &str| -> Option<Option<NodeId>> {
-            match *self.ast.tree(t?) {
-                Tree::Ident { name } if text(name) == want && !name.is_type => Some(None),
-                Tree::Select { qualifier, name } if text(name) == want && !name.is_type => {
-                    Some(Some(qualifier))
-                }
-                _ => None,
-            }
-        };
-        let is_empty = |t: Option<NodeId>| t.is_none_or(|t| matches!(self.ast.tree(t), Tree::Empty));
-        if let Tree::Select { qualifier, name } = *self.ast.tree(path)
-            && matches!(text(name), nme::EXPERIMENTAL | nme::DEPRECATED)
-        {
-            return (self.language_prefix(qualifier).as_deref() == Some("")).then(|| text(name).to_string());
-        }
-        let q = named(Some(path), nme::LANGUAGE)?;
-        if is_empty(q) {
-            return Some(String::new());
-        }
-        let q2 = named(q, nme::SCALA)?;
-        let root_ok = is_empty(q2) || named(q2, nme::ROOT_PKG).is_some_and(|q3| q3.is_none());
-        root_ok.then(String::new)
+        language_prefix(&self.ast, self.s.names, path)
     }
 
     /// Enable the features `sels` import from `language.prefix`, or set the source version.

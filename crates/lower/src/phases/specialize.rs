@@ -5,7 +5,7 @@
 //! calls `f.apply$mcII$sp(x)`, which needs no boxing.
 
 use super::adapt::from_start;
-use super::adapted::specializable;
+use super::adapted::{behaves_as_scala2, specializable};
 use super::mixin::function_arity;
 use super::walk::{subtrees, walk_class_up};
 use crate::definitions::{specialized_apply, symbol};
@@ -19,9 +19,12 @@ use tasty::{Erased, Kind, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree, Walk};
 
 /// Specializes the `apply` methods of class definition `td` and the calls of functions' `apply`
-/// in it, each method after the calls in it.
+/// in it, each method after the calls in it; none in a file behaving as the Scala 2 library.
 pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
     let class = l.tpd.sym(td).expect("a class definition's symbol");
+    if behaves_as_scala2(l, class) {
+        return Ok(());
+    }
     let mut result = Ok(());
     let mut added = Vec::new();
     let mut enter = |l: &mut Lower, t, _| {
@@ -81,7 +84,7 @@ fn specialize(l: &mut Lower, app: TNodeId, fun: TNodeId, arity: usize) -> Result
     let result = l.u.widen(l.tpd.tpe(app));
     let result = l.u.erase_value(result);
     let primitives = params.iter().all(|p| matches!(p, Erased::Prim(_)));
-    if !primitives || !specializable(&params, &result) || l.tpd.scala2 {
+    if !primitives || !specializable(&params, &result) {
         return Ok(());
     }
     let Tree::Select { qualifier, .. } = *l.tpd.tree(fun) else {
@@ -142,7 +145,7 @@ fn specialized_for(l: &mut Lower, class: SymbolId, sym: SymbolId) -> Option<Symb
     let params: Option<Vec<Erased>> = param_types.iter().map(|&t| primitive(l, t)).collect();
     let result_type = l.u.result_type(info);
     let (params, result) = (params?, primitive(l, result_type)?);
-    (specializable(&params, &result) && !l.tpd.scala2)
+    (specializable(&params, &result) && !behaves_as_scala2(l, class))
         .then(|| specialized_apply(l.u, &params, &result).ok())
         .flatten()
 }

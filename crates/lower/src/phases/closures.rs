@@ -58,7 +58,7 @@ pub fn plan(
     let erased_result = l.u.erase_value(result);
     let needed = adaptation_needed(&erased, &erased_result, &sam_params, &sam_result);
     let specialized_interface =
-        function.then(|| specialized_interface(l, needed, &erased, &erased_result)).flatten();
+        function.then(|| specialized_interface(l, class, needed, (&erased, &erased_result))).flatten();
     let Ok(specialized_interface) = specialized_interface.transpose() else {
         return unsupported(span, "lambdas of this function type");
     };

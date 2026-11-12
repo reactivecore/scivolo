@@ -6,8 +6,7 @@ Usage: scripts/bench_compile.py CODEBASE [RUNS]
 CODEBASE is one of CODEBASES or `all`. All files of a codebase are compiled as one unit, with the
 same sources and classpath, by scivolo-jvm, scivolo-lower (Native), scalac on a fresh JVM (cold)
 and scalac WARM_RUNS times in one JVM (warm, scripts/ScalacWarm.java), each RUNS times, the tools
-alternating; scivolo compiles scalalib as two units, its files of source version `2.13` and
-the others, its times summed. Prints and writes to tmp/bench-compile/CODEBASE.md, per tool: files refused, wall and
+alternating. Prints and writes to tmp/bench-compile/CODEBASE.md, per tool: files refused, wall and
 user+sys CPU seconds (min of the runs; warm: of the runs after WARMUP), peak RSS, and the ratios
 scalac / scivolo. The machine may be loaded: CPU time and minima are the numbers to read. A
 refused file is left out of the unit and the rest compiled again, so its codebase's scivolo times
@@ -43,15 +42,13 @@ GENY = "com.lihaoyi:geny_{}:1.1.1"
 
 @dataclass
 class Codebase:
-    """Sources under `root` and the arguments of each tool; a tool without arguments is not run.
-    scivolo compiles the groups of `units` one after the other, each as one unit, if given."""
+    """Sources under `root` and the arguments of each tool; a tool without arguments is not run."""
     root: Path
     files: list
     jvm: list | None = None
     lower: list | None = None
     lower_env: dict = field(default_factory=dict)
     scalac: list | None = None
-    units: list | None = None
 
 
 def coursier(*args):
@@ -83,10 +80,7 @@ def scalalib():
     root = jvm_lib_oracle.sources(LIBRARY.parent / "scala-library-3.9.0-sources.jar", ROOT / "tmp/lib-jvm/scalalib/sources")
     java = sorted(str(f.relative_to(root)) for f in root.rglob("*.java"))
     scalac = ["-classpath", "", "-sourcepath", ".", *jvm_lib_oracle.LIBRARY_OPTIONS, *java]
-    files = scala_files(root)
-    scala2 = [f for f in files if "import scala.language.`2.13`" in (root / f).read_text()]
-    units = [scala2, [f for f in files if f not in scala2]]
-    return Codebase(root, files, jvm_lib_compile.OPTIONS, scalac=scalac, units=units)
+    return Codebase(root, scala_files(root), jvm_lib_compile.OPTIONS, scalac=scalac)
 
 
 def javalib():
@@ -154,12 +148,9 @@ def commands(c, out, cp):
     """The command lines and environment of each tool compiling codebase `c` into `out`/TOOL."""
     java = ["java", "-Xss8m", "-cp"]
     scalac = lambda tool: [*c.scalac, "-d", str(out / tool), *c.files]
-    units = list(enumerate(c.units or [c.files]))
-    jvm = lambda: [([str(RELEASE / "scivolo-jvm"), *c.jvm, "-d", str(out / f"scivolo-jvm/{i}"), *fs], len(fs))
-                   for i, fs in units]
-    lower = lambda: [([str(RELEASE / "scivolo-lower"), *c.lower, *fs, str(out / f"scivolo-lower/{i}")], len(fs))
-                     for i, fs in units]
     whole = len(c.files)
+    jvm = lambda: [([str(RELEASE / "scivolo-jvm"), *c.jvm, "-d", str(out / "scivolo-jvm"), *c.files], whole)]
+    lower = lambda: [([str(RELEASE / "scivolo-lower"), *c.lower, *c.files, str(out / "scivolo-lower")], whole)]
     tools = {
         "scivolo-jvm": c.jvm is not None and (jvm(), {}),
         "scivolo-lower": c.lower is not None and (lower(), c.lower_env),
@@ -196,13 +187,12 @@ def bench(name, runs):
             log = out / f"{tool.replace(' ', '-')}.log"
             run = timed_all(cmds, c.root, env, log)
             found[tool].append(warm_run(run, log) if tool == "scalac warm" else run)
-    report(name, len(c.files), len(c.units or [c.files]), runs, {t: best(rs) for t, rs in found.items()}, out)
+    report(name, len(c.files), runs, {t: best(rs) for t, rs in found.items()}, out)
 
 
-def report(name, files, units, runs, results, out):
+def report(name, files, runs, results, out):
     """Prints the table of `results` and writes it to WORK/NAME.md."""
-    unit = "one unit" if units == 1 else f"one unit (scivolo: {units} units one after the other, times summed)"
-    lines = [f"{name}: {files} files as {unit}, min of {runs} runs (warm: of runs {WARMUP + 1}-{WARM_RUNS} "
+    lines = [f"{name}: {files} files as one unit, min of {runs} runs (warm: of runs {WARMUP + 1}-{WARM_RUNS} "
              "in one JVM); the machine is shared, read CPU time", "",
              "| tool | refused | wall s | CPU s | peak RSS MB | scalac cold / tool (wall, CPU) | scalac warm / tool (wall, CPU) |",
              "|---|--:|--:|--:|--:|--:|--:|"]

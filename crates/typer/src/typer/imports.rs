@@ -28,6 +28,8 @@ pub struct ImportInfo {
     pub expr: Option<TNodeId>,
     /// The owner of the context the import is in; `None` for a root import.
     pub owner: Option<SymbolId>,
+    /// The import; `None` for a root import and an import of a typed path.
+    pub tree: Option<NodeId>,
 }
 
 impl ImportInfo {
@@ -46,8 +48,18 @@ impl ImportInfo {
 /// An import of a unit: its tree and the context its path is typed in, or what it imports.
 pub enum ImportEntry {
     Pending { tree: NodeId, ctx: Ctx },
-    Completing,
+    Completing(NodeId),
     Done(ImportInfo),
+}
+
+impl ImportEntry {
+    /// The import tree, if the import has one.
+    pub fn tree(&self) -> Option<NodeId> {
+        match self {
+            ImportEntry::Pending { tree, .. } | ImportEntry::Completing(tree) => Some(*tree),
+            ImportEntry::Done(info) => info.tree,
+        }
+    }
 }
 
 impl Typer<'_> {
@@ -67,7 +79,8 @@ impl Typer<'_> {
         if self.import_site(qual) == Some(self.defn.predef) {
             selectors.insert(0, selector(nme::ANY2STRINGADD, nme::WILDCARD));
         }
-        self.imports.push(ImportEntry::Done(ImportInfo { qual, selectors, expr: None, owner: None }));
+        let info = ImportInfo { qual, selectors, expr: None, owner: None, tree: None };
+        self.imports.push(ImportEntry::Done(info));
         self.levels.push(outer, Level::Import(self.imports.len() - 1))
     }
 
@@ -105,7 +118,7 @@ impl Typer<'_> {
     /// The info of import `i`, its path typed if not yet.
     pub fn import_info(&mut self, i: usize) -> Option<&ImportInfo> {
         if let ImportEntry::Pending { tree, ctx } = self.imports[i] {
-            self.imports[i] = ImportEntry::Completing;
+            self.imports[i] = ImportEntry::Completing(tree);
             let Tree::Import { expr, selectors } = *self.ast.tree(tree) else { unreachable!() };
             let typed = self.typed(expr, Pt::Any, ctx.with_mode(crate::ctx::Mode::QUALIFIER));
             let package = self.tpd.sym(typed).is_some_and(|s| self.u.symbol(s).kind == tasty::Kind::Package);
@@ -123,7 +136,8 @@ impl Typer<'_> {
             }
             let selectors = self.selectors(selectors, ctx);
             let owner = Some(ctx.owner);
-            self.imports[i] = ImportEntry::Done(ImportInfo { qual, selectors, expr: Some(typed), owner });
+            let info = ImportInfo { qual, selectors, expr: Some(typed), owner, tree: Some(tree) };
+            self.imports[i] = ImportEntry::Done(info);
         }
         match &self.imports[i] {
             ImportEntry::Done(info) => Some(info),

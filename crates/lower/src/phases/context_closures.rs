@@ -73,7 +73,7 @@ pub fn plan(
             None => result.clone(),
         };
         let needed = if bunched { (false, false) } else { function_adaptation(&erased, &result) };
-        let Ok(interface) = specialized_interface(l, needed, &erased, &result).transpose() else {
+        let Ok(interface) = specialized_interface(l, class, needed, (&erased, &result)).transpose() else {
             return unsupported(span, "context functions of this function type");
         };
         let adapted = (interface.is_none() && needed != (false, false)).then(|| {

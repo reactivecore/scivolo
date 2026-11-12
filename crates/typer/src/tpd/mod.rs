@@ -40,8 +40,6 @@ pub struct Tpd {
     pattern_givens: FxHashMap<SymbolId, SymbolId>,
     annotations: FxHashMap<SymbolId, Vec<TNodeId>>,
     copies: FxHashMap<TNodeId, TNodeId>,
-    /// Whether the unit behaves as the Scala 2 library (dotty's `shouldBehaveAsScala2`).
-    pub scala2: bool,
 }
 
 /// What an anonymous class the typer made for a mirror becomes (dotty's
