@@ -53,6 +53,7 @@ impl Gen<'_, '_> {
             .unwrap_or(Kind::Int)
     }
 
+    /// Determines the kind of `t`'s erased type in operations.
     pub fn kind_of(&mut self, t: TNodeId) -> Kind {
         kind(&lower::erased_type(self.l, t))
     }
