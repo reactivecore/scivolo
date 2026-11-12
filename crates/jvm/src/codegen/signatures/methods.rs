@@ -4,7 +4,7 @@
 
 use super::{Boxing, Sig};
 use names::nme;
-use tasty::{Type, TypeId};
+use tasty::{Kind, Type, TypeId};
 
 impl Sig<'_> {
     /// A method type: type parameters at the top, of an extension method then its value
@@ -46,6 +46,9 @@ impl Sig<'_> {
             let class_params = class_params.map(|p| (tasty::encode(&self.u.symbol(p).name), self.u.info(p)));
             tparams.extend(class_params.collect::<Vec<_>>());
         }
+        if top && !self.constructor && !self.field {
+            self.rename_shadowing(&mut tparams, vparams.iter().copied().chain([t]));
+        }
         self.type_params(&tparams);
         self.out.push('(');
         for p in vparams {
@@ -53,6 +56,60 @@ impl Sig<'_> {
         }
         self.out.push(')');
         self.result(t);
+    }
+
+    /// Renames each of `tparams` named like a class type parameter that `types` mention, `A` to
+    /// the first of `A1`, `A2`, … not taken, in `tparams` and the references to them (dotty's
+    /// `freshTypeParamName`).
+    fn rename_shadowing(&mut self, tparams: &mut [(String, TypeId)], types: impl Iterator<Item = TypeId>) {
+        let mut shadowed: Vec<String> = Vec::new();
+        for t in types {
+            for name in self.class_params_in(t) {
+                if tparams.iter().any(|p| p.0 == name) && !shadowed.contains(&name) {
+                    shadowed.push(name);
+                }
+            }
+        }
+        let mut renamed: Vec<(String, String)> = Vec::new();
+        for (name, _) in tparams.iter_mut() {
+            if !shadowed.contains(name) {
+                continue;
+            }
+            let fresh = (1..).map(|i| format!("{name}{i}")).find(|n| !shadowed.contains(n)).expect("a fresh name");
+            shadowed.push(fresh.clone());
+            renamed.push((std::mem::replace(name, fresh.clone()), fresh));
+        }
+        for (_, params) in &mut self.poly {
+            for (name, _) in params.iter_mut() {
+                if let Some((_, fresh)) = renamed.iter().find(|r| r.0 == *name) {
+                    *name = fresh.clone();
+                }
+            }
+        }
+    }
+
+    /// The names of the type parameters of classes in the top-level class that `t` mentions.
+    fn class_params_in(&mut self, t: TypeId) -> Vec<String> {
+        let top = self.tops[0];
+        let mut out = Vec::new();
+        self.u.map_type(t, &mut |u, part| {
+            let s = match *u.ty(part) {
+                Type::Sym(_, s) => Some(s),
+                Type::TypeRef(..) => u.resolve_ref(part),
+                _ => None,
+            };
+            if let Some(s) = s.filter(|&s| u.symbol(s).kind == Kind::TypeParam) {
+                let mut o = u.symbol(s).owner;
+                while let Some(x) = o.filter(|&x| x != top) {
+                    o = u.symbol(x).owner;
+                }
+                if o.is_some() {
+                    out.push(tasty::encode(&u.symbol(s).name));
+                }
+            }
+            None
+        });
+        out
     }
 
     /// The result type of context function type `t` with its parameter types added to `vparams`,
