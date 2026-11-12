@@ -64,11 +64,10 @@ on a shared machine; CPU is user + sys, so scalac's includes its JIT and GC thre
   against warm scalac it is 1.6–3.1× in wall time and 6.1–8.7× in CPU time (loaded machine).
   upickle-core stays below 2× in wall time against warm scalac (#248); #249 (Scala's library)
   and #250 (javalib) name the hot spots of the others.
-- Scala's library row is file by file. `just bench-compile scalalib` compiles it as two units,
-  its 543 `2.13` files and its 106 others (a unit mixing them is refused, #249); on a loaded
-  machine they take 100.9 s and 7.3 s CPU and refuse 82 and 5 files, against 81.5 s CPU and 31
-  refused file by file. scalac compiles its Scala and Java sources as one unit: its rows are
-  not comparable.
+- Scala's library row is file by file. `just bench-compile scalalib` compiles all 649 files as
+  one unit; on a loaded machine that takes about 154 s CPU, 69 files are refused and each
+  refusal round types the unit again (#249). scalac compiles its Scala and Java sources as one
+  unit: its rows are not comparable.
 - javalib's two refused files are left out after one typing of the unit (127.6 s CPU on a
   loaded machine), and scalac compiles it to class files without Scala Native's plugin: its
   rows are not comparable either.
