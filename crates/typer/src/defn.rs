@@ -39,15 +39,19 @@ pub fn type_ref(u: &mut Universe, s: SymbolId) -> TypeId {
 
 /// The type of a reference to `sym` through `prefix` (dotty's `TermRef`/`TypeRef`), a member of
 /// a package object through the object (`makePackageObjPrefixExplicit`) but an opaque type of
-/// the unit through its `this`.
+/// the unit, and a type of a package object with opaque types (`isTransparentPackageObject`),
+/// through its `this`.
 pub fn ref_type(u: &mut Universe, prefix: Option<TypeId>, sym: SymbolId) -> TypeId {
     if u.symbol(sym).kind == Kind::Package {
         return u.intern_type(Type::Package(sym));
     }
     let s = u.symbol(sym);
     let opaque = s.kind == Kind::Type && s.flags.has(tasty::tags::OPAQUE) && s.tree.is_none();
+    let type_name = !s.kind.is_term();
     let in_package_object = |u: &mut Universe, c: TypeId| {
-        !opaque && u.class_symbol(c).is_some_and(|c| is_named_package_object(u, c))
+        let transparent =
+            |u: &Universe, c: SymbolId| !type_name || !u.symbol(c).flags.has(tasty::tags::OPAQUE);
+        !opaque && u.class_symbol(c).is_some_and(|c| is_named_package_object(u, c) && transparent(u, c))
     };
     let prefix = match prefix.map(|p| *u.ty(package_ref(u, p))) {
         Some(Type::Package(p)) => package_object_prefix(u, Some(p), sym).or(prefix),
