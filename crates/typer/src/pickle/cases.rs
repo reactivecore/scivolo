@@ -24,10 +24,9 @@ impl TreePickler<'_> {
 
     pub fn case_def(&mut self, pat: TNodeId, guard: Option<TNodeId>, body: TNodeId) -> Result<(), Refusal> {
         let tpts = self.annotated_tpts(pat);
-        self.with_typed_tpts(tpts, &mut |p| {
-            p.with_length(CASEDEF, &mut |p| {
-                [Some(pat), Some(body), guard].into_iter().flatten().try_for_each(|t| p.tree(t))
-            })
+        self.with_length(CASEDEF, &mut |p| {
+            p.with_typed_tpts(tpts.clone(), &mut |p| p.tree(pat))?;
+            [Some(body), guard].into_iter().flatten().try_for_each(|t| p.tree(t))
         })
     }
 

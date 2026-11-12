@@ -53,8 +53,8 @@ impl TreePickler<'_> {
         })
     }
 
-    /// The annotation tree of the type tree pickled, else of the innermost enclosing typed
-    /// expression or case pattern, whose type is `annotated` and an annotated expression gave.
+    /// The annotation tree of the type tree pickled, else of the innermost type tree of the
+    /// enclosing case pattern, whose type is `annotated` and an annotated expression gave.
     pub fn tpt_annotation(&self, annotated: TypeId) -> Option<TNodeId> {
         let enclosing = self.typed_tpts.iter().rev().copied();
         let tpts = self.type_tree.into_iter().chain(enclosing);
@@ -69,8 +69,7 @@ impl TreePickler<'_> {
         }
     }
 
-    /// The type trees of the typed expressions and patterns in tree `t`, and the annotated type
-    /// trees in them.
+    /// The type trees of the typed patterns in pattern `t`, and the annotated type trees in them.
     pub fn annotated_tpts(&self, t: TNodeId) -> Vec<TNodeId> {
         let mut tpts = match *self.tpd.tree(t) {
             Tree::Typed { tpt, .. } => vec![tpt],
@@ -81,22 +80,7 @@ impl TreePickler<'_> {
         tpts
     }
 
-    /// The type trees of `annotated_tpts(rhs)`, if a definition's type tree `tpt` is inferred,
-    /// with an annotation tree that no other of them gives another one for the same type.
-    pub fn rhs_tpts(&self, tpt: TNodeId, rhs: Option<TNodeId>) -> Vec<TNodeId> {
-        let Some(rhs) = rhs.filter(|_| matches!(self.tpd.tree(tpt), Tree::TypeTree { .. })) else {
-            return Vec::new();
-        };
-        let tpts: Vec<_> =
-            self.annotated_tpts(rhs).into_iter().filter(|&t| self.annotation_of(t).is_some()).collect();
-        let unique = |&t: &TNodeId| {
-            let same = |o: &&TNodeId| self.tpd.tpe(**o) == self.tpd.tpe(t);
-            tpts.iter().filter(same).all(|&o| self.annotation_of(o) == self.annotation_of(t))
-        };
-        tpts.iter().copied().filter(unique).collect()
-    }
-
-    /// Pickles `pickle` inside typed expressions or case patterns of type trees `tpts`.
+    /// Pickles `pickle` inside the case pattern or pattern variable of type trees `tpts`.
     pub fn with_typed_tpts(
         &mut self,
         tpts: Vec<TNodeId>,

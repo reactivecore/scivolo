@@ -109,7 +109,7 @@ impl TreePickler<'_> {
             if let Some(paramss) = paramss {
                 p.paramss(sym, paramss)?;
             }
-            p.with_typed_tpts(p.rhs_tpts(tpt, rhs), &mut |p| p.tree(tpt))?;
+            p.tree(tpt)?;
             if let Some(rhs) = rhs {
                 p.tree(rhs)?;
             }
