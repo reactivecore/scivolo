@@ -17,6 +17,7 @@ pub struct Children {
 }
 
 impl Children {
+    #[inline]
     fn push(&mut self, c: TNodeId) {
         if self.len < INLINE {
             self.inline[self.len] = c;
@@ -33,6 +34,7 @@ impl Children {
 impl Deref for Children {
     type Target = [TNodeId];
 
+    #[inline]
     fn deref(&self) -> &[TNodeId] {
         if self.len <= INLINE { &self.inline[..self.len] } else { &self.spilled }
     }
@@ -63,6 +65,7 @@ pub struct IntoIter {
 impl Iterator for IntoIter {
     type Item = TNodeId;
 
+    #[inline]
     fn next(&mut self) -> Option<TNodeId> {
         (self.front < self.back).then(|| {
             self.front += 1;
@@ -76,6 +79,7 @@ impl Iterator for IntoIter {
 }
 
 impl DoubleEndedIterator for IntoIter {
+    #[inline]
     fn next_back(&mut self) -> Option<TNodeId> {
         (self.front < self.back).then(|| {
             self.back -= 1;
@@ -88,6 +92,7 @@ impl ExactSizeIterator for IntoIter {}
 
 impl Tpd {
     /// The direct subtrees of `t`, in order.
+    #[inline]
     pub fn children(&self, t: TNodeId) -> Children {
         let mut out = Children { inline: [t; INLINE], len: 0, spilled: Vec::new() };
         for &slot in self.tree(t).slots().iter() {
