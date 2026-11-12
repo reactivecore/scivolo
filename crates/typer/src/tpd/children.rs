@@ -95,9 +95,16 @@ impl Tpd {
     #[inline]
     pub fn children(&self, t: TNodeId) -> Children {
         let mut out = Children { inline: [t; INLINE], len: 0, spilled: Vec::new() };
+        self.extend_children(t, &mut out);
+        out
+    }
+
+    /// Appends the direct subtrees of `t` to `out`, in order.
+    #[inline]
+    fn extend_children(&self, t: TNodeId, out: &mut impl Extend<TNodeId>) {
         for &slot in self.tree(t).slots().iter() {
             match slot {
-                Slot::Node(c) => out.push(c),
+                Slot::Node(c) => out.extend([c]),
                 Slot::Opt(c) => out.extend(c),
                 Slot::List(l) => out.extend(self.items(l).iter().copied()),
                 Slot::Clauses(cs) => {
@@ -105,7 +112,17 @@ impl Tpd {
                 }
             }
         }
-        out
+    }
+
+    /// Appends the subtrees `traversed` gives of `t` to `out`.
+    pub fn extend_traversed(&self, t: TNodeId, out: &mut Vec<TNodeId>) {
+        let start = out.len();
+        self.extend_children(t, out);
+        if let super::Tree::Inlined { call: Some(call), .. } = *self.tree(t)
+            && out.get(start) == Some(&call)
+        {
+            out.remove(start);
+        }
     }
 
     /// The direct subtrees of `t` but the call of an `Inlined` tree (dotty's `TreeAccumulator`).
