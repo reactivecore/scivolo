@@ -1,5 +1,5 @@
-//! The JDK's packages and classes of `java.*` and `javax.*` the library lacks, entered from the
-//! JDK's class files when a universe has a JDK (ADR 0107).
+//! The JDK's packages and classes of `java.*`, `javax.*` and `sun.*` the library lacks, entered
+//! from the JDK's class files when a universe has a JDK (ADR 0107).
 
 mod annotation;
 mod class;
@@ -19,6 +19,9 @@ use crate::Erased;
 use classfile::{ACC_MODULE, ACC_PUBLIC};
 use names::nme;
 
+/// The root packages of the JDK's packages a universe with a JDK enters from its class files.
+const JDK_ROOTS: [&str; 3] = ["java", "javax", "sun"];
+
 impl Universe {
     /// Makes the JDK's packages and classes the library lacks known from `jdk`'s class files.
     pub fn set_jdk(&mut self, jdk: classfile::Jdk) {
@@ -26,8 +29,8 @@ impl Universe {
     }
 
     /// Package or public class `name` of package `pkg` (an object `C$` stands for its class `C`)
-    /// entered from the JDK, if it has it in a `java.*` or `javax.*` package and the universe has
-    /// a JDK and the package lacks the class and its object; nested classes are not entered.
+    /// entered from the JDK, if it has it in a package of `JDK_ROOTS` and the universe has
+    /// a JDK and the package lacks the class and its object, with its nested classes.
     pub fn jdk_decl(&mut self, pkg: SymbolId, name: crate::NameId) -> Vec<SymbolId> {
         if self.jdk.is_none() {
             return Vec::new();
@@ -36,7 +39,7 @@ impl Universe {
         let name = name.as_str();
         let outer = self.full_name(pkg).replace('.', "/");
         let full = if outer.is_empty() { name.to_owned() } else { format!("{outer}/{name}") };
-        let java = ["java", "javax"].iter().any(|p| full == *p || full.starts_with(&format!("{p}/")));
+        let java = JDK_ROOTS.iter().any(|p| full == *p || full.starts_with(&format!("{p}/")));
         if !java || name.contains(['.', '/']) {
             return Vec::new();
         }
@@ -54,7 +57,7 @@ impl Universe {
         if info.access & ACC_PUBLIC == 0 || info.access & ACC_MODULE != 0 {
             return Vec::new();
         }
-        let entered = class::enter(self, pkg, class, &info, info.access).unwrap_or_default();
+        let entered = classpath::enter(self, pkg, class, &info, info.access);
         entered.into_iter().filter(|&d| self.symbol(d).name == name).collect()
     }
 

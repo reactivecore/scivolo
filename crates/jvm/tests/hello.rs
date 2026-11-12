@@ -159,6 +159,11 @@ fn jdk_classes_javalib_lacks_run_on_the_jvm() {
 }
 
 #[test]
+fn jdk_members_under_explicit_nulls_run_on_the_jvm() {
+    runs_on_the_jvm("explicitnulls", "Explicitnulls");
+}
+
+#[test]
 fn java_annotations_run_on_the_jvm() {
     runs_on_the_jvm("javaannotations", "Javaannotations");
 }
@@ -224,12 +229,6 @@ fn a_javalib_member_the_jdk_lacks_is_not_found() {
     refuses("refusedjdk", code, "member not found");
     let code = "object R { def f(m: java.util.HashMap[String, String]) = m.usingEntry }";
     refuses("refusedjdkhelper", code, "member not found");
-}
-
-#[test]
-fn a_class_nested_in_a_jdk_class_javalib_lacks_is_refused() {
-    let code = "object R { def f = java.time.zone.ZoneOffsetTransitionRule.TimeDefinition.UTC }";
-    refuses("refusednested", code, "member not found");
 }
 
 #[test]

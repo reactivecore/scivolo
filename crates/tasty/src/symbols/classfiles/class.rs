@@ -8,7 +8,7 @@ use super::super::{Kind, SymbolId, Universe};
 use super::constant::constant_type;
 use super::signatures::{Sig, Var, bounded_by_object, bounds, cooked};
 use super::{annotation, inner, visibility};
-use crate::tags::{ABSTRACT, FINAL, MUTABLE, OBJECT, SEALED, STATIC, TRAIT};
+use crate::tags::{ABSTRACT, FINAL, LOCAL, MUTABLE, OBJECT, PRIVATE, SEALED, STATIC, TRAIT};
 use crate::types::{NameId, Type, TypeId};
 use classfile::{
     ACC_ABSTRACT, ACC_BRIDGE, ACC_ENUM, ACC_FINAL, ACC_INTERFACE, ACC_NATIVE, ACC_PRIVATE, ACC_STATIC,
@@ -90,7 +90,7 @@ fn class_signature<'a>(
     let params = sig.type_params(u)?;
     let mut syms = Vec::new();
     for (name, b) in &params {
-        let p = synthetic(u, class, name, Kind::TypeParam, &[]);
+        let p = synthetic(u, class, name, Kind::TypeParam, &[PRIVATE, LOCAL]);
         syms.push(p);
         vars.push((name.clone(), u.types.intern(Type::Sym(None, p)), bounded_by_object(b)));
     }

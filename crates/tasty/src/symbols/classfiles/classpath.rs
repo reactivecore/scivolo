@@ -40,6 +40,11 @@ impl Universe {
         Ok(())
     }
 
+    /// Whether the universe uses the jars' Java class files, as a compile for the JVM does.
+    pub fn uses_java_classfiles(&self) -> bool {
+        self.java_classes.is_some()
+    }
+
     /// Enters class `name` of package `pkg` (an object `C$` stands for its class `C`) from
     /// a jar's class file with its nested classes, if the universe uses the jars' class files and
     /// the package lacks the class and its object: the declarations named `name` entered.
@@ -68,15 +73,16 @@ impl Universe {
 /// Enters class `info` of Java access flags `access` into `owner` as `name` with its nested
 /// classes, the static ones into its object's class, the others into it (dotty's
 /// `enterOwnInnerClasses`): the class, its object's class and its object, none if its signature
-/// is refused.
-fn enter(u: &mut Universe, owner: SymbolId, name: &str, info: &ClassInfo, access: u16) -> Vec<SymbolId> {
+/// is refused. A nested class is read from the jars, else from the JDK.
+pub fn enter(u: &mut Universe, owner: SymbolId, name: &str, info: &ClassInfo, access: u16) -> Vec<SymbolId> {
     let Some(entered) = class::enter(u, owner, name, info, access) else { return Vec::new() };
     for nested in &info.inner_classes {
         let (Some(outer), Some(simple)) = (&nested.outer, &nested.name) else { continue };
         if *outer != info.name {
             continue;
         }
-        let Some(inner) = java_class(u, &nested.inner) else { continue };
+        let inner = java_class(u, &nested.inner).or_else(|| u.jdk.as_mut()?.class(&nested.inner).cloned());
+        let Some(inner) = inner else { continue };
         let owner = if nested.flags & ACC_STATIC != 0 { entered[1] } else { entered[0] };
         let access = inner.access & !(ACC_PUBLIC | ACC_PROTECTED | ACC_PRIVATE) | nested.flags;
         enter(u, owner, simple, &inner, access);
