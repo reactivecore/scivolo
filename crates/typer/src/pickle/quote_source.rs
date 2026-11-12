@@ -14,13 +14,28 @@ pub struct QuoteSource<'a> {
     pub file: Option<(&'a SourceFile, Offset)>,
     /// The other source files of the quote's unit, each at its offset among the sources.
     pub others: Vec<(&'a SourceFile, Offset)>,
+    /// The offset after each non-ASCII character of `file`, with the bytes its text up to there
+    /// has beyond its UTF-16 units.
+    non_ascii: Vec<(Offset, u32)>,
 }
 
 impl<'a> QuoteSource<'a> {
     /// The source `file` at offset `base` among the sources, the path of the quote's root `path`.
     pub fn of(path: String, file: &'a SourceFile, base: Offset) -> QuoteSource<'a> {
         let line_sizes = text_line_sizes(&file.text);
-        QuoteSource { path, line_sizes, file: Some((file, base)), others: Vec::new() }
+        let mut excess = 0;
+        let non_ascii = (file.text.char_indices().filter(|(_, c)| !c.is_ascii()))
+            .map(|(i, c)| {
+                excess += (c.len_utf8() - c.len_utf16()) as u32;
+                ((i + c.len_utf8()) as Offset, excess)
+            })
+            .collect();
+        QuoteSource { path, line_sizes, file: Some((file, base)), others: Vec::new(), non_ascii }
+    }
+
+    /// The source of a quote read from TASTy, its path `path` and the sizes of its lines.
+    pub fn of_tasty(path: String, line_sizes: Vec<u32>) -> QuoteSource<'a> {
+        QuoteSource { path, line_sizes, file: None, others: Vec::new(), non_ascii: Vec::new() }
     }
 
     /// The path of the file of the unit that `span` starts in, if it starts in one.
@@ -55,7 +70,15 @@ impl<'a> QuoteSource<'a> {
         if !own {
             return Ok(o);
         }
-        self.file.ok_or("a span of the quote's source without the source")?;
+        let (file, base) = self.file.ok_or("a span of the quote's source without the source")?;
+        if within(file, base, o) {
+            let at = o - base;
+            if !file.text.is_char_boundary(at as usize) {
+                return Err("a quote with a span in another of the sources");
+            }
+            let before = self.non_ascii.partition_point(|&(end, _)| end <= at);
+            return Ok(at - before.checked_sub(1).map_or(0, |i| self.non_ascii[i].1));
+        }
         let in_unit = self.files().find(|&(f, b)| within(f, b, o));
         let text = in_unit.and_then(|(file, base)| file.text.get(..(o - base) as usize));
         let text = text.ok_or("a quote with a span in another of the sources")?;

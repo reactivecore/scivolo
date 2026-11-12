@@ -3,35 +3,60 @@
 //! Where a lifted local class is instantiated and defined: its constructor calls pass the values
 //! it captures, and its definition moves from its block to its package as `Outer$Name$N`.
 
-use super::local_free::{Free, within};
+use super::local_free::{Local, within};
 use super::walk::{children, is_class_def};
-use crate::{Lower, Result};
+use crate::Lower;
 use names::name_kinds;
-use rustc_hash::FxHashSet;
+use rustc_hash::{FxHashMap, FxHashSet};
 use tasty::tags::OBJECT;
 use tasty::{Kind, SymbolId};
 use typer::tpd::{TNodeId, Tree};
 
-/// Passes the values of `free`, or in `class` itself its `fields`, first to each constructor call
-/// of `class` in unit `root`; records the values passed outside `class` in `passed`. In classes
-/// nested in `class` the values stay for `nested_reads` to read from the fields.
-pub fn pass_values(
-    l: &mut Lower,
-    root: TNodeId,
-    class: SymbolId,
-    free: &Free,
-    fields: &[SymbolId],
-    passed: &mut FxHashSet<TNodeId>,
-) -> Result<()> {
-    for t in super::walk::subtrees(l.tpd, root) {
-        let Tree::Apply { fun, args } = *l.tpd.tree(t) else { continue };
+/// A constructor call `new C(...)` with the innermost method and class definition around it.
+pub struct ConstructorCall {
+    apply: TNodeId,
+    def: Option<SymbolId>,
+    class: Option<SymbolId>,
+}
+
+/// Finds the constructor calls of unit `root` by the class they instantiate, each class's in
+/// `subtrees` order.
+pub fn constructor_calls(l: &mut Lower, root: TNodeId) -> FxHashMap<SymbolId, Vec<ConstructorCall>> {
+    let mut around = FxHashMap::default();
+    let mut todo = vec![(root, None, None)];
+    while let Some((n, def, class)) = todo.pop() {
+        around.entry(n).or_insert((def, class));
+        let def = if matches!(l.tpd.tree(n), Tree::DefDef { .. }) { l.tpd.sym(n) } else { def };
+        let class = if is_class_def(l.tpd, n) { l.tpd.sym(n) } else { class };
+        todo.extend(children(l.tpd, n).into_iter().map(|c| (c, def, class)));
+    }
+    let mut calls: FxHashMap<SymbolId, Vec<ConstructorCall>> = FxHashMap::default();
+    for apply in super::walk::subtrees(l.tpd, root) {
+        let Tree::Apply { fun, .. } = *l.tpd.tree(apply) else { continue };
         let ctor = super::walk::without_type_args(l.tpd, fun);
         let Tree::Select { qualifier, .. } = *l.tpd.tree(ctor) else { continue };
         let Tree::New { tpt } = *l.tpd.tree(qualifier) else { continue };
-        if l.u.class_symbol(l.tpd.tpe(tpt)) != Some(class) {
-            continue;
-        }
-        let (def, innermost) = enclosing(l, root, t);
+        let Some(c) = l.u.class_symbol(l.tpd.tpe(tpt)) else { continue };
+        let (def, class) = around.get(&apply).copied().unwrap_or_default();
+        calls.entry(c).or_default().push(ConstructorCall { apply, def, class });
+    }
+    calls
+}
+
+/// Passes the values of local class `c`'s free values, or in its class itself its `fields`, first
+/// to each of its constructor calls `calls`; records the values passed outside the class in
+/// `passed`. In classes nested in the class the values stay for `nested_reads` to read from the
+/// fields.
+pub fn pass_values(
+    l: &mut Lower,
+    calls: &[ConstructorCall],
+    c: &Local,
+    fields: &[SymbolId],
+    passed: &mut FxHashSet<TNodeId>,
+) {
+    let (class, free) = (c.class, &c.free);
+    for &ConstructorCall { apply: t, def, class: innermost } in calls {
+        let Tree::Apply { fun, args } = *l.tpd.tree(t) else { continue };
         let inside = def.is_some_and(|d| within(l, d, class));
         let span = l.tpd.span(t);
         let mut values = Vec::new();
@@ -54,21 +79,6 @@ pub fn pass_values(
         let args = l.tpd.list(&values);
         l.tpd.get_mut(t).tree = Tree::Apply { fun, args };
     }
-    Ok(())
-}
-
-/// The innermost method definition and class definition around `t` in `root`.
-fn enclosing(l: &Lower, root: TNodeId, t: TNodeId) -> (Option<SymbolId>, Option<SymbolId>) {
-    let mut todo = vec![(root, None, None)];
-    while let Some((n, def, class)) = todo.pop() {
-        if n == t {
-            return (def, class);
-        }
-        let def = if matches!(l.tpd.tree(n), Tree::DefDef { .. }) { l.tpd.sym(n) } else { def };
-        let class = if is_class_def(l.tpd, n) { l.tpd.sym(n) } else { class };
-        todo.extend(children(l.tpd, n).into_iter().map(|c| (c, def, class)));
-    }
-    (None, None)
 }
 
 /// Names local class `class` in class `outer` `Outer$Name$N`, an object's class `Outer$Name$N$`
@@ -105,16 +115,24 @@ pub fn lift(l: &mut Lower, root: TNodeId, td: TNodeId, class: SymbolId) -> Optio
     l.u.enter(class);
     l.local_classes.insert(class, owner);
     let mut from = None;
-    let package_defs: Vec<TNodeId> = super::walk::subtrees(l.tpd, root)
-        .into_iter()
+    let (trees, parents) = subtrees_with_parents(l, root);
+    let package_defs: Vec<TNodeId> = (trees.iter().copied())
         .filter(|&t| {
             matches!(*l.tpd.tree(t), Tree::PackageDef { pid, .. }
             if l.tpd.sym(t) == Some(package) || l.tpd.sym(pid) == Some(package))
         })
         .collect();
-    let enclosing = package_defs.iter().rfind(|&&t| super::walk::subtrees(l.tpd, t).contains(&td));
+    let mut around = FxHashSet::default();
+    for i in (0..trees.len()).filter(|&i| trees[i] == td) {
+        let mut at = Some(i);
+        while let Some(i) = at {
+            around.insert(trees[i]);
+            at = parents[i];
+        }
+    }
+    let enclosing = package_defs.iter().rfind(|&t| around.contains(t));
     let target = enclosing.or(package_defs.first()).copied();
-    for t in super::walk::subtrees(l.tpd, root) {
+    for t in trees {
         match *l.tpd.tree(t) {
             Tree::Block { stats, expr } if l.tpd.items(stats).contains(&td) => {
                 let mut kept = l.tpd.items(stats).to_vec();
@@ -134,4 +152,18 @@ pub fn lift(l: &mut Lower, root: TNodeId, td: TNodeId, class: SymbolId) -> Optio
         }
     }
     from
+}
+
+/// Finds `root` and the trees in it in `subtrees` order, with the index of each one's parent.
+fn subtrees_with_parents(l: &Lower, root: TNodeId) -> (Vec<TNodeId>, Vec<Option<usize>>) {
+    let (mut trees, mut parents) = (vec![root], vec![None]);
+    let mut i = 0;
+    while i < trees.len() {
+        for c in children(l.tpd, trees[i]) {
+            trees.push(c);
+            parents.push(Some(i));
+        }
+        i += 1;
+    }
+    (trees, parents)
 }

@@ -61,8 +61,12 @@ impl Typer<'_> {
                 [s] => constants_adapted(t, *s, prefix, &typed_args, &types),
                 _ => types.clone(),
             };
-            let fits =
-                syms.iter().any(|&s| t.applicable(s, Some(prefix), &adapted, true, arg_ctx) != Some(false));
+            let direct =
+                syms.iter().any(|&s| t.applicable(s, Some(prefix), &adapted, false, arg_ctx) == Some(true));
+            let fits = direct
+                || syms
+                    .iter()
+                    .any(|&s| t.applicable(s, Some(prefix), &adapted, true, arg_ctx) != Some(false));
             (fits, types)
         });
         let diagnosed = self.diags.items.len() > reported;
