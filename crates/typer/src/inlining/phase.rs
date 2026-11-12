@@ -61,7 +61,7 @@ impl Inlining<'_> {
             true => c,
             false => {
                 i.transform(c, constr.filter(|_| parents.contains(&c)).unwrap_or(inner)).unwrap_or_else(|e| {
-                    if package && i.refusals.last() != Some(&e) {
+                    if package && !i.refusals.contains(&e) {
                         i.refusals.push(e);
                     }
                     failed.get_or_insert(e);

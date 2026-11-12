@@ -76,8 +76,11 @@ fn refusals_after_typing_are_collected_from_all_files_at_once() {
         eprintln!("skipped: the library jars are not in ref/libs");
         return;
     }
-    let deferred =
-        |o: &str| format!("trait T{o} {{ inline def f: Int }}\nobject {o} {{ def g(t: T{o}) = t.f }}");
+    let deferred = |o: &str| {
+        format!(
+            "trait T{o} {{ inline def f: Int }}\nobject {o} {{ inline def g(t: T{o}) = t.f; def h(t: T{o}) = g(t) }}"
+        )
+    };
     let sources = [
         SourceFile::new("a.scala", "object A { def f = ${ ??? } }".to_owned()),
         SourceFile::new("b.scala", deferred("B")),
