@@ -7,6 +7,7 @@ mod annotated;
 mod applies;
 mod cases;
 mod defs;
+mod kept_annotations;
 mod names;
 mod packages;
 mod positions;
@@ -63,9 +64,11 @@ pub struct TreePickler<'a> {
     /// The trees that are one tree in dotty's, by the tree pickled first: the class of a module
     /// val's `new` its type's.
     shared: FxHashMap<TNodeId, TNodeId>,
-    /// The trees pickled anew where pickled before: the calls of a parameter's annotation that
-    /// its field has too.
-    anew: FxHashSet<TNodeId>,
+    /// The trees pickled anew where pickled before, each with the definition whose annotation it
+    /// is in: the calls of a parameter's or setter's annotation that its field has too.
+    anew: FxHashMap<TNodeId, SymbolId>,
+    /// The key of each tree pickled anew, by that definition and the tree.
+    anew_at: FxHashMap<(SymbolId, TNodeId), u32>,
     /// The references to a self pickled as `C.this`, the class name after their tag.
     self_refs: FxHashSet<TNodeId>,
     /// The type tree of each parameter pickled.
@@ -145,7 +148,8 @@ fn pickle<'a>(
         defs: FxHashMap::default(),
         forward: FxHashMap::default(),
         shared: FxHashMap::default(),
-        anew: FxHashSet::default(),
+        anew: FxHashMap::default(),
+        anew_at: FxHashMap::default(),
         self_refs: FxHashSet::default(),
         param_tpts: FxHashMap::default(),
         file,
