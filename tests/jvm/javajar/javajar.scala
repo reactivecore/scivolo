@@ -2,6 +2,10 @@ package shapes
 
 class Named extends Box[String]("named")
 
+class Plate extends Box.Shape {
+  def area: Double = 2.0
+}
+
 package extra {
   class Sub extends shapes.Box[String]("sub") {
     def prot: Int = shapes.Box.sprot()
@@ -26,5 +30,6 @@ object Javajar {
     println(c.next() + " " + c.count + " " + Counter.PREFIX.length)
     println(new Named().inner().value())
     println(new extra.Sub().prot)
+    println(b.get + " " + new Plate().area() + " " + new Plate().area)
   }
 }
