@@ -14,5 +14,9 @@ object Units {
     println(units.Words.lengths(List("a", "bc", "def")))
     println(units.Words.first)
     println(units.Words.shout("hi"))
+    println(Thread("x"))
+    println(new Record(2).n)
+    println(io.Top.name)
+    println(units.Labels.top)
   }
 }
