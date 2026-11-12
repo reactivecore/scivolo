@@ -440,6 +440,11 @@ impl<'a> Lower<'a> {
         self.fields.iter().any(|(&f, &g)| g == getter && f != getter)
     }
 
+    /// Whether `Getters` left value `s` a field without a getter.
+    pub fn is_getterless_field(&self, s: SymbolId) -> bool {
+        self.fields.get(&s) == Some(&s)
+    }
+
     /// Whether `s` is the field `x$lzyN` or the flag `xbitmap$N` of a lazy value.
     pub fn is_lazy_storage(&self, s: SymbolId) -> bool {
         let sym = self.u.symbol(s);

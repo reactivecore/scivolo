@@ -115,6 +115,7 @@ impl Gen<'_, '_> {
                 }
                 Kind::Val
                     if self.l.has_getter(s)
+                        && !self.l.is_getterless_field(s)
                         && !self.l.u.symbol(s).flags.has(tasty::tags::SYNTHETIC)
                         && !self.l.u.symbol(s).flags.has(tasty::tags::STATIC) =>
                 {

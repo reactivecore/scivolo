@@ -28,6 +28,7 @@ mod mirror;
 mod monitors;
 mod nested;
 mod prims;
+mod pure_stats;
 mod serial;
 mod signatures;
 mod stash;

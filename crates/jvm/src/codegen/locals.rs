@@ -37,8 +37,12 @@ impl Gen<'_, '_> {
             b.locals.push((sym, slot.0, slot.1));
             rest = tail;
         }
+        let class_body = self.is_primary_constructor(b.method);
         for &s in rest {
-            self.stat(b, s)?;
+            match class_body {
+                true => self.stat(b, s)?,
+                false => self.block_stat(b, s)?,
+            }
         }
         let synthetic_unit = matches!(self.l.tpd.tree(expr), Tree::Literal { value: Constant::Unit })
             && self.l.tpd.span(expr) == self.l.tpd.span(rhs);
