@@ -91,6 +91,9 @@ impl Gen<'_, '_> {
 
     /// Generates `t` and drops its value.
     pub fn stat(&mut self, b: &mut Body, t: TNodeId) -> Result<()> {
+        if self.is_pure_stat(t) {
+            return Ok(());
+        }
         self.line(b, t);
         if let Tree::Apply { fun, args } = *self.l.tpd.tree(t)
             && self.is_synchronized(fun)
