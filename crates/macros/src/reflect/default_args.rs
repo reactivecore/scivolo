@@ -174,7 +174,7 @@ impl Host {
         }
         let name = match prefix {
             "" => self.fresh.unique(&mut self.names),
-            p => self.fresh.next(&mut self.names, &format!("{p}$")),
+            p => self.fresh_in_file(&format!("{p}$")),
         };
         let name = self.names.text(name).to_owned();
         let owner = self.owner;

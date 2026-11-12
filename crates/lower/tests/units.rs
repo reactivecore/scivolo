@@ -154,6 +154,7 @@ fn files_of_a_unit_lower_as_alone() {
              def g = for {{ (x, y) <- Option((1, 2)) }} yield x\n \
              lazy val z = 1\n def l = {{ lazy val y = 2; y }}\n def n = new Object {{ override def toString = \"n\" }}\n \
              def m(x: Any) = x match {{ case P{o}(a, _) => a; case _ => 0 }}\n \
+             def k(n: Int) = {{ class L {{ lazy val v = n; def f = List(1).map(_ + v) }}; new L().f }}\n \
              @annotation.tailrec def t(k: Int): Int = if k == 0 then 0 else t(k - 1)\n \
              def c = summon[deriving.Mirror.ProductOf[P{o}]].fromProduct((1, \"s\")) }}"
         )
