@@ -63,6 +63,15 @@ object Attributes:
     val trace = Thread.currentThread.getStackTrace()(1)
     println(trace.getLineNumber)
     println(IntOrd.getClass.getMethod("mkOrderingOps", classOf[Object]).getGenericReturnType)
+    println(classOf[ByName[?]].getDeclaredField("elem").getGenericType)
+    println(classOf[ByName[?]].getDeclaredMethods.filter(_.getName.startsWith("loc")).map(_.getGenericReturnType).toList)
+
+class ByName[A](elem: => A):
+  class In
+  def get: A = elem
+  def lifted: In =
+    def loc(): In = In()
+    loc()
 
 object IntOrd extends Ordering[Int]:
   def compare(x: Int, y: Int): Int = x - y

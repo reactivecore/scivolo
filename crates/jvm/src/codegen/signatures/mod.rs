@@ -66,7 +66,8 @@ pub fn member(u: &mut Universe, m: Member, info: TypeId, desc: &str, thrown: &[T
     s.extended = m.extended;
     s.field = !method;
     match *s.u.ty(info) {
-        Type::Method { .. } | Type::Poly { .. } | Type::ByName(_) => s.jsig(info, true, Boxing::Unbox),
+        Type::Method { .. } | Type::Poly { .. } => s.jsig(info, true, Boxing::Unbox),
+        Type::ByName(_) => s.jsig(info, method, Boxing::Unbox),
         _ if method => {
             s.out.push_str("()");
             s.result(info);

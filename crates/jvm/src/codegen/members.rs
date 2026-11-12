@@ -19,8 +19,8 @@ const DEPRECATED: &str = "scala.deprecated";
 
 impl Gen<'_, '_> {
     /// Adds to the method of `cf` added last, `sym` of descriptor `desc`, its generic signature
-    /// (from `desc` alone if `erased`), `Deprecated` if `deprecated`, and the names of its parameters `params`,
-    /// `$this` first if `this_param`.
+    /// (from `desc` alone if `erased`, none if lifted from a local definition), `Deprecated` if
+    /// `deprecated`, and the names of its parameters `params`, `$this` first if `this_param`.
     pub fn method_attributes(
         &mut self,
         cf: &mut ClassFile,
@@ -30,6 +30,7 @@ impl Gen<'_, '_> {
         (erased, this_param): (bool, bool),
     ) {
         let sig = match erased {
+            _ if self.l.is_lifted(sym) => None,
             true => self.erased_signature(sym, desc, this_param),
             false => self.generic_signature(sym, desc),
         };
