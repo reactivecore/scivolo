@@ -133,7 +133,11 @@ impl Typer<'_> {
         };
         let fixed = self.u.is_static_symbol(owner) && !self.u.sees_opaques(owner);
         let class = match tycon {
-            Some(tc) if !fixed && self.u.sym_ref(tc).is_some_and(|(p, c)| c == owner && !package(self.u, p)) => tc,
+            Some(tc)
+                if !fixed && self.u.sym_ref(tc).is_some_and(|(p, c)| c == owner && !package(self.u, p)) =>
+            {
+                tc
+            }
             _ => crate::defn::type_ref(self.u, owner),
         };
         match *self.u.ty(info) {

@@ -175,8 +175,17 @@ impl Typer<'_> {
         self.types().is_singleton(t)
     }
 
+    /// Builds the reference to `sym` through `prefix` (`defn::ref_type`), completing the package
+    /// object it inserts as prefix.
     pub fn ref_type(&mut self, prefix: Option<TypeId>, sym: SymbolId) -> TypeId {
-        self.types().ref_type(prefix, sym)
+        let tpe = self.types().ref_type(prefix, sym);
+        if let Type::Sym(Some(p), _) = *self.u.ty(tpe)
+            && Some(p) != prefix
+            && let Type::Sym(_, object) = *self.u.ty(p)
+        {
+            self.complete(object);
+        }
+        tpe
     }
 
     pub fn referenced(&mut self, t: TypeId) -> Option<SymbolId> {
