@@ -189,10 +189,8 @@ impl Gen<'_, '_> {
         Ok(0)
     }
 
-    /// Whether `t` is a `()` the parser or typer added, of no extent (dotty's `SyntheticUnit`).
-    /// Whether `elsep` of `if` `t` is the unit dotty's parser adds for a missing `else`: a unit
-    /// without extent or, compiling Scala's library, one inlined from a body of the same run,
-    /// which has the call's position.
+    /// Whether `elsep` of `if` `t` is a `()` added for a missing `else` (dotty's `SyntheticUnit`):
+    /// of no extent or, compiling Scala's library, inlined from that library, at the call's span.
     fn is_missing_else(&self, t: TNodeId, elsep: TNodeId) -> bool {
         let at = self.l.tpd.span(elsep);
         let inlined = self.l.u.compiles_scala_library() && at == self.l.tpd.span(t);

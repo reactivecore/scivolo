@@ -107,9 +107,10 @@ impl Sig<'_> {
         self.out.push_str(&format!("T{name};"));
     }
 
-    /// The names of the type parameters of the classes in the top-level class that `t` mentions.
+    /// The names of the type parameters of the classes in the top-level class that `t` mentions,
+    /// but those of an extension method's value class, which are the method's.
     fn class_params_in(&mut self, t: TypeId) -> Vec<String> {
-        let top = self.tops[0];
+        let (top, extended) = (self.tops[0], self.extended);
         let mut out = Vec::new();
         self.u.map_type(t, &mut |u, part| {
             let s = match *u.ty(part) {
@@ -118,7 +119,10 @@ impl Sig<'_> {
                 _ => None,
             };
             let class_param = |s: SymbolId| {
-                u.symbol(s).kind == Kind::TypeParam && u.symbol(s).owner.is_some_and(|o| u.is_class(o))
+                let owner = u.symbol(s).owner;
+                u.symbol(s).kind == Kind::TypeParam
+                    && owner.is_some_and(|o| u.is_class(o))
+                    && owner != extended
             };
             if let Some(s) = s.filter(|&s| class_param(s)) {
                 let mut o = u.symbol(s).owner;
