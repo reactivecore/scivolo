@@ -12,8 +12,8 @@ impl Gen<'_, '_> {
     /// the generator's.
     pub fn jdk_class(&mut self, name: &str) -> Option<&classfile::ClassInfo> {
         match self.l.u.jdk_mut() {
-            Some(jdk) => jdk.class(name),
-            None => self.jdk.class(name),
+            Some(jdk) => jdk.class(name).map(|c| &**c),
+            None => self.jdk.class(name).map(|c| &**c),
         }
     }
 

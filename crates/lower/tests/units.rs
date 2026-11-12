@@ -157,7 +157,7 @@ fn empty_package_definitions_and_top_level_packages_shadow_root_imports() {
         eprintln!("skipped: the library jars are not in ref/libs");
         return;
     }
-    let a ="object Thread { def apply(s: String) = s }\nclass Record(val n: Int)";
+    let a = "object Thread { def apply(s: String) = s }\nclass Record(val n: Int)";
     let b = "package p\nobject B { def f = io.Top.n }";
     let c = "object C { def f = Thread(\"x\"); def g = new Record(1).n; def h = io.Top.n + p.B.f }";
     let io = SourceFile::new("io.scala", "package io\nobject Top { def n = 1 }");
