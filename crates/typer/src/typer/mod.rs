@@ -247,6 +247,7 @@ use syntax::names::{FreshNames, Names};
 use tasty::{Kind, SymbolId, Universe};
 
 pub use const_ops::{fold_binop, fold_unop};
+pub use features::source_versions;
 pub use inline_accessors::RETAINED_BODY;
 pub use protos::Pt;
 pub use transparent::InlineDef;

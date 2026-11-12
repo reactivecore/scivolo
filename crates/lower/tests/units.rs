@@ -55,6 +55,8 @@ fn a_refused_file_leaves_out_itself_and_the_files_needing_it() {
         SourceFile::new("a.scala", "object A { def f: Int = 1 }"),
         SourceFile::new("b.scala", "object B { def g: Int = \"s\" }"),
         SourceFile::new("c.scala", "object C { def h: Int = B.g + A.f }"),
+        SourceFile::new("d.scala", "import scala.language.`3.9-migration`\nobject D"),
+        SourceFile::new("e.scala", "import scala.language.`3.9-migration`\nobject E"),
     ];
     let mut open = || Universe::open(&jars).unwrap();
     let isolated = lower::compile_sources_isolated(&mut open, &sources, Config::from_options(&[]), None)
@@ -62,8 +64,8 @@ fn a_refused_file_leaves_out_itself_and_the_files_needing_it() {
     let names: Vec<String> = isolated.out.into_iter().map(|f| f.name).collect();
     assert!(names.contains(&"A".to_owned()) && !names.iter().any(|n| n.starts_with(['B', 'C'])), "{names:?}");
     let refused: Vec<&str> = isolated.refused.iter().map(|r| r.file.as_str()).collect();
-    assert_eq!(refused, ["b.scala", "c.scala"]);
-    assert!(isolated.refused[1].refusal.what.contains("c.scala:1:"), "{}", isolated.refused[1].refusal.what);
+    assert_eq!(refused, ["d.scala", "e.scala", "b.scala", "c.scala"]);
+    assert!(isolated.refused[3].refusal.what.contains("c.scala:1:"), "{}", isolated.refused[3].refusal.what);
 }
 
 #[test]

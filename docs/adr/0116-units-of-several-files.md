@@ -13,16 +13,19 @@ a whole at its first refusal. dotty keeps the source version and the unit-wide f
 - Each `SourceUnit` carries the `Config` its parser ended with. The typer enters, completes and
   types each definition under the features and source version of its file
   (`Typer::enter_file`); the other settings are options, the same for all files. Source
-  version `2.13`, which the lowering and the TASTy attributes read per unit, is refused in
-  some files of a unit only.
-- `compile_isolated` refuses a file, not the run: a refusal that lies in some files blanks
-  them (spaces, line breaks kept, so the others keep their offsets) and compiles the rest again
-  in a fresh universe. A file needing a refused one is refused in the next attempt, with its
-  own message. A refusal in no file, or in files already left out, refuses the run.
+  version `2.13`, which the lowering reads per unit, is refused in some files of a unit only;
+  an empty file, as a left-out one, has no source version.
+- `compile_isolated` refuses a file, not the run: the refusals of an attempt that lie in some
+  files (each file's first refusal while typing, its syntax errors, or the one refusal of a
+  later stage) blank them (spaces, line breaks kept, so the others keep their offsets) and
+  compile the rest again in a fresh universe. A file needing a refused one is refused in the
+  next attempt, with its own message. An attempt whose refusals lie in no file, or in files
+  already left out, refuses the run.
 - `scivolo-jvm` and `scivolo-lower` with several files write the output of the accepted files,
   report each refused file and exit with 1. `scivolo-aot` keeps refusing the whole program.
 
 ## Consequences
-- A run with `n` refused files types the unit up to `n + 1` times.
+- A run types the unit once more per round of refusals: twice where no file needs a refused
+  one. A file typed after a refused one may be refused for its error trees and left out with it.
 - Until fresh names are counted per file (#115), the anonymous class and function names of an
   accepted file change when a file before it is left out.
