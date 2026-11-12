@@ -129,7 +129,7 @@ impl TreePickler<'_> {
                     .ok_or("a parameter reference outside its binder")?;
                 self.param(binder, i as u32)
             }
-            Type::Annotated(parent, annot) => self.annotated(parent, annot),
+            Type::Annotated(parent, annot) => self.annotated(t, parent, annot),
             _ => Err("a type outside the subset pickled"),
         }
     }

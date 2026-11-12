@@ -40,6 +40,9 @@ pub struct Tpd {
     pattern_givens: FxHashMap<SymbolId, SymbolId>,
     annotations: FxHashMap<SymbolId, Vec<TNodeId>>,
     copies: FxHashMap<TNodeId, TNodeId>,
+    /// The annotation tree of each annotated type an annotated expression `e: @a(args)` gave;
+    /// `None` for one that several trees gave.
+    type_annotations: FxHashMap<TypeId, Option<TNodeId>>,
     /// Whether the unit behaves as the Scala 2 library (dotty's `shouldBehaveAsScala2`).
     pub scala2: bool,
 }
@@ -172,6 +175,19 @@ impl Tpd {
     /// The annotation trees phases recorded for definition `sym`.
     pub fn annotations(&self, sym: SymbolId) -> &[TNodeId] {
         self.annotations.get(&sym).map_or(&[], Vec::as_slice)
+    }
+
+    /// Records `annot` as the annotation tree of annotated type `annotated`.
+    pub fn set_type_annotation(&mut self, annotated: TypeId, annot: TNodeId) {
+        let tree = self.type_annotations.entry(annotated).or_insert(Some(annot));
+        if *tree != Some(annot) {
+            *tree = None;
+        }
+    }
+
+    /// The annotation tree of annotated type `annotated`, if one annotated expression gave it.
+    pub fn type_annotation(&self, annotated: TypeId) -> Option<TNodeId> {
+        self.type_annotations.get(&annotated).copied().flatten()
     }
 
     /// Marks `copy` as a copy of `of` that is one tree with it in dotty's.

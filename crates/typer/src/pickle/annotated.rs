@@ -13,8 +13,18 @@ use tasty::tags::{ANNOTATEDtpt, ANNOTATEDtype, APPLY, NEW, REFINEDtpt, SELECTin}
 use tasty::{Kind, SymbolId, TypeId};
 
 impl TreePickler<'_> {
-    /// Type `parent` annotated with class type `annot`, the annotation `new annot()`.
-    pub fn annotated(&mut self, parent: TypeId, annot: TypeId) -> Result<(), Refusal> {
+    /// Type `annotated`, `parent` annotated with class type `annot`: with the annotation tree an
+    /// annotated expression of the file gave it, else `new annot()`.
+    pub fn annotated(&mut self, annotated: TypeId, parent: TypeId, annot: TypeId) -> Result<(), Refusal> {
+        if let Some(tree) = self.tpd.type_annotation(annotated) {
+            if !self.keying {
+                self.type_annots.push(tree);
+            }
+            return self.with_length(ANNOTATEDtype, &mut |p| {
+                p.ty(parent, false)?;
+                p.tree(tree)
+            });
+        }
         let class = self.u.class_symbol(annot).ok_or("an annotation of no class")?;
         let ctors = self.u.decls_named(class, nme::CONSTRUCTOR);
         let ctor = ctors.into_iter().find(|&c| self.u.erased_method(c).0.is_empty());
