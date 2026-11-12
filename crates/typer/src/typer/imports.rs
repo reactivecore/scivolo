@@ -127,13 +127,7 @@ impl Typer<'_> {
                 self.unsupported(expr, "import prefix that is not a pure expression");
             }
             let qual = self.import_qual(typed);
-            let site = self.import_site(qual).map(|s| self.u.full_name(s).replace('$', ""));
-            if self.looks_like_language(expr) && !site.is_some_and(|s| s.starts_with("scala.language")) {
-                self.unsupported(
-                    expr,
-                    "import that looks like a language import but refers to something else",
-                );
-            }
+            self.check_language_path(expr, qual);
             let selectors = self.selectors(selectors, ctx);
             let owner = Some(ctx.owner);
             let info = ImportInfo { qual, selectors, expr: Some(typed), owner, tree: Some(tree) };
@@ -143,31 +137,6 @@ impl Typer<'_> {
             ImportEntry::Done(info) => Some(info),
             _ => None,
         }
-    }
-
-    /// Whether path `expr` is `[[_root_.]scala.]language[.x]` (dotty's `languageImport`).
-    fn looks_like_language(&self, expr: NodeId) -> bool {
-        let mut names = Vec::new();
-        let mut t = expr;
-        loop {
-            match *self.ast.tree(t) {
-                Tree::Select { qualifier, name } => {
-                    names.push(self.text(name.name).to_owned());
-                    t = qualifier;
-                }
-                Tree::Ident { name } => {
-                    names.push(self.text(name.name).to_owned());
-                    break;
-                }
-                _ => return false,
-            }
-        }
-        names.reverse();
-        let rest = match names.iter().position(|n| n == nme::LANGUAGE) {
-            Some(i) => &names[..i],
-            None => return false,
-        };
-        rest.is_empty() || rest == [nme::SCALA] || rest == [nme::ROOT_PKG, nme::SCALA]
     }
 
     /// The members named `member` of import `i`'s path; for a wildcard, the givens only if a

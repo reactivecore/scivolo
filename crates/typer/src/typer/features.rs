@@ -1,7 +1,9 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/config/Feature.scala
+//   compiler/src/dotty/tools/dotc/typer/Checking.scala
+//   compiler/src/dotty/tools/dotc/typer/ImportInfo.scala
 //! Whether a language feature is enabled where typing is (dotty's `Feature.enabled`): by the
-//! options, or by an import of it from `scala.language` in scope.
+//! options, or by an import of it from `scala.language` in scope; the paths of language imports.
 
 use super::Typer;
 use crate::SourceUnit;
@@ -10,7 +12,7 @@ use names::nme;
 use syntax::ast::{Ast, NodeId, Span, Tree};
 use syntax::config::{Features, SourceVersion};
 use syntax::parse::language_prefix;
-use tasty::NullMode;
+use tasty::{NullMode, SymbolId, TypeId};
 
 /// Refuses the files of `units` whose source version is unsupported, each with its root's span.
 pub fn source_versions(ast: &Ast, units: &[&SourceUnit]) -> Vec<(Span, String)> {
@@ -19,6 +21,14 @@ pub fn source_versions(ast: &Ast, units: &[&SourceUnit]) -> Vec<(Span, String)> 
         Some((ast.span(unit.root), what))
     };
     units.iter().filter_map(|unit| refusal(unit)).collect()
+}
+
+/// Determines the full name of `scala.language.prefix`, `scala.language` for an empty `prefix`.
+fn language_object(prefix: &str) -> String {
+    match prefix {
+        "" => "scala.language".to_owned(),
+        _ => format!("scala.language.{prefix}"),
+    }
 }
 
 impl Typer<'_> {
@@ -60,15 +70,40 @@ impl Typer<'_> {
 
     /// `mentions_feature` for import `i` of a typed path, which its path's symbol decides.
     fn typed_mentions_feature(&mut self, i: usize, prefix: &str, name: &str) -> Option<bool> {
-        let object = match prefix {
-            "" => "scala.language".to_owned(),
-            _ => format!("scala.language.{prefix}"),
-        };
         let info = self.import_info(i)?;
         let (qual, enabled) =
             (info.qual, info.selectors.iter().find(|s| s.name == name)?.rename != nme::WILDCARD);
         let site = self.import_site(qual)?;
-        (self.u.full_name(site).replace('$', "") == object).then_some(enabled)
+        (self.object_name(site) == language_object(prefix)).then_some(enabled)
+    }
+
+    /// Refuses import path `expr` of type `qual` written as a language import but referring to
+    /// another object, or referring to `scala.language` or `scala.language.experimental` but not
+    /// written as a language import (dotty's `checkLegalImportPath`).
+    pub fn check_language_path(&mut self, expr: NodeId, qual: TypeId) {
+        match language_prefix(self.ast, self.names, expr) {
+            Some(prefix) => {
+                let object = self.import_site(qual).map(|s| self.object_name(s));
+                if object != Some(language_object(&prefix)) {
+                    self.unsupported(
+                        expr,
+                        "import that looks like a language import but refers to something else",
+                    );
+                }
+            }
+            None => {
+                let class = self.import_site_class(qual).map(|c| self.object_name(c));
+                if class.is_some_and(|c| c == language_object("") || c == language_object(nme::EXPERIMENTAL))
+                {
+                    self.unsupported(expr, "alias of a language import");
+                }
+            }
+        }
+    }
+
+    /// The full name of object or module class `s`, without `$`.
+    fn object_name(&self, s: SymbolId) -> String {
+        self.u.full_name(s).replace('$', "")
     }
 
     /// Takes the features and source version of source file `file` of a unit of several (dotty's

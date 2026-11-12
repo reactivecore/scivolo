@@ -27,8 +27,8 @@ pub fn specializable(params: &[Erased], result: &Erased) -> bool {
     }
 }
 
-/// Whether class `c` is defined in a source file behaving as the Scala 2 library (dotty's
-/// `shouldBehaveAsScala2` of its compilation unit).
+/// Determines whether class `c` is defined in a source file behaving as the Scala 2 library
+/// (dotty's `shouldBehaveAsScala2` of its compilation unit).
 pub fn behaves_as_scala2(l: &Lower, c: SymbolId) -> bool {
     let mut top = c;
     while let Some(owner) = l.u.symbol(top).owner.filter(|&o| !l.u.symbol(o).is_package()) {
