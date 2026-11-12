@@ -311,26 +311,23 @@ Results (tests/run 2026-11-12, run-macros 2026-11-09):
 
 | Outcome | tests/run | tests/run-macros |
 |---|---:|---:|
-| passed | 1594 | 307 |
+| passed | 1597 | 307 |
 | wrong output | 0 | 0 |
 | verify error | 0 | 0 |
 | linkage error | 0 | 0 |
 | crashed | 1 | 0 |
 | timeout | 0 | 0 |
-| frontend crashed | 1 | 0 |
+| frontend crashed | 0 | 0 |
 | jvm refused | 0 | 0 |
 | lowering refused | 0 | 0 |
-| typer refused | 24 | 7 |
+| typer refused | 22 | 7 |
 | skipped | 91 | 7 |
 | **total** | **1711** | **321** |
 
-- **Typer refused (run):** TASTy pickling (2), members not found (3), JDK annotation classes
-  (`Deprecated`, 2), `-Xmixin-force-forwarders:false` (2), adaptation (2), `Printer.TypeReprStructure`
-  (`i22649`), the rest singles.
+- **Typer refused (run):** TASTy pickling (2), members not found (2), default getters (2),
+  `-Xmixin-force-forwarders:false` (2), `Printer.TypeReprStructure` (`i22649`), the rest singles.
 - **Typer refused (run-macros):** `-Xread-docs` (2), a concrete class with an unimplemented member,
   `SuppressWarnings`, adaptation, `Symbol.newClass` with a self type, a source version.
-- **Frontend crashed:** `bridges` (7,000 lines) exceeds the 60 s timeout under a full parallel run;
-  it passes alone.
 - **Crash:** `lambda-serialization-gc` casts the application class loader to `URLClassLoader`,
   which fails for scalac's class files too, as the runner does not load tests through one.
 - **Difference from dotty (open, not accepted):** a macro runs from its Scala Native build in the VM, so a
@@ -374,18 +371,17 @@ the optimizer (1883 of its 3134 classes dotty also writes differ in code from do
 
 | Outcome | Files | Classes |
 |---|---:|---:|
-| same | 254 | 2046 |
-| attributes differ | 184 | 522 |
-| code differs | 180 | 469 |
-| refused | 31 | |
+| same | 497 | 2832 |
+| attributes differ | 8 | 31 |
+| code differs | 140 | 344 |
+| refused | 4 | |
 
-- **Refused:** no applicable alternative (8); adaptation (8); TASTy pickling (6: a type annotation
-  with arguments 4, a tree outside the subset 2); member not found (4); ambiguous implicit conversions (2); the
-  package-private Java class `INodeBase` (1); `@SerialVersionUID` of no constant (1).
-- **Code differs**, by first differing line: branch offsets after dotty's dead second `athrow`
-  following an inlined `.nn` (`ifeq`, `ifnonnull`, `goto`; the library oracle inlines from source,
-  dotty compiling against the jar writes ours), `Comparator.thenComparing`'s bound taken from
-  Scala Native's javalib (18, #245).
+- **Refused:** TASTy pickling (3: a tree outside the subset 2, a type annotation without a
+  constructor of no parameters 1); a static member of a qualifier with effects (1).
+- **Code differs**, by first differing line: `mkOrderingOps` and `mkNumericOps` without the
+  generic signature of their result (`Ordering<Object>.OrderingOps`, 35), branch offsets after
+  dotty's dead second `athrow` following an inlined `.nn` (`if_icmpne`, `ifeq`, `ifnonnull`,
+  `goto`; the library oracle inlines from source, dotty compiling against the jar writes ours).
 - **Attributes differ:** mostly line numbers.
 
 ### com-lihaoyi libraries from source
