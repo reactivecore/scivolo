@@ -12,6 +12,9 @@ use tasty::defn::UNUSED;
 use tasty::tags::{ANNOTATEDtpt, ANNOTATEDtype, APPLY, NEW, REFINEDtpt, SELECTin};
 use tasty::{Kind, SymbolId, TypeId};
 
+/// The meta-annotation target of parameters, `scala.annotation.meta.param`.
+const PARAM_TARGET: &str = "param";
+
 impl TreePickler<'_> {
     /// Type `parent` annotated with class type `annot`, the annotation `new annot()`.
     pub fn annotated(&mut self, parent: TypeId, annot: TypeId) -> Result<(), Refusal> {
@@ -34,7 +37,8 @@ impl TreePickler<'_> {
 
     /// The annotation trees of `s`, in order; in a file, the ones of its definition last first
     /// (dotty's `addAnnotation` prepends), and on a value parameter its `@unused` first
-    /// (`PostTyper`'s `transform` of a parameter).
+    /// (`PostTyper`'s `transform` of a parameter), and of a parameter only those meant for
+    /// parameters (`keepAnnotationsCarrying`).
     pub fn annotation_trees(&mut self, s: SymbolId) -> Vec<TNodeId> {
         let own = self.tpd.annotations(s).to_vec();
         let Some(file) = self.file else { return own };
@@ -44,9 +48,15 @@ impl TreePickler<'_> {
             trees[i] = a;
         }
 
-        if self.u.symbol(s).kind == Kind::Param
-            && let Some(i) = trees.iter().position(|&a| self.u.is_class_named(self.tpd.tpe(a), UNUSED))
-        {
+        if self.u.symbol(s).kind != Kind::Param {
+            return trees;
+        }
+        let kept = self.u.annotations_carrying(s, &[PARAM_TARGET], true);
+        trees.retain(|&a| {
+            let t = self.tpd.tpe(a);
+            self.u.is_class_named(t, UNUSED) || self.u.class_symbol(t).is_some_and(|c| kept.contains(&c))
+        });
+        if let Some(i) = trees.iter().position(|&a| self.u.is_class_named(self.tpd.tpe(a), UNUSED)) {
             trees[..=i].rotate_right(1);
         }
         trees
