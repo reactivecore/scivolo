@@ -59,6 +59,27 @@ fn several_files_run_on_the_jvm() {
 }
 
 #[test]
+fn a_file_of_a_unit_compiles_as_alone() {
+    let dir = root().join("tests/jvm/units");
+    let mut sources: Vec<PathBuf> = std::fs::read_dir(&dir)
+        .expect("a test directory")
+        .map(|e| e.expect("a directory entry").path())
+        .filter(|p| p.extension().is_some_and(|x| x == "scala"))
+        .collect();
+    sources.sort();
+    let (unit, compiled) = compile_all("units-unit", &sources);
+    assert!(compiled.status.success(), "{}", String::from_utf8_lossy(&compiled.stderr));
+    let (alone, compiled) = compile("units-alone", &dir.join("words.scala"));
+    assert!(compiled.status.success(), "{}", String::from_utf8_lossy(&compiled.stderr));
+    let classes = std::fs::read_dir(alone.join("units")).expect("the classes of words.scala");
+    for class in classes {
+        let name = class.expect("a directory entry").file_name();
+        let bytes = |out: &Path| std::fs::read(out.join("units").join(&name)).expect("a class file");
+        assert!(bytes(&unit) == bytes(&alone), "{name:?} differs");
+    }
+}
+
+#[test]
 fn objects_run_on_the_jvm() {
     runs_on_the_jvm("objects", "Objects");
 }
@@ -134,6 +155,11 @@ fn jdkstatics_run_on_the_jvm() {
 }
 
 #[test]
+fn jdk_mixin_forwarders_run_on_the_jvm() {
+    runs_on_the_jvm("jdkmixins", "Jdkmixins");
+}
+
+#[test]
 fn attributes_run_on_the_jvm() {
     runs_on_the_jvm("attributes", "Attributes");
 }
@@ -151,6 +177,11 @@ fn super_accessors_run_on_the_jvm() {
 #[test]
 fn jdk_classes_javalib_lacks_run_on_the_jvm() {
     runs_on_the_jvm("jdkclasses", "Jdkclasses");
+}
+
+#[test]
+fn jdk_members_under_explicit_nulls_run_on_the_jvm() {
+    runs_on_the_jvm("explicitnulls", "Explicitnulls");
 }
 
 #[test]
@@ -210,19 +241,15 @@ fn a_definition_the_tasty_pickler_lacks_is_refused() {
 }
 
 #[test]
-fn a_javalib_value_the_jdk_lacks_is_refused() {
+fn a_javalib_member_the_jdk_lacks_is_not_found() {
     if Command::new("java").arg("-version").output().is_err() {
         eprintln!("no java on the PATH: skipped");
         return;
     }
     let code = "object R { def f = java.lang.ProcessBuilder.nullFile }";
-    refuses("refusedjdk", code, "ProcessBuilder.nullFile, a static member the JDK lacks");
-}
-
-#[test]
-fn a_class_nested_in_a_jdk_class_javalib_lacks_is_refused() {
-    let code = "object R { def f = java.time.zone.ZoneOffsetTransitionRule.TimeDefinition.UTC }";
-    refuses("refusednested", code, "member not found");
+    refuses("refusedjdk", code, "member not found");
+    let code = "object R { def f(m: java.util.HashMap[String, String]) = m.usingEntry }";
+    refuses("refusedjdkhelper", code, "member not found");
 }
 
 #[test]
@@ -235,6 +262,46 @@ fn a_java_annotation_with_arguments_is_refused() {
     refuses("refusedannotation", code, "Java annotations with arguments on the JVM");
     let code = "class R { def f(@java.lang.annotation.Documented x: Int) = x }";
     refuses("refusedparamannotation", code, "Java annotations of parameters on the JVM");
+}
+
+#[test]
+fn a_refused_file_refuses_the_unit() {
+    let dir = root().join("tmp/jvm-test/refusedunit");
+    std::fs::create_dir_all(&dir).expect("tmp/jvm-test");
+    let files = [
+        (
+            "a.scala",
+            "trait Show { def text: String }\nobject Show { given Show = new Show { def text = \"default\" } }\ndef show(using s: Show): String = s.text\n",
+        ),
+        (
+            "b.scala",
+            "import scala.language.`3.9-migration`\ngiven Show = new Show { def text = \"custom\" }\n",
+        ),
+        ("c.scala", "@main def run(): Unit = println(show)\n"),
+    ];
+    let sources: Vec<PathBuf> = files
+        .iter()
+        .map(|(name, code)| {
+            let path = dir.join(name);
+            std::fs::write(&path, code).expect("writing");
+            path
+        })
+        .collect();
+    let (out, compiled) = compile_all("refusedunit-out", &sources);
+    assert!(!compiled.status.success());
+    let stderr = String::from_utf8_lossy(&compiled.stderr);
+    assert!(stderr.contains("b.scala: "), "{stderr}");
+    assert!(!out.exists(), "{out:?} written");
+
+    let _ = std::fs::remove_dir_all(&out);
+    let left_out = Command::new(env!("CARGO_BIN_EXE_scivolo-jvm"))
+        .args(["--leave-out-refused", "-d"])
+        .arg(&out)
+        .args(&sources)
+        .output()
+        .expect("running scivolo-jvm");
+    assert!(!left_out.status.success());
+    assert!(out.join("run.class").exists(), "{}", String::from_utf8_lossy(&left_out.stderr));
 }
 
 #[test]

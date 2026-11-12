@@ -12,7 +12,7 @@ use names::nme;
 use syntax::ast::Span;
 use tasty::tags::ARTIFACT;
 use tasty::{SymbolId, TypeId};
-use typer::tpd::TNodeId;
+use typer::tpd::{TNodeId, Tree};
 
 /// The full name of the annotation the `Deprecated` attribute stands for.
 const DEPRECATED: &str = "scala.deprecated";
@@ -59,22 +59,58 @@ impl Gen<'_, '_> {
         }
     }
 
-    /// The exception types of the `@throws` annotations of method `sym`, last first (dotty's
-    /// `ThrownException` over `annotations`).
+    /// The exception types of the `@throws` annotations of method `sym`, last first: the class
+    /// of a `classOf` argument, else the type argument (dotty's `ThrownException`).
     pub fn thrown(&mut self, sym: SymbolId) -> Vec<TypeId> {
         let mut out = Vec::new();
-        for annot in self.l.tpd.annotations(sym).to_vec().into_iter().rev() {
+        for annot in self.forwarded_annotations(sym).into_iter().rev() {
             let tpe = self.l.tpd.tpe(annot);
-            if self.l.u.class_symbol(tpe).is_none_or(|c| self.l.u.full_name(c) != "scala.throws") {
+            let class = self.l.u.lambda(tpe).map_or(tpe, |l| l.result);
+            if self.l.u.class_symbol(class).is_none_or(|c| self.l.u.full_name(c) != "scala.throws") {
                 continue;
             }
-            if let Some((_, args)) = self.l.u.applied(tpe)
+            let args = match *self.l.tpd.tree(annot) {
+                Tree::Apply { args, .. } => self.l.tpd.items(args).to_vec(),
+                _ => Vec::new(),
+            };
+            if let Some(t) = args.first().and_then(|&a| self.class_of(a)) {
+                out.push(t);
+            } else if let Some((_, args)) = self.l.u.applied(tpe)
                 && let [t] = args[..]
             {
                 out.push(t);
             }
         }
         out
+    }
+
+    /// The type `classOf` call or literal `t` stands for.
+    fn class_of(&self, t: TNodeId) -> Option<TypeId> {
+        match *self.l.tpd.tree(t) {
+            Tree::ClassLiteral { tpe } => Some(tpe),
+            Tree::TypeApply { fun, args }
+                if self.l.tpd.sym(fun).is_some_and(|f| self.l.u.symbol(f).name == nme::CLASS_OF) =>
+            {
+                self.l.tpd.items(args).first().map(|&a| self.l.tpd.tpe(a))
+            }
+            _ => None,
+        }
+    }
+
+    /// The annotations of method `sym`; of a mixin forwarder without any, those of the trait
+    /// method it calls, read from its TASTy if need be (dotty's `mkForwarderSym`).
+    fn forwarded_annotations(&mut self, sym: SymbolId) -> Vec<TNodeId> {
+        let own = self.l.tpd.annotations(sym).to_vec();
+        let forwarded =
+            self.l.mixed_in_from(sym).filter(|_| own.is_empty() && !self.l.is_mixin_accessor(sym));
+        let Some(origin) = forwarded else { return own };
+        if self.l.tpd.annotations(origin).is_empty() && self.l.u.symbol(origin).tree.is_some() {
+            let read = typer::unpickle::annotations(self.l.u, self.l.tpd, self.l.names, origin);
+            for annot in read.unwrap_or_default() {
+                self.l.tpd.annotate(origin, annot);
+            }
+        }
+        self.l.tpd.annotations(origin).to_vec()
     }
 
     /// Refuses the Java annotations of `sym`, defined at `at`, that `kept_annotations` refuses, and

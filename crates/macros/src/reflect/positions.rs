@@ -55,6 +55,12 @@ impl Host {
         Ok(self.source(file)?.text.clone())
     }
 
+    /// Determines the index of the source file of the unit the expansion is in.
+    pub fn expansion_file(&self) -> usize {
+        let at = self.expansion.in_own_source().without_inlined_call();
+        Sources::new(&self.sources).map_or(0, |sources| sources.index(at.start()))
+    }
+
     fn source(&self, file: i32) -> Fallible<&SourceFile> {
         self.sources.get(file as usize).ok_or("a position in no source file")
     }

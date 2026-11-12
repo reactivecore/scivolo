@@ -32,7 +32,8 @@ impl TreePickler<'_> {
         let mut paths = vec![source.path.clone()];
         // Each tree with the index in `paths` of its parent's source, if any, and of the source
         // of the inline expansion it is in, if any.
-        let mut todo = vec![(root, None, None)];
+        let mut todo: Vec<_> = self.type_annots.iter().rev().map(|&a| (a, None, None)).collect();
+        todo.push((root, None, None));
         let mut nodes: Vec<usize> =
             self.buf.trees().filter(|&(id, _)| id < SYNTHETIC).map(|(_, a)| a.0).collect();
         nodes.sort_unstable();
@@ -104,7 +105,10 @@ impl TreePickler<'_> {
                 false => self.tpd.children(t).iter().copied().collect(),
             };
             let children = annots.into_iter().chain(own).chain(hole_args).collect::<Vec<_>>();
-            todo.extend(children.into_iter().rev().map(|c| (c, current, library)));
+            for c in children.into_iter().rev() {
+                let read = self.tpd.read_from(c).map(|_| path_index(&mut paths, String::new()));
+                todo.push((c, current, read.or(library)));
+            }
         }
         while let Some((_, addr, span)) = synthetic.pop() {
             out.span(addr, source.tasty_span(span, false)?);

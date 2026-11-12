@@ -152,10 +152,10 @@ slower meanwhile:
    | clib | 21 of 21 | 114 | | 1 |
    | posixlib | 67 of 67 | 270 | | |
    | windowslib | 34 | 130 | | |
-   | scalalib | 648 of 649 | 4,320 | 17 | 44 |
+   | scalalib | 649 of 649 | 4,347 | 17 | 45 |
 
-   scalalib is compared with `just lib-oracle`'s build of it; 31 of its differing files, all
-   `FromExpr`'s, differ only in the positions inside TASTy quotes (`quote-pos`; ours have fewer
+   scalalib is compared with `just lib-oracle`'s build of it; 32 of its differing files,
+   `FromExpr`'s and `Expr$`, differ only in the positions inside TASTy quotes (`quote-pos`; ours have fewer
    position entries, open). clib, posixlib and scalalib pass Scala Native's unit tests on our jars (`just lib-jar-report`).
    `unsafe/package{,$}` in nativelib differ only as a joint compilation with
    `UnsafePackageCompat` does. Open: the rest of scalalib.

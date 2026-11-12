@@ -11,7 +11,9 @@ use tasty::{Kind, NameId, SymbolId, Type, TypeId};
 impl Typer<'_> {
     /// Gives forwarder `fwd` to term member `m` of `path` the info of `m` seen from `path`, with
     /// parameters of its own (dotty's `ensureMethodic`); for an export in an extension, the
-    /// clauses of its path method `path_method` first (dotty's `addPathMethodParams`).
+    /// clauses of its path method `path_method` first (dotty's `addPathMethodParams`). Its
+    /// parameters take the annotations of those of `m` at the same place, counted from its first
+    /// clause.
     pub fn set_forwarder_info(
         &mut self,
         fwd: SymbolId,
@@ -32,7 +34,14 @@ impl Typer<'_> {
         let info = self.u.member_info(path, m);
         let info = self.resolve_class_params(info);
         let info = self.u.by_name(info).unwrap_or(info);
+        let own = clauses.len();
         let tpe = self.forwarder_clauses(fwd, m, info, &mut clauses, &mut pairs);
+        for (originals, copies) in clauses[own..].iter().zip(&clauses) {
+            for (original, &copy) in originals.iter().zip(copies) {
+                let Some(&(from, _)) = pairs.iter().find(|p| p.1 == *original) else { continue };
+                self.forward_param_annotations(from, copy);
+            }
+        }
         let renamed: Vec<SymbolId> = clauses.iter().flatten().copied().collect();
         for &s in &renamed {
             let info = self.u.info(s);

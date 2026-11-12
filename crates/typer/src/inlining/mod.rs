@@ -142,6 +142,12 @@ impl AsMut<Tpd> for Inlining<'_> {
 }
 
 impl<'a> Inlining<'a> {
+    /// Makes `prefix` followed by the next number for it in the file of the outermost call.
+    pub fn fresh_name(&mut self, prefix: &str) -> syntax::names::Name {
+        let file = self.host.file_of(self.outermost_span);
+        self.fresh.next_in(file, self.names, prefix)
+    }
+
     pub fn new(
         (u, tpd): (&'a mut Universe, &'a mut Tpd),
         (names, fresh): (&'a mut Names, &'a mut FreshNames),

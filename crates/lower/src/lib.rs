@@ -10,6 +10,7 @@ mod options;
 pub mod output;
 mod phases;
 mod symbols;
+mod unit_files;
 mod units;
 
 pub use codegen::names::{mapped as jdk_class_name, unmapped as jdk_class_source_name};
@@ -144,6 +145,8 @@ pub struct Lower<'a> {
     /// The local functions of classes in local classes that read values captured by an enclosing
     /// local class, each with that class, which they are lifted into (dotty's `narrowLogicOwner`).
     narrowed: FxHashMap<SymbolId, SymbolId>,
+    /// The file of the unit each top-level class is defined in.
+    class_files: FxHashMap<SymbolId, usize>,
     /// The term each method `LambdaLift` lifted was defined in.
     lifted_from: FxHashMap<SymbolId, SymbolId>,
     /// The method each function `LambdaLift` lifted became.
@@ -217,6 +220,8 @@ pub fn lower_trees<R>(
     let mut l = Lower::new(u, tpd, (names, fresh), sources)?;
     l.explicit_nulls = explicit_nulls;
     l.backend = backend;
+    let starts: Vec<_> = l.sources.files().iter().skip(1).map(|&(base, _)| base).collect();
+    l.record_files(root, &starts);
     let out = codegen::annotations::check_annotations(&mut l, root)
         .and_then(|()| phases::run(&mut l, root))
         .and_then(|()| generate(&mut l, root));
@@ -238,12 +243,17 @@ pub fn typer_units() -> typer::Units {
 
 /// Adds the synthetic members of the classes of typed unit `root` (dotty's `SyntheticMembers` as
 /// PostTyper runs it).
-fn synthetic_members(lent: Lent<'_>, root: TNodeId) -> std::result::Result<(), (Span, String)> {
+fn synthetic_members(
+    lent: Lent<'_>,
+    root: TNodeId,
+    starts: &[syntax::source::Offset],
+) -> std::result::Result<(), (Span, String)> {
     let (u, tpd, names, fresh) = lent;
     let sources = Sources::new([]).map_err(|what| (Span::NONE, what))?;
     Lower::new(u, tpd, (names, fresh), sources)
         .and_then(|mut l| {
             l.before_inlining = true;
+            l.record_files(root, starts);
             phases::synthetic::add_all(&mut l, root)
         })
         .map_err(|e| (e.at, e.what))
@@ -301,6 +311,7 @@ impl<'a> Lower<'a> {
             outer_accessors: FxHashMap::default(),
             coords: FxHashMap::default(),
             narrowed: FxHashMap::default(),
+            class_files: FxHashMap::default(),
             lifted_from: FxHashMap::default(),
             lifted_to: FxHashMap::default(),
             super_accessors: FxHashMap::default(),

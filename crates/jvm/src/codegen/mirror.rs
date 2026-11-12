@@ -75,6 +75,7 @@ impl Gen<'_, '_> {
             let thrown = self.thrown(m);
             let member = self.signed_member(target, target);
             if !self.l.is_mixin_accessor(m)
+                && !self.l.is_bridge(m)
                 && let Some(sig) = super::signatures::member(self.l.u, member, info, &desc, &thrown)
                 && (unflattened.is_some() || super::signatures::erases_to(&sig, &desc))
             {

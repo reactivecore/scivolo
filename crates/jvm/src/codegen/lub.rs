@@ -79,7 +79,7 @@ impl Gen<'_, '_> {
         if !jdk_first && let Some(c) = self.class_named(name) {
             return Some(self.universe_hierarchy(c, name));
         }
-        if let Some(c) = self.jdk.class(name) {
+        if let Some(c) = self.jdk_class(name) {
             let interface = c.access & classfile::ACC_INTERFACE != 0;
             return Some(Hierarchy {
                 interface,

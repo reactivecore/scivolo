@@ -13,12 +13,13 @@ use tasty::{Kind, SymbolId, Type};
 
 impl Typer<'_> {
     /// `found` at level `l` without the members of the empty package if `ctx` is in another
-    /// package; the root package stands for both; for an extractor's name, none of methods with
+    /// package or `l` is the outermost level; the root package stands for both, the outermost
+    /// level for the root package only; for an extractor's name, none of methods with
     /// parameters only; for an extension method's, its extension methods.
     pub fn qualifying(&mut self, mut found: Found, l: LevelId, ctx: Ctx) -> Option<Found> {
         let root = self.u.root();
         if matches!(*self.levels.get(l), Level::Members(o) if o == root)
-            && self.enclosing_package(ctx.owner) != root
+            && (self.levels.outer(l).is_none() || self.enclosing_package(ctx.owner) != root)
         {
             found.syms.retain(|&s| self.u.symbol(s).kind == Kind::Package);
         }
@@ -70,15 +71,28 @@ impl Typer<'_> {
         !modifiers.is_some_and(|m| self.ast.modifiers(m).is(syntax::ast::flags::GIVEN_OR_IMPLICIT))
     }
 
-    fn enclosing_package(&self, owner: SymbolId) -> SymbolId {
-        let mut o = owner;
-        while self.u.symbol(o).kind != Kind::Package {
-            match self.u.symbol(o).owner {
-                Some(p) => o = p,
-                None => break,
+    /// Whether the term `found`, shadowed by a constructor proxy, makes a call of the proxy
+    /// ambiguous (dotty's `checkNotShadowed`): a method or a term with an `apply` method, its own
+    /// or the constructor proxies of its companion class, outside the empty package.
+    pub fn shadows_proxy(&mut self, found: &Found, ctx: Ctx) -> bool {
+        let root = self.u.root();
+        for &s in &found.syms {
+            let sym = self.u.symbol(s);
+            if sym.owner == Some(root) && sym.kind != Kind::Package {
+                continue;
+            }
+            if sym.kind == Kind::Def {
+                return true;
+            }
+            let tpe = crate::defn::ref_type(self.u, found.prefix, s);
+            let class = self.u.module_class(s).and_then(|m| self.u.companion_class(m));
+            if self.members_found_in(tpe, names::nme::APPLY, false, ctx).is_some()
+                || class.is_some_and(|c| self.needs_constructor_proxies(c))
+            {
+                return true;
             }
         }
-        o
+        false
     }
 
     /// Whether `found` at class members level `l` refers only to members the class inherits.

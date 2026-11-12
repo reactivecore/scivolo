@@ -48,7 +48,7 @@ impl Typer<'_> {
         let value = TName { name: self.name("scala.caps.internal$.erasedValue"), is_type: false };
         let rhs = self.ast.node(Tree::TypedSplice { sym: value });
         self.ast.with_span(rhs, at);
-        let name = TName { name: self.fresh.next(self.names, "canThrow$"), is_type: false };
+        let name = TName { name: self.fresh_name(span, "canThrow$"), is_type: false };
         let mods = self.ast.mods(Modifiers::with_flags(f::GIVEN.or(f::FINAL).or(f::ERASED)));
         let given = self.ast.node(Tree::ValDef { name, tpt, rhs: Some(rhs), mods });
         self.ast.with_span(given, span.with_point(span.start()));

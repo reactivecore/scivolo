@@ -64,15 +64,25 @@ pub fn stack_map(
     let mut starts = BTreeSet::from([0]);
     let mut jumped: BTreeSet<usize> = handlers.iter().map(|h| h[2]).collect();
     starts.extend(&jumped);
+    starts.extend(handlers.iter().flat_map(|h| [h[0], h[1]]));
+    starts.extend(code.line_offsets());
     let mut at = 0;
     while at < bytes.len() {
-        let next = at + length(bytes, at);
         let to = targets(bytes, at);
-        if !to.is_empty() || matches!(bytes[at], 0xac..=0xb1 | 0xbf) {
-            starts.insert(next);
-        }
         jumped.extend(&to);
         starts.extend(to);
+        at += length(bytes, at);
+    }
+    let labels = starts.clone();
+    let (mut at, mut in_block) = (0, true);
+    while at < bytes.len() {
+        in_block |= labels.contains(&at);
+        let next = at + length(bytes, at);
+        let ends = matches!(bytes[at], 0xa7 | 0xaa | 0xab | 0xac..=0xb1 | 0xbf | 0xc8);
+        if in_block && (ends || !targets(bytes, at).is_empty()) {
+            starts.insert(next);
+        }
+        in_block &= !ends;
         at = next;
     }
     let starts: Vec<usize> = starts.into_iter().filter(|&s| s < bytes.len()).collect();

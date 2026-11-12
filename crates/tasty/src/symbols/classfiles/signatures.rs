@@ -6,6 +6,7 @@
 use super::super::Universe;
 use crate::types::{Type, TypeId};
 use crate::{ANY, NOTHING};
+use classfile::ACC_STATIC;
 
 /// A type variable in scope: its name, its type, and whether it is bounded by `Object` only.
 pub type Var = (String, TypeId, bool);
@@ -101,28 +102,38 @@ impl<'a> Sig<'a> {
         }
     }
 
+    /// The type of a class type signature, an inner class `A<T>.B` as projection `A[T]#B`.
     fn class_type(&mut self, u: &mut Universe, vars: &[Var]) -> Result<TypeId, String> {
         let name = self.name(b";<.")?;
         let class = class_ref(u, name);
-        let t = match self.peek() {
-            Some(b'<') => {
-                self.at += 1;
-                let mut args = Vec::new();
-                while self.peek() != Some(b'>') {
-                    args.push(self.arg(u, vars)?);
-                }
-                self.at += 1;
-                u.types.intern_applied(class, &args)
-            }
+        let mut t = match self.peek() {
+            Some(b'<') => self.type_args(u, vars, class)?,
             _ if name == "java/lang/Object" => u.types.intern(Type::Sym(None, u.defn().from_java_object)),
             _ if self.skip => class,
             _ => cooked(u, name),
         };
-        if self.peek() == Some(b'.') {
-            return Err(format!("signature `{}`: a class nested in a generic class", self.text));
+        while self.peek() == Some(b'.') {
+            self.at += 1;
+            let inner = u.types.intern_name(self.name(b";<.")?);
+            let inner = u.types.intern(Type::TypeRef(t, inner));
+            t = match self.peek() {
+                Some(b'<') => self.type_args(u, vars, inner)?,
+                _ => inner,
+            };
         }
         self.expect(b';')?;
         Ok(t)
+    }
+
+    /// Class `class` applied to the type arguments `<…>` that follow.
+    fn type_args(&mut self, u: &mut Universe, vars: &[Var], class: TypeId) -> Result<TypeId, String> {
+        self.at += 1;
+        let mut args = Vec::new();
+        while self.peek() != Some(b'>') {
+            args.push(self.arg(u, vars)?);
+        }
+        self.at += 1;
+        Ok(u.types.intern_applied(class, &args))
     }
 
     fn arg(&mut self, u: &mut Universe, vars: &[Var]) -> Result<TypeId, String> {
@@ -202,7 +213,7 @@ pub fn bounded_by_object(bounds: &str) -> bool {
 pub fn cooked(u: &mut Universe, internal: &str) -> TypeId {
     let class = class_ref(u, internal);
     let signature = match super::classpath::java_class(u, internal) {
-        Some(info) => info.signature,
+        Some(info) => info.signature.clone(),
         None => u.jdk.as_mut().and_then(|jdk| jdk.class(internal)).and_then(|c| c.signature.clone()),
     };
     let Some(signature) = signature else { return class };
@@ -214,8 +225,18 @@ pub fn cooked(u: &mut Universe, internal: &str) -> TypeId {
     u.types.intern_applied(class, &vec![wildcard; n])
 }
 
-/// A reference to the class of internal name `internal`, a nested class `A$B` as `A.B`.
+/// A reference to the class of internal name `internal`, a nested class `A$B` as `A.B`, an inner
+/// one of a jar's class file as `A#B` (dotty's `innerType`).
 fn class_ref(u: &mut Universe, internal: &str) -> TypeId {
+    let nesting = super::classpath::java_class(u, internal).and_then(|info| {
+        let entry = info.inner_classes.iter().find(|e| e.inner == internal && e.flags & ACC_STATIC == 0)?;
+        Some((entry.outer.clone()?, entry.name.clone()?))
+    });
+    if let Some((outer, name)) = nesting {
+        let outer = class_ref(u, &outer);
+        let name = u.types.intern_name(&name);
+        return u.types.intern(Type::TypeRef(outer, name));
+    }
     let (pkg, name) = internal.rsplit_once('/').unwrap_or(("", internal));
     let pkg = u.enter_package(&pkg.replace('/', "."));
     let mut prefix = u.types.intern(Type::Package(pkg));

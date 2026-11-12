@@ -7,7 +7,7 @@
 
 use super::accessor_names::accessor_name;
 use super::explicit_outer::enclosing_instance;
-use super::lazy_vals::{define_members, fresh, name_members};
+use super::lazy_vals::{define_members, name_members};
 use super::mixin::{has_body, mixins};
 use super::outer_args::declare_library;
 use super::trait_fields::{forwarder, implemented_by};
@@ -33,8 +33,8 @@ pub fn name_mixed_in(l: &mut Lower, class: SymbolId) {
         for getter in l.u.decls(mixin).unwrap_or_default() {
             if is_mixed_in_lazy(l, class, getter) {
                 let name = accessor_name(l, getter);
-                let field = fresh(l, &name_kinds::lazy_local(&name));
-                let init = fresh(l, &name_kinds::lazy_local_init(&name));
+                let field = l.fresh_name(class, &name_kinds::lazy_local(&name));
+                let init = l.fresh_name(class, &name_kinds::lazy_local_init(&name));
                 l.mixed_in_lazy_names.insert((class, getter), (field, init));
             }
         }

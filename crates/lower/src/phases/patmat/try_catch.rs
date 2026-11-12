@@ -28,8 +28,7 @@ pub fn fallback(l: &mut Lower, t: TNodeId, owner: SymbolId) -> Result<Option<TNo
     }
     let span = l.tpd.span(t);
     let throwable = l.u.class_ref(tasty::defn::THROWABLE);
-    let name = l.fresh.next(l.names, nme::EX);
-    let name = l.names.text(name).to_owned();
+    let name = l.fresh_name(owner, nme::EX);
     let flags = Flags::default().with(SYNTHETIC).with(CASE);
     let ex = l.u.define(symbol(&name, Kind::Val, owner, flags));
     l.u.set_info(ex, throwable);

@@ -15,7 +15,7 @@ impl Reducer<'_, '_> {
     /// A new synthetic value named `prefix` and a fresh number, of type `info`, owned by the
     /// call's owner.
     pub fn new_val(&mut self, prefix: &str, info: TypeId) -> SymbolId {
-        let name = self.i.fresh.next(self.i.names, prefix);
+        let name = self.i.fresh_name(prefix);
         let s = self.i.u.define(Symbol {
             name: self.i.names.text(name).to_owned(),
             kind: Kind::Val,

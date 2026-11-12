@@ -11,9 +11,7 @@ impl Sig<'_> {
     /// A class, type parameter or type member reference, applied or not.
     pub fn reference(&mut self, t: TypeId, boxing: Boxing) {
         if let Some(p) = self.type_param(t) {
-            let name = tasty::encode(&self.u.symbol(p).name);
-            self.out.push_str(&format!("T{name};"));
-            return;
+            return self.param_ref(p, boxing);
         }
         let (tycon, args) = self.u.applied(t).map_or((t, Vec::new()), |(c, a)| (c, a.to_vec()));
         match self.applied_param(tycon, &args) {
@@ -21,6 +19,10 @@ impl Sig<'_> {
             Some(Applied::Param(name)) => return self.out.push_str(&format!("T{name};")),
             Some(Applied::Erased) => return self.erased(t, boxing),
             None => {}
+        }
+        if let Some(p) = self.type_param(tycon).filter(|_| !args.is_empty()) {
+            let name = tasty::encode(&self.u.symbol(p).name);
+            return self.out.push_str(&format!("T{name};"));
         }
         let s = match *self.u.ty(tycon) {
             Type::Sym(_, s) => Some(s),
@@ -111,7 +113,9 @@ impl Sig<'_> {
             Type::Bounds(lo, hi) => {
                 let java_top =
                     matches!(*self.u.ty(hi), Type::Sym(_, s) if s == self.u.defn().from_java_object);
-                if !java_top && !self.class_named(hi, "scala.Any") {
+                let top =
+                    java_top || self.class_named(hi, "scala.Any") || self.class_named(hi, "scala.AnyKind");
+                if !top {
                     self.out.push('+');
                     self.boxed(hi);
                 } else if !self.class_named(lo, "scala.Nothing") {

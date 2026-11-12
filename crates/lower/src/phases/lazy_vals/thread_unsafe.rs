@@ -4,7 +4,7 @@
 //! of the value's type, a flag `xbitmap$N` unless the type excludes `null`, and an accessor
 //! computing the value when the flag is unset.
 
-use super::{Lazy, fresh};
+use super::Lazy;
 use crate::definitions::symbol;
 use crate::phases::lazy_trees::{block, call, dup, eq, field_ref, if_, unit};
 use crate::symbols::has;
@@ -65,7 +65,7 @@ pub fn flag(l: &mut Lower, lazy: &Lazy, tpe: TypeId) -> Option<SymbolId> {
     if l.u.class_symbol(tpe).is_some_and(|c| l.u.is_module_class(c)) {
         return None;
     }
-    let name = fresh(l, &name_kinds::lazy_bitmap(&l.u.symbol(lazy.accessor).name));
+    let name = l.fresh_name(lazy.accessor, &name_kinds::lazy_bitmap(&l.u.symbol(lazy.accessor).name));
     let flags = Flags::default().with(SYNTHETIC).with(MUTABLE).with(PRIVATE);
     let flag = l.u.define(symbol(&name, Kind::Val, lazy.class, flags));
     let boolean = l.u.class_ref(tasty::defn::BOOLEAN);

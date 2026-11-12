@@ -104,7 +104,7 @@ pub fn lambda(l: &mut Lower, contents: &[(TNodeId, Vec<SymbolId>)], owner: Symbo
     let seq = l.u.intern_applied(seq, &[any]);
     let result = l.u.intern_applied(expr, &[any]);
     let params = [(nme::IDX, int), (nme::CONTENTS, seq), (nme::QUOTES, quotes)].map(|(n, t)| {
-        let n = fresh(l, n);
+        let n = fresh(l, owner, n);
         (l.u.intern_name(&n), t)
     });
     let anon = l.u.define(symbol(nme::ANON_FUN, Kind::Def, owner, Flags::default().with(SYNTHETIC)));

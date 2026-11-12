@@ -10,7 +10,7 @@ use classfile::{ACC_FINAL, ACC_PUBLIC, ACC_STATIC, ACC_VOLATILE, ClassFile, Last
 use lower::Result;
 use names::nme;
 use tasty::SymbolId;
-use tasty::tags::MUTABLE;
+use tasty::tags::{MUTABLE, SYNTHETIC};
 use typer::tpd::{TNodeId, Template, Tree};
 
 impl Gen<'_, '_> {
@@ -32,7 +32,12 @@ impl Gen<'_, '_> {
             cf.field(ACC_PUBLIC | ACC_STATIC | ACC_FINAL, nme::MODULE_INSTANCE_FIELD, &module_desc);
         }
         let module_name = module.then(|| name.clone());
-        let mut init = StaticInit { module: module_name, constr: Some(constr), ..StaticInit::default() };
+        let mut init = StaticInit {
+            module: module_name,
+            constr: Some(constr),
+            class_def: (module && !self.l.u.symbol(sym).flags.has(SYNTHETIC)).then_some(td),
+            ..StaticInit::default()
+        };
         let mut nested = Vec::new();
         for stat in std::iter::once(constr).chain(self.l.tpd.items(body).to_vec()) {
             let Some(s) = self.l.tpd.sym(stat) else { continue };
@@ -153,7 +158,11 @@ impl Gen<'_, '_> {
         }
         let Some(module) = self.l.u.source_module(c) else { return };
         let name = tasty::encode(&self.l.u.symbol(module).name.clone());
-        cf.field(java_flags(self.l, module) | ACC_STATIC, &name, &class_descriptor(&self.class_name(c)));
+        let flags = java_flags(self.l, module) | ACC_STATIC | self.annotated_field_flags(module);
+        cf.field(flags, &name, &class_descriptor(&self.class_name(c)));
+        if self.is_deprecated(module) {
+            cf.member_deprecated(Last::Field);
+        }
     }
 
     pub fn class_name(&self, c: SymbolId) -> String {

@@ -61,6 +61,8 @@ UNITS = {
     "auxlib": [["scala/collection/concurrent/"],
                ["scala/runtime/BoxedUnit.scala", "scala/scalanative/runtime/BoxedUnit.scala"]],
 }
+# The option that makes scivolo-jvm and scivolo-lower write the output of a unit's accepted files.
+LEAVE_OUT = "--leave-out-refused"
 JOBS = os.cpu_count() or 4
 TIMEOUT = 60
 
@@ -93,7 +95,7 @@ def lower_cmd(module, root, files, out):
         root, files = SCALALIB_LINK, [SCALALIB_LINK / f.relative_to(root) for f in files]
     roots = ["--sourceroot", str(sourceroot), "--position-root", str(root)]
     jdk = [] if module == "javalib" else ["--jdk-17"]
-    return [str(LOWER), "--macros", *OPTIONS.get(module, []), *jdk, *roots, *map(str, files), str(out)]
+    return [str(LOWER), LEAVE_OUT, "--macros", *OPTIONS.get(module, []), *jdk, *roots, *map(str, files), str(out)]
 
 
 def oracle(module):

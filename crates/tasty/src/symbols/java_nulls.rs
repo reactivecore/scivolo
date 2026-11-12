@@ -23,6 +23,7 @@ impl Universe {
         let skipped = matches!(s.name.as_str(), nme::TYPE_ | nme::GET_CLASS | nme::TO_STRING)
             || !matches!(s.kind, Kind::Def | Kind::Val)
             || s.flags.has(ENUM)
+            || self.is_java_enum_constant(def, t)
             || self.is_module(def)
             || self.is_entered_object_member(def);
         if skipped || !self.is_jdk_class(owner) || !self.may_be_java(owner) {
@@ -33,10 +34,10 @@ impl Universe {
         self.nullify(t, modes)
     }
 
-    /// Whether class `c` is read from the JDK's class files in Scala Native's build: one javalib
-    /// defines under another name, one of the JDK jars', or, in the build of a library other
-    /// than javalib that JDK jars stand for, any of a JDK package; or one entered from a JDK
-    /// class file.
+    /// Whether class `c` is read from the JDK's class files in Scala Native's build or on the
+    /// JVM: one javalib defines under another name, one of the JDK jars', or, in the build of a
+    /// library other than javalib that JDK jars stand for or in a compile for the JVM, any of a
+    /// JDK package; or one entered from a JDK class file.
     fn is_jdk_class(&self, c: SymbolId) -> bool {
         if self.is_from_classfile(c) {
             return true;
@@ -44,10 +45,25 @@ impl Universe {
         let name = self.full_name(c);
         let name = name.strip_suffix('$').unwrap_or(&name);
         let jdk_package = name.starts_with("java.") || name.starts_with("javax.");
-        let library_build = !self.jdk_jars.is_empty() && !self.javalib_sources();
+        let library_build =
+            !self.jdk_jars.is_empty() && !self.javalib_sources() || self.uses_java_classfiles();
         super::jdk::RENAMED.iter().any(|&(_, jdk)| jdk == name)
             || self.is_from_jdk_jars(c)
             || jdk_package && library_build
+    }
+
+    /// Whether value `def` of type `t` is a constant of a Java enum in a compile for the JVM: a
+    /// value of the enum's type in the object of a class deriving from `java.lang.Enum` (a field
+    /// with `ACC_ENUM`).
+    fn is_java_enum_constant(&mut self, def: SymbolId, t: TypeId) -> bool {
+        let s = self.symbol(def);
+        let value = s.kind == Kind::Val && self.uses_java_classfiles();
+        let Some(object) = s.owner.filter(|&o| value && self.is_module_class(o)) else {
+            return false;
+        };
+        let Some(class) = self.companion_class(object) else { return false };
+        self.referenced(t) == Some(class)
+            && self.linearization(class).into_iter().any(|b| self.full_name(b) == super::defn::JAVA_ENUM)
     }
 
     fn nullify(&mut self, t: TypeId, modes: Modes) -> TypeId {

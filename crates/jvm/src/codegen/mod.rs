@@ -55,6 +55,7 @@ pub struct Gen<'l, 'a> {
     classes: HashMap<String, Option<SymbolId>>,
     /// The TASTy of each top-level class not generated yet.
     tasty: HashMap<SymbolId, Vec<u8>>,
+    /// The JDK's classes where the universe has no JDK.
     jdk: classfile::Jdk,
 }
 
@@ -118,7 +119,7 @@ fn java_flags(l: &Lower, s: SymbolId) -> u16 {
         });
     let private = !class && (has(PRIVATE) || top_module_constructor);
     let abstract_ = (class && has(ABSTRACT)) || has(TRAIT);
-    let in_trait = owner.is_some_and(|o| u.is_trait(o));
+    let in_trait = !class && owner.is_some_and(|o| u.is_trait(o));
     let method = u.symbol(s).kind == tasty::Kind::Def || has(FIELDaccessor);
     let final_ = (has(FINAL) || u.is_module_class(s) || u.is_module(s))
         && !constructor

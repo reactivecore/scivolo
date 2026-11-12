@@ -36,7 +36,7 @@ impl MakeInlineable {
         let span = t.tpd.span(s);
         let receiver = self.receiver(t, qualifier);
         let name = t.u.symbol(sym).name.clone();
-        let unique = t.fresh.next(t.names, &format!("{name}$i"));
+        let unique = t.fresh_name(span, &format!("{name}$i"));
         let suffix = t.names.text(unique)[name.len()..].to_owned();
         let getter = name_kinds::inline_accessor(&format!("{name}{suffix}"));
         let access = Access { member: sym, setter: false };

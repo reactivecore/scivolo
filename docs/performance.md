@@ -45,14 +45,14 @@ on a shared machine; CPU is user + sys, so scalac's includes its JIT and GC thre
 
 | codebase | files | tool | refused | wall s | CPU s | peak RSS MB |
 |---|--:|---|--:|--:|--:|--:|
-| tasty-core | 8 | scivolo-jvm | 0 | 0.28 | 0.28 | 59 |
-| | | scivolo-lower | 0 | 0.19 | 0.19 | 49 |
-| | | scalac cold | | 1.77 | 6.60 | 286 |
-| | | scalac warm | | 0.20 | 0.86 | 585 |
-| upickle-core 4.4.3 | 27 | scivolo-jvm | 0 | 0.67 | 0.67 | 97 |
-| | | scivolo-lower | 0 | 0.58 | 0.58 | 90 |
-| | | scalac cold | | 2.85 | 11.79 | 378 |
-| | | scalac warm | | 0.36 | 1.57 | 692 |
+| tasty-core | 8 | scivolo-jvm | 0 | 0.08 | 0.08 | 42 |
+| | | scivolo-lower | 0 | 0.07 | 0.07 | 38 |
+| | | scalac cold | | 1.65 | 4.27 | 267 |
+| | | scalac warm | | 0.22 | 0.61 | 486 |
+| upickle-core 4.4.3 | 27 | scivolo-jvm | 0 | 0.23 | 0.22 | 55 |
+| | | scivolo-lower | 0 | 0.19 | 0.19 | 53 |
+| | | scalac cold | | 2.96 | 10.06 | 355 |
+| | | scalac warm | | 0.36 | 1.36 | 667 |
 | Scala's library (JVM) | 649 | scivolo-jvm, file by file | 31 | 51.4 | 51.0 | 140 |
 | | | scalac cold | | 16.7 | 74.8 | 1,388 |
 | | | scalac warm | | 6.4 | 10.6 | 2,163 |
@@ -60,15 +60,14 @@ on a shared machine; CPU is user + sys, so scalac's includes its JIT and GC thre
 | | | scalac cold | | 11.1 | 48.6 | 845 |
 | | | scalac warm | | 3.3 | 5.4 | 1,541 |
 
-- Against cold scalac, scivolo is 4–9× faster in wall time on tasty-core and upickle-core;
-  against warm scalac it is 0.5–1.1× in wall time and 2.3–4.5× in CPU time. Neither reaches
-  2× against warm scalac: #247 (tasty-core), #248 (upickle-core), #249 (Scala's library), #250
-  (javalib) name the hot spots.
-- Scala's library row is file by file. `just bench-compile scalalib` compiles it as two units,
-  its 543 `2.13` files and its 106 others (a unit mixing them is refused, #249); on a loaded
-  machine they take 100.9 s and 7.3 s CPU and refuse 82 and 5 files, against 81.5 s CPU and 31
-  refused file by file. scalac compiles its Scala and Java sources as one unit: its rows are
-  not comparable.
+- Against cold scalac, scivolo is 13–23× faster in wall time on tasty-core and upickle-core;
+  against warm scalac it is 1.6–3.1× in wall time and 6.1–8.7× in CPU time (loaded machine).
+  upickle-core stays below 2× in wall time against warm scalac (#248); #249 (Scala's library)
+  and #250 (javalib) name the hot spots of the others.
+- Scala's library row is file by file. `just bench-compile scalalib` compiles all 649 files as
+  one unit; on a loaded machine that takes about 154 s CPU, 69 files are refused and each
+  refusal round types the unit again (#249). scalac compiles its Scala and Java sources as one
+  unit: its rows are not comparable.
 - javalib's two refused files are left out after one typing of the unit (127.6 s CPU on a
   loaded machine), and scalac compiles it to class files without Scala Native's plugin: its
   rows are not comparable either.

@@ -4,7 +4,7 @@
 //! the method type parameters in scope bounded.
 
 use super::{Boxing, Sig};
-use tasty::{Binder, TypeId};
+use tasty::{Binder, Erased, TypeId};
 
 /// What an applied method type parameter stands for in a signature.
 pub enum Applied {
@@ -40,5 +40,15 @@ impl Sig<'_> {
         let t = self.u.upper_bound(t, &bounds);
         let e = self.u.erase(t);
         self.erased_sig(&e, boxing);
+    }
+
+    /// Whether a method type parameter of `bounds` erases to a primitive, also through a value
+    /// class, and so appears by its erasure.
+    pub fn primitive_bound(&mut self, bounds: TypeId) -> bool {
+        let hi = self.u.bounds(bounds).map_or(bounds, |(_, hi)| hi);
+        match self.u.erase_value(hi) {
+            Erased::Value(_, e) => matches!(*e, Erased::Prim(_)),
+            e => matches!(e, Erased::Prim(_)),
+        }
     }
 }

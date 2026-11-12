@@ -65,7 +65,7 @@ impl Typer<'_> {
 
     /// The class of annotation `annot`, its type tree typed in `ctx` (dotty's
     /// `typedAheadAnnotationClass`).
-    fn annotation_class(&mut self, annot: NodeId, ctx: Ctx) -> Option<(SymbolId, Vec<SymbolId>)> {
+    pub fn annotation_class(&mut self, annot: NodeId, ctx: Ctx) -> Option<(SymbolId, Vec<SymbolId>)> {
         let mut t = annot;
         while let Tree::Apply { fun: inner, .. }
         | Tree::TypeApply { fun: inner, .. }

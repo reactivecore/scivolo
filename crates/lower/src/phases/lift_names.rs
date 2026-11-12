@@ -111,9 +111,9 @@ pub fn name_all(l: &mut Lower, named: &[Named], pending: &mut Pending) -> Result
         let f = &n.functions[i];
         pending.name_classes_before(l, Some(at));
         let name = if f.is_anonymous(l) {
-            fresh(l, &name_kinds::anon_fun(&prefix(l, n.class, n.functions, n.methods, f)))
+            fresh(l, f.sym, &name_kinds::anon_fun(&prefix(l, n.class, n.functions, n.methods, f)))
         } else {
-            fresh(l, &l.u.symbol(f.sym).name.clone())
+            fresh(l, f.sym, &l.u.symbol(f.sym).name.clone())
         };
         l.u.rename(n.methods[i].sym, &name);
     }
@@ -153,16 +153,15 @@ fn in_field(l: &Lower, o: SymbolId, class: SymbolId) -> bool {
         || value && owner.is_some_and(|c| l.u.is_constructor(c) && l.u.symbol(c).owner == Some(class))
 }
 
-/// `base$N`, `N` counting the names made from `base` in the unit (dotty's `freshened`).
-pub fn fresh(l: &mut Lower, base: &str) -> String {
-    let name = l.fresh.next(l.names, &name_kinds::unique_prefix(base));
-    l.names.text(name).to_owned()
+/// `base$N`, `N` counting the names made from `base` in the file of `at` (dotty's `freshened`).
+pub fn fresh(l: &mut Lower, at: SymbolId, base: &str) -> String {
+    l.fresh_name(at, &name_kinds::unique_prefix(base))
 }
 
 /// `fresh` of type name `base`, interned.
-pub fn fresh_name(l: &mut Lower, base: NameId) -> NameId {
+pub fn fresh_name(l: &mut Lower, at: SymbolId, base: NameId) -> NameId {
     let base = l.u.name(base).to_owned();
-    let name = fresh(l, &base);
+    let name = fresh(l, at, &base);
     l.u.intern_name(&name)
 }
 

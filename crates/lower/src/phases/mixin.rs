@@ -233,6 +233,7 @@ fn forwarder(
     }
     let jdk = is_jdk(l, mixin);
     let flags = l.u.symbol(meth).flags;
+    let info = if jdk { l.u.jdk_info(meth).unwrap_or(info) } else { info };
     let info = if jdk { with_java_param_names(l, info) } else { info };
     let (sym, def) = l.method_like(class, meth, flags, info, span, |l, args, result| {
         let sup = l.super_mix(class, mixin, span);

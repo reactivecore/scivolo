@@ -15,6 +15,7 @@ mod define;
 pub mod defn;
 mod enter;
 mod entries;
+mod full_names;
 mod function_classes;
 mod gadt_bounds;
 mod higher_kinds;
@@ -126,6 +127,8 @@ pub struct Universe {
     classfile_annotations: FxHashMap<SymbolId, classfiles::Retention>,
     /// The library's classes the JDK's class files were asked for the members they lack.
     jdk_member_classes: FxHashSet<SymbolId>,
+    /// The library's members of JDK classes checked against the JDK's class files.
+    jdk_checked: FxHashSet<SymbolId>,
     /// The given self type of each class whose self type was asked for or set.
     self_types: FxHashMap<SymbolId, Option<TypeId>>,
     /// The annotation classes of the symbols defined outside TASTy.

@@ -111,7 +111,7 @@ impl Expansion<'_, '_> {
         let refined = self.i.opaques_exposed(r, cls);
         let rhs = self.i.singleton(r, point)?;
         let rhs = self.i.cast(rhs, refined).ok()?;
-        let name = self.i.fresh.next(self.i.names, "$proxy");
+        let name = self.i.fresh_name("$proxy");
         let text = self.i.names.text(name).to_owned();
         let proxy = self.local(text, Flags::default().with(SYNTHETIC), refined);
         let at = self.opaque_refs.len();

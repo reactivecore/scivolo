@@ -8,6 +8,7 @@ use super::{Gen, java_flags, method_name, unsupported};
 use classfile::{ACC_ABSTRACT, ACC_BRIDGE, ACC_FINAL, ACC_PUBLIC, ACC_STATIC, ACC_SYNTHETIC, ClassFile};
 use lower::Result;
 use names::name_kinds;
+use syntax::ast::constant::Constant;
 use tasty::SymbolId;
 use typer::tpd::{TNodeId, Tree};
 
@@ -69,7 +70,13 @@ impl Gen<'_, '_> {
             b.bind(self.l.tpd.sym(p).expect("a parameter's symbol"), param.to_owned());
         }
         b.result = result.to_owned();
-        self.method_body(&mut b, rhs, result)?;
+        let unit = matches!(self.l.tpd.tree(rhs), Tree::Literal { value: Constant::Unit });
+        if unit && name.contains(name_kinds::TRAIT_SETTER_SEPARATOR) {
+            b.code.ret("V");
+        } else {
+            self.line(&mut b, rhs);
+            self.method_body(&mut b, rhs, result)?;
+        }
         let code = b.code;
         cf.method(flags, &name, &desc, Some(code), &mut |a, b| self.jvm_lub(a, b));
         self.exceptions(cf, sym);

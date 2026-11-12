@@ -4,15 +4,16 @@
 use super::super::{SymbolId, Universe, module_class_name};
 use super::class;
 use crate::types::NameId;
-use classfile::{ACC_MODULE, ACC_PUBLIC, ACC_STATIC, ACC_SYNTHETIC, ClassInfo};
+use classfile::{ACC_MODULE, ACC_PRIVATE, ACC_PROTECTED, ACC_PUBLIC, ACC_STATIC, ClassInfo};
 use rustc_hash::{FxHashMap, FxHashSet};
+use std::rc::Rc;
 
 /// The Java class files of the jars: the jar of each class by internal name, and each class read
 /// once.
 #[derive(Default)]
 pub struct JavaClasses {
     jars: FxHashMap<String, usize>,
-    read: FxHashMap<String, Option<ClassInfo>>,
+    read: FxHashMap<String, Option<Rc<ClassInfo>>>,
 }
 
 impl Universe {
@@ -39,7 +40,12 @@ impl Universe {
         Ok(())
     }
 
-    /// Enters public class `name` of package `pkg` (an object `C$` stands for its class `C`) from
+    /// Whether the universe uses the jars' Java class files, as a compile for the JVM does.
+    pub fn uses_java_classfiles(&self) -> bool {
+        self.java_classes.is_some()
+    }
+
+    /// Enters class `name` of package `pkg` (an object `C$` stands for its class `C`) from
     /// a jar's class file with its nested classes, if the universe uses the jars' class files and
     /// the package lacks the class and its object: the declarations named `name` entered.
     pub fn classpath_decl(&mut self, pkg: SymbolId, name: NameId) -> Vec<SymbolId> {
@@ -56,42 +62,44 @@ impl Universe {
             return Vec::new();
         }
         let Some(info) = java_class(self, &internal) else { return Vec::new() };
-        if info.access & ACC_PUBLIC == 0 || info.access & ACC_MODULE != 0 {
+        if info.access & ACC_MODULE != 0 {
             return Vec::new();
         }
-        let entered = enter(self, pkg, class, &info);
+        let entered = enter(self, pkg, class, &info, info.access);
         entered.into_iter().filter(|&d| self.symbol(d).name == name).collect()
     }
 }
 
-/// Enters class `info` into `owner` as `name` with its public static nested classes into the
-/// object's class (dotty's `enterOwnInnerClasses`): the class, its object's class and its object,
-/// none if its signature is refused. Refused: protected and non-static nested classes, not
-/// entered.
-fn enter(u: &mut Universe, owner: SymbolId, name: &str, info: &ClassInfo) -> Vec<SymbolId> {
-    let Some(entered) = class::enter(u, owner, name, info) else { return Vec::new() };
+/// Enters class `info` of Java access flags `access` into `owner` as `name` with its nested
+/// classes, the static ones into its object's class, the others into it (dotty's
+/// `enterOwnInnerClasses`): the class, its object's class and its object, none if its signature
+/// is refused. A nested class is read from the jars, else from the JDK.
+pub fn enter(u: &mut Universe, owner: SymbolId, name: &str, info: &ClassInfo, access: u16) -> Vec<SymbolId> {
+    let Some(entered) = class::enter(u, owner, name, info, access) else { return Vec::new() };
     for nested in &info.inner_classes {
         let (Some(outer), Some(simple)) = (&nested.outer, &nested.name) else { continue };
-        let flags = nested.flags & (ACC_PUBLIC | ACC_STATIC | ACC_SYNTHETIC);
-        if *outer != info.name || flags != ACC_PUBLIC | ACC_STATIC {
+        if *outer != info.name {
             continue;
         }
-        let Some(inner) = java_class(u, &nested.inner) else { continue };
-        enter(u, entered[1], simple, &inner);
+        let inner = java_class(u, &nested.inner).or_else(|| u.jdk.as_mut()?.class(&nested.inner).cloned());
+        let Some(inner) = inner else { continue };
+        let owner = if nested.flags & ACC_STATIC != 0 { entered[1] } else { entered[0] };
+        let access = inner.access & !(ACC_PUBLIC | ACC_PROTECTED | ACC_PRIVATE) | nested.flags;
+        enter(u, owner, simple, &inner, access);
     }
     entered
 }
 
 /// Reads the class of internal name `internal` from the jars' class files; none if they lack it,
 /// it is no class file or one compiled from Scala.
-pub fn java_class(u: &mut Universe, internal: &str) -> Option<ClassInfo> {
+pub fn java_class(u: &mut Universe, internal: &str) -> Option<Rc<ClassInfo>> {
     let classes = u.java_classes.as_mut()?;
     if let Some(info) = classes.read.get(internal) {
         return info.clone();
     }
     let jar = *classes.jars.get(internal)?;
     let info = u.library.read_class(jar, internal).ok().and_then(|b| classfile::read(&b).ok());
-    let info = info.filter(|i| !i.scala);
+    let info = info.filter(|i| !i.scala).map(Rc::new);
     u.java_classes.as_mut()?.read.insert(internal.to_owned(), info.clone());
     info
 }

@@ -1,28 +1,34 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/config/Feature.scala
+//   compiler/src/dotty/tools/dotc/typer/Checking.scala
+//   compiler/src/dotty/tools/dotc/typer/ImportInfo.scala
 //! Whether a language feature is enabled where typing is (dotty's `Feature.enabled`): by the
-//! options, or by an import of it from `scala.language` in scope.
+//! options, or by an import of it from `scala.language` in scope; the paths of language imports.
 
 use super::Typer;
 use crate::SourceUnit;
 use crate::ctx::{Ctx, Level};
 use names::nme;
-use syntax::ast::{Ast, NodeId, Span};
+use syntax::ast::{Ast, NodeId, Span, Tree};
 use syntax::config::{Features, SourceVersion};
-use tasty::NullMode;
+use syntax::parse::language_prefix;
+use tasty::{NullMode, SymbolId, TypeId};
 
-/// Refuses the files of `units` whose source version is unsupported or, where the first is
-/// `2.13`, is not, or the other way round; each with its root's span.
+/// Refuses the files of `units` whose source version is unsupported, each with its root's span.
 pub fn source_versions(ast: &Ast, units: &[&SourceUnit]) -> Vec<(Span, String)> {
-    let scala2 = units.first().is_some_and(|unit| unit.cfg.source_version.is_scala2());
     let refusal = |unit: &SourceUnit| {
-        let v = unit.cfg.source_version;
-        let mixed =
-            (v.is_scala2() != scala2).then(|| "source version `2.13` in some files of a unit only".into());
-        let what = super::check_source_version(v).err().or(mixed)?;
+        let what = super::check_source_version(unit.cfg.source_version).err()?;
         Some((ast.span(unit.root), what))
     };
     units.iter().filter_map(|unit| refusal(unit)).collect()
+}
+
+/// Determines the full name of `scala.language.prefix`, `scala.language` for an empty `prefix`.
+fn language_object(prefix: &str) -> String {
+    match prefix {
+        "" => "scala.language".to_owned(),
+        _ => format!("scala.language.{prefix}"),
+    }
 }
 
 impl Typer<'_> {
@@ -31,26 +37,73 @@ impl Typer<'_> {
         if self.features.contains(f) {
             return true;
         }
-        let (object, name) = match name.rsplit_once('.') {
-            Some((prefix, last)) => (format!("scala.language.{prefix}"), last),
-            None => ("scala.language".to_owned(), name),
-        };
+        let (prefix, name) = name.rsplit_once('.').unwrap_or(("", name));
         let mut level = Some(ctx.level);
         while let Some(l) = level {
             if let Level::Import(i) = *self.levels.get(l)
-                && !self.is_root_import(i)
-                && let Some(info) = self.import_info(i)
-                && let Some(s) = info.selectors.iter().find(|s| s.name == name)
+                && let Some(enabled) = self.mentions_feature(i, prefix, name)
             {
-                let (qual, enabled) = (info.qual, s.rename != nme::WILDCARD);
-                let site = self.import_site(qual);
-                if site.is_some_and(|s| self.u.full_name(s).replace('$', "") == object) {
-                    return enabled;
-                }
+                return enabled;
             }
             level = self.levels.outer(l);
         }
         false
+    }
+
+    /// Whether import `i` enables (`Some(true)`) or excludes (`Some(false)`) feature `name` of
+    /// `scala.language.prefix`; `None` where it does not name it or is no language import, which
+    /// the names of its path decide (dotty's `mentionsFeature`).
+    fn mentions_feature(&mut self, i: usize, prefix: &str, name: &str) -> Option<bool> {
+        if self.is_root_import(i) {
+            return None;
+        }
+        let Some(tree) = self.imports[i].tree() else { return self.typed_mentions_feature(i, prefix, name) };
+        let Tree::Import { expr, selectors } = *self.ast.tree(tree) else { return None };
+        if language_prefix(self.ast, self.names, expr)? != prefix {
+            return None;
+        }
+        let selectors = self.ast.items(selectors).to_vec();
+        let (_, rename) =
+            selectors.iter().find_map(|&s| self.selector_names(s).filter(|(n, _)| n == name))?;
+        Some(rename != nme::WILDCARD)
+    }
+
+    /// `mentions_feature` for import `i` of a typed path, which its path's symbol decides.
+    fn typed_mentions_feature(&mut self, i: usize, prefix: &str, name: &str) -> Option<bool> {
+        let info = self.import_info(i)?;
+        let (qual, enabled) =
+            (info.qual, info.selectors.iter().find(|s| s.name == name)?.rename != nme::WILDCARD);
+        let site = self.import_site(qual)?;
+        (self.object_name(site) == language_object(prefix)).then_some(enabled)
+    }
+
+    /// Refuses import path `expr` of type `qual` written as a language import but referring to
+    /// another object, or referring to `scala.language` or `scala.language.experimental` but not
+    /// written as a language import (dotty's `checkLegalImportPath`).
+    pub fn check_language_path(&mut self, expr: NodeId, qual: TypeId) {
+        match language_prefix(self.ast, self.names, expr) {
+            Some(prefix) => {
+                let object = self.import_site(qual).map(|s| self.object_name(s));
+                if object != Some(language_object(&prefix)) {
+                    self.unsupported(
+                        expr,
+                        "import that looks like a language import but refers to something else",
+                    );
+                }
+            }
+            None => {
+                let class = self.import_site_class(qual).map(|c| self.object_name(c));
+                if class.is_some_and(|c| c == language_object("") || c == language_object(nme::EXPERIMENTAL))
+                {
+                    self.unsupported(expr, "alias of a language import");
+                }
+            }
+        }
+    }
+
+    /// The full name of object or module class `s`, without `$`.
+    fn object_name(&self, s: SymbolId) -> String {
+        self.u.full_name(s).replace('$', "")
     }
 
     /// Takes the features and source version of source file `file` of a unit of several (dotty's
@@ -64,7 +117,6 @@ impl Typer<'_> {
             self.source_future = v.requires_new_syntax();
             self.dollar_names_warned = v.is_at_least(SourceVersion::V3_9);
             self.scala2 = v.is_scala2();
-            self.tpd.scala2 = self.scala2;
             self.file = file;
         }
         outer

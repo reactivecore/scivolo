@@ -27,18 +27,31 @@ pub fn specializable(params: &[Erased], result: &Erased) -> bool {
     }
 }
 
-/// The specialized interface a closure of a function type implements, its method of erased
-/// parameters `params` and result `result` needing adaptations `needed`: a `JFunctionN`, or a
-/// `JProcedureN` where only its `Unit` result needs one (dotty's `adaptClosure`).
+/// Determines whether class `c` is defined in a source file behaving as the Scala 2 library
+/// (dotty's `shouldBehaveAsScala2` of its compilation unit).
+pub fn behaves_as_scala2(l: &Lower, c: SymbolId) -> bool {
+    let mut top = c;
+    while let Some(owner) = l.u.symbol(top).owner.filter(|&o| !l.u.symbol(o).is_package()) {
+        top = owner;
+    }
+    l.u.is_scala2(top)
+}
+
+/// The specialized interface a closure of a function type in class `class` implements, its
+/// method of erased parameters `params` and result `result` needing adaptations `needed`: a
+/// `JFunctionN`, or a `JProcedureN` where only its `Unit` result needs one (dotty's
+/// `adaptClosure`).
 pub fn specialized_interface(
     l: &mut Lower,
+    class: SymbolId,
     needed: (bool, bool),
-    params: &[Erased],
-    result: &Erased,
+    (params, result): (&[Erased], &Erased),
 ) -> Option<Result<SymbolId, String>> {
     match needed {
         (false, false) => None,
-        _ if specializable(params, result) && !l.tpd.scala2 => Some(specialized(l.u, params, result)),
+        _ if specializable(params, result) && !behaves_as_scala2(l, class) => {
+            Some(specialized(l.u, params, result))
+        }
         (false, _) if *result == Erased::Unit => Some(procedure(l.u, params.len())),
         _ => None,
     }

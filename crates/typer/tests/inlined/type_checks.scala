@@ -11,6 +11,7 @@ object TypeChecks:
   val c = show(typeChecks("twice(\"x\").length"))
   val d = checks("1 + 1")
   val e = show(typeChecks("fails()"))
+  val g = show(typeChecks("implicit class Twice(i: Int) { def twice = i * 2 }; 1.twice"))
   def f(): Boolean =
     val s = "1"
     show(typeChecks(s))

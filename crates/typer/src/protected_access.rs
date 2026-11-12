@@ -34,7 +34,7 @@ pub fn super_accessor_needed(u: &mut Universe, sym: SymbolId, class: SymbolId) -
     if !u.derives_from(class, owner) {
         return Ok(true);
     }
-    match is_jdk(u, owner) && u.full_name(owner) != "java.lang.Object" {
+    match is_jdk(u, owner) && !u.has_full_name(owner, "java.lang.Object") {
         true => Err("protected Java members on `this` in concrete trait methods"),
         false => Ok(false),
     }
@@ -66,15 +66,18 @@ pub fn is_java_static(u: &mut Universe, s: SymbolId) -> bool {
 /// Whether class `c` is the class of a javalib object in a JDK package or of an object of the JDK
 /// jars that stands for a JDK class, or of a Java class's stub object.
 pub fn is_jdk_object(u: &Universe, c: SymbolId) -> bool {
-    let name = u.full_name(c);
-    let jdk = name.starts_with("java.") || name.starts_with("javax.") || u.is_from_jdk_jars(c);
-    u.may_be_java(c) && u.is_module_class(c) && jdk || u.is_java_statics(c)
+    let jdk = || in_jdk_package(u, c) || u.is_from_jdk_jars(c);
+    u.may_be_java(c) && u.is_module_class(c) && jdk() || u.is_java_statics(c)
 }
 
 /// Whether class `c` is a JDK class: Java-defined in a `java.` or `javax.` package.
 pub fn is_jdk(u: &Universe, c: SymbolId) -> bool {
-    let name = u.full_name(c);
-    u.may_be_java(c) && (name.starts_with("java.") || name.starts_with("javax."))
+    u.may_be_java(c) && in_jdk_package(u, c)
+}
+
+/// Whether the full name of `s` starts with `java.` or `javax.`.
+pub fn in_jdk_package(u: &Universe, s: SymbolId) -> bool {
+    u.full_name_starts_with(s, "java.") || u.full_name_starts_with(s, "javax.")
 }
 
 /// Whether `s` is `c` or defined in it.

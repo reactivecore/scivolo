@@ -29,6 +29,9 @@ const OPERATORS: [(char, &str); 18] = [
 /// `name` as the compiler spells it in file names: operators by their names, other characters
 /// that are not Java identifier parts as `$uXXXX`.
 pub fn encode(name: &str) -> String {
+    if name.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'$') {
+        return name.to_owned();
+    }
     let mut out = String::with_capacity(name.len());
     for c in name.chars() {
         match OPERATORS.iter().find(|(op, _)| *op == c) {
@@ -105,8 +108,8 @@ impl Universe {
             {
                 return self.decl(owner, &jdk);
             }
-            if self.named(owner, name).is_empty() && self.jdk.is_some() {
-                self.enter_jdk_members(owner);
+            if self.jdk.is_some() {
+                self.jdk_view(owner, name);
             }
             return Ok(self.named(owner, name).to_vec());
         }
@@ -135,6 +138,23 @@ impl Universe {
         }
         let jdk = self.jdk_decl(owner, name);
         Ok(if jdk.is_empty() { self.classpath_decl(owner, name) } else { jdk })
+    }
+
+    /// Makes the declarations of class `owner` named `name` those of its JDK class file (ADR
+    /// 0118): hides the library's that the JDK lacks, then enters the JDK's where none is left.
+    fn jdk_view(&mut self, owner: SymbolId, name: NameId) {
+        let found = self.named(owner, name).to_vec();
+        let lacking = self.jdk_lacking(owner, &found);
+        lacking.iter().for_each(|&m| self.unenter(m));
+        if !self.named(owner, name).is_empty() {
+            return;
+        }
+        if lacking.is_empty() {
+            self.enter_jdk_members(owner);
+        } else {
+            let text = self.name(name).to_owned();
+            self.enter_jdk_named(owner, &text);
+        }
     }
 
     /// The declarations `decl` finds, none where a file fails to load.

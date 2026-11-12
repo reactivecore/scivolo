@@ -10,14 +10,17 @@ use tasty::tags::*;
 
 impl TreePickler<'_> {
     /// The key tree `id` is registered under: the tree it is shared with or a copy of, else itself.
-    fn tree_key(&self, id: TNodeId) -> u32 {
+    pub fn tree_key(&self, id: TNodeId) -> u32 {
         let first = self.shared.get(&id).copied().or_else(|| self.tpd.copy_of(id)).unwrap_or(id);
         first.index() as u32
     }
 
-    /// Tree `id`, a `SHAREDterm` if pickled before.
+    /// Tree `id`, a `SHAREDterm` if pickled before and not to be pickled anew.
     pub fn tree(&mut self, id: TNodeId) -> Result<(), Refusal> {
-        let at = self.buf.register_tree(self.tree_key(id));
+        let at = match self.anew.remove(&id) {
+            true => self.buf.buf.current_addr(),
+            false => self.buf.register_tree(self.tree_key(id)),
+        };
         if at != self.buf.buf.current_addr() {
             self.byte(SHAREDterm);
             self.buf.write_ref(at);

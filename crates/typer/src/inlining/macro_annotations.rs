@@ -12,10 +12,9 @@ use crate::tpd::{TNodeId, Tree as T};
 use names::nme;
 use rustc_hash::FxHashMap;
 use syntax::ast::Span;
+use tasty::defn::MACRO_ANNOTATION;
 use tasty::tags::OBJECT;
 use tasty::{SymbolId, Type};
-
-const MACRO_ANNOTATION: &str = "scala.annotation.MacroAnnotation";
 
 impl Inlining<'_> {
     /// Expands the macro annotations on the definitions among the statements of `t`, a template,

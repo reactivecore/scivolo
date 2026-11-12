@@ -79,7 +79,10 @@ object Trycatch {
     lock.synchronized { count += 10 }
     println(s"${lockedReturn(7)} ${lockedReturn(1)}")
     println(log)
+    println(try { pair(throw new Error("arg"), 1L) } catch { case e: Error => e.getMessage })
   }
+
+  def pair(i: Int, l: Long): Long = i + l
 }
 
 object Stash {

@@ -69,9 +69,11 @@ fn serializable_object_method(l: &mut Lower, class: SymbolId, span: Span) -> Res
     };
     let (sym, any_ref) = private_method(l, class, nme::WRITE_REPLACE);
     let s = l.serialization()?;
-    let new = l.new_(s.proxy, span);
+    let proxy = pickled_ref(l, s.proxy);
+    let proxy_tpt = l.type_tree(proxy, span);
+    let new = l.tpd.node(Tree::New { tpt: proxy_tpt }, span, Some(proxy), None);
     let ctor = l.select(new, s.proxy_ctor, span);
-    let module_ref = type_ref(l.u, module);
+    let module_ref = pickled_ref(l, module);
     let class_of = applied(l.u, s.class, vec![module_ref]);
     let lit = l.tpd.node(Tree::ClassLiteral { tpe: module_ref }, span, Some(class_of), None);
     let proxy_type = l.tpd.tpe(new);
@@ -82,12 +84,25 @@ fn serializable_object_method(l: &mut Lower, class: SymbolId, span: Span) -> Res
 
 /// A new `private def name(): AnyRef` of `class`, and `AnyRef`.
 pub fn private_method(l: &mut Lower, class: SymbolId, name: &str) -> (SymbolId, TypeId) {
-    let any_ref = type_ref(l.u, l.u.defn().any_ref);
+    let any_ref = pickled_ref(l, l.u.defn().any_ref);
     let binder = l.u.fresh_binder();
     let info = l.u.intern_method(binder, &[], any_ref, false, false);
     let sym = l.u.define(symbol(name, Kind::Def, class, Flags::default().with(PRIVATE).with(SYNTHETIC)));
     l.u.set_info(sym, info);
     (sym, any_ref)
+}
+
+/// The type of a reference to `s` as the typer gives it: a member of a class through the class's
+/// `this`, else without prefix (dotty's `typeRef`).
+fn pickled_ref(l: &mut Lower, s: SymbolId) -> TypeId {
+    let prefix = match l.u.symbol(s).owner {
+        Some(o) if l.u.symbol(o).kind == Kind::Class => {
+            let class = pickled_ref(l, o);
+            Some(l.u.intern_type(Type::This(class)))
+        }
+        _ => None,
+    };
+    l.u.intern_type(Type::Sym(prefix, s))
 }
 
 /// The member synthetic member `m` of a class compiled in the same run overrides, the first

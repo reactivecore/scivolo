@@ -45,6 +45,8 @@ impl Typer<'_> {
     /// - a definition in a local scope, class or the same compilation unit wins at once;
     ///   definitions elsewhere in an enclosing package, named and wildcard imports are kept
     ///   until an inner binding of higher precedence or the end of the search;
+    /// - the top-level packages come before the root imports, so `io` is a top-level `io`
+    ///   package if there is one, not `scala.io`;
     /// - an explicit import from `Predef` that does not supply the name hides the root import
     ///   of `Predef`.
     ///
@@ -55,8 +57,11 @@ impl Typer<'_> {
         let name = Name { text: name, is_type };
         let mut prev: Option<Hit> = None;
         let mut unimported = Vec::new();
+        let mut root_package = None;
         let mut level = Some(ctx.level);
-        while let Some(l) = level {
+        while let Some(l) = level
+            && root_package != Some(l)
+        {
             let scope = self.levels.def_scope(l);
             let possible = |prev: &Option<Hit>, prec: Prec| match prev {
                 None => true,
@@ -99,8 +104,10 @@ impl Typer<'_> {
                             }
                             let Some(outer) = self.levels.outer(l) else { return Err("constructor proxy") };
                             return match self.find_ref(name.text, false, Ctx { level: outer, ..ctx }) {
-                                Ok(Some(_)) => Err("constructor proxy shadowing a term"),
-                                Ok(None)
+                                Ok(Some(f)) if self.shadows_proxy(&f, ctx) => {
+                                    Err("constructor proxy shadowing a term")
+                                }
+                                Ok(_)
                                 | Err("constructor proxy" | "constructor proxy of an exported class") => {
                                     Err("constructor proxy")
                                 }
@@ -129,6 +136,17 @@ impl Typer<'_> {
                     if let Some(s) = scope.filter(|&s| self.defines_before_imports(s, name, ctx)) {
                         level = Some(s);
                         continue;
+                    }
+                    if root_package.is_none()
+                        && self.is_root_import(i)
+                        && let Some(root) = scope
+                    {
+                        root_package = Some(root);
+                        if let Some(found) =
+                            self.defined(root, name, ctx).and_then(|f| self.qualifying(f, root, ctx))
+                        {
+                            return Ok(Some(prev.map_or(found, |h| h.found)));
+                        }
                     }
                     if prev.is_some() && self.is_root_import(i) {
                         return Ok(prev.map(|h| h.found));

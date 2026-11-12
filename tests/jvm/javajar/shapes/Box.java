@@ -45,13 +45,25 @@ public class Box<T> {
         }
     }
 
+    protected static int sprot() {
+        return 7;
+    }
+
     public class Inner {
         public T value() {
             return value;
         }
     }
 
-    protected static class Hidden {}
+    public Inner inner() {
+        return new Inner();
+    }
+
+    protected static class Hidden {
+        public String name() {
+            return "hidden";
+        }
+    }
 
     public interface Shape {
         double area();
@@ -59,5 +71,15 @@ public class Box<T> {
         static Shape square(double side) {
             return () -> side * side;
         }
+    }
+}
+
+class Counter {
+    static final String PREFIX = "count ";
+    int count = 0;
+
+    String next() {
+        count++;
+        return PREFIX + count;
     }
 }

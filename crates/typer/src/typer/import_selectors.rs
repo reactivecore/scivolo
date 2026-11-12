@@ -35,14 +35,14 @@ impl Typer<'_> {
         selectors: Vec<ImportSelector>,
     ) -> Ctx {
         let selectors = selectors.into_iter().map(|(name, rename, bound)| Selector { name, rename, bound });
-        let info =
-            ImportInfo { qual, selectors: selectors.collect(), expr: Some(expr), owner: Some(ctx.owner) };
+        let selectors = selectors.collect();
+        let info = ImportInfo { qual, selectors, expr: Some(expr), owner: Some(ctx.owner), tree: None };
         self.imports.push(ImportEntry::Done(info));
         Ctx { level: self.levels.push(Some(ctx.level), Level::Import(self.imports.len() - 1)), ..ctx }
     }
 
     /// The imported name and the name it is visible as of selector `s`.
-    fn selector_names(&self, s: NodeId) -> Option<(String, String)> {
+    pub fn selector_names(&self, s: NodeId) -> Option<(String, String)> {
         let ident = |id: NodeId| match *self.ast.tree(id) {
             Tree::Ident { name } => self.text(name.name).to_owned(),
             _ => String::new(),

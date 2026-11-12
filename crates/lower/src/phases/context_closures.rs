@@ -47,11 +47,11 @@ pub fn plan(
     for (k, context) in contexts.iter().enumerate() {
         let outer = anons.last().map_or(m, |a| a.sym);
         let prefix = l.u.symbol(outer).name.clone();
-        let name = fresh(l, &name_kinds::flat(&prefix, nme::ANON_FUN));
+        let name = fresh(l, class, &name_kinds::flat(&prefix, nme::ANON_FUN));
         let sym = l.u.define(symbol(&name, Kind::Def, class, flags));
         if !anons.is_empty() {
             for ((name, _), &original) in captured.iter_mut().zip(&originals) {
-                *name = fresh_name(l, original);
+                *name = fresh_name(l, class, original);
             }
         }
         let context: Params = context.iter().filter(|&&(_, p)| !l.u.is_erased_param(p)).cloned().collect();
@@ -73,15 +73,17 @@ pub fn plan(
             None => result.clone(),
         };
         let needed = if bunched { (false, false) } else { function_adaptation(&erased, &result) };
-        let Ok(interface) = specialized_interface(l, needed, &erased, &result).transpose() else {
+        let Ok(interface) = specialized_interface(l, class, needed, (&erased, &result)).transpose() else {
             return unsupported(span, "context functions of this function type");
         };
         let adapted = (interface.is_none() && needed != (false, false)).then(|| {
-            let name = fresh(l, &name_kinds::adapted_closure(&name_kinds::flat(&prefix, nme::ANON_FUN)));
+            let name =
+                fresh(l, class, &name_kinds::adapted_closure(&name_kinds::flat(&prefix, nme::ANON_FUN)));
             let adapted = l.u.define(symbol(&name, Kind::Def, class, adapted_flags));
             let first = captured.len() - context.len();
             let names = captured.iter().zip(&originals).enumerate();
-            let names = names.map(|(i, (&(name, _), &o))| if i < first { fresh_name(l, o) } else { name });
+            let names =
+                names.map(|(i, (&(name, _), &o))| if i < first { fresh_name(l, class, o) } else { name });
             (adapted, names.collect(), needed)
         });
         let bunched = bunched.then_some(erased);

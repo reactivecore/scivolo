@@ -1,7 +1,6 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/core/SymDenotations.scala
-//! Whether a member is accessible (dotty's `isAccessibleFrom`, `accessBoundary`,
-//! `enclosingClassNamed`).
+//! Whether a member is accessible (dotty's `isAccessibleFrom`, `accessBoundary`).
 
 use super::Typer;
 use crate::ctx::Ctx;
@@ -48,21 +47,29 @@ impl Typer<'_> {
         if accessible.is_empty() { syms } else { accessible }
     }
 
-    /// Whether `sym` is public or `ctx` is inside its access boundary or the boundary's companion.
+    /// Whether `sym` is public or `ctx` is inside its access boundary or the boundary's companion,
+    /// a class file's package boundary not including its subpackages.
     pub fn is_within_boundary(&mut self, sym: SymbolId, ctx: Ctx) -> bool {
         let Some(boundary) = self.access_boundary(sym) else { return true };
-        if self.u.symbol(boundary).kind.is_term() || self.access_within(boundary, ctx) {
-            return true;
+        let kind = self.u.symbol(boundary).kind;
+        if kind == tasty::Kind::Package && self.u.is_java_defined(sym) {
+            return self.enclosing_package(ctx.owner) == boundary;
         }
-        self.linked_class(boundary).is_some_and(|linked| self.access_within(linked, ctx))
+        kind.is_term()
+            || self.access_within(boundary, ctx)
+            || self.linked_class(boundary).is_some_and(|linked| self.access_within(linked, ctx))
     }
 
-    /// The class, package or term up to which `sym` is accessible, `None` if it is public or a
-    /// JDK class Scala Native defines under another name (dotty's `accessBoundary(owner)`).
+    /// The class, package or term up to which `sym` is accessible, `None` if it is public, a
+    /// protected static Java member or a JDK class Scala Native defines under another name
+    /// (dotty's `accessBoundary(owner)`).
     fn access_boundary(&mut self, sym: SymbolId) -> Option<SymbolId> {
         let (owner, flags) = (self.u.symbol(sym).owner?, self.u.symbol(sym).flags);
         if flags.has(PRIVATE) {
             return Some(owner);
+        }
+        if flags.has(PROTECTED) && self.u.is_module_class(owner) && self.u.is_java_defined(sym) {
+            return None;
         }
         if let Some(&within) = self.syms.private_within.get(&sym) {
             return Some(within);
@@ -181,21 +188,5 @@ impl Typer<'_> {
             && self.u.symbol(sym).name == nme::CONSTRUCTOR
             && self.super_call_class(ctx).zip(parent).is_some_and(|(c, p)| self.u.derives_from(c, p));
         if super_call { Ok(()) } else { Err("protected member through a path") }
-    }
-
-    /// The class or package enclosing `owner`, or `owner` itself, whose name or object's name
-    /// is `name` (dotty's `enclosingClassNamed`).
-    pub fn enclosing_class_named(&self, owner: SymbolId, name: &str) -> Option<SymbolId> {
-        let mut o = Some(owner);
-        while let Some(s) = o {
-            let sym = self.u.symbol(s);
-            let named =
-                sym.name == name || self.u.is_module_class(s) && tasty::module_name(&sym.name) == Some(name);
-            if named && matches!(sym.kind, tasty::Kind::Class | tasty::Kind::Package) {
-                return Some(s);
-            }
-            o = sym.owner;
-        }
-        None
     }
 }

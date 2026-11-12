@@ -8,6 +8,7 @@ use std::fs::File;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::rc::Rc;
 use zip::ZipArchive;
 
 enum Source {
@@ -24,15 +25,16 @@ enum Source {
 #[derive(Default)]
 pub struct Jdk {
     source: Option<Option<Source>>,
-    classes: HashMap<String, Option<ClassInfo>>,
+    classes: HashMap<String, Option<Rc<ClassInfo>>>,
     packages: Option<HashSet<String>>,
 }
 
 impl Jdk {
     /// The JDK's class of internal name `name`, none if no JDK is found or it lacks the class.
-    pub fn class(&mut self, name: &str) -> Option<&ClassInfo> {
+    pub fn class(&mut self, name: &str) -> Option<&Rc<ClassInfo>> {
         if !self.classes.contains_key(name) {
-            let info = self.source().and_then(|s| s.bytes(name)).and_then(|b| super::read(&b).ok());
+            let info =
+                self.source().and_then(|s| s.bytes(name)).and_then(|b| super::read(&b).ok()).map(Rc::new);
             self.classes.insert(name.to_owned(), info);
         }
         self.classes[name].as_ref()
@@ -41,15 +43,12 @@ impl Jdk {
     /// Whether the JDK has a class in package `pkg`, an internal name such as `java/time`.
     pub fn has_package(&mut self, pkg: &str) -> bool {
         if self.packages.is_none() {
-            let names = self.source().map_or_else(Vec::new, |s| s.names());
+            let names = self.source().map_or_else(Vec::new, |s| s.packages());
             let mut packages = HashSet::new();
             for name in names {
                 let mut pkg = name.as_str();
-                while let Some((outer, _)) = pkg.rsplit_once('/') {
-                    pkg = outer;
-                    if !packages.insert(pkg.to_owned()) {
-                        break;
-                    }
+                while !pkg.is_empty() && packages.insert(pkg.to_owned()) {
+                    pkg = pkg.rsplit_once('/').map_or("", |(outer, _)| outer);
                 }
             }
             self.packages = Some(packages);
@@ -105,11 +104,13 @@ fn ct_sym(home: &Path) -> Option<Source> {
 }
 
 impl Source {
-    /// The internal names of the classes.
-    fn names(&self) -> Vec<String> {
+    /// The internal names of the packages of the classes.
+    fn packages(&self) -> Vec<String> {
         match self {
-            Source::Jimage(image) => image.names(),
-            Source::CtSym { entries, .. } => entries.keys().cloned().collect(),
+            Source::Jimage(image) => image.packages(),
+            Source::CtSym { entries, .. } => {
+                entries.keys().filter_map(|n| Some(n.rsplit_once('/')?.0.to_owned())).collect()
+            }
         }
     }
 

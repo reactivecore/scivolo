@@ -180,9 +180,7 @@ impl Gen<'_, '_> {
             return unsupported(span, "arguments other than the descriptor's on the JVM");
         }
         for (a, param) in arg_list.into_iter().zip(params) {
-            if self.expr(b, a)? != classfile::value_slots(param) {
-                return unsupported(self.l.tpd.span(a), "an argument of another JVM type");
-            }
+            self.expr_as(b, a, classfile::value_slots(param))?;
             self.cast_to_null(b, a, param);
         }
         let in_trait = self.l.u.is_trait(owner) && owner_name == self.class_name(owner);

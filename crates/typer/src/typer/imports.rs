@@ -28,6 +28,8 @@ pub struct ImportInfo {
     pub expr: Option<TNodeId>,
     /// The owner of the context the import is in; `None` for a root import.
     pub owner: Option<SymbolId>,
+    /// The import; `None` for a root import and an import of a typed path.
+    pub tree: Option<NodeId>,
 }
 
 impl ImportInfo {
@@ -46,8 +48,18 @@ impl ImportInfo {
 /// An import of a unit: its tree and the context its path is typed in, or what it imports.
 pub enum ImportEntry {
     Pending { tree: NodeId, ctx: Ctx },
-    Completing,
+    Completing(NodeId),
     Done(ImportInfo),
+}
+
+impl ImportEntry {
+    /// The import tree, if the import has one.
+    pub fn tree(&self) -> Option<NodeId> {
+        match self {
+            ImportEntry::Pending { tree, .. } | ImportEntry::Completing(tree) => Some(*tree),
+            ImportEntry::Done(info) => info.tree,
+        }
+    }
 }
 
 impl Typer<'_> {
@@ -67,7 +79,8 @@ impl Typer<'_> {
         if self.import_site(qual) == Some(self.defn.predef) {
             selectors.insert(0, selector(nme::ANY2STRINGADD, nme::WILDCARD));
         }
-        self.imports.push(ImportEntry::Done(ImportInfo { qual, selectors, expr: None, owner: None }));
+        let info = ImportInfo { qual, selectors, expr: None, owner: None, tree: None };
+        self.imports.push(ImportEntry::Done(info));
         self.levels.push(outer, Level::Import(self.imports.len() - 1))
     }
 
@@ -105,7 +118,7 @@ impl Typer<'_> {
     /// The info of import `i`, its path typed if not yet.
     pub fn import_info(&mut self, i: usize) -> Option<&ImportInfo> {
         if let ImportEntry::Pending { tree, ctx } = self.imports[i] {
-            self.imports[i] = ImportEntry::Completing;
+            self.imports[i] = ImportEntry::Completing(tree);
             let Tree::Import { expr, selectors } = *self.ast.tree(tree) else { unreachable!() };
             let typed = self.typed(expr, Pt::Any, ctx.with_mode(crate::ctx::Mode::QUALIFIER));
             let package = self.tpd.sym(typed).is_some_and(|s| self.u.symbol(s).kind == tasty::Kind::Package);
@@ -114,46 +127,16 @@ impl Typer<'_> {
                 self.unsupported(expr, "import prefix that is not a pure expression");
             }
             let qual = self.import_qual(typed);
-            let site = self.import_site(qual).map(|s| self.u.full_name(s).replace('$', ""));
-            if self.looks_like_language(expr) && !site.is_some_and(|s| s.starts_with("scala.language")) {
-                self.unsupported(
-                    expr,
-                    "import that looks like a language import but refers to something else",
-                );
-            }
+            self.check_language_path(expr, qual);
             let selectors = self.selectors(selectors, ctx);
             let owner = Some(ctx.owner);
-            self.imports[i] = ImportEntry::Done(ImportInfo { qual, selectors, expr: Some(typed), owner });
+            let info = ImportInfo { qual, selectors, expr: Some(typed), owner, tree: Some(tree) };
+            self.imports[i] = ImportEntry::Done(info);
         }
         match &self.imports[i] {
             ImportEntry::Done(info) => Some(info),
             _ => None,
         }
-    }
-
-    /// Whether path `expr` is `[[_root_.]scala.]language[.x]` (dotty's `languageImport`).
-    fn looks_like_language(&self, expr: NodeId) -> bool {
-        let mut names = Vec::new();
-        let mut t = expr;
-        loop {
-            match *self.ast.tree(t) {
-                Tree::Select { qualifier, name } => {
-                    names.push(self.text(name.name).to_owned());
-                    t = qualifier;
-                }
-                Tree::Ident { name } => {
-                    names.push(self.text(name.name).to_owned());
-                    break;
-                }
-                _ => return false,
-            }
-        }
-        names.reverse();
-        let rest = match names.iter().position(|n| n == nme::LANGUAGE) {
-            Some(i) => &names[..i],
-            None => return false,
-        };
-        rest.is_empty() || rest == [nme::SCALA] || rest == [nme::ROOT_PKG, nme::SCALA]
     }
 
     /// The members named `member` of import `i`'s path; for a wildcard, the givens only if a

@@ -13,6 +13,7 @@ mod def_names;
 mod defaults;
 mod double_definitions;
 mod erased;
+mod export_annotations;
 mod export_members;
 mod export_paths;
 mod export_types;

@@ -113,7 +113,7 @@ impl TailCalls {
         if let Some(label) = self.label {
             return label;
         }
-        let name = fresh(l, "tailLabel");
+        let name = l.fresh_name(self.method, "tailLabel");
         let unit = l.u.class_ref(tasty::defn::UNIT);
         let label = local(l, self.method, &name, unit, false);
         self.label = Some(label);
@@ -126,7 +126,7 @@ impl TailCalls {
             return v;
         }
         let v = l.tail_vars.remove(&self.method).unwrap_or_else(|| {
-            let name = fresh(l, &name_kinds::tail_local(nme::SELF));
+            let name = l.fresh_name(self.method, &name_kinds::tail_local(nme::SELF));
             let tpe = l.u.this_type(self.class);
             local(l, self.method, &name, tpe, true)
         });
@@ -146,19 +146,13 @@ impl TailCalls {
                 v
             }
             None => {
-                let name = fresh(l, &name_kinds::tail_local(&l.u.symbol(param).name));
+                let name = l.fresh_name(param, &name_kinds::tail_local(&l.u.symbol(param).name));
                 local(l, self.method, &name, info, true)
             }
         };
         self.vars.insert(0, (param, v));
         v
     }
-}
-
-/// `baseN`, `N` counting the names made from `base` in the unit.
-pub fn fresh(l: &mut Lower, base: &str) -> String {
-    let name = l.fresh.next(l.names, base);
-    l.names.text(name).to_owned()
 }
 
 /// The outermost method definitions under `t`.

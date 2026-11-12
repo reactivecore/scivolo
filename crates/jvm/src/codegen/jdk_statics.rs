@@ -8,6 +8,15 @@ use syntax::ast::Span;
 use tasty::SymbolId;
 
 impl Gen<'_, '_> {
+    /// Reads the JDK's class of internal name `name` through the universe's JDK, else through
+    /// the generator's.
+    pub fn jdk_class(&mut self, name: &str) -> Option<&classfile::ClassInfo> {
+        match self.l.u.jdk_mut() {
+            Some(jdk) => jdk.class(name).map(|c| &**c),
+            None => self.jdk.class(name).map(|c| &**c),
+        }
+    }
+
     /// The class declaring the members of class `owner` in class files: the JDK class an object
     /// standing for its static members names, then whether that is an interface.
     pub fn member_owner(&mut self, owner: SymbolId) -> (String, bool) {
@@ -42,7 +51,7 @@ impl Gen<'_, '_> {
         if !value && self.jdk_static(&class, &name, &method, false) {
             return Ok(false);
         }
-        if self.jdk.class(&class).is_none() {
+        if self.jdk_class(&class).is_none() {
             return unsupported(span, format!("JDK class {class}, missing from the JDK's class files"));
         }
         unsupported(span, format!("javalib's {class}.{name}, a static member the JDK lacks"))
@@ -54,7 +63,7 @@ impl Gen<'_, '_> {
     fn jdk_static(&mut self, class: &str, name: &str, desc: &str, field: bool) -> bool {
         let mut todo = vec![class.to_owned()];
         while let Some(c) = todo.pop() {
-            let Some(info) = self.jdk.class(&c) else { continue };
+            let Some(info) = self.jdk_class(&c) else { continue };
             let members = if field { &info.fields } else { &info.methods };
             let is = |m: &&classfile::MemberInfo| m.name == name && m.descriptor == desc;
             let visible = |m: &&classfile::MemberInfo| m.access & (ACC_PUBLIC | ACC_PROTECTED) != 0;

@@ -18,7 +18,8 @@ const UNSPECIFIC: [&str; 5] =
 
 impl Typer<'_> {
     /// `TypeMismatch` for `tree` in `ctx`, whose type does not conform to `pt`, an error tree;
-    /// `None` where dotty may adapt it otherwise, report it elsewhere or word the message otherwise.
+    /// `None` where dotty may adapt it otherwise, report it elsewhere or word the message otherwise,
+    /// unless in the code of `typeChecks`, whose messages are dropped.
     pub fn type_mismatch(&mut self, tree: TNodeId, pt: TypeId, ctx: Ctx) -> Option<TNodeId> {
         let span = self.written_span(tree);
         let found = self.tpd.tpe(tree);
@@ -29,8 +30,8 @@ impl Typer<'_> {
         if self.has_vars(found) || self.has_vars(pt) || self.unspecific(widened, pt) {
             return None;
         }
-        let (found_text, required) = (self.found_text(found)?, self.plain_text(pt)?);
-        if !self.distinct_names(&[found, widened, pt])
+        let text = self.mismatch_text(found, widened, pt);
+        if text.is_none() && self.checked_code.is_none()
             || self.inherits_twice(widened, pt)
             || self.constant_converts(tree, found, pt)
             || self.view_may_apply(widened, pt, ctx)
@@ -38,9 +39,16 @@ impl Typer<'_> {
         {
             return None;
         }
+        let (found_text, required) = text.unwrap_or_else(|| (self.u.show_user(found), self.u.show_user(pt)));
         let msg = super::errors::type_mismatch(&found_text, &required);
         self.diags.error_at(span.start(), span.end(), span.point(), msg);
         Some(self.error_tree(span))
+    }
+
+    /// The found and required types as dotty's message shows them, if it shows them so.
+    fn mismatch_text(&mut self, found: TypeId, widened: TypeId, pt: TypeId) -> Option<(String, String)> {
+        let text = (self.found_text(found)?, self.plain_text(pt)?);
+        self.distinct_names(&[found, widened, pt]).then_some(text)
     }
 
     /// The span of `tree`, as written for the constructor call `new C` stands for.

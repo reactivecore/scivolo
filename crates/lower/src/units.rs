@@ -65,8 +65,6 @@ pub fn compile_attributed<R>(
     let whole = |refusal| vec![Attributed { refusal, files: Vec::new() }];
     let sources = Sources::new(files).map_err(|e| whole(refused(e)))?;
     let (mut names, mut ast) = (Names::default(), Ast::default());
-    // Temporary until #115 (fresh names per file): the typer and the lowering count on from the
-    // highest counters of the files' parsers.
     let mut fresh = FreshNames::default();
     let (mut units, mut syntax_errors) = (Vec::new(), Vec::new());
     for (i, &(base, source)) in sources.files().iter().enumerate() {
@@ -83,7 +81,7 @@ pub fn compile_attributed<R>(
             syntax_errors.push(Attributed { refusal, files: vec![i] });
         }
         p.fresh.uniques.shift(base);
-        fresh.include(&p.fresh);
+        fresh.include(i, &p.fresh);
         ast = p.ast;
         ast.shift_spans(mark, base);
         units.push(SourceUnit { root, start: base, cfg: file_cfg });

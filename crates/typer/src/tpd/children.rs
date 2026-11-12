@@ -17,6 +17,7 @@ pub struct Children {
 }
 
 impl Children {
+    #[inline]
     fn push(&mut self, c: TNodeId) {
         if self.len < INLINE {
             self.inline[self.len] = c;
@@ -33,6 +34,7 @@ impl Children {
 impl Deref for Children {
     type Target = [TNodeId];
 
+    #[inline]
     fn deref(&self) -> &[TNodeId] {
         if self.len <= INLINE { &self.inline[..self.len] } else { &self.spilled }
     }
@@ -63,6 +65,7 @@ pub struct IntoIter {
 impl Iterator for IntoIter {
     type Item = TNodeId;
 
+    #[inline]
     fn next(&mut self) -> Option<TNodeId> {
         (self.front < self.back).then(|| {
             self.front += 1;
@@ -76,6 +79,7 @@ impl Iterator for IntoIter {
 }
 
 impl DoubleEndedIterator for IntoIter {
+    #[inline]
     fn next_back(&mut self) -> Option<TNodeId> {
         (self.front < self.back).then(|| {
             self.back -= 1;
@@ -88,11 +92,19 @@ impl ExactSizeIterator for IntoIter {}
 
 impl Tpd {
     /// The direct subtrees of `t`, in order.
+    #[inline]
     pub fn children(&self, t: TNodeId) -> Children {
         let mut out = Children { inline: [t; INLINE], len: 0, spilled: Vec::new() };
+        self.extend_children(t, &mut out);
+        out
+    }
+
+    /// Appends the direct subtrees of `t` to `out`, in order.
+    #[inline]
+    fn extend_children(&self, t: TNodeId, out: &mut impl Extend<TNodeId>) {
         for &slot in self.tree(t).slots().iter() {
             match slot {
-                Slot::Node(c) => out.push(c),
+                Slot::Node(c) => out.extend([c]),
                 Slot::Opt(c) => out.extend(c),
                 Slot::List(l) => out.extend(self.items(l).iter().copied()),
                 Slot::Clauses(cs) => {
@@ -100,7 +112,17 @@ impl Tpd {
                 }
             }
         }
-        out
+    }
+
+    /// Appends the subtrees `traversed` gives of `t` to `out`.
+    pub fn extend_traversed(&self, t: TNodeId, out: &mut Vec<TNodeId>) {
+        let start = out.len();
+        self.extend_children(t, out);
+        if let super::Tree::Inlined { call: Some(call), .. } = *self.tree(t)
+            && out.get(start) == Some(&call)
+        {
+            out.remove(start);
+        }
     }
 
     /// The direct subtrees of `t` but the call of an `Inlined` tree (dotty's `TreeAccumulator`).

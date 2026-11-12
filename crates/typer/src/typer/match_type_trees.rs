@@ -68,7 +68,7 @@ impl Typer<'_> {
         }
         let pat = match *self.ast.tree(pat) {
             Tree::Ident { name } if self.text(name.name) == nme::WILDCARD => {
-                let name = self.fresh.next(self.names, "_$");
+                let name = self.fresh_name(self.ast.span(pat), "_$");
                 let text = self.text(name).to_owned();
                 let sym = self.capture_symbol(&text, ctx, None);
                 self.u.intern_type(Type::Sym(None, sym))

@@ -7,6 +7,7 @@ use super::descriptors::{class_internal, descriptor};
 use super::{Gen, unsupported};
 use lower::Result;
 use names::nme;
+use syntax::ast::Span;
 use typer::tpd::{List, TNodeId, Tree};
 
 impl Gen<'_, '_> {
@@ -106,6 +107,7 @@ impl Gen<'_, '_> {
         }
         match self.l.u.symbol(m).name.as_str() {
             nme::IS_INSTANCE_OF => b.code.instance_of(b.pool, &class_internal(&tested)),
+            nme::AS_INSTANCE_OF if matches!(tested, Class(_)) && self.is_written_null(qualifier, span) => {}
             nme::AS_INSTANCE_OF => {
                 b.code.checkcast(b.pool, &class_internal(&tested));
                 super::callee::adapt_phantom(b, &to);
@@ -113,5 +115,12 @@ impl Gen<'_, '_> {
             _ => return unsupported(span, "type applications without a call"),
         }
         Ok(1)
+    }
+
+    /// Whether `qualifier` of a cast at `span` is a `null` the source casts, which erasure drops
+    /// the cast of; the casts phases add have no extent.
+    fn is_written_null(&self, qualifier: TNodeId, span: Span) -> bool {
+        let at = self.l.tpd.span(qualifier);
+        super::equality::is_null(self, qualifier) && at.start() < at.end() && at != span
     }
 }

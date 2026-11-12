@@ -124,6 +124,10 @@ impl Host for Typer<'_> {
         self.diags.has_errors()
     }
 
+    fn file_of(&self, at: Span) -> usize {
+        Typer::file_of(self, at)
+    }
+
     fn error_count(&self) -> (usize, usize) {
         (self.diags.items.len(), self.expansion_errors.len())
     }

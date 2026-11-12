@@ -38,7 +38,7 @@ pub fn bridge(
     let mut captured: Vec<(NameId, TypeId)> = own_clauses[..own].concat();
     let originals: Vec<NameId> = captured.iter().map(|&(name, _)| name).collect();
     for ((name, tpe), &(_, other)) in captured.iter_mut().zip(&other_params) {
-        *name = fresh_name(l, *name);
+        *name = fresh_name(l, m, *name);
         *tpe = other;
     }
     let (erased, others) = (l.u.erased_method(m).0, l.u.erased_method(other).0);
