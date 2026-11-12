@@ -54,7 +54,7 @@ impl Universe {
         let Some(t) = jdk_type(self, m, member, info) else { return };
         let own = self.info(m);
         if self.param_clauses(own).len() == self.param_clauses(t).len() {
-            self.infos.insert(m, t);
+            self.set_info(m, t);
         }
     }
 
