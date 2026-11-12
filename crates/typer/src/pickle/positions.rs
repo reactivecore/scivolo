@@ -120,13 +120,7 @@ impl TreePickler<'_> {
                 out.span(addr, source.tasty_span(span, false)?);
             }
             let current = if span.exists() { own } else { current };
-            let library = match self.inline_source(t) {
-                Some(path) => Some(paths.iter().position(|p| *p == path).unwrap_or_else(|| {
-                    paths.push(path);
-                    paths.len() - 1
-                })),
-                None => library,
-            };
+            let library = self.inline_source(t).map_or(library, |path| Some(source_index(&mut paths, path)));
             let hole_args = self.holes.get(&t).map(|(_, args)| args.clone()).unwrap_or_default();
             let annots = match self.tpd.sym(t).filter(|_| self.needs_pos(t)) {
                 Some(s) => self.annotation_trees(s),
@@ -137,7 +131,10 @@ impl TreePickler<'_> {
                 false => self.tpd.children(t).iter().copied().collect(),
             };
             let children = annots.into_iter().chain(own).chain(hole_args).collect::<Vec<_>>();
-            todo.extend(children.into_iter().rev().map(|c| (c, current, library)));
+            for c in children.into_iter().rev() {
+                let read = self.tpd.read_from(c).map(|_| source_index(&mut paths, String::new()));
+                todo.push((c, current, read.or(library)));
+            }
         }
         while let Some((_, addr, span)) = synthetic.pop() {
             out.span(addr, source.tasty_span(span, false)?);
@@ -197,4 +194,12 @@ impl TreePickler<'_> {
         );
         defines || matches!(self.tpd.tree(t), T::PackageDef { .. }) || self.holes.contains_key(&t)
     }
+}
+
+/// The index of source `path` in `paths`, added if missing.
+fn source_index(paths: &mut Vec<String>, path: String) -> usize {
+    paths.iter().position(|p| *p == path).unwrap_or_else(|| {
+        paths.push(path);
+        paths.len() - 1
+    })
 }

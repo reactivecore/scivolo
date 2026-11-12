@@ -40,6 +40,7 @@ pub struct Tpd {
     pattern_givens: FxHashMap<SymbolId, SymbolId>,
     annotations: FxHashMap<SymbolId, Vec<TNodeId>>,
     copies: FxHashMap<TNodeId, TNodeId>,
+    read_from: FxHashMap<TNodeId, SymbolId>,
     /// Whether the unit behaves as the Scala 2 library (dotty's `shouldBehaveAsScala2`).
     pub scala2: bool,
 }
@@ -167,6 +168,16 @@ impl Tpd {
     /// Records annotation tree `annot` of definition `sym`, which a phase made.
     pub fn annotate(&mut self, sym: SymbolId, annot: TNodeId) {
         self.annotations.entry(sym).or_default().push(annot);
+    }
+
+    /// Records `t` as a tree read from the TASTy of library definition `sym`.
+    pub fn mark_read_from(&mut self, t: TNodeId, sym: SymbolId) {
+        self.read_from.insert(t, sym);
+    }
+
+    /// The library definition from whose TASTy `t` was read, if marked.
+    pub fn read_from(&self, t: TNodeId) -> Option<SymbolId> {
+        self.read_from.get(&t).copied()
     }
 
     /// The annotation trees phases recorded for definition `sym`.
