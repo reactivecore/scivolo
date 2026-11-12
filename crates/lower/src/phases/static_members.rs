@@ -61,7 +61,14 @@ pub fn transform(l: &mut Lower, root: TNodeId) -> Result<()> {
             moved.insert(m);
         }
     }
-    for t in subtrees(l.tpd, root) {
+    let trees = subtrees(l.tpd, root);
+    let assigned: FxHashSet<TNodeId> = (trees.iter())
+        .filter_map(|&t| match *l.tpd.tree(t) {
+            Tree::Assign { lhs, .. } => Some(lhs),
+            _ => None,
+        })
+        .collect();
+    for t in trees {
         let Some(s) = l.tpd.sym(t) else { continue };
         let static_value = is_static(l, s) && l.u.symbol(s).flags.has(STATIC);
         if (moved.contains(&s) || static_value) && matches!(l.tpd.tree(t), Tree::Select { .. }) {
@@ -70,12 +77,19 @@ pub fn transform(l: &mut Lower, root: TNodeId) -> Result<()> {
             if l.backend == crate::Backend::Jvm {
                 let Tree::Select { qualifier, .. } = *l.tpd.tree(t) else { unreachable!("a selection") };
                 let this = matches!(l.tpd.tree(qualifier), Tree::This { .. });
-                if !this && !super::select_static::is_static_owner_ref(l, qualifier) {
-                    return unsupported(span, "an `@static` member selected from a value other than a path");
+                let path = this || super::select_static::is_static_owner_ref(l, qualifier);
+                if !path && assigned.contains(&t) {
+                    return unsupported(
+                        span,
+                        "an assignment of an `@static` member of a value other than a path",
+                    );
                 }
                 let tpe = l.tpd.tpe(t);
-                let r = l.ident(s, span);
+                let mut r = l.ident(s, span);
                 l.tpd.get_mut(r).tpe = Some(tpe);
+                if !path {
+                    r = l.block(&[qualifier], r, span);
+                }
                 l.copy_node(t, r);
             }
         } else if !moved.contains(&s)

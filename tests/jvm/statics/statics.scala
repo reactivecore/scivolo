@@ -31,5 +31,8 @@ object Statics {
     println(Counter.plain)
     println(Shape.describe(Shape.sides))
     println(Named.sum)
+    println(shape().sides + shape().describe("x"))
   }
+
+  def shape(): Shape.type = { println("shape"); Shape }
 }

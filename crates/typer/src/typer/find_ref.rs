@@ -54,6 +54,7 @@ impl Typer<'_> {
     pub fn find_ref(&mut self, name: &str, is_type: bool, ctx: Ctx) -> Result<Option<Found>, &'static str> {
         let name = Name { text: name, is_type };
         let mut prev: Option<Hit> = None;
+        let mut root_prev = false;
         let mut unimported = Vec::new();
         let mut level = Some(ctx.level);
         while let Some(l) = level {
@@ -94,7 +95,7 @@ impl Typer<'_> {
                             }
                         }
                         if !name.is_type && proxy && !ctx.mode.is(Mode::EXTENSION_METHOD) {
-                            if prev.is_some() {
+                            if prev.is_some() && !root_prev {
                                 return Err("constructor proxy and an imported term");
                             }
                             let Some(outer) = self.levels.outer(l) else { return Err("constructor proxy") };
@@ -155,6 +156,7 @@ impl Typer<'_> {
                         let (prec, scope) = (hit.prec, hit.scope);
                         let found = self.new_or_shadowed(prev, hit, l, name)?;
                         prev = Some(Hit { found, prec, scope });
+                        root_prev = self.is_root_import(i);
                     } else {
                         let types = (!name.is_type && !ctx.mode.is(Mode::EXTENSION_METHOD))
                             .then(|| {

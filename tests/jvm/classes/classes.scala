@@ -13,6 +13,10 @@ class Counter {
   def inc(): Unit = count = count + 1
 }
 
+class Record(val key: String) {
+  def child(k: String): Record = Record(s"$key.$k")
+}
+
 object Classes {
   def main(args: Array[String]): Unit = {
     val r = new Rect(2.0, 3.0)
@@ -24,5 +28,6 @@ object Classes {
     c.inc()
     c.inc()
     println(c.count)
+    println(Record("a").child("b").key)
   }
 }
