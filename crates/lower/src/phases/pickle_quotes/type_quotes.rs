@@ -36,8 +36,9 @@ pub fn quoted(l: &Lower, t: TNodeId) -> Option<TypeQuote> {
     }
 }
 
-/// Makes type quote application `t` in `owner` its tag or the call unpickling it.
-pub fn pickle(l: &mut Lower, t: TNodeId, q: TypeQuote, owner: SymbolId) -> Result<()> {
+/// Makes type quote application `t` in `owner` of source file `file` its tag or the call
+/// unpickling it.
+pub fn pickle(l: &mut Lower, t: TNodeId, q: TypeQuote, owner: SymbolId, file: Option<usize>) -> Result<()> {
     let span = l.tpd.span(q.body);
     let tpe = l.tpd.tpe(q.body);
     let tags = l.tpd.quote_tags(q.of).to_vec();
@@ -63,7 +64,7 @@ pub fn pickle(l: &mut Lower, t: TNodeId, q: TypeQuote, owner: SymbolId) -> Resul
         return Ok(());
     }
     let (body, holes, tag_refs) = encode(l, q.body, (&tags, &used), owner)?;
-    let pickled = pickled(l, body, &holes, span)?;
+    let pickled = pickled(l, body, &holes, span, file)?;
     let types = types(l, &tag_refs);
     let call = unpickled(l, q.quotes, ("unpickleTypeV2", "scala.quoted.Type", tpe), &[pickled, types]);
     let call = l.with_span(call, span);
