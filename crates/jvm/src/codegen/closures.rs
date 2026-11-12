@@ -156,7 +156,7 @@ impl Gen<'_, '_> {
 }
 
 fn is_primitive(desc: &str) -> bool {
-    !matches!(desc.as_bytes()[0], b'L' | b'[')
+    classfile::Kind::of(desc) != classfile::Kind::Reference
 }
 
 /// The class boxing values of primitive descriptor `desc`.

@@ -4,7 +4,7 @@
 
 use super::body::Body;
 use super::{Gen, unsupported};
-use classfile::Label;
+use classfile::{DCMPL, FCMPL, GOTO, IF_ACMPEQ, IF_ICMPEQ, IFEQ, IFNULL, Kind, LCMP, Label};
 use lower::Result;
 use names::nme;
 use syntax::ast::constant::Constant;
@@ -64,12 +64,15 @@ impl Gen<'_, '_> {
                 }
                 (op, &[right]) if let Some(test) = Test::of(op) => {
                     let kind = self.operation_kind(receiver, right);
-                    let mixed = kind == 'L' && (self.kind_of(receiver) != 'L' || self.kind_of(right) != 'L');
-                    if mixed || kind == 'L' && !matches!(test, Test::Eq | Test::Ne) {
+                    let reference = kind == Kind::Reference;
+                    let mixed = reference
+                        && (self.kind_of(receiver) != Kind::Reference
+                            || self.kind_of(right) != Kind::Reference);
+                    if mixed || reference && !matches!(test, Test::Eq | Test::Ne) {
                         return unsupported(self.l.tpd.span(t), "an ordering of references");
                     }
                     let universal = matches!(op, nme::EQ | nme::NE);
-                    if kind == 'L'
+                    if reference
                         && universal
                         && !matches!(lower::erased_type(self.l, receiver), Erased::Array(_))
                     {
@@ -86,7 +89,7 @@ impl Gen<'_, '_> {
                         (_, true) => Some(receiver),
                         _ => None,
                     };
-                    if kind == 'L'
+                    if reference
                         && !universal
                         && let Some(x) = non_null
                     {
@@ -125,10 +128,10 @@ impl Gen<'_, '_> {
     }
 }
 
-/// The jump on comparing two values of kind `kind` (`I J F D L`) by `test`.
+/// The jump on comparing two values of operation kind `kind` by `test`.
 fn jump_compare(
     b: &mut Body,
-    kind: char,
+    kind: Kind,
     test: Test,
     success: Label,
     failure: Label,
@@ -143,19 +146,19 @@ fn jump_compare(
         false => matches!(test, Test::Lt | Test::Le),
     };
     match kind {
-        'I' => b.code.jump(0x9f + test as u8, success),
-        'L' => b.code.jump(0xa5 + test as u8, success),
+        Kind::Int => b.code.jump(IF_ICMPEQ + test as u8, success),
+        Kind::Reference => b.code.jump(IF_ACMPEQ + test as u8, success),
         _ => {
             b.code.insn(match kind {
-                'J' => 0x94,
-                'F' => 0x95 + u8::from(cmpg),
-                _ => 0x97 + u8::from(cmpg),
+                Kind::Long => LCMP,
+                Kind::Float => FCMPL + u8::from(cmpg),
+                _ => DCMPL + u8::from(cmpg),
             });
-            b.code.jump(0x99 + test as u8, success);
+            b.code.jump(IFEQ + test as u8, success);
         }
     }
     if fall != failure {
-        b.code.jump(0xa7, failure);
+        b.code.jump(GOTO, failure);
     }
 }
 
@@ -165,22 +168,22 @@ pub fn jump_zero(b: &mut Body, reference: bool, test: Test, success: Label, fail
         return jump_zero(b, reference, test.negate(), failure, success, fall);
     }
     let opcode = match reference {
-        true => 0xc6 + u8::from(test == Test::Ne),
-        false => 0x99 + test as u8,
+        true => IFNULL + u8::from(test == Test::Ne),
+        false => IFEQ + test as u8,
     };
     b.code.jump(opcode, success);
     if fall != failure {
-        b.code.jump(0xa7, failure);
+        b.code.jump(GOTO, failure);
     }
 }
 
-/// The kind of erased primitive `e` in operations: `I J F D`, or `L` for a reference.
-pub fn kind(e: &Erased) -> char {
+/// The kind of erased type `e` in operations: `Int`, `Long`, `Float`, `Double` or `Reference`.
+pub fn kind(e: &Erased) -> Kind {
     match e {
-        Erased::Prim('j') => 'J',
-        Erased::Prim('f') => 'F',
-        Erased::Prim('d') => 'D',
-        Erased::Prim(_) => 'I',
-        _ => 'L',
+        Erased::Prim('j') => Kind::Long,
+        Erased::Prim('f') => Kind::Float,
+        Erased::Prim('d') => Kind::Double,
+        Erased::Prim(_) => Kind::Int,
+        _ => Kind::Reference,
     }
 }

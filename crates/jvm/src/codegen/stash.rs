@@ -65,7 +65,7 @@ pub fn unstash(b: &mut Body, s: Stash, desc: &str, tmp: Option<u16>) {
 }
 
 fn clear_ref(b: &mut Body, desc: &str, slot: u16) {
-    if matches!(desc.as_bytes()[0], b'L' | b'[') {
+    if classfile::Kind::of(desc) == classfile::Kind::Reference {
         b.code.aconst_null();
         b.code.store(desc, slot);
     }

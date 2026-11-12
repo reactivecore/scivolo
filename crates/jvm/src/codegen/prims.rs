@@ -7,6 +7,10 @@
 use super::body::{Body, Operand};
 use super::cond::{Test, kind};
 use super::{Gen, unsupported};
+use classfile::{
+    CONVERSIONS, GOTO, I2B, I2C, I2S, IADD, IAND, ICONST_0, ICONST_1, ICONST_M1, IDIV, IMUL, INEG, IOR, IREM,
+    ISHL, ISHR, ISUB, IUSHR, IXOR, Kind,
+};
 use lower::Result;
 use names::nme;
 use syntax::ast::constant::Constant;
@@ -41,24 +45,27 @@ impl Gen<'_, '_> {
     }
 
     /// The kind both operands of a binary operation are converted to (dotty's `maxType`).
-    pub fn operation_kind(&mut self, left: TNodeId, right: TNodeId) -> char {
+    pub fn operation_kind(&mut self, left: TNodeId, right: TNodeId) -> Kind {
         let (l, r) = (self.kind_of(left), self.kind_of(right));
-        ['L', 'D', 'F', 'J', 'I'].into_iter().find(|&k| l == k || r == k).unwrap_or('I')
+        [Kind::Reference, Kind::Double, Kind::Float, Kind::Long]
+            .into_iter()
+            .find(|&k| l == k || r == k)
+            .unwrap_or(Kind::Int)
     }
 
-    pub fn kind_of(&mut self, t: TNodeId) -> char {
+    pub fn kind_of(&mut self, t: TNodeId) -> Kind {
         kind(&lower::erased_type(self.l, t))
     }
 
     /// Loads `t` converted to kind `to`.
-    pub fn operand(&mut self, b: &mut Body, t: TNodeId, to: char) -> Result<()> {
+    pub fn operand(&mut self, b: &mut Body, t: TNodeId, to: Kind) -> Result<()> {
         match (self.l.tpd.tree(t), to) {
-            (&Tree::Literal { value: Constant::Int(v) }, 'J') => b.code.long(b.pool, v.into()),
-            (&Tree::Literal { value: Constant::Float(v) }, 'D') => b.code.double(b.pool, v.into()),
+            (&Tree::Literal { value: Constant::Int(v) }, Kind::Long) => b.code.long(b.pool, v.into()),
+            (&Tree::Literal { value: Constant::Float(v) }, Kind::Double) => b.code.double(b.pool, v.into()),
             _ => {
                 self.expr(b, t)?;
-                let from = self.desc_of(t);
-                convert(b, from.as_bytes()[0], to as u8);
+                let from = Kind::of(&self.desc_of(t));
+                convert(b, from, to);
             }
         }
         Ok(())
@@ -71,8 +78,7 @@ impl Gen<'_, '_> {
             return Ok(None);
         }
         let result = self.desc_of(t);
-        let to = result.as_bytes()[0];
-        let k = |c: u8| u8::from(c == b'J') + 2 * u8::from(c == b'F') + 3 * u8::from(c == b'D');
+        let to = Kind::of(&result);
         if name.starts_with("to") {
             return self.conversion(b, &name, receiver, &args, to);
         }
@@ -83,55 +89,55 @@ impl Gen<'_, '_> {
                 let (success, failure, after) = (b.code.new_label(), b.code.new_label(), b.code.new_label());
                 self.cond(b, t, success, failure, success)?;
                 b.code.place(success);
-                b.code.insn(0x04);
-                b.code.jump(0xa7, after);
+                b.code.insn(ICONST_1);
+                b.code.jump(GOTO, after);
                 b.code.place(failure);
                 b.code.set_stack(b.code.stack() - 1);
-                b.code.insn(0x03);
+                b.code.insn(ICONST_0);
                 b.code.place(after);
             }
-            (nme::UNARY_PLUS, []) => self.operand(b, receiver, to as char)?,
+            (nme::UNARY_PLUS, []) => self.operand(b, receiver, to)?,
             (nme::UNARY_MINUS, []) => {
-                self.operand(b, receiver, to as char)?;
-                b.code.insn(0x74 + k(to));
+                self.operand(b, receiver, to)?;
+                b.code.insn(INEG + to.offset());
             }
             (nme::UNARY_TILDE, []) => {
-                self.operand(b, receiver, to as char)?;
+                self.operand(b, receiver, to)?;
                 match to {
-                    b'J' => b.code.long(b.pool, -1),
-                    _ => b.code.insn(0x02),
+                    Kind::Long => b.code.long(b.pool, -1),
+                    _ => b.code.insn(ICONST_M1),
                 }
-                b.code.insn(0x82 + k(to));
+                b.code.insn(IXOR + to.offset());
             }
             (op, &[right]) => {
                 let shift = matches!(op, nme::LSL | nme::ASR | nme::LSR);
                 let opk = match shift {
-                    true if self.kind_of(receiver) == 'J' => 'J',
-                    true => 'I',
+                    true if self.kind_of(receiver) == Kind::Long => Kind::Long,
+                    true => Kind::Int,
                     false => self.operation_kind(receiver, right),
                 };
                 self.operand(b, receiver, opk)?;
-                self.operand(b, right, if shift { 'I' } else { opk })?;
+                self.operand(b, right, if shift { Kind::Int } else { opk })?;
                 let base = match op {
-                    nme::ADD => 0x60,
-                    nme::MINUS => 0x64,
-                    nme::MUL => 0x68,
-                    nme::DIV => 0x6c,
-                    nme::MOD => 0x70,
-                    nme::LSL => 0x78,
-                    nme::ASR => 0x7a,
-                    nme::LSR => 0x7c,
-                    nme::AND => 0x7e,
-                    nme::OR => 0x80,
-                    nme::XOR => 0x82,
+                    nme::ADD => IADD,
+                    nme::MINUS => ISUB,
+                    nme::MUL => IMUL,
+                    nme::DIV => IDIV,
+                    nme::MOD => IREM,
+                    nme::LSL => ISHL,
+                    nme::ASR => ISHR,
+                    nme::LSR => IUSHR,
+                    nme::AND => IAND,
+                    nme::OR => IOR,
+                    nme::XOR => IXOR,
                     _ => return unsupported(self.l.tpd.span(t), format!("the primitive operation {name}")),
                 };
-                if opk == 'L' || base >= 0x78 && matches!(opk, 'F' | 'D') {
+                if opk == Kind::Reference || base >= ISHL && matches!(opk, Kind::Float | Kind::Double) {
                     return unsupported(self.l.tpd.span(t), "bit operations on floats");
                 }
-                b.code.insn(base + k(opk as u8));
+                b.code.insn(base + opk.offset());
                 self.line(b, t);
-                convert(b, opk as u8, to);
+                convert(b, opk, to);
             }
             _ => return unsupported(self.l.tpd.span(t), format!("the primitive operation {name}")),
         }
@@ -147,7 +153,7 @@ impl Gen<'_, '_> {
         name: &str,
         receiver: TNodeId,
         args: &[TNodeId],
-        to: u8,
+        to: Kind,
     ) -> Result<Option<i32>> {
         let known = [
             nme::TO_BYTE,
@@ -162,36 +168,28 @@ impl Gen<'_, '_> {
             return unsupported(self.l.tpd.span(receiver), format!("the primitive operation {name}"));
         }
         self.expr(b, receiver)?;
-        let from = self.desc_of(receiver);
-        convert(b, from.as_bytes()[0], to);
-        Ok(Some(classfile::value_slots(&(to as char).to_string())))
+        let from = Kind::of(&self.desc_of(receiver));
+        convert(b, from, to);
+        Ok(Some(to.slots()))
     }
 }
 
-/// Converts the value on the stack from descriptor letter `from` to `to` (dotty's `emitT2T`).
-pub fn convert(b: &mut Body, from: u8, to: u8) {
-    let wide = |c: u8| match c {
-        b'Z' | b'B' | b'C' | b'S' | b'I' => b'I',
-        c => c,
-    };
-    let (f, t) = (wide(from), wide(to));
-    if f == b'L' || t == b'L' || f == b'[' || t == b'[' {
+/// Converts the value on the stack from kind `from` to `to` (dotty's `emitT2T`).
+pub fn convert(b: &mut Body, from: Kind, to: Kind) {
+    let (f, t) = (from.widened(), to.widened());
+    if f == Kind::Reference || t == Kind::Reference {
         return;
     }
-    let row = |c: u8| b"IJFD".iter().position(|&x| x == c);
     if f != t
-        && let (Some(i), Some(j)) = (row(f), row(t))
+        && let (Some(i), Some(j)) = (f.numeric_offset(), t.numeric_offset())
     {
-        let index =
-            [[0, 0x85, 0x86, 0x87], [0x88, 0, 0x89, 0x8a], [0x8b, 0x8c, 0, 0x8d], [0x8e, 0x8f, 0x90, 0]];
-        b.code.insn(index[i][j]);
-        let slots = 1 + i32::from(matches!(t, b'J' | b'D'));
-        b.operand(b.code.stack() - slots, slots, Operand::Desc(["I", "J", "F", "D"][j]));
+        b.code.insn(CONVERSIONS[usize::from(i)][usize::from(j)]);
+        b.operand(b.code.stack() - t.slots(), t.slots(), Operand::Desc(t.descriptor()));
     }
     let narrow = match to {
-        b'B' if from != b'B' => 0x91,
-        b'C' if from != b'C' => 0x92,
-        b'S' if !matches!(from, b'S' | b'B') => 0x93,
+        Kind::Byte if from != Kind::Byte => I2B,
+        Kind::Char if from != Kind::Char => I2C,
+        Kind::Short if !matches!(from, Kind::Short | Kind::Byte) => I2S,
         _ => return,
     };
     b.code.insn(narrow);

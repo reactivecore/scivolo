@@ -1,29 +1,10 @@
 //! The slots and parts of field and method descriptors.
 
-/// The offset of the instruction for a value of descriptor `desc` from the `int` one in the
-/// load and store families: `i l f d a`.
-pub fn kind(desc: &str) -> u8 {
-    match desc.as_bytes()[0] {
-        b'J' => 1,
-        b'F' => 2,
-        b'D' => 3,
-        b'L' | b'[' => 4,
-        _ => 0,
-    }
-}
-
-/// The slots a value of the descriptor starting with `first` takes.
-pub fn slots(first: u8) -> i32 {
-    match first {
-        b'V' => 0,
-        b'J' | b'D' => 2,
-        _ => 1,
-    }
-}
+use crate::kind::Kind;
 
 /// The slots a value of field descriptor `desc` takes, 0 for `V`.
 pub fn value_slots(desc: &str) -> i32 {
-    slots(desc.as_bytes()[0])
+    Kind::of(desc).slots()
 }
 
 /// The parameter descriptors and the result descriptor of method descriptor `d`.
