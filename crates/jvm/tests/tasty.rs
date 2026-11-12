@@ -1,5 +1,6 @@
 //! The jar of tests/jvm/tastylib: its manifest, the TASTy of its top-level classes that their
-//! `TASTY` attributes name, and scala-cli compiling tests/jvm/tastylib/user.scala against it.
+//! `TASTY` attributes name and our reader reads, and scala-cli compiling
+//! tests/jvm/tastylib/user.scala against it.
 
 use std::io::Read;
 use std::path::{Path, PathBuf};
@@ -48,6 +49,22 @@ fn the_jar_holds_a_manifest_and_the_tasty_its_classes_name() {
         assert!(class.windows(attribute.len()).any(|w| w == attribute), "the TASTY attribute of {tasty:?}");
     }
     assert!(zip.by_name("geo/Shapes$.tasty").is_err() && zip.by_name("geo/Rect$.tasty").is_err());
+    assert_trees_read_strictly(&mut zip);
+}
+
+/// Asserts that our reader reads the trees of each TASTy file in `zip`, a case class's among them,
+/// without error or dangling reference.
+fn assert_trees_read_strictly(zip: &mut zip::ZipArchive<std::fs::File>) {
+    let names: Vec<String> =
+        zip.file_names().filter_map(Result::ok).filter(|n| n.ends_with(".tasty")).map(String::from).collect();
+    assert!(names.iter().any(|n| n == "geo/Dot.tasty"), "a case class among {names:?}");
+    for name in names {
+        let bytes = entry(zip, &name);
+        let file = tasty::Tasty::parse(&bytes).unwrap_or_else(|e| panic!("{name}: {e:?}"));
+        let trees = file.section("ASTs").expect("an ASTs section").bytes;
+        let ast = tasty::Ast::parse(trees).unwrap_or_else(|e| panic!("{name}: {e:?}"));
+        assert_eq!(ast.dangling_refs(), 0, "{name}");
+    }
 }
 
 /// scala-cli 3.9.0 compiles tests/jvm/tastylib/user.scala against the jar, and the result runs
