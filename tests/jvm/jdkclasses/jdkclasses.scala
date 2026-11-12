@@ -4,6 +4,13 @@ import java.util.concurrent.ConcurrentSkipListMap
 
 class Point(val x: Int, val y: Int)
 
+abstract class Names[T] {
+  class Cache extends ClassValue[T] {
+    override def computeValue(cls: Class[?]): T = name(cls)
+  }
+  def name(cls: Class[?]): T
+}
+
 class DayQuery extends TemporalQuery[Integer] {
   def queryFrom(t: TemporalAccessor): Integer = t.get(ChronoField.DAY_OF_MONTH)
 }
@@ -41,5 +48,7 @@ object Jdkclasses {
     println(java.util.EnumSet.allOf(classOf[DayOfWeek]).size())
     val lookup: java.lang.invoke.MethodHandles.Lookup = java.lang.invoke.MethodHandles.lookup()
     println(lookup.lookupClass().getSimpleName)
+    val names = new Names[String] { def name(cls: Class[?]): String = cls.getSimpleName }
+    println(new names.Cache().get(classOf[Point]))
   }
 }

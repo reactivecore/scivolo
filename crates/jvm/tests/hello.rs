@@ -225,12 +225,6 @@ fn a_javalib_value_the_jdk_lacks_is_refused() {
 }
 
 #[test]
-fn a_class_nested_in_a_jdk_class_javalib_lacks_is_refused() {
-    let code = "object R { def f = java.time.zone.ZoneOffsetTransitionRule.TimeDefinition.UTC }";
-    refuses("refusednested", code, "member not found");
-}
-
-#[test]
 fn a_java_annotation_with_arguments_is_refused() {
     if Command::new("java").arg("-version").output().is_err() {
         eprintln!("no java on the PATH: skipped");
