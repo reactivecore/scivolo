@@ -19,7 +19,7 @@ pub struct Kept {
 impl Gen<'_, '_> {
     /// Determines the annotations of `sym` of Java annotation classes read from class files that
     /// its class file keeps, those whose retention is not `SOURCE` (dotty's
-    /// `shouldEmitAnnotation`). Refuses, with what is not supported, such an annotation with
+    /// `shouldEmitAnnotation`). Refuses, with what is not supported, a kept annotation with
     /// arguments and several kept annotations.
     pub fn kept_annotations(&mut self, sym: SymbolId) -> Result<Vec<Kept>, &'static str> {
         let mut kept = Vec::new();
@@ -27,6 +27,9 @@ impl Gen<'_, '_> {
             let tpe = self.l.tpd.tpe(annot);
             let Some(c) = self.l.u.class_symbol(tpe) else { continue };
             let Some(retention) = self.l.u.classfile_retention(c) else { continue };
+            if retention == Retention::Source {
+                continue;
+            }
             let no_args = match self.l.tpd.tree(annot) {
                 Tree::Apply { args, .. } => self.l.tpd.items(*args).is_empty(),
                 Tree::New { .. } => true,
@@ -34,9 +37,6 @@ impl Gen<'_, '_> {
             };
             if !no_args {
                 return Err("Java annotations with arguments on the JVM");
-            }
-            if retention == Retention::Source {
-                continue;
             }
             let descriptor = class_descriptor(&class_internal(&self.l.u.erase(tpe)));
             kept.push(Kept { descriptor, visible: retention == Retention::Runtime });

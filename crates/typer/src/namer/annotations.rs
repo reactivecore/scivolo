@@ -41,6 +41,7 @@ impl Typer<'_> {
                 self.unsupported(annot, &format!("annotation @{name}"));
                 continue;
             }
+            self.check_java_annotation_args(annot, class);
             match name.as_str() {
                 "scala.annotation.targetName" => self.enter_target_name(sym, annot),
                 "scala.annotation.unroll" => self.check_unroll(sym, annot),

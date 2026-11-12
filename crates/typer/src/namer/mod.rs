@@ -25,6 +25,7 @@ mod inheritance;
 mod inherited;
 mod inline_checks;
 mod into;
+mod java_annotation_args;
 mod module_vals;
 mod non_cyclic;
 mod params;
