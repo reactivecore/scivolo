@@ -90,6 +90,13 @@ pub const UNROLL: &str = "scala.annotation.unroll";
 pub const EXPERIMENTAL: &str = "scala.annotation.experimental";
 pub const STABLE_NULL: &str = "scala.annotation.stableNull";
 pub const UNUSED: &str = "scala.annotation.unused";
+/// The `scala.annotation.meta` targets of fields, accessors and parameters (dotty's
+/// `NonBeanMetaAnnots`).
+pub const NON_BEAN_TARGETS: &[&str] =
+    &["field", "getter", "param", "setter", "companionClass", "companionMethod"];
+/// The `scala.annotation.meta` targets (dotty's `MetaAnnots`).
+pub const META_TARGETS: &[&str] =
+    &["field", "getter", "param", "setter", "companionClass", "companionMethod", "beanGetter", "beanSetter"];
 /// The base class of macro annotations.
 pub const MACRO_ANNOTATION: &str = "scala.annotation.MacroAnnotation";
 pub const UNCHECKED_VARIANCE: &str = "scala.annotation.unchecked.uncheckedVariance";

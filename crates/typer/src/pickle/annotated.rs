@@ -8,7 +8,7 @@ use super::{Refusal, TreePickler};
 use crate::defn::type_ref;
 use crate::tpd::{List, TNodeId};
 use names::nme;
-use tasty::defn::UNUSED;
+use tasty::defn::{NON_BEAN_TARGETS, UNUSED};
 use tasty::tags::{ANNOTATEDtpt, ANNOTATEDtype, APPLY, NEW, REFINEDtpt, SELECTin};
 use tasty::{Kind, SymbolId, TypeId};
 
@@ -51,7 +51,7 @@ impl TreePickler<'_> {
         if self.u.symbol(s).kind != Kind::Param {
             return trees;
         }
-        let kept = self.u.annotations_carrying(s, &[PARAM_TARGET], true);
+        let kept = self.u.annotations_carrying(s, &[PARAM_TARGET], NON_BEAN_TARGETS);
         trees.retain(|&a| {
             let t = self.tpd.tpe(a);
             self.u.is_class_named(t, UNUSED) || self.u.class_symbol(t).is_some_and(|c| kept.contains(&c))

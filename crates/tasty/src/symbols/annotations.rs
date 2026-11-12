@@ -37,16 +37,21 @@ impl Universe {
     }
 
     /// The annotation classes of `sym` meta-annotated `scala.annotation.meta.<target>` for one
-    /// of `targets`, where they annotate it or their class, and if `unmarked`, those without
-    /// meta-annotations (dotty's `annotationsCarrying`).
-    pub fn annotations_carrying(&mut self, sym: SymbolId, targets: &[&str], unmarked: bool) -> Vec<SymbolId> {
+    /// of `targets`, where they annotate it or their class, and if `none_of` is not empty, those
+    /// meta-annotated for none of `none_of` (dotty's `annotationsCarrying`).
+    pub fn annotations_carrying(
+        &mut self,
+        sym: SymbolId,
+        targets: &[&str],
+        none_of: &[&str],
+    ) -> Vec<SymbolId> {
         let mut classes = self.annotations(sym).to_vec();
         classes.retain(|&c| {
             let mut metas = self.annotation_metas.get(&(sym, c)).cloned().unwrap_or_default();
             metas.extend(self.tasty_annotations(c));
             metas.retain(|&m| self.full_name(m).starts_with("scala.annotation.meta."));
-            metas.iter().any(|&m| targets.contains(&self.symbol(m).name.as_str()))
-                || unmarked && metas.is_empty()
+            let carries = |set: &[&str]| metas.iter().any(|&m| set.contains(&self.symbol(m).name.as_str()));
+            carries(targets) || !none_of.is_empty() && !carries(none_of)
         });
         classes
     }
