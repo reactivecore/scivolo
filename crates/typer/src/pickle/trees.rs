@@ -130,6 +130,8 @@ impl TreePickler<'_> {
             T::Return { expr, from } => self.return_(expr, from),
             T::Annotated { arg, annot } => self.annotated_tree(arg, annot),
             T::RefinedTypeTree { tpt, refinements } => self.refined_tree(tpt, refinements),
+            T::QuotePattern { bindings, body, quotes } => self.quote_pattern(id, (bindings, body, quotes)),
+            T::SplicePattern { body, typeargs, args } => self.splice_pattern(id, (body, typeargs, args)),
             _ => Err("a tree outside the subset pickled"),
         }
     }

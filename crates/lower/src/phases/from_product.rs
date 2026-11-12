@@ -7,7 +7,8 @@ use super::constructor_instance::{instantiated_constructor, repeated_elem};
 use super::lift_names::fresh;
 use super::mirror_prefixes::new_seen_from;
 use super::mirrors::has_mirror_method;
-use crate::definitions::{symbol, type_ref};
+use super::synthetic::pickled_ref;
+use crate::definitions::symbol;
 use crate::{Lower, Result, unsupported};
 use names::{name_kinds, nme};
 use syntax::ast::Span;
@@ -28,7 +29,7 @@ pub fn from_product(
     focus: Span,
 ) -> Result<Option<TNodeId>> {
     let cc = l.case_classes()?;
-    let product = type_ref(l.u, cc.product);
+    let product = pickled_ref(l, cc.product);
     let binder = l.u.fresh_binder();
     let x0 = l.u.intern_name(&name_kinds::synthetic_param(0));
     let info = l.u.intern_method(binder, &[(x0, product)], mono, false, false);

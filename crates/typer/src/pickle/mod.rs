@@ -10,6 +10,7 @@ mod defs;
 mod names;
 mod packages;
 mod positions;
+mod quote_patterns;
 mod quote_source;
 mod refs;
 mod selects;

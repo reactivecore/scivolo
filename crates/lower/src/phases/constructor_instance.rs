@@ -33,9 +33,19 @@ pub fn instantiated_constructor(l: &mut Lower, c: SymbolId, ctor: SymbolId) -> (
         his[i] = l.u.subst(his[i], binder, &names, &his);
     }
     let method = l.u.subst(result, binder, &names, &his);
+    let method = subst_type_params(l, method, ctor, &his);
     let types = l.u.method(method).map(|m| m.param_types());
     let types = types.unwrap_or_else(|| accessors.into_iter().map(|a| l.u.info(a)).collect());
     (crate::definitions::applied(l.u, c, his), types)
+}
+
+/// Replaces the references to the type parameters of method `m` in `t` by `args`.
+fn subst_type_params(l: &mut Lower, t: TypeId, m: SymbolId, args: &[TypeId]) -> TypeId {
+    let tparams = l.u.type_params(m);
+    l.u.map_type(t, &mut |u, x| match *u.ty(x) {
+        Type::Sym(None, s) => tparams.iter().position(|&p| p == s).and_then(|i| args.get(i).copied()),
+        _ => None,
+    })
 }
 
 /// Whether `t` mentions parameter `name`, the `index`th, of type lambda `binder`.

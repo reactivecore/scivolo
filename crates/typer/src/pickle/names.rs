@@ -19,7 +19,8 @@ pub fn sym_name(u: &Universe, s: SymbolId) -> Name {
 }
 
 /// The separators of dotty's unique name kinds, longest first.
-const UNIQUE_SEPARATORS: [&str; 7] = ["evidence$", "contextual$", "$given", "ev$", "ex$", "_$", "$"];
+const UNIQUE_SEPARATORS: [&str; 8] =
+    ["evidence$", "contextual$", "$proxy", "$given", "ev$", "ex$", "_$", "$"];
 
 /// The name of definition `s` of a quote: a default getter's or a unique name if it ends in
 /// `$default$` or one of dotty's unique separators and a number, and if read from TASTy, its name
