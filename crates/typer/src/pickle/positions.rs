@@ -22,12 +22,22 @@ pub struct QuoteSource<'a> {
     /// The file the quote's spans are in, at its offset among the sources; without it, the spans
     /// are read from the quote's TASTy and count in its UTF-16 units already.
     pub file: Option<(&'a SourceFile, Offset)>,
+    /// The offset after each non-ASCII character of `file`, with the bytes its text up to there
+    /// has beyond its UTF-16 units.
+    pub non_ascii: Vec<(Offset, u32)>,
 }
 
 impl<'a> QuoteSource<'a> {
     /// The source `file` at offset `base` among the sources, its path `path`.
     pub fn of(path: String, file: &'a SourceFile, base: Offset) -> QuoteSource<'a> {
-        QuoteSource { path, line_sizes: text_line_sizes(&file.text), file: Some((file, base)) }
+        let mut excess = 0;
+        let non_ascii = (file.text.char_indices().filter(|(_, c)| !c.is_ascii()))
+            .map(|(i, c)| {
+                excess += (c.len_utf8() - c.len_utf16()) as u32;
+                ((i + c.len_utf8()) as Offset, excess)
+            })
+            .collect();
+        QuoteSource { path, line_sizes: text_line_sizes(&file.text), file: Some((file, base)), non_ascii }
     }
 
     /// Offset `o` of a span in UTF-16 units of the source.
@@ -36,9 +46,10 @@ impl<'a> QuoteSource<'a> {
             return Ok(o);
         }
         let (file, base) = self.file.ok_or("a span of the quote's source without the source")?;
-        let text = o.checked_sub(base).and_then(|o| file.text.get(..o as usize));
-        let text = text.ok_or("a quote with a span in another of the sources")?;
-        Ok(if text.is_ascii() { text.len() as u32 } else { text.encode_utf16().count() as u32 })
+        let at = o.checked_sub(base).filter(|&at| file.text.is_char_boundary(at as usize));
+        let at = at.ok_or("a quote with a span in another of the sources")?;
+        let before = self.non_ascii.partition_point(|&(end, _)| end <= at);
+        Ok(at - before.checked_sub(1).map_or(0, |i| self.non_ascii[i].1))
     }
 
     /// The TASTy span of `span`, in a library's source only if `library` is known.
