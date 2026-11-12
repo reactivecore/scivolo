@@ -24,7 +24,8 @@ a whole at its first refusal. dotty keeps the source version and the unit-wide f
 - `scivolo-jvm` and `scivolo-lower` with several files report each refused file, write nothing
   and exit with 1, as dotty: a file compiled without a left-out one may pick another `given`,
   overload or name (#251). With `--leave-out-refused`, used only by the measurement recipes
-  (`lib-compile`, `bench-compile`), they write the output of the accepted files and exit with 1.
+  (`lib-compile`, `bench-compile`; `lib-jar` shares lib-compile's command but takes nothing of a
+  refused unit), they write the output of the accepted files and exit with 1.
   `scivolo-aot` keeps refusing the whole program at its first refusal.
 
 ## Consequences

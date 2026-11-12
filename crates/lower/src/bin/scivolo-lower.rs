@@ -128,6 +128,7 @@ fn main() {
             Err(e) => (Err(e), Vec::new()),
         },
     };
+    let _ = std::fs::remove_dir_all(&out);
     for r in &refused {
         eprintln!("{}: {}", r.file, r.refusal.what.replace("\n  ", " "));
     }
@@ -139,7 +140,6 @@ fn main() {
             fail("the typer does not support warnings under -Werror or -Wconf")
         }
         Ok((files, _)) => {
-            let _ = std::fs::remove_dir_all(&out);
             std::fs::create_dir_all(&out).expect("creating the output directory");
             for f in files {
                 let path = out.join(format!("{}.nir", f.name.replace('.', "/")));
