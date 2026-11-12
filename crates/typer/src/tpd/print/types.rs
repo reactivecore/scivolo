@@ -18,14 +18,18 @@ fn is_static_prefix(u: &mut Universe, p: Option<TypeId>) -> bool {
         Type::TermRef(q, name) => {
             u.resolve(q, name, false).is_some_and(|s| u.symbol(s).kind == Kind::Package)
         }
-        Type::This(c) => match *u.ty(c) {
-            Type::Sym(_, c) => {
+        Type::This(c) => {
+            let class = match *u.ty(c) {
+                Type::Package(_) => return true,
+                Type::Sym(_, c) => Some(c),
+                Type::TypeRef(..) => u.resolve_ref(c),
+                _ => None,
+            };
+            class.is_some_and(|c| {
                 let c = u.symbol(c);
                 c.kind == Kind::Package || c.flags.has(tasty::tags::OBJECT)
-            }
-            Type::Package(_) => true,
-            _ => false,
-        },
+            })
+        }
         _ => false,
     }
 }
