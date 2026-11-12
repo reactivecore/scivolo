@@ -104,8 +104,10 @@ impl Typer<'_> {
                             }
                             let Some(outer) = self.levels.outer(l) else { return Err("constructor proxy") };
                             return match self.find_ref(name.text, false, Ctx { level: outer, ..ctx }) {
-                                Ok(Some(_)) => Err("constructor proxy shadowing a term"),
-                                Ok(None)
+                                Ok(Some(f)) if self.shadows_proxy(&f) => {
+                                    Err("constructor proxy shadowing a term")
+                                }
+                                Ok(_)
                                 | Err("constructor proxy" | "constructor proxy of an exported class") => {
                                     Err("constructor proxy")
                                 }

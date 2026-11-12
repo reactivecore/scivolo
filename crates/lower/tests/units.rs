@@ -111,12 +111,12 @@ fn empty_package_definitions_and_top_level_packages_shadow_root_imports() {
         eprintln!("skipped: the library jars are not in ref/libs");
         return;
     }
-    let a =
-        SourceFile::new("a.scala", "object Thread { def apply(s: String) = s }\nclass Record(val n: Int)");
+    let a = "object Thread { def apply(s: String) = s }\nclass Record(val n: Int)";
     let b = "package p\nobject B { def f = io.Top.n }";
     let c = "object C { def f = Thread(\"x\"); def g = new Record(1).n; def h = io.Top.n + p.B.f }";
     let io = SourceFile::new("io.scala", "package io\nobject Top { def n = 1 }");
-    let sources = [a, SourceFile::new("b.scala", b), SourceFile::new("c.scala", c), io];
+    let sources =
+        [SourceFile::new("a.scala", a), SourceFile::new("b.scala", b), SourceFile::new("c.scala", c), io];
     let c = dump(&jars, &sources, "C$");
     assert!(c.contains("@Thread$") && c.contains("@Record") && c.contains("@io.Top$"), "{c}");
     assert!(!c.contains("@java.lang.Thread") && !c.contains("@java.lang.Record"), "{c}");

@@ -82,6 +82,16 @@ impl Typer<'_> {
         o
     }
 
+    /// Whether the term `found`, shadowed by a constructor proxy, may be what the proxy's name
+    /// means: any term but one of the empty package (dotty's `checkNotShadowed`).
+    pub fn shadows_proxy(&self, found: &Found) -> bool {
+        let root = self.u.root();
+        found
+            .syms
+            .iter()
+            .any(|&s| self.u.symbol(s).owner != Some(root) || self.u.symbol(s).kind == Kind::Package)
+    }
+
     /// Whether `found` at class members level `l` refers only to members the class inherits.
     pub fn is_inherited(&self, l: LevelId, found: &Found) -> bool {
         let Level::Members(cls) = *self.levels.get(l) else { return false };

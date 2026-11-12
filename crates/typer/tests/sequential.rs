@@ -387,7 +387,7 @@ fn no_false_errors_behind_unsupported_constructs() {
             "new with an unstable prefix",
         ),
         (
-            "object I:\n  class P(x: Int)\nobject P:\n  def apply(x: Int) = 0\nobject M:\n  export I.P\n  val p = P(1)\n",
+            "package q\nobject I:\n  class P(x: Int)\nobject P:\n  def apply(x: Int) = 0\nobject M:\n  export I.P\n  val p = P(1)\n",
             "constructor proxy shadowing a term",
         ),
         (
@@ -458,6 +458,8 @@ fn no_false_errors_behind_unsupported_constructs() {
     for (text, what) in cases {
         assert_eq!(errors_first(text), Err(format!("unsupported {what}")), "{text}");
     }
+    let empty_package = "object I:\n  class P(x: Int)\nobject P:\n  def apply(x: Int) = 0\nobject M:\n  export I.P\n  val p = P(1)\n";
+    assert_eq!(errors_first(empty_package), Ok(()));
     assert_eq!(errors_first("object M:\n  val x = y\n"), Err("type errors [\"Not found: y\"]".into()));
     let selfless = "trait B\ntrait A { self: B => }\nclass C extends A\n";
     let illegal =
