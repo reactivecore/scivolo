@@ -17,6 +17,11 @@ impl Code {
         }
     }
 
+    /// Lists the offsets of the line marks.
+    pub fn line_offsets(&self) -> impl Iterator<Item = usize> + '_ {
+        self.lines.iter().map(|l| usize::from(l.0))
+    }
+
     /// The body of the `LineNumberTable` attribute without marks after the last instruction, none
     /// without lines.
     pub fn line_table(&self) -> Option<Vec<u8>> {

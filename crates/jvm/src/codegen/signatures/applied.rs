@@ -47,8 +47,8 @@ impl Sig<'_> {
     pub fn primitive_bound(&mut self, bounds: TypeId) -> bool {
         let hi = self.u.bounds(bounds).map_or(bounds, |(_, hi)| hi);
         match self.u.erase_value(hi) {
-            Erased::Value(_, e) => matches!(*e, Erased::Prim(_) | Erased::Unit),
-            e => matches!(e, Erased::Prim(_) | Erased::Unit),
+            Erased::Value(_, e) => matches!(*e, Erased::Prim(_)),
+            e => matches!(e, Erased::Prim(_)),
         }
     }
 }
