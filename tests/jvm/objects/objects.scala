@@ -27,6 +27,8 @@ object Objects {
     println(classOf[Array[String]])
     println(classOf[Meter])
     println(Array(Meter(1.5), Meter(2.5)).map(_.d).toList)
+    object Local
+    println(java.lang.reflect.Modifier.isFinal(Local.getClass.getModifiers))
   }
 }
 
