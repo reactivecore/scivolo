@@ -68,6 +68,7 @@ pub fn transform(l: &mut Lower, root: TNodeId) -> Result<()> {
             _ => None,
         })
         .collect();
+    let mut blocks = FxHashSet::default();
     for t in trees {
         let Some(s) = l.tpd.sym(t) else { continue };
         let static_value = is_static(l, s) && l.u.symbol(s).flags.has(STATIC);
@@ -89,6 +90,7 @@ pub fn transform(l: &mut Lower, root: TNodeId) -> Result<()> {
                 l.tpd.get_mut(r).tpe = Some(tpe);
                 if !path {
                     r = l.block(&[qualifier], r, span);
+                    blocks.insert(t);
                 }
                 l.copy_node(t, r);
             }
@@ -99,6 +101,9 @@ pub fn transform(l: &mut Lower, root: TNodeId) -> Result<()> {
         {
             return unsupported(l.tpd.span(t), "@static members");
         }
+    }
+    for t in subtrees(l.tpd, root).into_iter().rev() {
+        super::select_static::normalize(l, t, &mut blocks);
     }
     Ok(())
 }
