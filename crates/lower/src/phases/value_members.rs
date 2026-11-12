@@ -4,6 +4,7 @@
 //! is the Scala 2 library's: `hashCode` (`valueHashCodeBody`) and `equals` of the underlying value.
 
 use super::case_members::existing_def;
+use super::synthetic::any_override_info;
 use crate::definitions::CaseClasses;
 use crate::symbols::has;
 use crate::{Lower, Result};
@@ -18,7 +19,7 @@ pub fn value_members(l: &mut Lower, class: SymbolId, span: Span) -> Result<Vec<T
     let Some(value) = l.u.underlying(class).filter(|_| plain) else { return Ok(Vec::new()) };
     let cc = l.case_classes()?;
     let can_equal = existing_def(l, class, cc.can_equal);
-    let focus = Span::new(span.point(), span.point(), span.point());
+    let focus = Span::at(span.point());
     let mut out = Vec::new();
     let scala2 = l.u.compiles_scala_library();
     for sym in [cc.hash_code, cc.any_equals] {
@@ -26,7 +27,7 @@ pub fn value_members(l: &mut Lower, class: SymbolId, span: Span) -> Result<Vec<T
             continue;
         }
         let flags = Flags::default().with(SYNTHETIC).with(OVERRIDE);
-        let info = l.u.info(sym);
+        let info = any_override_info(l, sym);
         let mut locals = Vec::new();
         let (method, def) =
             l.method_like(class, sym, flags, info, focus, |l, args, _| match sym == cc.hash_code {

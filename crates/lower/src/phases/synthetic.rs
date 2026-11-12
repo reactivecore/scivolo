@@ -106,6 +106,20 @@ pub fn pickled_ref(l: &mut Lower, s: SymbolId) -> TypeId {
     l.u.intern_type(Type::Sym(prefix, s))
 }
 
+/// The type of an override of member `of`, of a member of `Any` as dotty's `Definitions` gives
+/// it: its result a reference to its class (`defn.IntType`), not by name.
+pub fn any_override_info(l: &mut Lower, of: SymbolId) -> TypeId {
+    let info = l.u.info(of);
+    let Some(method) = l.u.method(info).filter(|_| l.u.symbol(of).owner == Some(l.u.defn().any)) else {
+        return info;
+    };
+    let (params, result) = (method.params.to_vec(), method.result);
+    let Some(class) = l.u.class_symbol(result) else { return info };
+    let result = pickled_ref(l, class);
+    let binder = l.u.fresh_binder();
+    l.u.intern_method(binder, &params, result, false, false)
+}
+
 /// The member synthetic member `m` of a class compiled in the same run overrides, the first
 /// concrete one in linearization order, else the first: what dotty's typer selects before
 /// `SyntheticMembers` adds `m`.

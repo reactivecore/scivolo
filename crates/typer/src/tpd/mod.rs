@@ -46,6 +46,8 @@ pub struct Tpd {
     type_annotations: FxHashMap<TypeId, Option<TNodeId>>,
     /// The annotation tree of each type tree an annotated expression gave.
     tpt_annotations: FxHashMap<TNodeId, TNodeId>,
+    /// The type trees whose type is pickled anew, not shared.
+    fresh_types: FxHashSet<TNodeId>,
 }
 
 /// What an anonymous class the typer made for a mirror becomes (dotty's
@@ -207,6 +209,17 @@ impl Tpd {
     /// The annotation tree of the type of type tree `tpt`, if an annotated expression gave it.
     pub fn tpt_annotation(&self, tpt: TNodeId) -> Option<TNodeId> {
         self.tpt_annotations.get(&tpt).copied()
+    }
+
+    /// Marks the type of type tree `id` as its own, pickled anew: in dotty's, a type no other
+    /// tree shares.
+    pub fn mark_fresh_type(&mut self, id: TNodeId) {
+        self.fresh_types.insert(id);
+    }
+
+    /// Whether type tree `id` has a type made for it alone.
+    pub fn has_fresh_type(&self, id: TNodeId) -> bool {
+        self.fresh_types.contains(&id)
     }
 
     /// Marks `copy` as a copy of `of` that is one tree with it in dotty's.

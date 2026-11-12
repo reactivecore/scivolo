@@ -120,7 +120,10 @@ impl TreePickler<'_> {
             T::Inlined { call, bindings, expansion } => self.inlined(call, bindings, expansion),
             T::TypeTree { .. } => {
                 self.type_tree = Some(id);
-                let pickled = self.ty(typed()?, false);
+                let pickled = match self.tpd.has_fresh_type(id) {
+                    true => self.new_type(typed()?, false, self.buf.buf.current_addr()),
+                    false => self.ty(typed()?, false),
+                };
                 self.type_tree = None;
                 pickled
             }

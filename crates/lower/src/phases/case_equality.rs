@@ -6,7 +6,7 @@
 use super::adapt::from_start;
 use super::case_members::{applied_ref, unchecked_applied_ref};
 use crate::Lower;
-use crate::definitions::{CaseClasses, primitive_class_name, symbol, type_ref};
+use crate::definitions::{CaseClasses, primitive_class_name, symbol};
 use crate::symbols::has;
 use names::name_kinds;
 use syntax::ast::Span;
@@ -76,8 +76,7 @@ impl Lower<'_> {
         }
         let matching = Tree::CaseDef { pat: pattern, guard: None, body: rhs };
         let matching = self.tpd.node(matching, Span::NONE, None, None);
-        let any = type_ref(self.u, self.u.defn().any);
-        let pat = self.wildcard(any);
+        let pat = self.wildcard(tasty::ANY);
         let no = self.boolean_literal(false);
         let default = self.tpd.node(Tree::CaseDef { pat, guard: None, body: no }, Span::NONE, None, None);
         let cases = self.tpd.list(&[matching, default]);
