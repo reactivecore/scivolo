@@ -5,7 +5,7 @@
 
 use super::{Refusal, TreePickler};
 use crate::defn::type_ref;
-use crate::tpd::{List, TNodeId};
+use crate::tpd::{List, TNodeId, Tree};
 use names::nme;
 use tasty::TypeId;
 use tasty::tags::{ANNOTATEDtpt, ANNOTATEDtype, APPLY, NEW, REFINEDtpt, SELECTin};
@@ -42,11 +42,44 @@ impl TreePickler<'_> {
         })
     }
 
-    /// The annotation tree of the type tree pickled, if its type is `annotated` and an annotated
-    /// expression gave it.
+    /// The annotation tree of the type tree pickled, else of the innermost type tree of the
+    /// enclosing case pattern, whose type is `annotated` and an annotated expression gave.
     pub fn tpt_annotation(&self, annotated: TypeId) -> Option<TNodeId> {
-        let tpt = self.type_tree.filter(|&tpt| self.tpd.tpe(tpt) == annotated)?;
-        self.tpd.tpt_annotation(tpt)
+        let enclosing = self.typed_tpts.iter().rev().copied();
+        let tpts = self.type_tree.into_iter().chain(enclosing);
+        tpts.filter(|&tpt| self.tpd.tpe(tpt) == annotated).find_map(|tpt| self.annotation_of(tpt))
+    }
+
+    /// The annotation tree of type tree `tpt`, if an annotated expression or type gave its type.
+    fn annotation_of(&self, tpt: TNodeId) -> Option<TNodeId> {
+        match *self.tpd.tree(tpt) {
+            Tree::Annotated { annot, .. } => Some(annot),
+            _ => self.tpd.tpt_annotation(tpt),
+        }
+    }
+
+    /// The type trees of the typed patterns in pattern `t`, and the annotated type trees in them.
+    pub fn annotated_tpts(&self, t: TNodeId) -> Vec<TNodeId> {
+        let mut tpts = match *self.tpd.tree(t) {
+            Tree::Typed { tpt, .. } => vec![tpt],
+            Tree::Annotated { .. } => vec![t],
+            _ => Vec::new(),
+        };
+        tpts.extend(self.tpd.children(t).into_iter().flat_map(|c| self.annotated_tpts(c)));
+        tpts
+    }
+
+    /// Pickles `pickle` inside the case pattern or pattern variable of type trees `tpts`.
+    pub fn with_typed_tpts(
+        &mut self,
+        tpts: Vec<TNodeId>,
+        pickle: &mut dyn FnMut(&mut Self) -> Result<(), Refusal>,
+    ) -> Result<(), Refusal> {
+        let depth = self.typed_tpts.len();
+        self.typed_tpts.extend(tpts);
+        let pickled = pickle(self);
+        self.typed_tpts.truncate(depth);
+        pickled
     }
 
     /// Whether class type `class` is capture checking's `caps.internal.inferred`.
