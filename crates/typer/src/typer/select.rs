@@ -188,6 +188,9 @@ impl Typer<'_> {
         if self.is_staging_method(sym) && !matches!(self.ast.tree(qualifier), S::TypedSplice { .. }) {
             return self.unsupported(id, STAGING_REFERENCE);
         }
+        if !name.is_type {
+            self.complete(sym);
+        }
         let tpe = self.ref_type(Some(qual_tpe), sym);
         if name.is_type && self.is_opaque_through_object(tpe) {
             return self.unsupported(id, OPAQUE_THROUGH_OBJECT);
