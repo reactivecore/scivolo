@@ -9,11 +9,11 @@ use classfile::{ACC_FINAL, ACC_PRIVATE, ACC_STATIC, ClassFile};
 use lower::Result;
 use syntax::ast::constant::Constant;
 use tasty::SymbolId;
-use typer::tpd::Tree;
+use typer::tpd::{Tree, constant_of};
 
 impl Gen<'_, '_> {
     /// Adds to `cf` the `serialVersionUID` field of class `c`, if it is no trait annotated
-    /// `@SerialVersionUID`; refuses an argument that is no constant.
+    /// `@SerialVersionUID`; refuses an argument that is no constant or constant expression.
     pub fn serial_version_uid(&mut self, cf: &mut ClassFile, c: SymbolId) -> Result<()> {
         if self.l.u.is_trait(c) {
             return Ok(());
@@ -27,9 +27,13 @@ impl Gen<'_, '_> {
                 Tree::Apply { args, .. } => self.l.tpd.items(args).first().copied(),
                 _ => None,
             };
-            let id = match arg.map(|a| self.l.tpd.tree(a)) {
-                Some(Tree::Literal { value: Constant::Long(v) }) => *v,
-                Some(Tree::Literal { value }) if let Some(v) = int_like(value) => i64::from(v),
+            let value = arg.and_then(|a| match self.l.tpd.tree(a) {
+                Tree::Literal { value } => Some(value.clone()),
+                _ => constant_of(self.l.u, self.l.tpd.tpe(a)),
+            });
+            let id = match value {
+                Some(Constant::Long(v)) => v,
+                Some(value) if let Some(v) = int_like(&value) => i64::from(v),
                 _ => return unsupported(self.l.tpd.span(annot), "@SerialVersionUID of no constant"),
             };
             cf.field(ACC_PRIVATE | ACC_STATIC | ACC_FINAL, "serialVersionUID", "J");
