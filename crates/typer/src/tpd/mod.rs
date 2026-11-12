@@ -44,6 +44,7 @@ pub struct Tpd {
     /// The annotation tree of each annotated type an annotated expression `e: @a(args)` gave;
     /// `None` for one that several trees gave.
     type_annotations: FxHashMap<TypeId, Option<TNodeId>>,
+    fresh_types: FxHashSet<TNodeId>,
 }
 
 /// What an anonymous class the typer made for a mirror becomes (dotty's
@@ -197,6 +198,17 @@ impl Tpd {
     /// The annotation tree of annotated type `annotated`, if one annotated expression gave it.
     pub fn type_annotation(&self, annotated: TypeId) -> Option<TNodeId> {
         self.type_annotations.get(&annotated).copied().flatten()
+    }
+
+    /// Marks the type of type tree `id` as made for it alone, one type in dotty's that no other
+    /// tree shares.
+    pub fn mark_fresh_type(&mut self, id: TNodeId) {
+        self.fresh_types.insert(id);
+    }
+
+    /// Whether type tree `id` has a type made for it alone.
+    pub fn has_fresh_type(&self, id: TNodeId) -> bool {
+        self.fresh_types.contains(&id)
     }
 
     /// Marks `copy` as a copy of `of` that is one tree with it in dotty's.

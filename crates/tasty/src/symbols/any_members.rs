@@ -52,9 +52,9 @@ impl Universe {
 /// Enters the members of `any` and `object`, and `String`'s `+`; `object`'s TASTy, if loaded,
 /// keeps its members but those `Any` declares.
 pub fn enter(u: &mut Universe, any: SymbolId, object: SymbolId) {
-    let boolean = class_type(u, "scala", "Boolean");
-    let int = class_type(u, "scala", "Int");
-    let string = class_type(u, "java.lang", "String");
+    let boolean = defn_type(u, "scala", "Boolean");
+    let int = defn_type(u, "scala", "Int");
+    let string = defn_type(u, "java.lang", "String");
     let object_type = u.types.intern(Type::Sym(None, object));
     method(u, any, nme::EQ, &[(nme::X_0, ANY)], boolean, &[FINAL]);
     method(u, any, nme::NE, &[(nme::X_0, ANY)], boolean, &[FINAL]);
@@ -100,6 +100,18 @@ pub fn enter(u: &mut Universe, any: SymbolId, object: SymbolId) {
         .and_then(|p| u.decl(p, "String").ok()?.into_iter().find(|&s| u.symbol(s).kind == Kind::Class));
     if let Some(s) = string_class {
         method(u, s, nme::ADD, &[(nme::X_0, ANY)], string, &[FINAL]);
+    }
+}
+
+/// A reference to class `name` of package `pkg` as dotty's `Definitions` gives it, to the
+/// class (`typeRef`) if the universe has it, else by name.
+fn defn_type(u: &mut Universe, pkg: &str, name: &str) -> TypeId {
+    let class = u
+        .package(pkg)
+        .and_then(|p| u.decl(p, name).ok()?.into_iter().find(|&s| u.symbol(s).kind == Kind::Class));
+    match class {
+        Some(c) => u.types.intern(Type::Sym(None, c)),
+        None => class_type(u, pkg, name),
     }
 }
 

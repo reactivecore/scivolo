@@ -94,7 +94,7 @@ pub fn private_method(l: &mut Lower, class: SymbolId, name: &str) -> (SymbolId, 
 
 /// The type of a reference to `s` as the typer gives it: a member of a class through the class's
 /// `this`, else without prefix (dotty's `typeRef`).
-fn pickled_ref(l: &mut Lower, s: SymbolId) -> TypeId {
+pub fn pickled_ref(l: &mut Lower, s: SymbolId) -> TypeId {
     let prefix = match l.u.symbol(s).owner {
         Some(o) if l.u.symbol(o).kind == Kind::Class => {
             let class = pickled_ref(l, o);
