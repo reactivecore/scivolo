@@ -63,8 +63,6 @@ Headline numbers (macOS arm64, M4 Pro); every suite, date and gap is in
   `java -Xverify:all`.
 - **Startup:** hello 7.5 ms from the heap snapshot; `moderate.scala` 48 ms edit-then-run
   (scala-cli: 360–520 ms, python3 startup: 18 ms).
-- **Compile speed:** tasty-core in 0.28 s (`scivolo-jvm`) against scalac's 1.8 s cold and 0.20 s
-  warm; not yet 2× faster than a warm scalac on tasty-core or upickle-core.
 
 Features:
 
