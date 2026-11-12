@@ -10,8 +10,8 @@ alternating; scivolo compiles scalalib as two units, its files of source version
 the others, its times summed. Prints and writes to tmp/bench-compile/CODEBASE.md, per tool: files refused, wall and
 user+sys CPU seconds (min of the runs; warm: of the runs after WARMUP), peak RSS, and the ratios
 scalac / scivolo. The machine may be loaded: CPU time and minima are the numbers to read. A
-refused file is left out of the unit and the rest compiled again, so its codebase's scivolo times
-are not comparable.
+refused file is left out of the unit and the rest compiled again (lib.LEAVE_OUT), so its codebase's
+scivolo times are not comparable.
 """
 import importlib
 import os
@@ -155,10 +155,10 @@ def commands(c, out, cp):
     java = ["java", "-Xss8m", "-cp"]
     scalac = lambda tool: [*c.scalac, "-d", str(out / tool), *c.files]
     units = list(enumerate(c.units or [c.files]))
-    jvm = lambda: [([str(RELEASE / "scivolo-jvm"), *c.jvm, "-d", str(out / f"scivolo-jvm/{i}"), *fs], len(fs))
-                   for i, fs in units]
-    lower = lambda: [([str(RELEASE / "scivolo-lower"), *c.lower, *fs, str(out / f"scivolo-lower/{i}")], len(fs))
-                     for i, fs in units]
+    jvm = lambda: [([str(RELEASE / "scivolo-jvm"), lib.LEAVE_OUT, *c.jvm, "-d", str(out / f"scivolo-jvm/{i}"), *fs],
+                    len(fs)) for i, fs in units]
+    lower = lambda: [([str(RELEASE / "scivolo-lower"), lib.LEAVE_OUT, *c.lower, *fs, str(out / f"scivolo-lower/{i}")],
+                      len(fs)) for i, fs in units]
     whole = len(c.files)
     tools = {
         "scivolo-jvm": c.jvm is not None and (jvm(), {}),

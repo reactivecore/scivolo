@@ -238,6 +238,46 @@ fn a_java_annotation_with_arguments_is_refused() {
 }
 
 #[test]
+fn a_refused_file_refuses_the_unit() {
+    let dir = root().join("tmp/jvm-test/refusedunit");
+    std::fs::create_dir_all(&dir).expect("tmp/jvm-test");
+    let files = [
+        (
+            "a.scala",
+            "trait Show { def text: String }\nobject Show { given Show = new Show { def text = \"default\" } }\ndef show(using s: Show): String = s.text\n",
+        ),
+        (
+            "b.scala",
+            "import scala.language.`3.9-migration`\ngiven Show = new Show { def text = \"custom\" }\n",
+        ),
+        ("c.scala", "@main def run(): Unit = println(show)\n"),
+    ];
+    let sources: Vec<PathBuf> = files
+        .iter()
+        .map(|(name, code)| {
+            let path = dir.join(name);
+            std::fs::write(&path, code).expect("writing");
+            path
+        })
+        .collect();
+    let (out, compiled) = compile_all("refusedunit-out", &sources);
+    assert!(!compiled.status.success());
+    let stderr = String::from_utf8_lossy(&compiled.stderr);
+    assert!(stderr.contains("b.scala: "), "{stderr}");
+    assert!(!out.exists(), "{out:?} written");
+
+    let _ = std::fs::remove_dir_all(&out);
+    let left_out = Command::new(env!("CARGO_BIN_EXE_scivolo-jvm"))
+        .args(["--leave-out-refused", "-d"])
+        .arg(&out)
+        .args(&sources)
+        .output()
+        .expect("running scivolo-jvm");
+    assert!(!left_out.status.success());
+    assert!(out.join("run.class").exists(), "{}", String::from_utf8_lossy(&left_out.stderr));
+}
+
+#[test]
 fn a_signature_polymorphic_method_is_refused() {
     let code = "object R { def f = java.lang.invoke.MethodHandles.identity(classOf[String]).invoke(\"a\") }";
     refuses("refusedpolymorphic", code, "member not found");
