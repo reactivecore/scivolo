@@ -22,6 +22,10 @@ impl Sig<'_> {
             Some(Applied::Erased) => return self.erased(t, boxing),
             None => {}
         }
+        if let Some(p) = self.type_param(tycon).filter(|_| !args.is_empty()) {
+            let name = tasty::encode(&self.u.symbol(p).name);
+            return self.out.push_str(&format!("T{name};"));
+        }
         let s = match *self.u.ty(tycon) {
             Type::Sym(_, s) => Some(s),
             Type::TypeRef(..) => self.u.resolve_ref(tycon),
@@ -111,7 +115,9 @@ impl Sig<'_> {
             Type::Bounds(lo, hi) => {
                 let java_top =
                     matches!(*self.u.ty(hi), Type::Sym(_, s) if s == self.u.defn().from_java_object);
-                if !java_top && !self.class_named(hi, "scala.Any") {
+                let top =
+                    java_top || self.class_named(hi, "scala.Any") || self.class_named(hi, "scala.AnyKind");
+                if !top {
                     self.out.push('+');
                     self.boxed(hi);
                 } else if !self.class_named(lo, "scala.Nothing") {

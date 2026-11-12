@@ -64,6 +64,7 @@ pub fn stack_map(
     let mut starts = BTreeSet::from([0]);
     let mut jumped: BTreeSet<usize> = handlers.iter().map(|h| h[2]).collect();
     starts.extend(&jumped);
+    starts.extend(handlers.iter().flat_map(|h| [h[0], h[1]]));
     let mut at = 0;
     while at < bytes.len() {
         let next = at + length(bytes, at);
