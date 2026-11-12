@@ -45,7 +45,7 @@ impl UnapplyPattern {
                 Some(narrowed) => gadt = narrowed,
                 None => {
                     t.constraint.rollback(mark);
-                    if has_abstract_arg(t.u, sel) {
+                    if has_abstract_arg(t.u, sel) && !args_unrelated(t.u, arg_type, sel) {
                         return Err("pattern constraining type parameters (GADT)");
                     }
                 }
@@ -61,6 +61,25 @@ impl UnapplyPattern {
         t.add_binders(unapp, &bound);
         Ok(t.zonk(arg_type))
     }
+}
+
+/// Whether each type argument of `pat`'s base type at the class of `sel` applies a type
+/// parameter of a class where `sel`'s argument is a class type, so that no comparison of the
+/// two constrains anything (`Foo[F[A, B]]` against `Foo[C[X]]` in a class with `F[_, _]`).
+fn args_unrelated(u: &mut Universe, pat: TypeId, sel: TypeId) -> bool {
+    let sel = u.widen(sel);
+    let Some(class) = u.class_symbol(sel) else { return false };
+    let Some(sel_args) = u.applied(sel).map(|(_, args)| args.to_vec()) else { return false };
+    let Some(base) = u.base_type(pat, class) else { return false };
+    let Some(pat_args) = u.applied(base).map(|(_, args)| args.to_vec()) else { return false };
+    pat_args.len() == sel_args.len()
+        && pat_args.into_iter().zip(sel_args).all(|(p, s)| {
+            let (p, s) = (u.dealias(p), u.dealias(s));
+            let Some(f) = u.applied(p).and_then(|(tycon, _)| u.sym_of(tycon)) else { return false };
+            let class_param = u.symbol(f).kind == Kind::TypeParam
+                && u.symbol(f).owner.is_some_and(|o| u.symbol(o).kind == Kind::Class);
+            class_param && u.applied(s).is_some() && u.class_symbol(s).is_some()
+        })
 }
 
 /// Whether the class of `t` has a type parameter whose bounds refer to it (`C[D <: Doc[D]]`).
