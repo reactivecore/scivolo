@@ -163,6 +163,11 @@ impl Typer<'_> {
         let Some(body) = body else {
             return self.unsupported(id, "case type with pattern variables");
         };
+        let bound: Vec<SymbolId> = types.iter().map(|&(t, _)| t).collect();
+        let body_type = self.tpd.tpe(body);
+        if self.types().any_var_bounds_refer_to(body_type, &bound) {
+            return self.unsupported(id, "case type inferred from a type its pattern binds");
+        }
         let span = self.ast.span(id);
         self.tpd.node(T::CaseDef { pat, guard, body }, span, None, None)
     }
