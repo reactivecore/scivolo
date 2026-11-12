@@ -39,7 +39,8 @@ impl Typer<'_> {
     }
 
     /// Whether reference `tree` to `s`, not an inline method and of a settled type, finds no other
-    /// member of that name in its prefix's class or else its owner, or `s` is local or top-level.
+    /// term or type member, as `s` is, of that name in its prefix's class or else its owner, or `s`
+    /// is local or top-level.
     fn is_single_member(&mut self, tree: TNodeId, s: SymbolId) -> bool {
         if self.u.symbol(s).flags.has(INLINE) || !self.type_is_settled(s) {
             return false;
@@ -60,8 +61,9 @@ impl Typer<'_> {
             None => Some(owner).filter(|&o| self.u.symbol(o).kind == Kind::Class),
         };
         let Some(class) = class else { return false };
-        let name = self.u.symbol(s).name.clone();
-        self.class_members(class, &name).len() == 1
+        let (name, is_type) = (self.u.symbol(s).name.clone(), self.u.is_type_symbol(s));
+        let members = self.class_members(class, &name);
+        members.into_iter().filter(|&m| self.u.is_type_symbol(m) == is_type).count() == 1
     }
 
     /// Whether the type of `s` does not rest on what the typer infers for its definition in this

@@ -31,7 +31,8 @@ impl Typer<'_> {
         Some(self.error(id, message))
     }
 
-    /// The outermost definition tree of an owner of `ctx` that contains `id`.
+    /// The outermost definition tree of an owner of `ctx` that contains `id`, else the root of the
+    /// code of `typeChecks` if it does.
     pub fn enclosing_definition(&mut self, id: NodeId, ctx: Ctx) -> Option<NodeId> {
         let mut owners = Vec::new();
         let mut owner = Some(ctx.owner);
@@ -49,7 +50,8 @@ impl Typer<'_> {
                 }
             }
         }
-        None
+        let (root, _) = self.checked_code?;
+        self.ast.exists_subtree(root, &|_, n| n == id).then_some(root)
     }
 }
 
