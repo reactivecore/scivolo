@@ -10,8 +10,8 @@ use tasty::NOTHING;
 
 impl Typer<'_> {
     /// Pattern `p1 | p2 | ...` against a value of type `pt`, each alternative typed with the GADT
-    /// bounds before the pattern, which keeps those all alternatives narrow to alike; refused
-    /// where they narrow differently.
+    /// bounds before the pattern; keeps the bounds where all alternatives narrow alike (dotty's
+    /// `necessaryGadtConstraint`), refused where they narrow differently.
     pub fn typed_alternative(&mut self, id: NodeId, trees: List, pt: Pt, ctx: Ctx) -> TNodeId {
         let ids = self.ast.items(trees).to_vec();
         let mark = self.gadt.narrowed().len();
