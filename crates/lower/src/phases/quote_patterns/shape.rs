@@ -90,10 +90,14 @@ pub fn with_bindings(l: &mut Lower, body: TNodeId, bindings: &[TNodeId], owner: 
         let span = l.tpd.span(b);
         let at = Span::at(span.point());
         let [pattern_type, from_above] = ["patternType", "fromAbove"].map(|n| patterns_class(l, n));
-        annotate_new(l, new, pattern_type, at);
         if l.u.annotations(old).contains(&from_above) {
-            annotate_new(l, new, from_above, span);
+            let tpe = l.u.intern_type(Type::Sym(None, from_above));
+            let tpt = l.type_tree(tpe, at);
+            let annot = l.tpd.node(Tree::New { tpt }, span, Some(tpe), None);
+            l.u.annotate(new, from_above);
+            l.tpd.annotate(new, annot);
         }
+        annotate_new(l, new, pattern_type, at);
         let name = TName { name: l.names.intern(&l.u.symbol(new).name.clone()), is_type: true };
         let rhs = l.type_tree(info, at);
         let tpe = l.u.intern_type(Type::Sym(None, new));
