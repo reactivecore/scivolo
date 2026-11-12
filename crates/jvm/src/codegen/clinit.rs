@@ -29,6 +29,9 @@ pub struct StaticInit {
     /// The class's constructor, whose line the code starts at unless an object's constructor has
     /// statements, which start it at the first one's.
     pub constr: Option<TNodeId>,
+    /// The class definition, at whose name the code starts if its constructor starts with it, as
+    /// that of an empty class body does.
+    pub class_def: Option<TNodeId>,
 }
 
 impl Gen<'_, '_> {
@@ -44,6 +47,13 @@ impl Gen<'_, '_> {
             init.stats.iter().map(|&t| self.l.tpd.span(t)).filter(|s| s.exists()).map(|s| s.start()).min();
         match (first_stat, init.constr) {
             (Some(at), _) if init.module.is_some() => b.code.line(self.line_at(at)),
+            (_, Some(constr))
+                if let Some(def) = init
+                    .class_def
+                    .filter(|&d| self.l.tpd.span(d).start() == self.l.tpd.span(constr).start()) =>
+            {
+                self.line(&mut b, def)
+            }
             (_, Some(constr)) => self.line(&mut b, constr),
             _ => {}
         }
