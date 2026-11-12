@@ -41,7 +41,7 @@ pub fn compile_units<R>(
         impl FnOnce(&mut crate::Lower, TNodeId, Vec<Pickled>) -> crate::Result<R>,
     ),
 ) -> Result<(R, Diagnostics), Refusal> {
-    compile_attributed(u, files, cfg, macros, (backend, generate)).map_err(|r| r.refusal)
+    compile_attributed(u, files, cfg, macros, (backend, generate)).map_err(|mut r| r.swap_remove(0).refusal)
 }
 
 /// A refusal of a unit and the indices of the files it lies in, none if it lies in no file.
@@ -50,7 +50,8 @@ pub struct Attributed {
     pub files: Vec<usize>,
 }
 
-/// `compile_units`, its refusals attributed to the files they lie in.
+/// `compile_units`, its refusals attributed to the files they lie in: one or more, the first
+/// the one `compile_units` gives.
 pub fn compile_attributed<R>(
     u: &mut Universe,
     files: &[SourceFile],
@@ -60,14 +61,14 @@ pub fn compile_attributed<R>(
         crate::Backend,
         impl FnOnce(&mut crate::Lower, TNodeId, Vec<Pickled>) -> crate::Result<R>,
     ),
-) -> Result<(R, Diagnostics), Attributed> {
-    let whole = |refusal| Attributed { refusal, files: Vec::new() };
+) -> Result<(R, Diagnostics), Vec<Attributed>> {
+    let whole = |refusal| vec![Attributed { refusal, files: Vec::new() }];
     let sources = Sources::new(files).map_err(|e| whole(refused(e)))?;
     let (mut names, mut ast) = (Names::default(), Ast::default());
     // Temporary until #115 (fresh names per file): the typer and the lowering count on from the
     // highest counters of the files' parsers.
     let mut fresh = FreshNames::default();
-    let mut units = Vec::new();
+    let (mut units, mut syntax_errors) = (Vec::new(), Vec::new());
     for (i, &(base, source)) in sources.files().iter().enumerate() {
         let mark = ast.mark();
         let mut p = Parser::new(source, &mut names, cfg);
@@ -78,16 +79,17 @@ pub fn compile_attributed<R>(
             Desugar::new(&mut p.ast, p.s.names, &mut p.s.diags, &mut p.fresh, source, file_cfg).unit(root);
         if p.s.diags.has_errors() {
             let what = format!("syntax errors in {}", source.name);
-            return Err(Attributed {
-                refusal: refusal(&what, &p.s.diags, &Sources::one(source)),
-                files: vec![i],
-            });
+            let refusal = refusal(&what, &p.s.diags, &Sources::one(source));
+            syntax_errors.push(Attributed { refusal, files: vec![i] });
         }
         p.fresh.uniques.shift(base);
         fresh.include(&p.fresh);
         ast = p.ast;
         ast.shift_spans(mark, base);
         units.push(SourceUnit { root, start: base, cfg: file_cfg });
+    }
+    if !syntax_errors.is_empty() {
+        return Err(syntax_errors);
     }
     let mut typer = crate::typer_units();
     typer.source_names = files.iter().map(|f| f.name.clone()).collect();
@@ -99,12 +101,19 @@ pub fn compile_attributed<R>(
     let mut typed = match typed {
         Ok(typed) => typed,
         Err(Fallback::Unsupported { what, at }) => {
-            let what = format!("the typer does not support {what}{}", at_point(&sources, at));
-            return Err(Attributed { refusal: refused(what), files: file_at(&sources, at) });
+            let all = match typer.refused.is_empty() {
+                true => vec![(at, what)],
+                false => std::mem::take(&mut typer.refused),
+            };
+            let attributed = all.into_iter().map(|(at, what)| {
+                let what = format!("the typer does not support {what}{}", at_point(&sources, at));
+                Attributed { refusal: refused(what), files: file_at(&sources, at) }
+            });
+            return Err(attributed.collect());
         }
         Err(Fallback::Errors(diags)) => {
             let files = error_files(&diags, &sources);
-            return Err(Attributed { refusal: refusal("type errors", &diags, &sources), files });
+            return Err(vec![Attributed { refusal: refusal("type errors", &diags, &sources), files }]);
         }
     };
     let located = Sources::new(files).map_err(|e| whole(refused(e)))?;
@@ -121,7 +130,7 @@ pub fn compile_attributed<R>(
             false => "the lowering",
         };
         let what = format!("{stage} does not support {}{}", e.what, at_point(&located, e.at));
-        Attributed { refusal: refused(what), files: file_at(&located, e.at) }
+        vec![Attributed { refusal: refused(what), files: file_at(&located, e.at) }]
     })?;
     Ok((out, typed.diags))
 }

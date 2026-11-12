@@ -64,11 +64,14 @@ on a shared machine; CPU is user + sys, so scalac's includes its JIT and GC thre
   against warm scalac it is 0.5–1.1× in wall time and 2.3–4.5× in CPU time. Neither reaches
   2× against warm scalac: #247 (tasty-core), #248 (upickle-core), #249 (Scala's library), #250
   (javalib) name the hot spots.
-- Scala's library does not compile as one unit yet (#249), so scivolo compiles it file by file,
-  each run starting `java` to find the JDK (~40 ms), while scalac compiles its Scala and Java
-  sources as one unit: its rows are not comparable.
-- javalib's two refused files make the unit typed three times, and scalac compiles it to class
-  files without Scala Native's plugin: its rows are not comparable either.
+- Scala's library row is file by file. `just bench-compile scalalib` compiles it as two units,
+  its 543 `2.13` files and its 106 others (a unit mixing them is refused, #249); on a loaded
+  machine they take 100.9 s and 7.3 s CPU and refuse 82 and 5 files, against 81.5 s CPU and 31
+  refused file by file. scalac compiles its Scala and Java sources as one unit: its rows are
+  not comparable.
+- javalib's two refused files are left out after one typing of the unit (127.6 s CPU on a
+  loaded machine), and scalac compiles it to class files without Scala Native's plugin: its
+  rows are not comparable either.
 
 ## Ideas
 

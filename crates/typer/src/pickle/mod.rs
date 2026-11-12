@@ -10,6 +10,7 @@ mod defs;
 mod names;
 mod packages;
 mod positions;
+mod quote_source;
 mod refs;
 mod selects;
 mod sharing;
@@ -22,7 +23,7 @@ mod types;
 mod unit;
 mod variances;
 
-pub use positions::QuoteSource;
+pub use quote_source::QuoteSource;
 pub use unit::{FileAttributes, Pickled, pickle_file};
 
 use super_accessors::Accessors;

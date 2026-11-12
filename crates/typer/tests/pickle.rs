@@ -176,7 +176,7 @@ fn quote_source(bytes: &[u8]) -> QuoteSource<'static> {
         Some(text) => text_line_sizes(&text),
         None => line_sizes(t.section("Positions").unwrap().bytes).unwrap(),
     };
-    QuoteSource { path, line_sizes, file: None, non_ascii: Vec::new() }
+    QuoteSource::of_tasty(path, line_sizes)
 }
 
 /// Reads quote `file` of `tests/pickle` owned by `owner` and pickles it again: how the names or

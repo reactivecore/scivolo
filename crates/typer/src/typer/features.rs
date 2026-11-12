@@ -4,11 +4,26 @@
 //! options, or by an import of it from `scala.language` in scope.
 
 use super::Typer;
+use crate::SourceUnit;
 use crate::ctx::{Ctx, Level};
 use names::nme;
-use syntax::ast::NodeId;
+use syntax::ast::{Ast, NodeId, Span};
 use syntax::config::{Features, SourceVersion};
 use tasty::NullMode;
+
+/// Refuses the files of `units` whose source version is unsupported or, where the first is
+/// `2.13`, is not, or the other way round; each with its root's span.
+pub fn source_versions(ast: &Ast, units: &[&SourceUnit]) -> Vec<(Span, String)> {
+    let scala2 = units.first().is_some_and(|unit| unit.cfg.source_version.is_scala2());
+    let refusal = |unit: &SourceUnit| {
+        let v = unit.cfg.source_version;
+        let mixed =
+            (v.is_scala2() != scala2).then(|| "source version `2.13` in some files of a unit only".into());
+        let what = super::check_source_version(v).err().or(mixed)?;
+        Some((ast.span(unit.root), what))
+    };
+    units.iter().filter_map(|unit| refusal(unit)).collect()
+}
 
 impl Typer<'_> {
     /// Whether feature `f`, `scala.language.name` (`name` dotted or not), is enabled in `ctx`.

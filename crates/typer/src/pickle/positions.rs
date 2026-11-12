@@ -4,65 +4,21 @@
 //! The positions of a quote (dotty's `picklePositions`): the span of each tree pickled that its
 //! children's spans do not give.
 
-use super::{Refusal, TreePickler};
+use super::{QuoteSource, Refusal, TreePickler};
 use crate::tpd::{TNodeId, Tree as T};
 use rustc_hash::FxHashMap;
 use syntax::ast::Span;
-use syntax::source::{Offset, SourceFile};
-use tasty::TastySpan;
-use tasty::write::{Addr, PositionsBuffer, text_line_sizes};
+use tasty::write::{Addr, PositionsBuffer};
 
 /// The first id of the trees registered that have no node.
 const SYNTHETIC: u32 = u32::MAX / 2;
 
-/// The source of a quote: its path from the source root and the size of each of its lines.
-pub struct QuoteSource<'a> {
-    pub path: String,
-    pub line_sizes: Vec<u32>,
-    /// The file the quote's spans are in, at its offset among the sources; without it, the spans
-    /// are read from the quote's TASTy and count in its UTF-16 units already.
-    pub file: Option<(&'a SourceFile, Offset)>,
-    /// The offset after each non-ASCII character of `file`, with the bytes its text up to there
-    /// has beyond its UTF-16 units.
-    pub non_ascii: Vec<(Offset, u32)>,
-}
-
-impl<'a> QuoteSource<'a> {
-    /// The source `file` at offset `base` among the sources, its path `path`.
-    pub fn of(path: String, file: &'a SourceFile, base: Offset) -> QuoteSource<'a> {
-        let mut excess = 0;
-        let non_ascii = (file.text.char_indices().filter(|(_, c)| !c.is_ascii()))
-            .map(|(i, c)| {
-                excess += (c.len_utf8() - c.len_utf16()) as u32;
-                ((i + c.len_utf8()) as Offset, excess)
-            })
-            .collect();
-        QuoteSource { path, line_sizes: text_line_sizes(&file.text), file: Some((file, base)), non_ascii }
-    }
-
-    /// Offset `o` of a span in UTF-16 units of the source.
-    fn units(&self, o: Offset, own: bool) -> Result<u32, Refusal> {
-        if !own {
-            return Ok(o);
-        }
-        let (file, base) = self.file.ok_or("a span of the quote's source without the source")?;
-        let at = o.checked_sub(base).filter(|&at| file.text.is_char_boundary(at as usize));
-        let at = at.ok_or("a quote with a span in another of the sources")?;
-        let before = self.non_ascii.partition_point(|&(end, _)| end <= at);
-        Ok(at - before.checked_sub(1).map_or(0, |i| self.non_ascii[i].1))
-    }
-
-    /// The TASTy span of `span`, in a library's source only if `library` is known.
-    fn tasty_span(&self, span: Span, library: bool) -> Result<TastySpan, Refusal> {
-        let span = span.without_inlined_call();
-        let own = !span.is_in_other_source();
-        if !own && self.file.is_some() && !library {
-            return Err("a quote with a span in a library's source");
-        }
-        let span = span.in_own_source();
-        let point = (!span.is_synthetic()).then(|| self.units(span.point(), own)).transpose()?;
-        Ok(TastySpan { start: self.units(span.start(), own)?, end: self.units(span.end(), own)?, point })
-    }
+/// The index of `path` in `paths`, pushed if missing.
+fn path_index(paths: &mut Vec<String>, path: String) -> usize {
+    paths.iter().position(|p| *p == path).unwrap_or_else(|| {
+        paths.push(path);
+        paths.len() - 1
+    })
 }
 
 impl TreePickler<'_> {
@@ -102,7 +58,10 @@ impl TreePickler<'_> {
             let other = span.exists() && span.without_inlined_call().is_in_other_source();
             let own = match other && self.file.is_some() {
                 true => library,
-                false => Some(0),
+                false => match source.unit_file(span) {
+                    Some(path) => Some(path_index(&mut paths, path)),
+                    None => Some(0),
+                },
             };
             let in_library = own.is_some_and(|i| i > 0);
             let key = self.tpd.copy_of(t).unwrap_or(t).index() as u32;
@@ -132,10 +91,7 @@ impl TreePickler<'_> {
             }
             let current = if span.exists() { own } else { current };
             let library = match self.inline_source(t) {
-                Some(path) => Some(paths.iter().position(|p| *p == path).unwrap_or_else(|| {
-                    paths.push(path);
-                    paths.len() - 1
-                })),
+                Some(path) => Some(path_index(&mut paths, path)),
                 None => library,
             };
             let hole_args = self.holes.get(&t).map(|(_, args)| args.clone()).unwrap_or_default();

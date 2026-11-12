@@ -12,6 +12,16 @@ use syntax::ast::Span;
 /// PostTyper runs it), or why it cannot.
 pub type SyntheticMembers = fn(Lent<'_>, TNodeId) -> Result<(), (Span, String)>;
 
+/// Wraps typed source files `files` in a package clause of the root package.
+pub fn root_package(typer: &mut Typer, files: &[TNodeId]) -> TNodeId {
+    let root = typer.u.root();
+    let tpe = typer.u.intern_type(tasty::Type::Package(root));
+    let name = syntax::ast::TName { name: typer.names.intern(names::nme::ROOT_PKG), is_type: false };
+    let pid = typer.tpd.node(crate::tpd::Tree::Ident { name }, Span::NONE, Some(tpe), Some(root));
+    let stats = typer.tpd.list(files);
+    typer.tpd.node(crate::tpd::Tree::PackageDef { pid, stats }, Span::NONE, Some(tpe), None)
+}
+
 impl Units {
     /// Completes typed unit `typed` of source files `files`: its annotations, type variables,
     /// synthetic members and inline calls.
@@ -37,8 +47,8 @@ impl Units {
             let lent = (&mut *typer.u, &mut typer.tpd, &mut *typer.names, &mut *typer.fresh);
             if let Err((at, what)) = self.synthetic_members.map_or(Ok(()), |add| add(lent, typed)) {
                 typer.unsupported_at(at, &what);
-            } else if let Err(what) = self.pickle_files(&mut typer, files, &mut pickles) {
-                typer.unsupported_at(Span::NONE, &format!("pickling {what} into TASTy"));
+            } else if let Err((at, what)) = self.pickle_files(&mut typer, files, &mut pickles) {
+                typer.unsupported_at(at, &format!("pickling {what} into TASTy"));
             } else if let Err((at, what)) = typer.with_inlining(false, |i| i.run(typed)) {
                 typer.unsupported_at(at, what);
             }
@@ -69,23 +79,27 @@ impl Units {
     }
 
     /// Pickles the top-level classes of typed source files `files` into `out` if `tasty_sources`
-    /// is set.
+    /// is set; a refusal at the file refused.
     fn pickle_files(
         &self,
         typer: &mut Typer,
         files: &[TNodeId],
         out: &mut Vec<Pickled>,
-    ) -> Result<(), Refusal> {
+    ) -> Result<(), (Span, Refusal)> {
         let Some(sources) = &self.tasty_sources else { return Ok(()) };
-        let attributes = FileAttributes { scala2: typer.scala2, explicit_nulls: typer.explicit_nulls };
         for &f in files {
-            let Some((file, base)) = sources.get(typer.file_of(typer.tpd.span(f))) else {
-                return Err("a file without its source");
+            let at = typer.tpd.span(f);
+            let index = typer.file_of(at);
+            let Some((file, base)) = sources.get(index) else {
+                return Err((at, "a file without its source"));
             };
-            let source = QuoteSource::of(file.tasty_path().to_owned(), file, *base);
-            let annotations = typer.with_child_annotations(f)?;
+            let scala2 = typer.file_cfgs.get(index).map_or(typer.scala2, |c| c.source_version.is_scala2());
+            let attributes = FileAttributes { scala2, explicit_nulls: typer.explicit_nulls };
+            let mut source = QuoteSource::of(file.tasty_path().to_owned(), file, *base);
+            source.others = sources.iter().filter(|(_, b)| b != base).map(|(f, b)| (f, *b)).collect();
+            let annotations = typer.with_child_annotations(f).map_err(|r| (at, r))?;
             let cx = (&mut *typer.u, &mut typer.tpd, &*typer.names);
-            out.extend(pickle_file(cx, f, &source, (attributes, &annotations))?);
+            out.extend(pickle_file(cx, f, &source, (attributes, &annotations)).map_err(|r| (at, r))?);
         }
         Ok(())
     }

@@ -46,19 +46,28 @@ struct Quoted {
 /// Lowers the term quotes of unit `root`, owned by `owner`, outside its inline methods.
 pub fn transform(l: &mut Lower, root: TNodeId, owner: SymbolId) -> Result<()> {
     cancelled::cancel(l, root, owner);
-    pickle_all(l, root, owner)
+    let stats: Vec<(TNodeId, SymbolId)> = match l.tpd.tree(root) {
+        Tree::PackageDef { .. } => l.tpd.owned_children(root, owner).collect(),
+        _ => vec![(root, owner)],
+    };
+    stats.into_iter().try_for_each(|(t, owner)| {
+        let span = l.tpd.span(t);
+        let file = span.exists().then(|| l.sources.index(span.in_own_source().start()));
+        pickle_all(l, t, owner, file)
+    })
 }
 
-/// Lowers the quotes under `root` in `owner`, outside its inline methods.
-fn pickle_all(l: &mut Lower, root: TNodeId, owner: SymbolId) -> Result<()> {
+/// Lowers the quotes under `root` in `owner`, outside its inline methods; `file`, the index of
+/// the source file `root` is in, if known.
+fn pickle_all(l: &mut Lower, root: TNodeId, owner: SymbolId, file: Option<usize>) -> Result<()> {
     let mut result = Ok(());
     traverse(l, root, owner, &mut |l, t, owner| {
         if matches!(l.tpd.tree(t), Tree::DefDef { .. }) && l.tpd.sym(t).is_some_and(|s| has(l.u, s, INLINE)) {
             return Walk::Skip;
         }
         let done = match (quoted(l, t), type_quotes::quoted(l, t)) {
-            (Some(q), _) => pickle(l, t, q, owner),
-            (None, Some(q)) => type_quotes::pickle(l, t, q, owner),
+            (Some(q), _) => pickle(l, t, q, owner, file),
+            (None, Some(q)) => type_quotes::pickle(l, t, q, owner, file),
             (None, None) => return Walk::Children,
         };
         match done {
@@ -95,8 +104,9 @@ fn staged(l: &Lower, t: TNodeId, method: &str) -> Option<(TNodeId, TypeId)> {
     }
 }
 
-/// Makes quote application `t` in `owner` the call unpickling the quote (dotty's `pickleAsTasty`).
-fn pickle(l: &mut Lower, t: TNodeId, q: Quoted, owner: SymbolId) -> Result<()> {
+/// Makes quote application `t` in `owner` of source file `file` the call unpickling the quote
+/// (dotty's `pickleAsTasty`).
+fn pickle(l: &mut Lower, t: TNodeId, q: Quoted, owner: SymbolId, file: Option<usize>) -> Result<()> {
     let span = l.tpd.span(q.quote);
     if let Some(lit) = literal(l, q.body) {
         return values::lifted(l, t, &q, lit, owner);
@@ -106,7 +116,7 @@ fn pickle(l: &mut Lower, t: TNodeId, q: Quoted, owner: SymbolId) -> Result<()> {
     let mut holes = holes::extract(l, q.body, owner)?;
     let (body, type_holes, tag_refs) = tags::encode(l, q.body, (&tags, &used), owner)?;
     holes.holes.extend(type_holes);
-    holes.contents.iter().try_for_each(|&(c, _)| pickle_all(l, c, owner))?;
+    holes.contents.iter().try_for_each(|&(c, _)| pickle_all(l, c, owner, file))?;
     let call = inline_call_trace(l, owner, span.to_synthetic());
     let bindings = l.tpd.list(&[]);
     let body_tpe = l.tpd.tpe(q.body);
@@ -116,7 +126,7 @@ fn pickle(l: &mut Lower, t: TNodeId, q: Quoted, owner: SymbolId) -> Result<()> {
         Some(body_tpe),
         None,
     );
-    let pickled = pickled(l, root, &holes.holes, span)?;
+    let pickled = pickled(l, root, &holes.holes, span, file)?;
     let types = types(l, &tag_refs);
     let term_holes = holes::lambda(l, &holes.contents, owner);
     let call =
@@ -126,10 +136,20 @@ fn pickle(l: &mut Lower, t: TNodeId, q: Quoted, owner: SymbolId) -> Result<()> {
     Ok(())
 }
 
-/// The string literal of the TASTy of quote `root` at `span` with holes `holes`.
-fn pickled(l: &mut Lower, root: TNodeId, holes: &[QuoteHole], span: Span) -> Result<TNodeId> {
-    let (base, file) = l.sources.files()[l.sources.index(span.in_own_source().start())];
-    let source = QuoteSource::of(file.tasty_path().to_owned(), file, base);
+/// The string literal of the TASTy of quote `root` at `span` with holes `holes`, in source file
+/// `file` if known, else in the one `span` is in.
+fn pickled(
+    l: &mut Lower,
+    root: TNodeId,
+    holes: &[QuoteHole],
+    span: Span,
+    file: Option<usize>,
+) -> Result<TNodeId> {
+    let files = l.sources.files();
+    let own = l.sources.index(span.in_own_source().start());
+    let (base, unit) = files[file.unwrap_or(own)];
+    let mut source = QuoteSource::of(files[own].1.tasty_path().to_owned(), unit, base);
+    source.others = files.iter().filter(|&&(b, _)| b != base).map(|&(b, f)| (f, b)).collect();
     let bytes = pickle_positioned_quote((l.u, l.tpd, l.names), root, holes, &source)
         .or_else(|r| unsupported(span, format!("quotes with {r}")))?;
     strings::pickled(l, &bytes).or_else(|()| unsupported(span, "quotes whose TASTy takes several strings"))
