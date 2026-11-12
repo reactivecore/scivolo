@@ -49,6 +49,7 @@ impl Universe {
         classes.retain(|&c| {
             let mut metas = self.annotation_metas.get(&(sym, c)).cloned().unwrap_or_default();
             metas.extend(self.tasty_annotations(c));
+            metas.extend_from_slice(self.annotations(c));
             metas.retain(|&m| self.full_name(m).starts_with("scala.annotation.meta."));
             let carries = |set: &[&str]| metas.iter().any(|&m| set.contains(&self.symbol(m).name.as_str()));
             carries(targets) || !none_of.is_empty() && !carries(none_of)

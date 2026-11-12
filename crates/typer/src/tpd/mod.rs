@@ -198,9 +198,10 @@ impl Tpd {
         }
     }
 
-    /// The annotation tree of annotated type `annotated`, if one annotated expression gave it.
-    pub fn type_annotation(&self, annotated: TypeId) -> Option<TNodeId> {
-        self.type_annotations.get(&annotated).copied().flatten()
+    /// The annotation tree of annotated type `annotated`: `Some(None)` if several annotated
+    /// expressions gave it, `None` if none did.
+    pub fn type_annotation(&self, annotated: TypeId) -> Option<Option<TNodeId>> {
+        self.type_annotations.get(&annotated).copied()
     }
 
     /// The annotation tree of the type of type tree `tpt`, if an annotated expression gave it.

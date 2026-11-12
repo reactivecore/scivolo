@@ -7,6 +7,7 @@ mod annotated;
 mod applies;
 mod cases;
 mod defs;
+mod kept_annotations;
 mod names;
 mod packages;
 mod positions;

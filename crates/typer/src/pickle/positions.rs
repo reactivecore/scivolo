@@ -58,17 +58,14 @@ impl TreePickler<'_> {
         while let Some((t, current, library, copy_owner)) = todo.pop() {
             let span = self.tpd.span(t);
             let other = span.exists() && span.without_inlined_call().is_in_other_source();
-            // A span of a library's definition outside an inline expansion counts in the source
-            // of its parent.
-            let foreign = other && self.file.is_some() && library.is_none();
             let own = match other && self.file.is_some() {
-                true => library.or(current.filter(|_| foreign)),
+                true => library,
                 false => match source.unit_file(span) {
                     Some(path) => Some(path_index(&mut paths, path)),
                     None => Some(0),
                 },
             };
-            let in_library = foreign || own.is_some_and(|i| i > 0);
+            let in_library = own.is_some_and(|i| i > 0);
             let key = self.tpd.copy_of(t).unwrap_or(t).index() as u32;
             let at = self.buf.addr_of_tree(key).map(|a| a.0);
             while let Some(&(_, addr, span)) = synthetic.last().filter(|&&(next, _, _)| Some(next) == at) {

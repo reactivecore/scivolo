@@ -236,9 +236,9 @@ fn refuses(name: &str, code: &str, message: &str) {
 
 #[test]
 fn a_definition_the_tasty_pickler_lacks_is_refused() {
-    let code = "class tag(n: Int) extends scala.annotation.StaticAnnotation\n\
-                trait B { def f: Int @tag(1) = 1; def g: Int @tag(2) = 2; def h = f }";
-    refuses("refusedtasty", code, "a type annotation without a constructor of no parameters");
+    let code = "class tag extends scala.annotation.StaticAnnotation\n\
+                trait B { def f: Int @tag = 1; def g: Int @tag = 2; def h = f }";
+    refuses("refusedtasty", code, "an annotated type of several annotation trees");
 }
 
 #[test]
