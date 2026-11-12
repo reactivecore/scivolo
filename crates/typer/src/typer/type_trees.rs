@@ -113,7 +113,10 @@ impl Typer<'_> {
                     return self.unsupported(id, "match type that may reduce");
                 }
                 let tpe = match ctx.mode.is(Mode::PATTERN_TYPE) {
-                    false => self.u.try_normalize(tpe).unwrap_or(tpe),
+                    false => match self.u.try_normalize(tpe) {
+                        Some(reduced) => super::simplify::normalize_all(self.u, reduced),
+                        None => tpe,
+                    },
                     true => tpe,
                 };
                 let args = self.tpd.list(&typed_args);
