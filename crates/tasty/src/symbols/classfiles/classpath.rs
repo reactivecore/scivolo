@@ -6,13 +6,14 @@ use super::class;
 use crate::types::NameId;
 use classfile::{ACC_MODULE, ACC_PRIVATE, ACC_PROTECTED, ACC_PUBLIC, ACC_STATIC, ClassInfo};
 use rustc_hash::{FxHashMap, FxHashSet};
+use std::rc::Rc;
 
 /// The Java class files of the jars: the jar of each class by internal name, and each class read
 /// once.
 #[derive(Default)]
 pub struct JavaClasses {
     jars: FxHashMap<String, usize>,
-    read: FxHashMap<String, Option<ClassInfo>>,
+    read: FxHashMap<String, Option<Rc<ClassInfo>>>,
 }
 
 impl Universe {
@@ -85,14 +86,14 @@ fn enter(u: &mut Universe, owner: SymbolId, name: &str, info: &ClassInfo, access
 
 /// Reads the class of internal name `internal` from the jars' class files; none if they lack it,
 /// it is no class file or one compiled from Scala.
-pub fn java_class(u: &mut Universe, internal: &str) -> Option<ClassInfo> {
+pub fn java_class(u: &mut Universe, internal: &str) -> Option<Rc<ClassInfo>> {
     let classes = u.java_classes.as_mut()?;
     if let Some(info) = classes.read.get(internal) {
         return info.clone();
     }
     let jar = *classes.jars.get(internal)?;
     let info = u.library.read_class(jar, internal).ok().and_then(|b| classfile::read(&b).ok());
-    let info = info.filter(|i| !i.scala);
+    let info = info.filter(|i| !i.scala).map(Rc::new);
     u.java_classes.as_mut()?.read.insert(internal.to_owned(), info.clone());
     info
 }
