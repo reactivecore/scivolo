@@ -43,7 +43,49 @@ impl Gen<'_, '_> {
         let sig = super::signatures::member(self.l.u, member, info, desc, &thrown)?;
         let forwarder =
             self.l.mixed_in_from(sym).is_some() && !self.l.is_mixin_accessor(sym) || java_forwarded.is_some();
-        (!forwarder || super::signatures::erases_to(&sig, desc)).then_some(sig)
+        if !forwarder {
+            return Some(sig);
+        }
+
+        let scope = self.class_type_vars(sym);
+        match super::signatures::erases_to(&sig, desc, &scope) {
+            true => Some(sig),
+            false => self.erased_signature(sym, desc, false),
+        }
+    }
+
+    /// Determines the type parameters of the classes enclosing `sym`, outermost first, each by
+    /// its name and the descriptor of its erasure.
+    pub fn class_type_vars(&mut self, sym: SymbolId) -> Vec<(String, String)> {
+        let mut vars = Vec::new();
+        let mut owner = self.l.u.symbol(sym).owner;
+        while let Some(c) = owner.filter(|&c| self.l.u.is_class(c)) {
+            for p in self.l.u.type_params(c).into_iter().rev() {
+                let name = tasty::encode(&self.l.u.symbol(p).name);
+                let t = self.l.u.intern_type(tasty::Type::Sym(None, p));
+                let erased = self.l.u.erase(t);
+                vars.push((name, super::descriptors::descriptor(&erased)));
+            }
+            owner = self.l.u.symbol(c).owner;
+        }
+        vars.reverse();
+        vars
+    }
+
+    /// Builds the generic signature of member `sym` from its descriptor `desc` alone, for a member
+    /// made after erasure without a type before it (dotty's `getGenericSignature` of an erased
+    /// info): member classes of generic classes are selected from their owners, but for the
+    /// receiver of a static trait method if `receiver` (its class's flattened reference).
+    pub fn erased_signature(&mut self, sym: SymbolId, desc: &str, receiver: bool) -> Option<String> {
+        let parts = super::signatures::descriptor_parts(desc);
+        let names: Vec<String> =
+            parts.iter().filter(|p| p.1).map(|p| p.0[1..p.0.len() - 1].to_owned()).collect();
+        let mut classes: Vec<Option<SymbolId>> = names.iter().map(|n| self.resolve_class(n)).collect();
+        if let Some(first) = classes.first_mut().filter(|_| receiver) {
+            *first = None;
+        }
+        let member = self.signed_member(sym, sym);
+        super::signatures::erased_member(self.l.u, member, desc, &classes)
     }
 
     /// Determines the member signed for `sym` forwarding to `origin`: of an extension method

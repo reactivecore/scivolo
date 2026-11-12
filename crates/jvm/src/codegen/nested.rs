@@ -158,7 +158,7 @@ impl Gen<'_, '_> {
     }
 
     /// The class of internal name `name`, if the unit defines it or the universe has it.
-    fn resolve_class(&mut self, name: &str) -> Option<SymbolId> {
+    pub fn resolve_class(&mut self, name: &str) -> Option<SymbolId> {
         if let Some(&c) = self.classes.get(name) {
             return c;
         }
