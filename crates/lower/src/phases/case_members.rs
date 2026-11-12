@@ -32,7 +32,7 @@ pub fn case_members(l: &mut Lower, class: SymbolId, span: Span) -> Result<Vec<TN
         cc.product_element,
         cc.product_element_name,
     ];
-    let focus = Span::new(span.point(), span.point(), span.point());
+    let focus = Span::at(span.point());
     let mut out = Vec::new();
     let can_equal = existing_def(l, class, cc.can_equal);
     for sym in members {

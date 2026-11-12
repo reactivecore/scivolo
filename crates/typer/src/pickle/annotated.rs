@@ -28,11 +28,6 @@ impl TreePickler<'_> {
                 p.tree(tree)
             });
         }
-        let class = self.u.class_symbol(annot).ok_or("an annotation of no class")?;
-        let ctors = self.u.decls_named(class, nme::CONSTRUCTOR);
-        if !ctors.into_iter().any(|c| self.u.erased_method(c).0.is_empty()) {
-            return Err("a type annotation without a constructor of no parameters");
-        }
         self.with_length(ANNOTATEDtype, &mut |p| {
             p.ty(parent, false)?;
             p.new_annotation(annot)
@@ -86,12 +81,13 @@ impl TreePickler<'_> {
         self.u.is_class_named(class, crate::defn::INFERRED)
     }
 
-    /// `new C()` of class type `class`, an annotation without arguments.
+    /// `new C()` of class type `class`, an annotation without arguments, through its constructor
+    /// of no parameters.
     pub fn new_annotation(&mut self, class: TypeId) -> Result<(), Refusal> {
         let c = self.u.class_symbol(class).ok_or("an annotation of no class")?;
         let ctors = self.u.decls_named(c, nme::CONSTRUCTOR);
-        let init = ctors.iter().copied().find(|&c| self.u.erased_method(c).0.is_empty());
-        let init = init.or(ctors.first().copied()).ok_or("an annotation class without a constructor")?;
+        let init = ctors.into_iter().find(|&c| self.u.erased_method(c).0.is_empty());
+        let init = init.ok_or("a type annotation without a constructor of no parameters")?;
         let ids = (u32::MAX - 2 * self.annots.len() as u32, u32::MAX - 2 * self.annots.len() as u32 - 1);
         if let Some(tpt) = self.type_tree.filter(|_| !self.keying) {
             self.annots.push((ids.0, ids.1, tpt));

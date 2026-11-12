@@ -44,6 +44,7 @@ pub struct Tpd {
     /// The annotation tree of each annotated type an annotated expression `e: @a(args)` gave;
     /// `None` for one that several trees gave.
     type_annotations: FxHashMap<TypeId, Option<TNodeId>>,
+    /// The type trees whose type is pickled anew, not shared.
     fresh_types: FxHashSet<TNodeId>,
 }
 
@@ -200,7 +201,7 @@ impl Tpd {
         self.type_annotations.get(&annotated).copied().flatten()
     }
 
-    /// Marks the type of type tree `id` as made for it alone, one type in dotty's that no other
+    /// Marks the type of type tree `id` as its own, pickled anew: in dotty's, a type no other
     /// tree shares.
     pub fn mark_fresh_type(&mut self, id: TNodeId) {
         self.fresh_types.insert(id);

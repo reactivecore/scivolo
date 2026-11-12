@@ -19,7 +19,7 @@ pub fn value_members(l: &mut Lower, class: SymbolId, span: Span) -> Result<Vec<T
     let Some(value) = l.u.underlying(class).filter(|_| plain) else { return Ok(Vec::new()) };
     let cc = l.case_classes()?;
     let can_equal = existing_def(l, class, cc.can_equal);
-    let focus = Span::new(span.point(), span.point(), span.point());
+    let focus = Span::at(span.point());
     let mut out = Vec::new();
     let scala2 = l.u.compiles_scala_library();
     for sym in [cc.hash_code, cc.any_equals] {
