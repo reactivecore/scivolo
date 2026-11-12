@@ -30,7 +30,7 @@ impl Gen<'_, '_> {
         (erased, this_param): (bool, bool),
     ) {
         let sig = match erased {
-            true => self.erased_signature(sym, desc),
+            true => self.erased_signature(sym, desc, this_param),
             false => self.generic_signature(sym, desc),
         };
         if let Some(sig) = sig {

@@ -50,7 +50,7 @@ impl Gen<'_, '_> {
         let scope = self.class_type_vars(sym);
         match super::signatures::erases_to(&sig, desc, &scope) {
             true => Some(sig),
-            false => self.erased_signature(sym, desc),
+            false => self.erased_signature(sym, desc, false),
         }
     }
 
@@ -74,12 +74,16 @@ impl Gen<'_, '_> {
 
     /// Builds the generic signature of member `sym` from its descriptor `desc` alone, for a member
     /// made after erasure without a type before it (dotty's `getGenericSignature` of an erased
-    /// info): member classes of generic classes are selected from their owners.
-    pub fn erased_signature(&mut self, sym: SymbolId, desc: &str) -> Option<String> {
+    /// info): member classes of generic classes are selected from their owners, but for the
+    /// receiver of a static trait method if `receiver` (its class's flattened reference).
+    pub fn erased_signature(&mut self, sym: SymbolId, desc: &str, receiver: bool) -> Option<String> {
         let parts = super::signatures::descriptor_parts(desc);
         let names: Vec<String> =
             parts.iter().filter(|p| p.1).map(|p| p.0[1..p.0.len() - 1].to_owned()).collect();
-        let classes: Vec<Option<SymbolId>> = names.iter().map(|n| self.resolve_class(n)).collect();
+        let mut classes: Vec<Option<SymbolId>> = names.iter().map(|n| self.resolve_class(n)).collect();
+        if let Some(first) = classes.first_mut().filter(|_| receiver) {
+            *first = None;
+        }
         let member = self.signed_member(sym, sym);
         super::signatures::erased_member(self.l.u, member, desc, &classes)
     }
