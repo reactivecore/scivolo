@@ -146,8 +146,7 @@ impl Gen<'_, '_> {
         }
         self.cond(b, cond, enter, exit, enter)?;
         b.code.place(enter);
-        self.expr_as(b, body, 0)?;
-        b.code.jump(0xa7, top);
+        self.expr_to(b, body, 0, Dest::Jump(top))?;
         b.code.place(exit);
         Ok(0)
     }

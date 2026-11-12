@@ -121,6 +121,9 @@ impl Gen<'_, '_> {
         if let Some(m) = self.l.mixed_in_from(sym) {
             return Some(m);
         }
+        if self.l.u.symbol(sym).kind == Kind::Def {
+            return None;
+        }
         let (owner, name) = (self.l.u.symbol(sym).owner?, self.l.u.symbol(sym).name.clone());
         let getters = self.l.u.decls_named(owner, &name);
         getters.into_iter().find(|&g| g != sym).and_then(|g| self.l.mixed_in_from(g))
