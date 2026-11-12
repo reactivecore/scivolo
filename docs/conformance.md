@@ -307,7 +307,7 @@ for a macro call also for Scala Native, whose NIR the macro runs from in the VM 
 Skipped as in the VM's report, but for APIs Scala Native's javalib lacks. Failures are grouped by
 the refusal or the first exception line.
 
-Results (2026-11-09):
+Results (tests/run 2026-11-12, run-macros 2026-11-09):
 
 | Outcome | tests/run | tests/run-macros |
 |---|---:|---:|
@@ -317,7 +317,8 @@ Results (2026-11-09):
 | linkage error | 0 | 0 |
 | crashed | 1 | 0 |
 | timeout | 0 | 0 |
-| jvm refused | 1 | 0 |
+| frontend crashed | 1 | 0 |
+| jvm refused | 0 | 0 |
 | lowering refused | 0 | 0 |
 | typer refused | 24 | 7 |
 | skipped | 91 | 7 |
@@ -328,7 +329,8 @@ Results (2026-11-09):
   (`i22649`), the rest singles.
 - **Typer refused (run-macros):** `-Xread-docs` (2), a concrete class with an unimplemented member,
   `SuppressWarnings`, adaptation, `Symbol.newClass` with a self type, a source version.
-- **JVM refused:** erased parameters of a macro-generated method (`quotes-add-erased`).
+- **Frontend crashed:** `bridges` (7,000 lines) exceeds the 60 s timeout under a full parallel run;
+  it passes alone.
 - **Crash:** `lambda-serialization-gc` casts the application class loader to `URLClassLoader`,
   which fails for scalac's class files too, as the runner does not load tests through one.
 - **Difference from dotty (open, not accepted):** a macro runs from its Scala Native build in the VM, so a
@@ -339,33 +341,29 @@ Results (2026-11-09):
 `just programs-jvm` compiles each of `tests/programs` with `scivolo-jvm`, runs it on
 `java -Xverify:all` and compares its stdout and stderr, in one stream, with its `.check` (Scala
 Native's output).
-Results (2026-11-09):
+Results (2026-11-12):
 
 | Outcome | Programs |
 |---|---:|
-| passed | 288 |
-| wrong output | 5 |
+| passed | 291 |
+| wrong output | 6 |
 | linkage error | 13 |
 | crashed | 3 |
-| jvm refused | 2 |
-| lowering refused | 1 |
-| typer refused | 6 |
-| **total** | **318** |
+| jvm refused | 1 |
+| typer refused | 5 |
+| **total** | **319** |
 
 - **As scalac's class files on the JVM** (platform differences): wrong output `bottomarrays`,
-  `universaljoins` (array class names), `classtags` (`ClassTag` of a nested array), `staticinit`
-  (object initialization order), `unitarrays` (`Array[Unit]` elements); crashes `closuretypes`
-  (a package named `java.*`), `matchtypearrays` (`ClassCastException`), `resources` (no resource
-  directory on the classpath).
+  `universaljoins`, `exprforms` (array class names), `classtags` (`ClassTag` of a nested array),
+  `staticinit` (object initialization order), `unitarrays` (`Array[Unit]` elements); crashes
+  `closuretypes` (a package named `java.*`), `matchtypearrays` (`ClassCastException`), `resources`
+  (no resource directory on the classpath); linkage error `protectedaccess` (`NoSuchMethodError`
+  of `Copies.clone()`, an `invokeinterface` of `Object`'s protected `clone`).
 - **Scala Native APIs:** 12 linkage errors (`scala.scalanative.unsafe`, `meta.LinktimeInfo`,
   `runtime.LLVMIntrinsics`), `overflow` (a `scalanative.unsafe` macro call),
   `Ni26intrinsics` (JVM refused: an ordering of references).
-- **JVM refused:** `exprforms` (an argument of another JVM type).
-- **Linkage error:** `protectedaccess` (`NoSuchMethodError` of `Copies.clone()`: super accessors
-  the TASTy lacks).
-- **Refused:** TASTy pickling (`mirrorproxies`, `scala2mirrors`, `quotecc`), `dynamic`
-  (constructor proxy and an imported term), `hkerasure` (no implicit argument), `Lw26statics`
-  (lowering: an `@static` member selected from a value other than a path).
+- **Typer refused:** TASTy pickling (`mirrorproxies`, `scala2mirrors`, `quotecc`), `hkerasure`
+  (no implicit argument, as on Scala Native).
 
 Scala's library (#222, ADR 0110): each of the 649 `.scala` files of `scala-library-3.9.0`'s
 sources jar is compiled alone by `scivolo-jvm --scalalib` and its class files compared through
