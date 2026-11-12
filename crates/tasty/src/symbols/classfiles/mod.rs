@@ -5,8 +5,10 @@ mod annotation;
 mod class;
 mod classpath;
 mod constant;
+mod inner;
 mod javalib;
 mod signatures;
+mod visibility;
 
 pub use annotation::Retention;
 pub use classpath::JavaClasses;
@@ -51,7 +53,7 @@ impl Universe {
         if info.access & ACC_PUBLIC == 0 || info.access & ACC_MODULE != 0 {
             return Vec::new();
         }
-        let entered = class::enter(self, pkg, class, &info).unwrap_or_default();
+        let entered = class::enter(self, pkg, class, &info, info.access).unwrap_or_default();
         entered.into_iter().filter(|&d| self.symbol(d).name == name).collect()
     }
 

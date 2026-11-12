@@ -33,15 +33,19 @@ is `SOURCE` (`shouldEmitAnnotation`).
   is entered on lookup as ADR 0107 enters a JDK class, annotation classes included; packages of
   such class files are entered when the universe is opened. The Native libraries' class files
   (`scala.scalanative.runtime.UnsupportedFeature`) are not read.
-- Its public static nested classes of its `InnerClasses` are entered with it into its object's
-  class (dotty's `enterOwnInnerClasses`).
+- Its nested classes of its `InnerClasses` are entered with it, the static ones into its object's
+  class, the inner ones into it (dotty's `enterOwnInnerClasses`). An inner class's constructor
+  drops the outer instance its descriptor starts with, its signatures see the enclosing classes'
+  type parameters, and `new o.C()` passes `o` (dotty's `normalizeConstructorParams`,
+  `addEnclosingTParams`, `ExplicitOuter`); a reference `A$B` or `A<T>.B` to an inner class is the
+  projection `A#B`, `A[T]#B`.
+- A class or member gets the visibility dotty gives it (`getPrivateWithin`): `private`,
+  `protected[p]`, or `private[p]` if package-private, `p` its package. Package-private members of
+  JDK classes javalib defines are not entered (ADR 0108).
 - The library's runtime stubs (`Statics`, `BoxedUnit`, the `*Ref` classes) give way to their
   class files, as dotty reads them (`Statics.pfMarker`, `IntRef <: java.io.Serializable`); the
   Native backend does not read class files and keeps them.
 - Refused, as not found:
   - a class of a Scala 2 class file (`ScalaSig` or `Scala` attribute; Scala 2 pickles are not
     read) or of a Scala 3 one without its TASTy file (`TASTY` attribute);
-  - a protected or non-static nested class, and selecting a member of a value of a non-static
-    one's type (`o.inner().v()`);
-  - a top-level Java class whose name holds a `$`;
-  - a package-private Java class, such as `scala.collection.concurrent.INodeBase`.
+  - a top-level Java class whose name holds a `$`.
