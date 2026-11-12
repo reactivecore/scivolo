@@ -6,7 +6,7 @@
 
 use super::Reflect;
 use crate::tpd::TNodeId;
-use tasty::tags::{GIVEN, IMPLICIT};
+use tasty::tags::{ERASED, GIVEN, IMPLICIT};
 use tasty::{Flags, Kind, NameId, Symbol, SymbolId, Type, TypeId};
 
 impl Reflect<'_> {
@@ -24,7 +24,11 @@ impl Reflect<'_> {
                         let (name, info) = self.u.params_of(params)[i];
                         let p = self.new_param(s, name, Kind::Param);
                         self.u.set_info(p, info);
-                        let flags = self.u.symbol(p).flags;
+                        let mut flags = self.u.symbol(p).flags;
+                        if self.u.is_erased_param(info) {
+                            flags = flags.with(ERASED);
+                            self.u.set_flags(p, flags);
+                        }
                         match (contextual, implicit) {
                             (true, _) => self.u.set_flags(p, flags.with(GIVEN)),
                             (_, true) => self.u.set_flags(p, flags.with(IMPLICIT)),

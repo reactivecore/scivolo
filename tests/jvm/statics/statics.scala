@@ -13,6 +13,7 @@ trait Shape
 object Shape {
   @static val sides: String = "four"
   @static def describe(s: String): String = "shape " + s
+  @static def pair[T](t: T): List[T] = List(t, t)
 }
 
 object Named {
@@ -31,5 +32,9 @@ object Statics {
     println(Counter.plain)
     println(Shape.describe(Shape.sides))
     println(Named.sum)
+    println(shape().sides + shape().describe("x"))
+    println(shape().pair[Int](2))
   }
+
+  def shape(): Shape.type = { println("shape"); Shape }
 }

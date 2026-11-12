@@ -67,7 +67,7 @@ impl Gen<'_, '_> {
                 self.expr_to(b, thenp, slots, dest)?;
                 b.code.place(failure);
                 b.code.set_stack(depth);
-                if !(self.is_synthetic_unit(elsep) && slots == 0) {
+                if !(self.is_missing_else(t, elsep) && slots == 0) {
                     return self.expr_to(b, elsep, slots, dest);
                 }
                 self.line(b, cond);
@@ -115,7 +115,7 @@ impl Gen<'_, '_> {
         let depth = b.code.stack();
         self.cond(b, cond, success, failure, success)?;
         b.code.place(success);
-        if self.is_synthetic_unit(elsep) && slots == 0 {
+        if self.is_missing_else(t, elsep) && slots == 0 {
             self.expr_as(b, thenp, slots)?;
             b.code.place(failure);
             b.code.set_stack(depth);
@@ -146,8 +146,7 @@ impl Gen<'_, '_> {
         }
         self.cond(b, cond, enter, exit, enter)?;
         b.code.place(enter);
-        self.expr_as(b, body, 0)?;
-        b.code.jump(0xa7, top);
+        self.expr_to(b, body, 0, Dest::Jump(top))?;
         b.code.place(exit);
         Ok(0)
     }
@@ -190,10 +189,12 @@ impl Gen<'_, '_> {
         Ok(0)
     }
 
-    /// Whether `t` is a `()` the parser or typer added, of no extent (dotty's `SyntheticUnit`).
-    fn is_synthetic_unit(&self, t: TNodeId) -> bool {
-        let at = self.l.tpd.span(t);
-        is_unit(self.l.tpd.tree(t)) && (!at.exists() || at.start() == at.end())
+    /// Whether `elsep` of `if` `t` is a `()` added for a missing `else` (dotty's `SyntheticUnit`):
+    /// of no extent or, compiling Scala's library, inlined from that library, at the call's span.
+    fn is_missing_else(&self, t: TNodeId, elsep: TNodeId) -> bool {
+        let at = self.l.tpd.span(elsep);
+        let inlined = self.l.u.compiles_scala_library() && at == self.l.tpd.span(t);
+        is_unit(self.l.tpd.tree(elsep)) && (!at.exists() || at.start() == at.end() || inlined)
     }
 }
 

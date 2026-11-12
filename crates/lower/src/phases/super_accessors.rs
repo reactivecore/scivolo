@@ -213,19 +213,22 @@ fn accessor(l: &mut Lower, s: &SuperSelect, span: Span, defs: &mut Vec<TNodeId>)
 fn deferred_def(l: &mut Lower, acc: SymbolId, info: TypeId, span: Span) -> TNodeId {
     let (tparams, mono) = type_params(l, acc, info);
     let tdefs: Vec<TNodeId> = tparams.iter().map(|&t| l.type_param_def(t, span)).collect();
-    let (params, result) = l.u.method(mono).map_or((None, mono), |m| (Some(m.params.to_vec()), m.result));
-    let mut defs = Vec::new();
-    for &(pname, ptype) in params.iter().flatten() {
-        let pname = l.u.name(pname).to_owned();
-        let p = l.u.define(symbol(&pname, Kind::Param, acc, Flags::default()));
-        l.u.set_info(p, ptype);
-        defs.push(l.param_def(p, span));
+    let (mut clauses, mut result) = (Vec::new(), mono);
+    while let Some(m) = l.u.method(result) {
+        let (params, next) = (m.params.to_vec(), m.result);
+        let mut defs = Vec::new();
+        for (pname, ptype) in params {
+            let pname = l.u.name(pname).to_owned();
+            let p = l.u.define(symbol(&pname, Kind::Param, acc, Flags::default()));
+            l.u.set_info(p, ptype);
+            defs.push(l.param_def(p, span));
+        }
+        clauses.push(defs);
+        result = next;
     }
     let tpt = l.type_tree(result, span);
     let mut paramss: Vec<&[TNodeId]> = if tdefs.is_empty() { vec![] } else { vec![&tdefs] };
-    if params.is_some() {
-        paramss.push(&defs);
-    }
+    paramss.extend(clauses.iter().map(Vec::as_slice));
     l.build().def_def(acc, &paramss, tpt, None, span)
 }
 

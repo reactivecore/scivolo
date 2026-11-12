@@ -114,7 +114,9 @@ impl Gen<'_, '_> {
                     return Some(self.l.lifted_method(s));
                 }
                 Kind::Val
-                    if self.l.has_getter(s) && !self.l.u.symbol(s).flags.has(tasty::tags::SYNTHETIC) =>
+                    if self.l.has_getter(s)
+                        && !self.l.u.symbol(s).flags.has(tasty::tags::SYNTHETIC)
+                        && !self.l.u.symbol(s).flags.has(tasty::tags::STATIC) =>
                 {
                     return Some(s);
                 }

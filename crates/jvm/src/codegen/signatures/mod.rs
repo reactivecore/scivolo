@@ -35,6 +35,8 @@ struct Sig<'u> {
     constructor: bool,
     /// The method type parameters in scope: their binder, names and bounds.
     poly: Vec<(Binder, Vec<(String, TypeId)>)>,
+    /// The method type parameters renamed, each by its name and its fresh name.
+    renamed: Vec<(String, String)>,
     out: String,
 }
 
@@ -85,7 +87,7 @@ impl<'u> Sig<'u> {
         let constructor = u.is_constructor(sym0);
         let (origin, extended, poly, out) = (sym0, None, Vec::new(), String::new());
         let tops = [top, original_top];
-        Sig { u, sym0, origin, extended, tops, field: false, constructor, poly, out }
+        Sig { u, sym0, origin, extended, tops, field: false, constructor, poly, renamed: Vec::new(), out }
     }
 
     fn boxed(&mut self, t: TypeId) {
@@ -126,6 +128,7 @@ impl<'u> Sig<'u> {
                 self.jsig(p, top, boxing)
             }
             Type::Param(b, i) => match self.poly_param(b, i) {
+                Some((_, bounds)) if self.primitive_bound(bounds) => self.erased(t, boxing),
                 Some((name, _)) => self.out.push_str(&format!("T{name};")),
                 None => self.erased(t, boxing),
             },
