@@ -231,6 +231,13 @@ bench-edit file runs="10": release
 bench-edit-base base file runs="10": release
     python3 scripts/bench_edit.py --base {{ base }} {{ file }} {{ runs }}
 
+# Time scivolo-jvm, scivolo-lower and scalac 3.9.0 (cold, and warm in one JVM) compiling all files
+# of `codebase` (tasty-core, upickle-core, scalalib, javalib or all) as one unit, `runs` times each;
+# tables under tmp/bench-compile. javalib needs `just lib-oracle`.
+bench-compile codebase="all" runs="3": fetch-libs fetch-scala-native
+    cargo build -q --release -p scivolo-jvm -p scivolo-lower
+    python3 scripts/bench_compile.py '{{ codebase }}' '{{ runs }}'
+
 # Run test program `name` with call and instruction counts on stderr (`SCIVOLO_PROFILE`).
 vm-profile name *args: release
     SCIVOLO_PROFILE=1 target/release/scivolo --cp tests/programs/{{ name }} {{ name }} {{ args }}
