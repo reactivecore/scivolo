@@ -4,11 +4,46 @@
 //! The expected result type of an application: the result constrained by it (dotty's
 //! `constrainResult`), the results of alternatives compared with it (`resultConforms`).
 
+use super::dependent_params::{clause_param, mentions_clause_params, substituted};
 use super::{Pt, Typer};
 use crate::ctx::Ctx;
-use tasty::{NameId, SymbolId, Type, TypeId};
+use tasty::{Binder, NameId, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
+    /// Result `result` of the clause of binder `binder` and parameters `params` of method `meth`
+    /// with each parameter replaced by a fresh type variable below its type and `Singleton`, only
+    /// `Singleton` where its type refers to the clause (dotty's `resultTypeApprox` with
+    /// `newDepTypeVar`); `None` unless `pt` is a fully defined type.
+    pub fn result_type_approx(
+        &mut self,
+        result: TypeId,
+        (binder, params): (Binder, &[(NameId, TypeId)]),
+        meth: Option<SymbolId>,
+        pt: Pt,
+    ) -> Option<TypeId> {
+        let Pt::Type(p) = pt else { return None };
+        if !self.is_fully_defined(p) {
+            return None;
+        }
+
+        let names: Vec<NameId> = params.iter().map(|&(n, _)| n).collect();
+        let singleton = crate::defn::type_ref(self.u, self.u.defn().singleton);
+        let mut vars = Vec::with_capacity(params.len());
+        for &(_, p) in params {
+            let var = self.constraint.fresh(self.u);
+            let p = self.u.by_name(p).unwrap_or(p);
+            let hi = match mentions_clause_params(self.u, p, (binder, &names), meth) {
+                true => singleton,
+                false => self.u.intern_type(Type::And(p, singleton)),
+            };
+            self.u.is_subtype_in(var, hi, &mut self.constraint);
+            vars.push(var);
+        }
+
+        let param = |u: &tasty::Universe, part: TypeId| clause_param(u, part, (binder, &names), meth);
+        Some(substituted(self.u, result, &param, &vars))
+    }
+
     /// Constrains the result type `result` of an application of `meth` to conform to `pt`
     /// (dotty's `constrainResult`), only necessary constraints kept: normalized against a fully
     /// defined `pt`, not at all against `Unit`, else a value result after the implicit clauses
