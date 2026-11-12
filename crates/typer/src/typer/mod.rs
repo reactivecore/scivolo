@@ -63,6 +63,7 @@ pub(crate) mod deskolemize;
 pub(crate) mod did_you_mean;
 mod dispatch;
 mod dynamic;
+mod enclosing;
 mod enum_case_refs;
 mod enum_cases;
 mod enum_refs;

@@ -1,5 +1,7 @@
 package shapes
 
+class Named extends Box[String]("named")
+
 object Javajar {
   def main(args: Array[String]): Unit = {
     val b = new Box[String]("hi")
@@ -16,5 +18,6 @@ object Javajar {
     val c = new Counter
     c.next()
     println(c.next() + " " + c.count + " " + Counter.PREFIX.length)
+    println(new Named().inner().value())
   }
 }

@@ -40,7 +40,8 @@ is `SOURCE` (`shouldEmitAnnotation`).
   `addEnclosingTParams`, `ExplicitOuter`); a reference `A$B` or `A<T>.B` to an inner class is the
   projection `A#B`, `A[T]#B`.
 - A class or member gets the visibility dotty gives it (`getPrivateWithin`): `private`,
-  `protected[p]`, or `private[p]` if package-private, `p` its package. Package-private members of
+  `protected[p]`, or `private[p]` if package-private, `p` its package, which does not include `p`'s
+  subpackages (dotty's `accessWithin` on a `JavaDefined` symbol). Package-private members of
   JDK classes javalib defines are not entered (ADR 0108).
 - The library's runtime stubs (`Statics`, `BoxedUnit`, the `*Ref` classes) give way to their
   class files, as dotty reads them (`Statics.pfMarker`, `IntRef <: java.io.Serializable`); the

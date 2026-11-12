@@ -57,9 +57,9 @@ fn a_java_jar_on_the_classpath_is_used() {
 }
 
 #[test]
-fn protected_classes_outside_their_package_and_native_classes_are_refused() {
+fn inaccessible_java_classes_and_native_classes_are_refused() {
     let Some(jar) = shapes_jar("javajar-refused") else { return };
-    for name in ["hidden", "native"] {
+    for name in ["hidden", "subpackage", "native"] {
         let out = output(&mut scivolo(&jar, &jar.with_file_name(name), name));
         let stderr = String::from_utf8_lossy(&out.stderr);
         assert!(!out.status.success() && stderr.contains("does not support"), "{name}: {stderr}");

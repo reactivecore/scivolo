@@ -70,17 +70,6 @@ impl Typer<'_> {
         !modifiers.is_some_and(|m| self.ast.modifiers(m).is(syntax::ast::flags::GIVEN_OR_IMPLICIT))
     }
 
-    fn enclosing_package(&self, owner: SymbolId) -> SymbolId {
-        let mut o = owner;
-        while self.u.symbol(o).kind != Kind::Package {
-            match self.u.symbol(o).owner {
-                Some(p) => o = p,
-                None => break,
-            }
-        }
-        o
-    }
-
     /// Whether `found` at class members level `l` refers only to members the class inherits.
     pub fn is_inherited(&self, l: LevelId, found: &Found) -> bool {
         let Level::Members(cls) = *self.levels.get(l) else { return false };

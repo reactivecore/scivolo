@@ -62,14 +62,20 @@ impl Universe {
         self.classfile_classes.contains(&s)
     }
 
+    /// Whether `s` is a class, object or member entered from a class file (dotty's `JavaDefined`).
+    pub fn is_java_defined(&self, s: SymbolId) -> bool {
+        self.classfile_classes.contains(&s) || self.classfile_descriptors.contains_key(&s)
+    }
+
     /// The retention of `c` if it is an annotation class entered from a JDK class file.
     pub fn classfile_retention(&self, c: SymbolId) -> Option<Retention> {
         self.classfile_annotations.get(&c).copied()
     }
 
-    /// Whether `s` is a concrete member entered from a JDK class file.
+    /// Whether `s` is a concrete member or an object entered from a JDK class file.
     pub fn is_concrete_classfile_member(&self, s: SymbolId) -> bool {
         self.classfile_descriptors.contains_key(&s) && !self.is_deferred(s)
+            || self.classfile_classes.contains(&s)
     }
 
     /// The erasure of method `def` entered from a JDK class file, its descriptor's; a
