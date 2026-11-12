@@ -61,7 +61,7 @@ fn reduced(l: &mut Lower, t: TNodeId) -> Option<TNodeId> {
         })
         .collect();
     let own_param = l.tpd.sym(f).is_some_and(|s| l.u.symbol(s).owner == Some(meth));
-    let getter = l.tpd.sym(f).is_some_and(|s| has_getter(l, s) && !is_underlying(l, s));
+    let getter = l.tpd.sym(f).is_some_and(|s| l.has_getter(s) && !is_underlying(l, s));
     let pure = is_pure(l, f) && !creates_impure_module(l, f);
     if params != args || params.contains(&None) || own_param || getter || !pure {
         return None;
@@ -78,15 +78,18 @@ fn reduced(l: &mut Lower, t: TNodeId) -> Option<TNodeId> {
     conforms(l, &from, &to).then_some(f)
 }
 
-/// Whether value `s` of a class is read by a getter call (dotty's `Getters`): not a parameter, an
-/// object, nor a private local non-lazy field of a class.
-fn has_getter(l: &Lower, s: SymbolId) -> bool {
-    let Some(owner) = l.u.symbol(s).owner else { return false };
-    if l.u.symbol(s).kind != Kind::Val || !l.u.is_class(owner) || l.u.is_module(s) {
-        return false;
+impl Lower<'_> {
+    /// Determines whether value `s` of a class is read by a getter call (dotty's `Getters`): not
+    /// a parameter, an object, nor a private local non-lazy field of a class.
+    pub fn has_getter(&self, s: SymbolId) -> bool {
+        let Some(owner) = self.u.symbol(s).owner else { return false };
+        if self.u.symbol(s).kind != Kind::Val || !self.u.is_class(owner) || self.u.is_module(s) {
+            return false;
+        }
+        let u = &*self.u;
+        let field = has(u, s, PRIVATE) && has(u, s, LOCAL) && !has(u, s, LAZY) && !u.is_trait(owner);
+        !field
     }
-    let field = has(l.u, s, PRIVATE) && has(l.u, s, LOCAL) && !has(l.u, s, LAZY) && !l.u.is_trait(owner);
-    !field
 }
 
 /// Whether `s` is the underlying value of a value class, which erasure reads as the value itself.

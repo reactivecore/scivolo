@@ -3,9 +3,8 @@
 //! A class's skeleton: flags, parents, fields, methods, and an object's `MODULE$` and
 //! `<clinit>` (dotty's `genPlainClass`).
 
-use super::body::Body;
 use super::clinit::StaticInit;
-use super::descriptors::{class_descriptor, class_internal, internal, method_descriptor};
+use super::descriptors::{class_descriptor, class_internal, internal};
 use super::{ClassBytes, Gen, java_flags, unsupported};
 use classfile::{ACC_FINAL, ACC_PUBLIC, ACC_STATIC, ACC_VOLATILE, ClassFile, Last};
 use lower::Result;
@@ -61,14 +60,22 @@ impl Gen<'_, '_> {
                     if let Some(sig) = self.generic_signature(s, &desc) {
                         cf.member_signature(Last::Field, &sig);
                     }
-                    if self.l.u.is_annotated(s, "scala.deprecated") {
+                    if self.is_deprecated(s) {
                         cf.member_deprecated(Last::Field);
+                    }
+                    if let Some(holder) = self.field_annotations_of(s) {
+                        self.emit_annotations(&mut cf, Some(Last::Field), holder);
                     }
                     if self.l.var_handle_field(s).is_some() {
                         init.handles.push(s);
                     }
                 }
-                Tree::TypeDef { .. } if self.l.tpd.class_template(stat).is_some() => nested.push(stat),
+                Tree::TypeDef { .. } if self.l.tpd.class_template(stat).is_some() => {
+                    if module {
+                        self.module_field(&mut cf, s);
+                    }
+                    nested.push(stat)
+                }
                 Tree::TypeDef { .. } | Tree::Import { .. } => {}
                 _ => return unsupported(self.l.tpd.span(stat), "statements in a class body"),
             }
@@ -80,11 +87,13 @@ impl Gen<'_, '_> {
         if let Some(companion) = companion.filter(|&c| !module && self.l.u.is_static_module(c)) {
             self.add_forwarders(&mut cf, companion, Some(sym));
         }
-        let signature = super::signatures::class(self.l.u, sym);
+        let original_top = self.original_top(sym);
+        let signature = super::signatures::class(self.l.u, sym, original_top);
         cf.signature(&signature);
-        if self.l.u.is_annotated(sym, "scala.deprecated") {
+        if self.is_deprecated(sym) {
             cf.deprecated();
         }
+        self.emit_annotations(&mut cf, None, sym);
         let source = self.source_name(td);
         cf.source_file(&source);
         let mut declared: Vec<SymbolId> = nested.iter().filter_map(|&n| self.l.tpd.sym(n)).collect();
@@ -136,49 +145,19 @@ impl Gen<'_, '_> {
         (superclass, interfaces)
     }
 
+    /// Declares the static field of nested object `c` of a static object, which stays unassigned
+    /// (dotty's `isStaticModuleField` for the module val).
+    fn module_field(&mut self, cf: &mut ClassFile, c: SymbolId) {
+        if !self.l.u.is_module_class(c) {
+            return;
+        }
+        let Some(module) = self.l.u.source_module(c) else { return };
+        let name = tasty::encode(&self.l.u.symbol(module).name.clone());
+        cf.field(java_flags(self.l, module) | ACC_STATIC, &name, &class_descriptor(&self.class_name(c)));
+    }
+
     pub fn class_name(&self, c: SymbolId) -> String {
         internal(&self.l.u.binary_name(c))
-    }
-
-    /// The constructor of a static object up to its superclass constructor call; returns the
-    /// statements after it, which go to `<clinit>`.
-    fn gen_module_constructor(
-        &mut self,
-        cf: &mut ClassFile,
-        dd: TNodeId,
-        sym: SymbolId,
-    ) -> Result<Vec<TNodeId>> {
-        let Tree::DefDef { rhs: Some(rhs), .. } = *self.l.tpd.tree(dd) else { unreachable!("a constructor") };
-        let Tree::Block { stats, expr } = *self.l.tpd.tree(rhs) else {
-            return unsupported(self.l.tpd.span(rhs), "a constructor body that is not a block");
-        };
-        let stats = self.l.tpd.items(stats).to_vec();
-        let split = stats.iter().position(|&s| self.is_super_call(s)).map_or(0, |i| i + 1);
-        let (desc, flags) = (method_descriptor(self.l.u, sym), java_flags(self.l, sym));
-        let class = self.l.u.symbol(sym).owner.expect("a constructor's class");
-        let mut b = Body::new(&mut cf.pool, None, 1);
-        b.this_class = Some(self.class_name(class));
-        for &t in &stats[..split] {
-            self.stat(&mut b, t)?;
-        }
-        self.stat(&mut b, expr)?;
-        b.code.ret("V");
-        let code = b.code;
-        cf.method(flags, nme::CONSTRUCTOR, &desc, Some(code), &mut |a, b| self.jvm_lub(a, b));
-        Ok(stats[split..].to_vec())
-    }
-
-    /// Whether `t` calls a superclass constructor, last in a block of its lifted arguments (dotty's
-    /// `splitAtSuper`).
-    fn is_super_call(&self, t: TNodeId) -> bool {
-        let t = match *self.l.tpd.tree(t) {
-            Tree::Block { expr, .. } => expr,
-            _ => t,
-        };
-        let Tree::Apply { fun, .. } = *self.l.tpd.tree(t) else { return false };
-        let Tree::Select { qualifier, .. } = *self.l.tpd.tree(fun) else { return false };
-        matches!(self.l.tpd.tree(qualifier), Tree::Super { .. })
-            && self.l.tpd.sym(fun).is_some_and(|m| self.l.u.is_constructor(m))
     }
 
     /// The file name of the source defining `t`.

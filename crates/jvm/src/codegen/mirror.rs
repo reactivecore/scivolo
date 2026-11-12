@@ -29,6 +29,7 @@ impl Gen<'_, '_> {
     ) -> Result<()> {
         let name = module_name.strip_suffix('$').unwrap_or(module_name);
         let mut cf = ClassFile::new(ACC_PUBLIC | ACC_FINAL | ACC_SUPER, name, "java/lang/Object", &[]);
+        self.emit_annotations(&mut cf, None, module);
         self.add_forwarders(&mut cf, module, None);
         let source = self.source_name(td);
         cf.source_file(&source);
@@ -65,14 +66,16 @@ impl Gen<'_, '_> {
             code.ret(result);
             let flags = ACC_PUBLIC | ACC_STATIC | if synthetic { ACC_SYNTHETIC } else { 0 };
             cf.method(flags, &method, &desc, Some(code), &mut |_, _| None);
+            self.emit_method_annotations(cf, m);
             let target = self.l.mixed_in_from(m).unwrap_or(m);
             let this = self.l.u.this_type(module);
             let unflattened = self.l.unflattened_info(target);
             let info = unflattened.unwrap_or_else(|| self.l.u.member_info(this, target));
             self.exceptions(cf, m);
             let thrown = self.thrown(m);
+            let member = self.signed_member(target, target);
             if !self.l.is_mixin_accessor(m)
-                && let Some(sig) = super::signatures::member(self.l.u, (target, target), info, &desc, &thrown)
+                && let Some(sig) = super::signatures::member(self.l.u, member, info, &desc, &thrown)
                 && (unflattened.is_some() || super::signatures::erases_to(&sig, &desc))
             {
                 cf.member_signature(Last::Method, &sig);

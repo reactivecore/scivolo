@@ -88,6 +88,7 @@ impl OverrideChecks {
     /// may not: they match with the same erasure, or both have default arguments.
     fn double_definition(&self, t: &mut Typer<'_>, own: &[SymbolId]) -> Option<&'static str> {
         let defs: Vec<SymbolId> = own.iter().copied().filter(|&d| t.u.symbol(d).kind == Kind::Def).collect();
+        defs.iter().for_each(|&d| t.complete_erased_classes(d));
         for (k, &a) in defs.iter().enumerate() {
             for &b in &defs[..k] {
                 if t.u.symbol(a).name != t.u.symbol(b).name {

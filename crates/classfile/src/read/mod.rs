@@ -1,9 +1,13 @@
-//! Reading class files (JVMS §4.1): the class's names, flags, members and `Signature`
-//! attributes, other attributes skipped.
+//! Reading class files (JVMS §4.1): the class's names, flags, members, `Signature`
+//! attributes, annotations and inner classes, other attributes skipped.
 
+mod attributes;
 mod jdk;
 mod jimage;
 
+use attributes::{Attributes, attributes};
+
+pub use attributes::Annotation;
 pub use jdk::Jdk;
 
 /// A field or method of a class read: its flags, name, descriptor, generic signature and a
@@ -27,6 +31,10 @@ pub struct ClassInfo {
     pub fields: Vec<MemberInfo>,
     pub methods: Vec<MemberInfo>,
     pub signature: Option<String>,
+    pub annotations: Vec<Annotation>,
+    pub inner_classes: Vec<crate::InnerClass>,
+    /// Whether a `Scala`, `ScalaSig` or `TASTY` attribute marks it as compiled from Scala.
+    pub scala: bool,
 }
 
 /// The bytes of a class file after an offset.
@@ -145,29 +153,12 @@ fn constants(b: &mut Bytes) -> Result<Constants, String> {
     Ok(c)
 }
 
-/// The `Signature` (JVMS §4.7.9) and `ConstantValue` attributes among the attributes, the
-/// others skipped.
-fn attributes(b: &mut Bytes, c: &Constants) -> Result<(Option<String>, Option<ConstantValue>), String> {
-    let (mut signature, mut constant) = (None, None);
-    for _ in 0..b.u2()? {
-        let name = b.u2()?;
-        let n = b.u4()? as usize;
-        let mut value = Bytes { bytes: b.take(n)?, at: 0 };
-        match c.utf8(name).as_deref() {
-            Ok("Signature") if n == 2 => signature = Some(c.utf8(value.u2()?)?),
-            Ok("ConstantValue") if n == 2 => constant = Some(c.value(value.u2()?)?),
-            _ => {}
-        }
-    }
-    Ok((signature, constant))
-}
-
 fn members(b: &mut Bytes, c: &Constants) -> Result<Vec<MemberInfo>, String> {
     (0..b.u2()?)
         .map(|_| {
             let access = b.u2()?;
             let (name, descriptor) = (c.utf8(b.u2()?)?, c.utf8(b.u2()?)?);
-            let (signature, constant) = attributes(b, c)?;
+            let Attributes { signature, constant, .. } = attributes(b, c)?;
             Ok(MemberInfo { access, name, descriptor, signature, constant })
         })
         .collect()
@@ -188,6 +179,17 @@ pub fn read(bytes: &[u8]) -> Result<ClassInfo, String> {
     let interfaces = interfaces.collect::<Result<_, String>>()?;
     let fields = members(&mut b, &c)?;
     let methods = members(&mut b, &c)?;
-    let (signature, _) = attributes(&mut b, &c)?;
-    Ok(ClassInfo { access, name, superclass, interfaces, fields, methods, signature })
+    let Attributes { signature, annotations, inner_classes, scala, .. } = attributes(&mut b, &c)?;
+    Ok(ClassInfo {
+        access,
+        name,
+        superclass,
+        interfaces,
+        fields,
+        methods,
+        signature,
+        annotations,
+        inner_classes,
+        scala,
+    })
 }

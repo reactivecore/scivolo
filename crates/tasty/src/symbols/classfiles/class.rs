@@ -5,15 +5,14 @@
 
 use super::super::builtin::synthetic;
 use super::super::{Kind, SymbolId, Universe};
+use super::annotation;
+use super::constant::constant_type;
 use super::signatures::{Sig, Var, bounded_by_object, bounds, cooked};
-use crate::tags::{
-    ABSTRACT, BYTEconst, CHARconst, DOUBLEconst, FALSEconst, FINAL, FLOATconst, INTconst, LONGconst, MUTABLE,
-    OBJECT, PROTECTED, SEALED, SHORTconst, STATIC, TRAIT, TRUEconst,
-};
+use crate::tags::{ABSTRACT, FINAL, MUTABLE, OBJECT, PROTECTED, SEALED, STATIC, TRAIT};
 use crate::types::{NameId, Type, TypeId};
 use classfile::{
     ACC_ABSTRACT, ACC_BRIDGE, ACC_ENUM, ACC_FINAL, ACC_INTERFACE, ACC_NATIVE, ACC_PROTECTED, ACC_PUBLIC,
-    ACC_STATIC, ACC_SYNTHETIC, ACC_VARARGS, ClassInfo, ConstantValue, MemberInfo,
+    ACC_STATIC, ACC_SYNTHETIC, ACC_VARARGS, ClassInfo, MemberInfo,
 };
 use names::nme;
 
@@ -26,10 +25,10 @@ pub struct Owners<'a> {
     pub vars: Vec<Var>,
 }
 
-/// Enters class `info` into package `pkg` with its object: the class, the object's class and
-/// the object; none, with nothing entered, if its signature is one this reader refuses.
-pub fn enter(u: &mut Universe, pkg: SymbolId, info: &ClassInfo) -> Option<Vec<SymbolId>> {
-    let simple = info.name.rsplit_once('/').map_or(info.name.as_str(), |(_, n)| n);
+/// Enters class `info` into package or class `pkg` as `simple` with its object: the class, the
+/// object's class and the object; none, with nothing entered, if its signature is one this
+/// reader refuses.
+pub fn enter(u: &mut Universe, pkg: SymbolId, simple: &str, info: &ClassInfo) -> Option<Vec<SymbolId>> {
     let interface = info.access & ACC_INTERFACE != 0;
     let mut flags = Vec::new();
     let sealed = info.access & ACC_ENUM != 0 && info.fields.iter().any(|f| f.access & ACC_ENUM != 0);
@@ -52,7 +51,9 @@ pub fn enter(u: &mut Universe, pkg: SymbolId, info: &ClassInfo) -> Option<Vec<Sy
     u.java_stubs.extend(entered);
     u.classfile_classes.extend(entered);
     let members = info.fields.iter().map(|f| (f, false)).chain(info.methods.iter().map(|m| (m, true)));
-    members.for_each(|(m, method)| _ = member(u, &owners, m, method));
+    let members: Vec<SymbolId> =
+        members.filter_map(|(m, method)| member(u, &owners, m, method).ok()?).collect();
+    annotation::enter(u, class, info, &members);
     Some(entered.to_vec())
 }
 
@@ -137,24 +138,6 @@ pub fn member(
         u.set_deferred(s, m.access & ACC_ABSTRACT != 0);
     }
     Ok(Some(s))
-}
-
-/// The constant type of a field of descriptor `descriptor` and `ConstantValue` `c`, its `Integer`
-/// entry converted to the field's type (dotty's `convertTo`).
-fn constant_type(u: &mut Universe, descriptor: &str, c: &ConstantValue) -> Result<TypeId, String> {
-    let t = match (descriptor, c) {
-        ("Z", &ConstantValue::Int(i)) => Type::Constant(if i != 0 { TRUEconst } else { FALSEconst }, 0),
-        ("B", &ConstantValue::Int(i)) => Type::Constant(BYTEconst, i64::from(i as i8)),
-        ("S", &ConstantValue::Int(i)) => Type::Constant(SHORTconst, i64::from(i as i16)),
-        ("C", &ConstantValue::Int(i)) => Type::Constant(CHARconst, i64::from(i as u16)),
-        ("I", &ConstantValue::Int(i)) => Type::Constant(INTconst, i64::from(i)),
-        ("J", &ConstantValue::Long(l)) => Type::Constant(LONGconst, l),
-        ("F", &ConstantValue::Float(f)) => Type::Constant(FLOATconst, i64::from(f)),
-        ("D", &ConstantValue::Double(d)) => Type::Constant(DOUBLEconst, d as i64),
-        ("Ljava/lang/String;", ConstantValue::String(s)) => Type::Str(u.types.intern_name(s)),
-        _ => return Err(format!("constant {c:?} of a field of type {descriptor}")),
-    };
-    Ok(u.types.intern(t))
 }
 
 /// The type of method `m` of signature `text`: polymorphic in its type parameters, a

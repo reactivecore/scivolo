@@ -16,7 +16,7 @@ pub use pool::{
     Constant, Handle, Pool, REF_INVOKE_INTERFACE, REF_INVOKE_SPECIAL, REF_INVOKE_STATIC, REF_INVOKE_VIRTUAL,
     Ref,
 };
-pub use read::{ClassInfo, ConstantValue, Jdk, MemberInfo, read};
+pub use read::{Annotation, ClassInfo, ConstantValue, Jdk, MemberInfo, read};
 
 /// Java 17's class file version, dotty's default target.
 pub const MAJOR_VERSION: u16 = 61;

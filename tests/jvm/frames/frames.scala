@@ -33,7 +33,13 @@ object Frames {
     total + d
   }
 
+  def unimplemented: Int = ???
+
+  def guarded(c: Boolean): Int = if (if c then true else ???) then 1 else 2
+
   def main(args: Array[String]): Unit = {
+    println(guarded(true))
+    try unimplemented catch { case _: NotImplementedError => println("???") }
     println(number(true))
     println(number(false))
     println(ref(1, args))

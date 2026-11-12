@@ -372,23 +372,23 @@ sources jar is compiled alone by `scivolo-jvm --scalalib` and its class files co
 javap text, code and attributes apart, with dotty 3.9.0's from one run over the whole sources jar
 with the library build's options without `-opt`. The published jar is no oracle: its build adds
 the optimizer (1883 of its 3134 classes dotty also writes differ in code from dotty's) and takes
-139 classes and 2.13's specialized ones from Scala 2.13. Results (2026-11-09):
+139 classes and 2.13's specialized ones from Scala 2.13. Results (2026-11-11):
 
 | Outcome | Files | Classes |
 |---|---:|---:|
-| same | 223 | 1144 |
-| attributes differ | 33 | 259 |
-| code differs | 229 | 1120 |
-| refused | 164 | |
+| same | 251 | 2017 |
+| attributes differ | 175 | 501 |
+| code differs | 192 | 519 |
+| refused | 31 | |
 
-- **Refused:** `unresolved name FunctionalInterface` (87, a JDK annotation class); TASTy
-  pickling (39: an annotated sealed class 15, a type outside the subset 15);
-  member not found (13); adaptation (9); no applicable alternative (8).
-- **Code differs**, by first differing line: a missing `serialVersionUID` field (46), dotty's
-  second `athrow` after a call of type `Nothing` (37), generic signatures of trait forwarders and
-  extension methods (`compose`, `equals$extension`), field signatures (`underlying`).
-- **Attributes differ:** line numbers (163), `private final` flags (30), `Deprecated` (25),
-  `InnerClasses` (11).
+- **Refused:** no applicable alternative (8); adaptation (8); TASTy pickling (6: a type annotation
+  with arguments 4, a tree outside the subset 2); member not found (4); ambiguous implicit conversions (2); the
+  package-private Java class `INodeBase` (1); `@SerialVersionUID` of no constant (1).
+- **Code differs**, by first differing line: branch offsets after dotty's dead second `athrow`
+  following an inlined `.nn` (`ifeq`, `ifnonnull`, `goto`; the library oracle inlines from source,
+  dotty compiling against the jar writes ours), `Comparator.thenComparing`'s bound taken from
+  Scala Native's javalib (18, #245).
+- **Attributes differ:** mostly line numbers.
 
 ### com-lihaoyi libraries from source
 
@@ -417,7 +417,10 @@ not exist yet while a class of the same run is typed. `ToExpr$ArrayOf*ToExpr$` (
 `ToExpr$BigIntToExpr$` and `ToExpr$MapToExpr` differ in quote type sharing (case 1, as in
 **Quote type sharing** above, types shared across the files of the whole-module build);
 scala-cli's build of `ToExpr.scala` alone has the quotes of all 106 classes as ours, up to
-positions.
+positions. Open: `FromExpr$MapFromExpr`'s quotes differ beyond positions, 31 other `FromExpr`
+classes in the positions of their quotes; `CNode` calls `RandomGenerator.nextInt(int, int)`
+where Scala Native, compiling against the JDK, calls `ThreadLocalRandom`'s override, which
+javalib lacks.
 
 ## M5: scala/scala `test/junit`
 

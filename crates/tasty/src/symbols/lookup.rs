@@ -130,7 +130,11 @@ impl Universe {
         }
         let objects = self.package_objects(owner)?;
         let found: Vec<SymbolId> = objects.into_iter().flat_map(|o| self.named(o, name).to_vec()).collect();
-        Ok(if found.is_empty() { self.jdk_decl(owner, name) } else { found })
+        if !found.is_empty() {
+            return Ok(found);
+        }
+        let jdk = self.jdk_decl(owner, name);
+        Ok(if jdk.is_empty() { self.classpath_decl(owner, name) } else { jdk })
     }
 
     /// The declarations `decl` finds, none where a file fails to load.

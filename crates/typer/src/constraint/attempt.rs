@@ -41,14 +41,37 @@ impl Constraint {
     }
 
     fn settle_from(&mut self, from: usize, fate: Fate) {
-        for f in self.fates[from..].iter_mut().filter(|f| **f == Fate::Open) {
+        for (i, f) in self.fates.iter_mut().enumerate().skip(from).filter(|(_, f)| **f == Fate::Open) {
             *f = fate;
+            if fate == Fate::Discarded {
+                self.pending.remove(&(i as u32));
+            }
         }
     }
 
     /// Whether `v` is neither instantiated nor made by an abandoned attempt.
     pub fn is_pending(&self, v: VarId) -> bool {
         self.instance(v).is_none() && self.fates[v.0 as usize] != Fate::Discarded
+    }
+
+    /// Lists the pending variables of id `from` or later, by id.
+    pub fn pending_from(&self, from: usize) -> impl Iterator<Item = VarId> + '_ {
+        debug_assert!(
+            self.pending
+                .iter()
+                .copied()
+                .eq((0..self.vars.len() as u32).filter(|&i| self.is_pending(VarId(i))))
+        );
+        self.pending.range(from as u32..).map(|&i| VarId(i))
+    }
+
+    /// Updates the pending set after entry `i` changed.
+    pub fn sync_pending(&mut self, i: usize) {
+        if self.is_pending(VarId(i as u32)) {
+            self.pending.insert(i as u32);
+        } else {
+            self.pending.remove(&(i as u32));
+        }
     }
 }
 
@@ -73,6 +96,7 @@ mod tests {
         c.abandon(a);
         assert!(c.is_pending(outer));
         assert!(!c.is_pending(inner));
+        assert_eq!(c.pending_from(0).collect::<Vec<_>>(), [outer]);
     }
 
     #[test]
@@ -94,5 +118,6 @@ mod tests {
         assert!(c.is_pending(kept));
         assert_eq!(c.instance(instantiated), Some(tasty::ANY));
         assert!(c.is_pending(outer));
+        assert_eq!(c.pending_from(0).collect::<Vec<_>>(), [outer, kept]);
     }
 }

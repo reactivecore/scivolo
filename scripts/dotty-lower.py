@@ -91,7 +91,7 @@ def lowered(name, groups, check, dir, options=None):
         if m := re.search(r"Failed to evaluate macro\..*?unsupported: no method (\S+)", r.stderr):
             return "macro refused", m[1].removeprefix("scala.quoted.runtime.impl.")
         message = first_line(r.stderr)
-        if m := re.match(r"the (typer|lowering) does not support (.*?)( at (\S+:)?\d+:\d+)?$", message):
+        if m := re.match(r"(?:.*?: )?the (typer|lowering) does not support (.*?)( at (\S+:)?\d+:\d+)?$", message):
             return f"{m[1]} refused", m[2]
         if "syntax error" in message:
             return "parser refused", message

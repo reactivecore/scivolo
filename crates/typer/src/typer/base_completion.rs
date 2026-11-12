@@ -1,8 +1,8 @@
-//! Completion of the unit's classes before a base class test.
+//! Completion of the unit's classes before a base class test or an erasure.
 
 use super::Typer;
 use crate::symbols::Completion;
-use tasty::{Kind, SymbolId, TypeId};
+use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
     /// Whether `t` derives from class `class`, given by its full name, the unit's classes among
@@ -36,6 +36,32 @@ impl Typer<'_> {
         pending.sort_by_key(|s| s.0);
         pending.iter().for_each(|&s| self.complete(s));
         !pending.is_empty()
+    }
+
+    /// Completes the classes of the parameter and result types of method `def` and the underlying
+    /// values of those that are value classes, which its erasure reads (dotty's
+    /// `isDerivedValueClass` forces the class's info).
+    pub fn complete_erased_classes(&mut self, def: SymbolId) {
+        let mut t = self.u.info(def);
+        let mut types = Vec::new();
+        loop {
+            match *self.u.ty(t) {
+                Type::Poly { result, .. } => t = result,
+                Type::Method { params, result, .. } => {
+                    types.extend(self.u.params_of(params).iter().map(|&(_, p)| p));
+                    t = result;
+                }
+                _ => break types.push(t),
+            }
+        }
+        for t in types {
+            let widened = self.u.widen(t);
+            let Some(c) = self.u.class_symbol(widened) else { continue };
+            self.complete(c);
+            if let Some(value) = self.u.underlying(c) {
+                self.complete(value);
+            }
+        }
     }
 
     /// Completes class `c` and the unit's classes among its base classes.

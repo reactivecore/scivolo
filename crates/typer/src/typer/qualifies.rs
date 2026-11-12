@@ -48,6 +48,28 @@ impl Typer<'_> {
         matches!(self.u.ty(info), Type::Method { .. } | Type::Poly { .. })
     }
 
+    /// Whether `s` is a method whose first term parameter clause is neither `using` nor
+    /// `implicit`, as `def New(tpt: Tree)(using Context)`.
+    pub fn takes_explicit_args(&mut self, s: SymbolId) -> bool {
+        if !self.is_real_method(s) {
+            return false;
+        }
+        let Some(&def) = self.syms.def_trees.get(&s) else {
+            let info = self.u.info(s);
+            let info = self.u.poly(info).map_or(info, |p| p.result);
+            return self.u.method(info).is_some_and(|m| !m.implicit);
+        };
+        let Tree::DefDef { paramss, .. } = *self.ast.tree(def) else { return false };
+        let clauses = self.ast.clause_items(paramss);
+        let first = clauses
+            .iter()
+            .map(|&c| self.ast.items(c).first().copied())
+            .find(|p| p.is_none_or(|p| !matches!(self.ast.tree(p), Tree::TypeDef { .. })));
+        let Some(first) = first else { return false };
+        let modifiers = first.and_then(|p| self.ast.mods_of(p));
+        !modifiers.is_some_and(|m| self.ast.modifiers(m).is(syntax::ast::flags::GIVEN_OR_IMPLICIT))
+    }
+
     fn enclosing_package(&self, owner: SymbolId) -> SymbolId {
         let mut o = owner;
         while self.u.symbol(o).kind != Kind::Package {
@@ -68,7 +90,13 @@ impl Typer<'_> {
 
     /// Checks that no scope or class outside level `l`, up to the first package, defines `name`
     /// differently from the inherited `found`.
-    pub fn check_no_outer_defs(&mut self, l: LevelId, found: &Found, name: Name) -> Result<(), &'static str> {
+    pub fn check_no_outer_defs(
+        &mut self,
+        l: LevelId,
+        found: &Found,
+        name: Name,
+        ctx: Ctx,
+    ) -> Result<(), &'static str> {
         let mut level = self.levels.outer(l);
         while let Some(o) = level {
             if matches!(*self.levels.get(o), Level::Members(p) if self.u.symbol(p).kind == Kind::Package) {
@@ -78,7 +106,7 @@ impl Typer<'_> {
                 Level::Members(c) if self.u.symbol(c).kind == Kind::Class => Some(c),
                 _ => None,
             };
-            if let Some(outer) = self.defined(o, name)
+            if let Some(outer) = self.defined(o, name, ctx)
                 && outer.syms.iter().any(|&s| {
                     !found.syms.contains(&s) && cls.is_none_or(|c| self.u.symbol(s).owner == Some(c))
                 })

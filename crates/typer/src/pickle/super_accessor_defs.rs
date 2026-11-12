@@ -8,11 +8,24 @@ use crate::defn::type_ref;
 use names::nme;
 use syntax::ast::Span;
 use tasty::tags::{
-    ANNOTATION, APPLY, ARTIFACT, DEFDEF, EMPTYCLAUSE, NEW, PARAM, SELECTin, SPLITCLAUSE, STRINGconst,
-    TYPEPARAM,
+    ANNOTATION, APPLY, ARTIFACT, DEFDEF, EMPTYCLAUSE, GIVEN, IMPLICIT, NEW, PARAM, SELECTin, SPLITCLAUSE,
+    STRINGconst, TYPEPARAM,
 };
 use tasty::write::Name;
-use tasty::{Flags, Kind, Symbol, SymbolId, TypeId};
+use tasty::{Flags, Kind, Symbol, SymbolId, Type, TypeId, Universe};
+
+/// The info of the super accessor of `member`, `info` its selection's type with references to
+/// `member`'s type parameters replaced by references to the type's (dotty's `memberInfo`).
+pub fn accessor_info(u: &mut Universe, member: SymbolId, info: TypeId) -> TypeId {
+    let Some((binder, params)) = u.poly(info).map(|b| (b.binder, b.params.to_vec())) else { return info };
+    u.map_type(info, &mut |u, x| {
+        let (None, s) = u.sym_ref(x)? else { return None };
+        let sym = u.symbol(s);
+        let ours = sym.kind == Kind::TypeParam && sym.owner == Some(member);
+        let i = params.iter().position(|&(n, _)| ours && u.name(n) == sym.name)?;
+        Some(u.intern_type(Type::Param(binder, i as u32)))
+    })
+}
 
 impl TreePickler<'_> {
     /// Super accessor `acc`, declared without a body.
@@ -25,24 +38,26 @@ impl TreePickler<'_> {
         self.synthetic_here(span, None);
         self.with_length(DEFDEF, &mut |p| {
             p.name(&name);
-            let mut t = p.accessor_type_params(acc, info)?;
+            let mut t = p.accessor_type_params(acc, info, span)?;
             let mut term_before = false;
             while let Some((params, result, implicit, contextual)) =
                 p.u.method(t).map(|m| (m.params.to_vec(), m.result, m.implicit, m.contextual))
             {
-                if implicit || contextual {
-                    return Err("a super call of a method with implicit parameters");
-                }
+                let modifier = if contextual { Some(GIVEN) } else { implicit.then_some(IMPLICIT) };
                 if params.is_empty() {
                     p.byte(EMPTYCLAUSE);
                 } else if term_before {
                     p.byte(SPLITCLAUSE);
                 }
                 for &(name, tpe) in params.iter() {
+                    p.synthetic_here(span, None);
                     p.with_length(PARAM, &mut |p| {
                         let name = Name::utf8(p.u.name(name));
                         p.name(&name);
-                        p.ty(tpe, false)
+                        p.synthetic_here(span, None);
+                        p.ty(tpe, false)?;
+                        modifier.into_iter().for_each(|m| p.byte(m));
+                        Ok(())
                     })?;
                 }
                 (t, term_before) = (result, !params.is_empty());
@@ -93,8 +108,8 @@ impl TreePickler<'_> {
     }
 
     /// The type parameters of super accessor `acc` of type `info`, a type parameter for each of
-    /// a polymorphic type's (dotty's `polyDefDef`); and the method type they are of.
-    fn accessor_type_params(&mut self, acc: SymbolId, info: TypeId) -> Result<TypeId, Refusal> {
+    /// a polymorphic type's (dotty's `polyDefDef`), at `span`; and the method type they are of.
+    fn accessor_type_params(&mut self, acc: SymbolId, info: TypeId, span: Span) -> Result<TypeId, Refusal> {
         let Some((binder, params, result)) =
             self.u.poly(info).map(|b| (b.binder, b.params.to_vec(), b.result))
         else {
@@ -120,10 +135,12 @@ impl TreePickler<'_> {
         }
         self.method_binders.insert(binder, syms.clone());
         for (s, (name, bounds)) in syms.into_iter().zip(params) {
+            self.synthetic_here(span, None);
             self.register_def(s);
             self.with_length(TYPEPARAM, &mut |p| {
                 let name = Name::utf8(p.u.name(name));
                 p.name(&name);
+                p.synthetic_here(span, None);
                 p.ty(bounds, false)
             })?;
         }

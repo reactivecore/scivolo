@@ -60,6 +60,7 @@ impl Typer<'_> {
             .without_wildcard_args(parent, class, method)
             .ok_or("single abstract method type of a wildcard argument outside the subset")?;
         let parent = if unrefined != dealiased && parent == unrefined { dealiased } else { parent };
+        self.complete(method);
         let info = self.u.member_info(parent, method);
         let info = self.u.with_refined_aliases(info, parent);
         let Some(Binding { binder, params, result, implicit: false, .. }) = self.u.method(info) else {
