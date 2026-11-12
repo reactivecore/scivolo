@@ -51,6 +51,7 @@ pub fn from_product(
         let mut arity = None;
         if !getters.is_empty() {
             let product_ref = l.copy_ident(args[0]);
+            l.tpd.mark_copy(product_ref, args[0]);
             let rhs = l.select(product_ref, cc.product_arity, Span::NONE);
             let rhs = l.positioned(rhs);
             let int = l.u.widen(l.tpd.tpe(rhs));
@@ -69,6 +70,7 @@ pub fn from_product(
                 None => param,
             };
             let product_ref = l.copy_ident(args[0]);
+            l.tpd.mark_copy(product_ref, args[0]);
             let index = l.int_literal(i as i32);
             let mut element = l.call(product_ref, cc.product_element, &[index]);
             if let Some(arity) = arity.filter(|_| i >= unrolled_from) {

@@ -124,6 +124,7 @@ fn index_match(l: &mut Lower, index: TNodeId, elems: Vec<TNodeId>, cc: CaseClass
     }
     let new = l.new_(cc.ioobe, Span::NONE);
     let index_ref = l.copy_ident(index);
+    l.tpd.mark_copy(index_ref, index);
     let error = l.call(new, cc.ioobe_ctor, &[index_ref]);
     l.tpd.get_mut(error).tpe = l.tpd.get(new).tpe;
     let throw = l.throw_(error);

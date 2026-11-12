@@ -201,6 +201,14 @@ The VM fixes javalib bugs in its library overlay (`overlay/src`, ADR 0009).
     - It adds the parameters of one `ContextFunctionN` result to every method's signature, whether
       erasure flattened none (`h(I)Lscala/Function1;` signed `(ILjava/lang/String;)I`) or two.
     - Fix: follow `ContextResultCount`. JVM: as dotty.
+20. **`TastyPrinter` reads constants as nats** (dotty 3.9.0 and 3.10.1,
+    `compiler/src/dotty/tools/dotc/core/tasty/TastyPrinter.scala:197`).
+    - `printNat` reads the `LongInt` of `INTconst` and the other signed constants: a negative
+      constant prints wrong, one of five bytes or more fails with "Expected a 31-bit nat", e.g. the
+      hash seed `0xcafebabe` of every case class with a primitive field
+      (`case class P(a: Int, b: String)`).
+    - Fix: `readLongInt` for the signed constants. `just jvm-tasty`: prints both sides with the seed
+      replaced.
 
 ## M4: dotty `tests/run`
 

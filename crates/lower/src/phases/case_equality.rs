@@ -94,6 +94,7 @@ impl Lower<'_> {
         }
         let this = self.this(class, Span::NONE);
         let that_ref = self.copy_ident(that);
+        self.tpd.mark_copy(that_ref, that);
         let span = from_start(self.tpd.span(that_ref));
         let object = self.u.class_ref(tasty::defn::OBJECT);
         let fun = self.select(that_ref, self.defs.type_cast, span);
