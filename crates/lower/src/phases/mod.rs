@@ -22,6 +22,7 @@ mod case_hash;
 mod case_members;
 pub(crate) mod casts;
 mod class_calls;
+mod class_moves;
 mod closures;
 mod companion_order;
 mod constructor_instance;
