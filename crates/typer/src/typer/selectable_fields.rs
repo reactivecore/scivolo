@@ -31,9 +31,9 @@ impl Typer<'_> {
         }
         let fields = self.type_members(pre, "Fields").into_iter().find(|&s| self.u.is_type_symbol(s))?;
         let fields = self.u.intern_type(Type::Sym(Some(pre), fields));
-        let fields = self.u.dealias(fields);
+        let fields = self.types().widen_dealias(fields);
         let fields = self.with_case_fields(fields);
-        let fields = self.u.normalized(fields);
+        let fields = super::simplify::normalize_all(self.u, fields);
         let (names, values) = self.derived_named_tuple_parts(fields)?;
         let text = self.text(name.name).to_owned();
         let field = values[names.iter().position(|n| *n == text)?];
