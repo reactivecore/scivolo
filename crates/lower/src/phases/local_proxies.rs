@@ -56,10 +56,22 @@ pub fn proxy(l: &mut Lower, v: SymbolId, owner: SymbolId, kind: Kind, flags: Fla
     p
 }
 
-/// The span of the definition of local value `v` in unit `root`, none for a parameter of an
-/// `apply` that `SpecializeFunctions` copies with new parameters; the point of an extension
-/// method for its parameters, which `FullParameterization` makes anew there.
-pub fn definition_span(l: &mut Lower, root: TNodeId, v: SymbolId) -> Span {
+/// Finds the span of each value definition of unit `root`, of its first one in `subtrees` order.
+pub fn val_def_spans(l: &Lower, root: TNodeId) -> FxHashMap<SymbolId, Span> {
+    let mut spans = FxHashMap::default();
+    for t in super::walk::subtrees(l.tpd, root) {
+        if let (Tree::ValDef { .. }, Some(v)) = (l.tpd.tree(t), l.tpd.sym(t)) {
+            spans.entry(v).or_insert_with(|| l.tpd.span(t));
+        }
+    }
+    spans
+}
+
+/// Determines the span of the definition of local value `v` by `val_defs`, the spans of the value
+/// definitions of its unit; none for a parameter of an `apply` that `SpecializeFunctions` copies
+/// with new parameters; the point of an extension method for its parameters, which
+/// `FullParameterization` makes anew there.
+pub fn definition_span(l: &mut Lower, val_defs: &FxHashMap<SymbolId, Span>, v: SymbolId) -> Span {
     let owner = l.u.symbol(v).owner;
     if l.u.symbol(v).kind == Kind::Param && owner.is_some_and(|m| super::specialize::is_specialized(l, m)) {
         return Span::NONE;
@@ -68,10 +80,7 @@ pub fn definition_span(l: &mut Lower, root: TNodeId, v: SymbolId) -> Span {
     if let Some(at) = extension.filter(|_| l.u.symbol(v).kind == Kind::Param).and_then(|m| l.coords.get(&m)) {
         return *at;
     }
-    let def = super::walk::subtrees(l.tpd, root)
-        .into_iter()
-        .find(|&t| matches!(l.tpd.tree(t), Tree::ValDef { .. }) && l.tpd.sym(t) == Some(v));
-    def.map_or(Span::NONE, |d| l.tpd.span(d))
+    val_defs.get(&v).copied().unwrap_or(Span::NONE)
 }
 
 /// The indices of `locals` in the order of their definitions, an object's class after its

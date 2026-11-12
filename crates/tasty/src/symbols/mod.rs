@@ -218,11 +218,18 @@ impl Universe {
 
     /// The qualified name of `id`, e.g. `scala.collection.immutable.List`.
     pub fn full_name(&self, id: SymbolId) -> String {
-        let s = self.symbol(id);
-        match s.owner {
-            Some(o) if o != self.root() => format!("{}.{}", self.full_name(o), s.name),
-            _ => s.name.clone(),
+        let mut path = vec![id];
+        while let Some(o) = self.symbol(path[path.len() - 1]).owner.filter(|&o| o != self.root()) {
+            path.push(o);
         }
+        let mut name = String::with_capacity(path.iter().map(|&s| self.symbol(s).name.len() + 1).sum());
+        for (i, &s) in path.iter().rev().enumerate() {
+            if i > 0 {
+                name.push('.');
+            }
+            name.push_str(&self.symbol(s).name);
+        }
+        name
     }
 
     /// The names of `s` and its owners up to its package, joined by `$`, an object's without its

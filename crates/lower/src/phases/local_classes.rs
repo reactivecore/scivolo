@@ -10,8 +10,10 @@ use super::lift_names::{Caller, LocalClass, Pending, merged};
 use super::local_free::{
     Free, Local, enclosing_class, free_values, is_local, is_method, is_term, lifted_into, within,
 };
-use super::local_lift::{lift, pass_values};
-use super::local_proxies::{constructor, definition_order, definition_span, make_proxies, naming_key};
+use super::local_lift::{constructor_calls, lift, pass_values};
+use super::local_proxies::{
+    constructor, definition_order, definition_span, make_proxies, naming_key, val_def_spans,
+};
 use super::nested_reads::Nested;
 use crate::symbols::has;
 use crate::{Lower, Result, unsupported};
@@ -59,8 +61,10 @@ pub fn transform(l: &mut Lower, root: TNodeId, classes: &[TNodeId]) -> Result<Pe
     let order = definition_order(l, &locals);
     let mut pending = Pending::default();
     let proxies = make_proxies(l, &locals, &mut pending);
+    let calls = if locals.is_empty() { FxHashMap::default() } else { constructor_calls(l, root) };
     for (c, (fields, _)) in locals.iter().zip(&proxies) {
-        pass_values(l, root, c.class, &c.free, fields, &mut pending.passed)?;
+        let calls = calls.get(&c.class).map_or(&[][..], Vec::as_slice);
+        pass_values(l, calls, c, fields, &mut pending.passed);
     }
     super::local_traits::transform(l, root, &traits, &deps, &mut pending)?;
     let logic_owners = std::mem::take(&mut deps.logic_owners);
@@ -68,8 +72,10 @@ pub fn transform(l: &mut Lower, root: TNodeId, classes: &[TNodeId]) -> Result<Pe
     let own = locals.iter().map(|c| (c.class, (c.free.values.clone(), c.free.in_methods.clone()))).collect();
     let mut nested = Nested { own, named_in: FxHashMap::default() };
     let (mut classes, mut named) = (Vec::new(), FxHashMap::default());
+    let in_methods = locals.iter().any(|c| !c.free.in_methods.is_empty());
+    let val_defs = if in_methods { val_def_spans(l, root) } else { FxHashMap::default() };
     for (Local { td, class, named_in, free, .. }, (fields, params)) in locals.into_iter().zip(proxies) {
-        let spans: Vec<Span> = free.in_methods.iter().map(|&v| definition_span(l, root, v)).collect();
+        let spans: Vec<Span> = free.in_methods.iter().map(|&v| definition_span(l, &val_defs, v)).collect();
         if !l.u.is_trait(class) {
             add_proxies(l, td, class, &free, (&fields, &params), (&spans, &mut nested))?;
         } else if !params.is_empty() {

@@ -135,7 +135,7 @@ pub fn imported_implicits(t: &mut Typer<'_>, i: usize) -> Result<Vec<(Candidate,
 /// selection from `this`; a misfit if `c` is inaccessible and not javalib's, or javalib's and
 /// would need an inline accessor.
 pub fn candidate_ref(t: &mut Typer<'_>, c: Candidate, span: Span, ctx: Ctx) -> Result<TNodeId, &'static str> {
-    let javalib = !t.syms.is_script(c.sym) && is_jdk(&t.u.full_name(c.sym));
+    let javalib = !t.syms.is_script(c.sym) && in_jdk(t.u, c.sym);
     let accessible = t.is_accessible_from(c.sym, c.prefix, ctx);
     if !javalib && !accessible {
         return Err("inaccessible implicit");
@@ -177,4 +177,12 @@ pub fn candidate_ref(t: &mut Typer<'_>, c: Candidate, span: Span, ctx: Ctx) -> R
         return Err("implicit through a path");
     }
     Ok(t.ref_(c.prefix, c.sym, tpe, span, ctx))
+}
+
+/// Tells whether `s` is in a root package of the JDK, as `is_jdk` of its full name.
+fn in_jdk(u: &tasty::Universe, mut s: SymbolId) -> bool {
+    while let Some(o) = u.symbol(s).owner.filter(|&o| o != u.root()) {
+        s = o;
+    }
+    is_jdk(&u.symbol(s).name)
 }
