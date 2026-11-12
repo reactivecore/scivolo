@@ -666,6 +666,7 @@ dependencies = [
 name = "scivolo-classfile"
 version = "0.2.0"
 dependencies = [
+ "hashbrown 0.17.1",
  "rustc-hash",
  "zip",
 ]

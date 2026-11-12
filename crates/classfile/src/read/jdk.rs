@@ -41,15 +41,12 @@ impl Jdk {
     /// Whether the JDK has a class in package `pkg`, an internal name such as `java/time`.
     pub fn has_package(&mut self, pkg: &str) -> bool {
         if self.packages.is_none() {
-            let names = self.source().map_or_else(Vec::new, |s| s.names());
+            let names = self.source().map_or_else(Vec::new, |s| s.packages());
             let mut packages = HashSet::new();
             for name in names {
                 let mut pkg = name.as_str();
-                while let Some((outer, _)) = pkg.rsplit_once('/') {
-                    pkg = outer;
-                    if !packages.insert(pkg.to_owned()) {
-                        break;
-                    }
+                while !pkg.is_empty() && packages.insert(pkg.to_owned()) {
+                    pkg = pkg.rsplit_once('/').map_or("", |(outer, _)| outer);
                 }
             }
             self.packages = Some(packages);
@@ -62,9 +59,9 @@ impl Jdk {
     }
 }
 
-/// The JDK's directory: the `java.home` of `JAVA_HOME`'s `java`, else of the `java` on the
-/// `PATH` (a launcher stub such as macOS's `/usr/bin/java` reports the JDK it starts), else the
-/// directory above the `java` binary, links resolved.
+/// The JDK's directory of `JAVA_HOME`'s `java`, else of the `java` on the `PATH`: the directory
+/// above the `java` binary, links resolved, if it has the class files, else the `java.home`
+/// `java` reports (a launcher stub such as macOS's `/usr/bin/java` reports the JDK it starts).
 fn home() -> Option<PathBuf> {
     let java_home = std::env::var_os("JAVA_HOME").map(|h| PathBuf::from(h).join("bin"));
     let path = std::env::var_os("PATH").unwrap_or_default();
@@ -72,7 +69,7 @@ fn home() -> Option<PathBuf> {
     let java = dirs.find_map(|d| Some(d.join("java")).filter(|j| j.is_file()))?;
     let beside = || Some(java.canonicalize().ok()?.parent()?.parent()?.to_owned());
     let has_classes = |h: &PathBuf| ["lib/modules", "lib/ct.sym"].iter().any(|f| h.join(f).is_file());
-    reported_home(&java).or_else(beside).filter(has_classes)
+    beside().filter(has_classes).or_else(|| reported_home(&java).filter(has_classes))
 }
 
 /// The `java.home` property `java` reports.
@@ -105,11 +102,13 @@ fn ct_sym(home: &Path) -> Option<Source> {
 }
 
 impl Source {
-    /// The internal names of the classes.
-    fn names(&self) -> Vec<String> {
+    /// The internal names of the packages of the classes.
+    fn packages(&self) -> Vec<String> {
         match self {
-            Source::Jimage(image) => image.names(),
-            Source::CtSym { entries, .. } => entries.keys().cloned().collect(),
+            Source::Jimage(image) => image.packages(),
+            Source::CtSym { entries, .. } => {
+                entries.keys().filter_map(|n| Some(n.rsplit_once('/')?.0.to_owned())).collect()
+            }
         }
     }
 
