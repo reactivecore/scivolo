@@ -78,7 +78,9 @@ pub fn lift(
     });
     let (Some(path), Some(target)) = (path, target) else {
         let from = lift_walking(l, placement.root, td, in_package);
-        *placement = Placement::of(l, placement.root);
+        if !placement.shared {
+            *placement = Placement::of(l, placement.root);
+        }
         return from;
     };
     let from = path.get(1).and_then(|&b| remove_stat(l, b, td).map(|index| (b, index)));
