@@ -225,8 +225,8 @@ pub fn cooked(u: &mut Universe, internal: &str) -> TypeId {
     u.types.intern_applied(class, &vec![wildcard; n])
 }
 
-/// A reference to the class of internal name `internal`, a nested class `A$B` as `A.B`, an inner
-/// one of a jar's class file as `A#B` (dotty's `innerType`).
+/// A reference to the class of internal name `internal` through its package's `this`, a nested
+/// class `A$B` as `A.B`, an inner one of a jar's class file as `A#B` (dotty's `innerType`).
 fn class_ref(u: &mut Universe, internal: &str) -> TypeId {
     let nesting = super::classpath::java_class(u, internal).and_then(|info| {
         let entry = info.inner_classes.iter().find(|e| e.inner == internal && e.flags & ACC_STATIC == 0)?;
@@ -239,7 +239,8 @@ fn class_ref(u: &mut Universe, internal: &str) -> TypeId {
     }
     let (pkg, name) = internal.rsplit_once('/').unwrap_or(("", internal));
     let pkg = u.enter_package(&pkg.replace('/', "."));
-    let mut prefix = u.types.intern(Type::Package(pkg));
+    let pkg = u.types.intern(Type::Package(pkg));
+    let mut prefix = u.types.intern(Type::This(pkg));
     let mut parts: Vec<&str> = name.split('$').filter(|p| !p.is_empty()).collect();
     let last = parts.pop().unwrap_or(name);
     for outer in parts {

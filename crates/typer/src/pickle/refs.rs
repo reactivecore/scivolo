@@ -2,6 +2,7 @@
 //   compiler/src/dotty/tools/dotc/core/tasty/TreePickler.scala
 //! References to symbols and named members (dotty's `NamedType` case of `pickleNewType`).
 
+use super::sharing::BY_NAME;
 use super::{Refusal, TreePickler};
 use crate::defn::type_ref;
 use crate::tpd::TNodeId;
@@ -150,8 +151,18 @@ impl TreePickler<'_> {
         }
     }
 
+    /// Pickles type `prefix.name`; a class file's reference, through the `this` of a package,
+    /// shared as the reference to its symbol (dotty's `typeRef` of a class file's class).
+    pub fn named_type(&mut self, prefix: TypeId, name: NameId, is_type: bool) -> Result<(), Refusal> {
+        let package_this = self.u.this_of(prefix).is_some_and(|c| matches!(self.u.ty(c), Type::Package(_)));
+        if self.keying && !package_this {
+            self.byte(BY_NAME);
+        }
+        self.named_ref(prefix, name, is_type)
+    }
+
     /// `prefix.name`, through the symbol it resolves to if it does.
-    pub fn named_ref(&mut self, prefix: TypeId, name: NameId, is_type: bool) -> Result<(), Refusal> {
+    fn named_ref(&mut self, prefix: TypeId, name: NameId, is_type: bool) -> Result<(), Refusal> {
         if let Some(s) = self.u.resolve(prefix, name, is_type) {
             return self.sym_ref(Some(prefix), s);
         }
