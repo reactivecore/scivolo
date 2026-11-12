@@ -68,7 +68,7 @@ impl TreePickler<'_> {
             }
             T::Typed { expr, tpt } => {
                 self.share_placeholder_tpt(expr, tpt);
-                self.node(TYPED, &[expr, tpt], &[])
+                self.with_typed_tpts(vec![tpt], &mut |p| p.node(TYPED, &[expr, tpt], &[]))
             }
             T::NamedArg { name, arg } => {
                 self.byte(NAMEDARG);

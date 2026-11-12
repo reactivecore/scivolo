@@ -5,7 +5,7 @@
 
 use super::{Refusal, TreePickler};
 use crate::defn::type_ref;
-use crate::tpd::{List, TNodeId};
+use crate::tpd::{List, TNodeId, Tree};
 use names::nme;
 use tasty::TypeId;
 use tasty::tags::{ANNOTATEDtpt, ANNOTATEDtype, APPLY, NEW, REFINEDtpt, SELECTin};
@@ -53,11 +53,60 @@ impl TreePickler<'_> {
         })
     }
 
-    /// The annotation tree of the type tree pickled, if its type is `annotated` and an annotated
-    /// expression gave it.
+    /// The annotation tree of the type tree pickled, else of the innermost enclosing typed
+    /// expression or case pattern, whose type is `annotated` and an annotated expression gave.
     pub fn tpt_annotation(&self, annotated: TypeId) -> Option<TNodeId> {
-        let tpt = self.type_tree.filter(|&tpt| self.tpd.tpe(tpt) == annotated)?;
-        self.tpd.tpt_annotation(tpt)
+        let enclosing = self.typed_tpts.iter().rev().copied();
+        let tpts = self.type_tree.into_iter().chain(enclosing);
+        tpts.filter(|&tpt| self.tpd.tpe(tpt) == annotated).find_map(|tpt| self.annotation_of(tpt))
+    }
+
+    /// The annotation tree of type tree `tpt`, if an annotated expression or type gave its type.
+    fn annotation_of(&self, tpt: TNodeId) -> Option<TNodeId> {
+        match *self.tpd.tree(tpt) {
+            Tree::Annotated { annot, .. } => Some(annot),
+            _ => self.tpd.tpt_annotation(tpt),
+        }
+    }
+
+    /// The type trees of the typed expressions and patterns in tree `t`, and the annotated type
+    /// trees in them.
+    pub fn annotated_tpts(&self, t: TNodeId) -> Vec<TNodeId> {
+        let mut tpts = match *self.tpd.tree(t) {
+            Tree::Typed { tpt, .. } => vec![tpt],
+            Tree::Annotated { .. } => vec![t],
+            _ => Vec::new(),
+        };
+        tpts.extend(self.tpd.children(t).into_iter().flat_map(|c| self.annotated_tpts(c)));
+        tpts
+    }
+
+    /// The type trees of `annotated_tpts(rhs)`, if a definition's type tree `tpt` is inferred,
+    /// with an annotation tree that no other of them gives another one for the same type.
+    pub fn rhs_tpts(&self, tpt: TNodeId, rhs: Option<TNodeId>) -> Vec<TNodeId> {
+        let Some(rhs) = rhs.filter(|_| matches!(self.tpd.tree(tpt), Tree::TypeTree { .. })) else {
+            return Vec::new();
+        };
+        let tpts: Vec<_> =
+            self.annotated_tpts(rhs).into_iter().filter(|&t| self.annotation_of(t).is_some()).collect();
+        let unique = |&t: &TNodeId| {
+            let same = |o: &&TNodeId| self.tpd.tpe(**o) == self.tpd.tpe(t);
+            tpts.iter().filter(same).all(|&o| self.annotation_of(o) == self.annotation_of(t))
+        };
+        tpts.iter().copied().filter(unique).collect()
+    }
+
+    /// Pickles `pickle` inside typed expressions or case patterns of type trees `tpts`.
+    pub fn with_typed_tpts(
+        &mut self,
+        tpts: Vec<TNodeId>,
+        pickle: &mut dyn FnMut(&mut Self) -> Result<(), Refusal>,
+    ) -> Result<(), Refusal> {
+        let depth = self.typed_tpts.len();
+        self.typed_tpts.extend(tpts);
+        let pickled = pickle(self);
+        self.typed_tpts.truncate(depth);
+        pickled
     }
 
     /// Whether class type `class` is capture checking's `caps.internal.inferred`.

@@ -23,8 +23,11 @@ impl TreePickler<'_> {
     }
 
     pub fn case_def(&mut self, pat: TNodeId, guard: Option<TNodeId>, body: TNodeId) -> Result<(), Refusal> {
-        self.with_length(CASEDEF, &mut |p| {
-            [Some(pat), Some(body), guard].into_iter().flatten().try_for_each(|t| p.tree(t))
+        let tpts = self.annotated_tpts(pat);
+        self.with_typed_tpts(tpts, &mut |p| {
+            p.with_length(CASEDEF, &mut |p| {
+                [Some(pat), Some(body), guard].into_iter().flatten().try_for_each(|t| p.tree(t))
+            })
         })
     }
 
@@ -49,9 +52,10 @@ impl TreePickler<'_> {
         self.register_def(sym);
         let info = self.u.info(sym);
         let (flags, term) = (self.u.symbol(sym).flags.without(CASE), self.u.symbol(sym).kind.is_term());
+        let tpts = self.annotated_tpts(body);
         self.with_length(BIND, &mut |p| {
             p.name(&local_name(p.u, sym));
-            p.ty(info, false)?;
+            p.with_typed_tpts(tpts.clone(), &mut |p| p.ty(info, false))?;
             p.tree(body)?;
             p.flags(flags, term);
             Ok(())
