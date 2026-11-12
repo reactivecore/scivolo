@@ -18,6 +18,17 @@ impl Inlining<'_> {
         Ok(())
     }
 
+    /// Expands the inline calls of unit `root` in place; gives the refusal of each definition in
+    /// its package clauses whose calls do not expand, the first refusal first.
+    pub fn run_all(&mut self, root: TNodeId) -> Vec<Unsupported> {
+        let first = self.run(root).err();
+        let mut all = std::mem::take(&mut self.refusals);
+        if let Some(e) = first.filter(|e| !all.contains(e)) {
+            all.insert(0, e);
+        }
+        all
+    }
+
     /// `t`, owned by `owner`, with the inline calls in it expanded; inline definitions stay.
     pub fn transform(&mut self, t: TNodeId, owner: SymbolId) -> Result<TNodeId, Unsupported> {
         let inner = match self.tpd.tree(t) {
@@ -45,10 +56,14 @@ impl Inlining<'_> {
             _ => (Vec::new(), None),
         };
         let mut failed = None;
+        let package = matches!(self.tpd.tree(t), T::PackageDef { .. });
         let changed = map_children(self, t, &mut |i, c| match Some(c) == call {
             true => c,
             false => {
                 i.transform(c, constr.filter(|_| parents.contains(&c)).unwrap_or(inner)).unwrap_or_else(|e| {
+                    if package && !i.refusals.contains(&e) {
+                        i.refusals.push(e);
+                    }
                     failed.get_or_insert(e);
                     c
                 })

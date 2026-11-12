@@ -133,6 +133,8 @@ pub struct Inlining<'a> {
     /// Whether the code being retyped is a macro's result, whose references to methods with a
     /// using clause take their implicit arguments.
     pub in_macro_result: bool,
+    /// The refusals of the definitions in package clauses whose inline calls did not expand.
+    pub refusals: Vec<Unsupported>,
 }
 
 impl AsMut<Tpd> for Inlining<'_> {
@@ -177,6 +179,7 @@ impl<'a> Inlining<'a> {
             scopes: Vec::new(),
             case_givens: Vec::new(),
             in_macro_result: false,
+            refusals: Vec::new(),
         }
     }
 }
