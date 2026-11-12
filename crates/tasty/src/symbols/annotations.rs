@@ -75,14 +75,20 @@ impl Universe {
         };
         for class in classes {
             if self.full_name(class) != except {
-                self.annotate(to, class);
-                for arg in self.annotation_strings(from, class).to_vec() {
-                    self.annotate_string(to, class, arg);
-                }
-                if let Some(metas) = self.annotation_metas.get(&(from, class)).cloned() {
-                    self.annotation_metas.entry((to, class)).or_default().extend(metas);
-                }
+                self.copy_annotation(from, to, class);
             }
+        }
+    }
+
+    /// Records the annotations of class `class` on `from` on `to` with their string arguments
+    /// and meta-annotations.
+    pub fn copy_annotation(&mut self, from: SymbolId, to: SymbolId, class: SymbolId) {
+        self.annotate(to, class);
+        for arg in self.annotation_strings(from, class).to_vec() {
+            self.annotate_string(to, class, arg);
+        }
+        if let Some(metas) = self.annotation_metas.get(&(from, class)).cloned() {
+            self.annotation_metas.entry((to, class)).or_default().extend(metas);
         }
     }
 
