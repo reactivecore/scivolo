@@ -11,7 +11,8 @@ mod mark_free;
 
 use super::explicit_outer::in_term;
 use super::local_free::{is_term, original_owner};
-use super::mixin::{forwarded, mixins};
+use super::mixin::mixins;
+use super::mixin_forwarders::forwarded;
 use super::walk::subtrees;
 use crate::Lower;
 use rustc_hash::FxHashMap;

@@ -90,6 +90,11 @@ impl Config {
                     Some("disable") => cfg.kind_projector = KindProjector::Disabled,
                     Some(_) => unknown(arg),
                 },
+                "-Xmixin-force-forwarders" => match value() {
+                    "true" => cfg.force_forwarders = true,
+                    "false" => cfg.force_forwarders = false,
+                    _ => unknown(arg),
+                },
                 "-Werror" | "-Xfatal-warnings" => {
                     cfg.warnings.fatal = true;
                     unknown(arg)
@@ -113,8 +118,9 @@ mod tests {
 
     #[test]
     fn names_the_first_option_not_implemented() {
-        let bad: [&[&str]; 7] = [
+        let bad: [&[&str]; 8] = [
             &["-source"],
+            &["-Xmixin-force-forwarders:junit"],
             &["-source:3.0-migration"],
             &["-source:nonsense"],
             &["-Xkind-projector:other"],
@@ -128,6 +134,7 @@ mod tests {
         let good = ["-nowarn", "-language:implicitConversions,postfixOps", "-Xkind-projector:disable"];
         assert!(Config::checked(&good).is_ok());
         assert!(Config::checked(&["-Yexplicit-nulls"]).unwrap().explicit_nulls);
+        assert!(!Config::checked(&["-Xmixin-force-forwarders:false"]).unwrap().force_forwarders);
         assert!(Config::checked(&["-Wnonunit-statement", "-source", "3.9"]).is_ok());
     }
 

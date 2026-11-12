@@ -23,6 +23,7 @@ impl OverrideChecks {
         for (k, &a) in own.iter().enumerate() {
             for &b in &own[..k] {
                 if t.u.symbol(a).run_name() == t.u.symbol(b).run_name()
+                    && t.is_scala_static(a) == t.is_scala_static(b)
                     && t.u.erased_method(a) == t.u.erased_method(b)
                 {
                     return Some("double definition");

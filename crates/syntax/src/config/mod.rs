@@ -116,6 +116,9 @@ pub struct Config {
     pub explicit_nulls: bool,
     /// The REPL compiles the unit (dotty's `Mode.Interactive`).
     pub interactive: bool,
+    /// Not `-Xmixin-force-forwarders:false`: a class gets a forwarder to each concrete trait
+    /// method it inherits, not only where dotty's `needsMixinForwarder` requires one.
+    pub force_forwarders: bool,
 }
 
 impl Default for Config {
@@ -133,6 +136,7 @@ impl Default for Config {
             warnings: Warnings::default(),
             explicit_nulls: false,
             interactive: false,
+            force_forwarders: true,
         }
     }
 }

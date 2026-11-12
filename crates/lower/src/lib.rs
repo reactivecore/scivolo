@@ -24,6 +24,7 @@ pub use phases::sam::abstract_methods;
 use rustc_hash::{FxHashMap, FxHashSet};
 pub use symbols::{is_erased, is_jdk_object};
 use syntax::ast::Span;
+use syntax::config::Config;
 use syntax::diag::Diagnostics;
 use syntax::names::{FreshNames, Names};
 use syntax::source::Sources;
@@ -186,6 +187,8 @@ pub struct Lower<'a> {
     moved_classes: Vec<(SymbolId, Span, syntax::source::Offset)>,
     /// `-Yexplicit-nulls`.
     explicit_nulls: bool,
+    /// Not `-Xmixin-force-forwarders:false`.
+    force_forwarders: bool,
     pub backend: Backend,
     /// The static `VarHandle` field of each lazy value's field on the JVM.
     var_handles: FxHashMap<SymbolId, SymbolId>,
@@ -194,31 +197,31 @@ pub struct Lower<'a> {
 }
 
 /// The NIR files of typed unit `root`, one per top-level name, whose spans are offsets into
-/// `sources`, typed under `-Yexplicit-nulls` if `explicit_nulls`; the phases' warnings go to
-/// `warnings`.
+/// `sources`, compiled under the settings `cfg`; the phases' warnings go to `warnings`.
 pub fn lower_sources(
     u: &mut Universe,
     (tpd, warnings): (&mut Tpd, &mut Diagnostics),
     root: TNodeId,
     (names, fresh): (&mut Names, &mut FreshNames),
-    (sources, explicit_nulls): (Sources, bool),
+    (sources, cfg): (Sources, Config),
 ) -> Result<Vec<NirFile>> {
     let generate = (Backend::Native, codegen::unit);
-    lower_trees(u, (tpd, warnings), root, (names, fresh), (sources, explicit_nulls), generate)
+    lower_trees(u, (tpd, warnings), root, (names, fresh), (sources, cfg), generate)
 }
 
-/// Runs the phases for `backend` over typed unit `root`, then `generate` over the lowered trees;
-/// the phases' warnings go to `warnings`.
+/// Runs the phases for `backend` over typed unit `root`, compiled under the settings `cfg`,
+/// then `generate` over the lowered trees; the phases' warnings go to `warnings`.
 pub fn lower_trees<R>(
     u: &mut Universe,
     (tpd, warnings): (&mut Tpd, &mut Diagnostics),
     root: TNodeId,
     (names, fresh): (&mut Names, &mut FreshNames),
-    (sources, explicit_nulls): (Sources, bool),
+    (sources, cfg): (Sources, Config),
     (backend, generate): (Backend, impl FnOnce(&mut Lower, TNodeId) -> Result<R>),
 ) -> Result<R> {
     let mut l = Lower::new(u, tpd, (names, fresh), sources)?;
-    l.explicit_nulls = explicit_nulls;
+    l.explicit_nulls = cfg.explicit_nulls;
+    l.force_forwarders = cfg.force_forwarders;
     l.backend = backend;
     let starts: Vec<_> = l.sources.files().iter().skip(1).map(|&(base, _)| base).collect();
     l.record_files(root, &starts);
@@ -329,6 +332,7 @@ impl<'a> Lower<'a> {
             tail_locals: FxHashSet::default(),
             moved_classes: Vec::new(),
             explicit_nulls: false,
+            force_forwarders: true,
             backend: Backend::Native,
             var_handles: FxHashMap::default(),
             warnings: Diagnostics::default(),

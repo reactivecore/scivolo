@@ -94,6 +94,7 @@ mod methods;
 mod mirror_prefixes;
 mod mirrors;
 mod mixin;
+mod mixin_forwarders;
 mod module_purity;
 mod narrowed;
 mod native_interop;
