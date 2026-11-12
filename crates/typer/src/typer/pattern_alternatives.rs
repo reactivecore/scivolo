@@ -9,13 +9,26 @@ use syntax::ast::{List, NodeId};
 use tasty::NOTHING;
 
 impl Typer<'_> {
-    /// Pattern `p1 | p2 | ...` against a value of type `pt`.
+    /// Pattern `p1 | p2 | ...` against a value of type `pt`, each alternative typed with the GADT
+    /// bounds before the pattern; keeps the bounds where all alternatives narrow alike (dotty's
+    /// `necessaryGadtConstraint`), refused where they narrow differently.
     pub fn typed_alternative(&mut self, id: NodeId, trees: List, pt: Pt, ctx: Ctx) -> TNodeId {
         let ids = self.ast.items(trees).to_vec();
-        let narrowed = self.gadt.narrowed().len();
-        let typed: Vec<TNodeId> = ids.iter().map(|&t| self.typed(t, pt, ctx)).collect();
-        if self.gadt.narrowed().len() != narrowed {
-            return self.unsupported(id, "GADT bounds from pattern alternatives");
+        let mark = self.gadt.narrowed().len();
+        let mut narrowings = Vec::new();
+        let mut typed = Vec::new();
+        for &t in &ids {
+            typed.push(self.typed(t, pt, ctx));
+            narrowings.push(self.gadt.undo_since(self.u, mark));
+        }
+        if narrowings.windows(2).any(|w| w[0] != w[1]) {
+            return self.unsupported(id, "different GADT bounds from pattern alternatives");
+        }
+
+        for (s, bounds) in narrowings.pop().into_iter().flatten() {
+            if let Some(bounds) = bounds {
+                self.gadt.narrow(self.u, s, bounds);
+            }
         }
         if typed.iter().any(|&t| self.binds_variable(t)) {
             return self.unsupported(id, "variable in an alternative");

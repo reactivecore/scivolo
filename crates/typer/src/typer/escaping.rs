@@ -55,6 +55,18 @@ impl TypeOps<'_> {
     /// definitions `locals`, is bounded by a type mentioning one of them, directly or through the
     /// bounds of other types still to be inferred.
     pub fn var_bounds_refer_to(&mut self, t: TypeId, locals: &[SymbolId]) -> bool {
+        self.bounds_refer_to(t, locals, false)
+    }
+
+    /// Checks whether a type still to be inferred in `t`, wherever introduced, is bounded by a
+    /// type mentioning one of `locals`, also as the type of a value it is bounded by.
+    pub fn any_var_bounds_refer_to(&mut self, t: TypeId, locals: &[SymbolId]) -> bool {
+        self.bounds_refer_to(t, locals, true)
+    }
+
+    /// `var_bounds_refer_to`, for the types introduced inside the scope too and through values'
+    /// types if `all`.
+    fn bounds_refer_to(&mut self, t: TypeId, locals: &[SymbolId], all: bool) -> bool {
         if locals.is_empty() {
             return false;
         }
@@ -73,11 +85,17 @@ impl TypeOps<'_> {
                     continue;
                 }
                 seen.push(v);
-                let inner = locals.iter().all(|&s| self.constraint.made_after(v, s));
+                let inner = !all && locals.iter().all(|&s| self.constraint.made_after(v, s));
                 let (lo, hi) = self.constraint.bounds(v);
                 let (lo, hi) = (self.zonk(lo), self.zonk(hi));
                 if !inner && (self.refers_to(lo, locals) || self.refers_to(hi, locals)) {
                     return true;
+                }
+                if all {
+                    let (wlo, whi) = (self.u.widen(lo), self.u.widen(hi));
+                    if self.refers_to(wlo, locals) || self.refers_to(whi, locals) {
+                        return true;
+                    }
                 }
                 todo.extend([lo, hi]);
             }

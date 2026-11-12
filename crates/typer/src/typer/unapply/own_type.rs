@@ -5,7 +5,7 @@
 use super::super::Typer;
 use super::UnapplyPattern;
 use crate::tpd::TNodeId;
-use tasty::{Kind, TypeId, TypeVars, Universe};
+use tasty::{Kind, NOTHING, SymbolId, TypeId, TypeVars, Universe};
 
 impl UnapplyPattern {
     /// Infers the type of the pattern whose extractor `unapp` takes `arg_type`: the scrutinee's
@@ -45,19 +45,62 @@ impl UnapplyPattern {
                 Some(narrowed) => gadt = narrowed,
                 None => {
                     t.constraint.rollback(mark);
-                    if has_abstract_arg(t.u, sel) {
+                    if has_abstract_arg(t.u, sel) && !args_unrelated(t.u, arg_type, sel) {
                         return Err("pattern constraining type parameters (GADT)");
                     }
                 }
             }
         }
 
+        if !gadt.is_empty() && has_f_bounded_param(t, arg_type) {
+            return Err("GADT bounds from a pattern of a class with an F-bounded type parameter");
+        }
         let bound = t.maximize_type(arg_type, (vars, &gadt), unapp, self.ctx)?;
         t.narrow_gadt(&gadt)?;
         t.gadt.bind(&bound);
         t.add_binders(unapp, &bound);
         Ok(t.zonk(arg_type))
     }
+}
+
+/// Whether each type argument of `pat`'s base type at the class of `sel` applies a type
+/// parameter of a class without a lower bound where `sel`'s argument applies a class, so that
+/// no comparison of the two constrains anything (`Foo[F[A, B]]` against `Foo[C[X]]` in a class
+/// with `F[_, _]`).
+fn args_unrelated(u: &mut Universe, pat: TypeId, sel: TypeId) -> bool {
+    let sel = u.widen(sel);
+    let Some(class) = u.class_symbol(sel) else { return false };
+    let Some(sel_args) = u.applied(sel).map(|(_, args)| args.to_vec()) else { return false };
+    let Some(base) = u.base_type(pat, class) else { return false };
+    let Some(pat_args) = u.applied(base).map(|(_, args)| args.to_vec()) else { return false };
+    pat_args.len() == sel_args.len()
+        && pat_args.into_iter().zip(sel_args).all(|(p, s)| {
+            let (p, s) = (u.dealias(p), u.dealias(s));
+            let tycon_sym = |u: &Universe, t| u.applied(t).and_then(|(tycon, _)| u.sym_of(tycon));
+            let Some(f) = tycon_sym(u, p) else { return false };
+            let class_param = u.symbol(f).kind == Kind::TypeParam
+                && u.symbol(f).owner.is_some_and(|o| u.symbol(o).kind == Kind::Class);
+            class_param
+                && no_lower_bound(u, f)
+                && tycon_sym(u, s).is_some_and(|c| u.symbol(c).kind == Kind::Class)
+        })
+}
+
+/// Whether the lower bound of type parameter `f` is `Nothing`, also as a type lambda's result.
+fn no_lower_bound(u: &mut Universe, f: SymbolId) -> bool {
+    let info = u.info(f);
+    let Some((lo, _)) = u.bounds(info) else { return false };
+    let lo = u.lambda(lo).map_or(lo, |l| l.result);
+    lo == NOTHING
+}
+
+/// Whether the class of `t` has a type parameter whose bounds refer to it (`C[D <: Doc[D]]`).
+fn has_f_bounded_param(t: &mut Typer<'_>, tpe: TypeId) -> bool {
+    let Some(class) = t.u.class_symbol(tpe) else { return false };
+    t.u.type_params(class).into_iter().any(|p| {
+        let info = t.u.info(p);
+        t.refers_to(info, &[p])
+    })
 }
 
 /// Whether a type argument of `t`, or a part of one, is a type parameter or an abstract type
