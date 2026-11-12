@@ -113,3 +113,47 @@ fn renamed_and_unentered_members_resolve_no_more() {
     u.unenter(t2);
     assert_eq!(u.resolve_ref(r), None);
 }
+
+/// Checks `has_full_name` and `full_name_starts_with` of `s` against its `full_name`.
+fn check_full_name(u: &Universe, s: SymbolId) {
+    let full = u.full_name(s);
+    assert!(u.has_full_name(s, &full), "{full}");
+    assert!(!u.has_full_name(s, &format!("{full}x")), "{full}");
+    assert!(!u.has_full_name(s, &format!("x{full}")), "{full}");
+    assert!(!u.full_name_starts_with(s, &format!("{full}.")), "{full}");
+    for i in full.char_indices().map(|(i, _)| i).chain([full.len()]) {
+        let prefix = &full[..i];
+        assert!(u.full_name_starts_with(s, prefix), "{full} / {prefix}");
+        assert_eq!(u.has_full_name(s, prefix), i == full.len(), "{full} / {prefix}");
+        assert!(!u.full_name_starts_with(s, &format!("{prefix}\u{1}")), "{full} / {prefix}");
+    }
+}
+
+#[test]
+fn full_name_tests_agree_with_full_names() {
+    let mut u = Universe::empty();
+    let root = u.root();
+    let empty = u.define(symbol("<empty>", Kind::Package, root));
+    let a = u.define(symbol("a", Kind::Package, root));
+    let dotted = u.define(symbol("b.c", Kind::Class, a));
+    let pkg_object = u.define(symbol("package$", Kind::Class, a));
+    let outer = u.define(symbol("Outer$", Kind::Class, pkg_object));
+    let inner = u.define(symbol("Inner$", Kind::Class, outer));
+    let mut synthetic = vec![root, empty, a, dotted, pkg_object, outer, inner];
+    for name in ["::", "a b", "x$y$", "", "$u0020", "a.b"] {
+        synthetic.push(u.define(symbol(name, Kind::Class, inner)));
+        synthetic.push(u.define(symbol(name, Kind::Def, empty)));
+        synthetic.push(u.define(symbol(name, Kind::Val, dotted)));
+    }
+    synthetic.iter().for_each(|&s| check_full_name(&u, s));
+    assert!(u.has_full_name(dotted, "a.b.c") && u.full_name_starts_with(dotted, "a.b"));
+
+    let Some(mut u) = stdlib() else { return };
+    for (pkg, name) in
+        [("scala", "Predef$"), ("scala", "::"), ("scala", "package$"), ("scala.collection", "List")]
+    {
+        let p = u.package(pkg).unwrap();
+        let _ = u.decl(p, name);
+    }
+    (0..u.next_symbol().0).for_each(|i| check_full_name(&u, SymbolId(i)));
+}

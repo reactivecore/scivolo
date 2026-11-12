@@ -21,7 +21,7 @@ impl Universe {
 
     /// Determines whether `full_name(s)` starts with `prefix`.
     pub fn full_name_starts_with(&self, s: SymbolId, prefix: &str) -> bool {
-        self.after_full_name(s, prefix).is_some()
+        self.after_full_name(s, prefix) == Some("")
     }
 
     /// What remains of `prefix` after `full_name(s)`: empty once the name covers it, none where
