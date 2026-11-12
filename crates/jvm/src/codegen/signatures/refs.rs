@@ -11,9 +11,7 @@ impl Sig<'_> {
     /// A class, type parameter or type member reference, applied or not.
     pub fn reference(&mut self, t: TypeId, boxing: Boxing) {
         if let Some(p) = self.type_param(t) {
-            let name = tasty::encode(&self.u.symbol(p).name);
-            self.out.push_str(&format!("T{name};"));
-            return;
+            return self.param_ref(p, boxing);
         }
         let (tycon, args) = self.u.applied(t).map_or((t, Vec::new()), |(c, a)| (c, a.to_vec()));
         match self.applied_param(tycon, &args) {

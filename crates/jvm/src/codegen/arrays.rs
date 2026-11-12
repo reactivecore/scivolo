@@ -106,6 +106,7 @@ impl Gen<'_, '_> {
         }
         match self.l.u.symbol(m).name.as_str() {
             nme::IS_INSTANCE_OF => b.code.instance_of(b.pool, &class_internal(&tested)),
+            nme::AS_INSTANCE_OF if super::equality::is_null(self, qualifier) => {}
             nme::AS_INSTANCE_OF => {
                 b.code.checkcast(b.pool, &class_internal(&tested));
                 super::callee::adapt_phantom(b, &to);

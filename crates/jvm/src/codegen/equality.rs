@@ -149,6 +149,7 @@ impl Gen<'_, '_> {
     }
 }
 
-fn is_null(g: &Gen, t: TNodeId) -> bool {
+/// Whether `t` is the literal `null`.
+pub fn is_null(g: &Gen, t: TNodeId) -> bool {
     matches!(g.l.tpd.tree(t), Tree::Literal { value: Constant::Null })
 }
