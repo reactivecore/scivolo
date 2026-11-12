@@ -69,6 +69,35 @@ fn a_refused_file_leaves_out_itself_and_the_files_needing_it() {
 }
 
 #[test]
+fn refusals_after_typing_are_collected_from_all_files_at_once() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let jars = typer::dump::library_jars(&root.join("ref/libs"));
+    if !jars[0].exists() && std::env::var_os("CI").is_none() {
+        eprintln!("skipped: the library jars are not in ref/libs");
+        return;
+    }
+    let deferred = |o: &str| format!("trait T{o} {{ inline def f: Int }}\nobject {o} {{ def g(t: T{o}) = t.f }}");
+    let sources = [
+        SourceFile::new("a.scala", "object A { def f = ${ ??? } }".to_owned()),
+        SourceFile::new("b.scala", deferred("B")),
+        SourceFile::new("c.scala", deferred("C")),
+        SourceFile::new("d.scala", "object D { def h: Int = 1 }".to_owned()),
+    ];
+    let mut attempts = 0;
+    let mut open = || {
+        attempts += 1;
+        Universe::open(&jars).unwrap()
+    };
+    let isolated = lower::compile_sources_isolated(&mut open, &sources, Config::from_options(&[]), None)
+        .unwrap_or_else(|r| panic!("{}", r.what));
+    let refused: Vec<&str> = isolated.refused.iter().map(|r| r.file.as_str()).collect();
+    assert_eq!(refused, ["a.scala", "b.scala", "c.scala"]);
+    assert!(isolated.refused[2].refusal.what.contains("deferred inline"), "{}", isolated.refused[2].refusal.what);
+    assert!(isolated.out.iter().any(|f| f.name == "D$"));
+    assert_eq!(attempts, 2);
+}
+
+#[test]
 fn library_java_classes_redefined_and_lifted_classes_in_units() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let jars = typer::dump::library_jars(&root.join("ref/libs"));
