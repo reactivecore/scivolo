@@ -5,7 +5,7 @@
 use super::super::Typer;
 use super::UnapplyPattern;
 use crate::tpd::TNodeId;
-use tasty::{Kind, TypeId, TypeVars, Universe};
+use tasty::{Kind, NOTHING, SymbolId, TypeId, TypeVars, Universe};
 
 impl UnapplyPattern {
     /// Infers the type of the pattern whose extractor `unapp` takes `arg_type`: the scrutinee's
@@ -64,8 +64,9 @@ impl UnapplyPattern {
 }
 
 /// Whether each type argument of `pat`'s base type at the class of `sel` applies a type
-/// parameter of a class where `sel`'s argument is a class type, so that no comparison of the
-/// two constrains anything (`Foo[F[A, B]]` against `Foo[C[X]]` in a class with `F[_, _]`).
+/// parameter of a class without a lower bound where `sel`'s argument applies a class, so that
+/// no comparison of the two constrains anything (`Foo[F[A, B]]` against `Foo[C[X]]` in a class
+/// with `F[_, _]`).
 fn args_unrelated(u: &mut Universe, pat: TypeId, sel: TypeId) -> bool {
     let sel = u.widen(sel);
     let Some(class) = u.class_symbol(sel) else { return false };
@@ -75,11 +76,22 @@ fn args_unrelated(u: &mut Universe, pat: TypeId, sel: TypeId) -> bool {
     pat_args.len() == sel_args.len()
         && pat_args.into_iter().zip(sel_args).all(|(p, s)| {
             let (p, s) = (u.dealias(p), u.dealias(s));
-            let Some(f) = u.applied(p).and_then(|(tycon, _)| u.sym_of(tycon)) else { return false };
+            let tycon_sym = |u: &Universe, t| u.applied(t).and_then(|(tycon, _)| u.sym_of(tycon));
+            let Some(f) = tycon_sym(u, p) else { return false };
             let class_param = u.symbol(f).kind == Kind::TypeParam
                 && u.symbol(f).owner.is_some_and(|o| u.symbol(o).kind == Kind::Class);
-            class_param && u.applied(s).is_some() && u.class_symbol(s).is_some()
+            class_param
+                && no_lower_bound(u, f)
+                && tycon_sym(u, s).is_some_and(|c| u.symbol(c).kind == Kind::Class)
         })
+}
+
+/// Whether the lower bound of type parameter `f` is `Nothing`, also as a type lambda's result.
+fn no_lower_bound(u: &mut Universe, f: SymbolId) -> bool {
+    let info = u.info(f);
+    let Some((lo, _)) = u.bounds(info) else { return false };
+    let lo = u.lambda(lo).map_or(lo, |l| l.result);
+    lo == NOTHING
 }
 
 /// Whether the class of `t` has a type parameter whose bounds refer to it (`C[D <: Doc[D]]`).
