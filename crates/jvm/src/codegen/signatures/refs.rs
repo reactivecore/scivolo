@@ -57,7 +57,7 @@ impl Sig<'_> {
                     self.erased_sig(&erased, boxing)
                 }
             }
-            _ if let Some((outer, outer_args)) = self.generic_outer(c, tycon) => {
+            _ if let Some((outer, outer_args)) = self.generic_outer(c, tycon, !args.is_empty()) => {
                 let outer = internal(&self.u.binary_name(outer));
                 self.class_sig(&outer, &outer_args);
                 self.out.pop();
@@ -71,9 +71,21 @@ impl Sig<'_> {
 
     /// The class `c` is a member of and its type arguments, if the prefix of reference `tycon`
     /// seen as an instance of it applies it to some (dotty's `classSig` of a `pre` with
-    /// arguments, `pre.baseType(sym.owner)`).
-    fn generic_outer(&mut self, c: SymbolId, tycon: TypeId) -> Option<(SymbolId, Vec<TypeId>)> {
+    /// arguments, `pre.baseType(sym.owner)`); of a reference with arguments `applied`, the prefix
+    /// is `c` itself, as dotty's `RefOrAppliedType` takes it.
+    fn generic_outer(
+        &mut self,
+        c: SymbolId,
+        tycon: TypeId,
+        applied: bool,
+    ) -> Option<(SymbolId, Vec<TypeId>)> {
         let outer = self.u.symbol(c).owner.filter(|&o| self.u.is_class(o))?;
+        if applied {
+            let own = self.u.this_type(c);
+            let base = self.u.base_type(own, outer)?;
+            let (_, args) = self.u.applied(base).filter(|(_, args)| !args.is_empty())?;
+            return Some((outer, args.to_vec()));
+        }
         let prefix = match *self.u.ty(tycon) {
             Type::Sym(Some(p), _) | Type::TypeRef(p, _) => p,
             _ => return None,
