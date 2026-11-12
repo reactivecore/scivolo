@@ -7,8 +7,8 @@ use syntax::source::SourceFile;
 use tasty::Universe;
 
 /// Compiles Scala files through the Rust frontend into JVM class files and TASTy files; the
-/// files are typed as one unit, with the options of their `//> using options` directives. A file
-/// the frontend refuses is reported and left out, with the files that need it, and the run fails.
+/// files are typed as one unit, with the options of their `//> using options` directives. When the
+/// frontend refuses a file, the refused files are reported, nothing is written and the run fails.
 ///
 /// Environment: SCIVOLO_LIBS holds the library jars (default: ref/libs).
 #[derive(Parser)]
@@ -33,13 +33,26 @@ struct Cli {
     /// A compiler option of all sources, checked as the options of their directives.
     #[arg(long = "scalac-option", allow_hyphen_values = true)]
     scalac_options: Vec<String>,
+    /// Writes the classes of the files the frontend accepts, leaving out the refused ones and the
+    /// files that need them, then fails; for measurements only.
+    #[arg(long)]
+    leave_out_refused: bool,
     /// The Scala files.
     #[arg(required = true)]
     files: Vec<String>,
 }
 
 fn main() {
-    let Cli { cp, macro_cp, d: out, main_class, scalalib, scalac_options: mut options, files } = Cli::parse();
+    let Cli {
+        cp,
+        macro_cp,
+        d: out,
+        main_class,
+        scalalib,
+        scalac_options: mut options,
+        leave_out_refused,
+        files,
+    } = Cli::parse();
     let libs = std::env::var_os("SCIVOLO_LIBS")
         .map_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../ref/libs"), PathBuf::from);
     let library = typer::dump::library_jars(&libs);
@@ -82,8 +95,9 @@ fn main() {
     let Isolated { out: classes, refused, .. } =
         lower::compile_isolated(&mut open, &sources, config, macros, backend)
             .unwrap_or_else(|e| fail(&message(&e)));
-    let entries = entries(&classes);
-    write(&out, &entries, main_class.as_deref());
+    if refused.is_empty() || leave_out_refused {
+        write(&out, &entries(&classes), main_class.as_deref());
+    }
     for r in &refused {
         eprintln!("{}: {}", r.file, message(&r.refusal));
     }

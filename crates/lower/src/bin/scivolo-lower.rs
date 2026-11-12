@@ -7,7 +7,8 @@ use tasty::Universe;
 
 /// Lowers Scala files through the Rust frontend into NIR files; several files are typed as one
 /// unit, with the options of their `//> using options` directives; other directives and options
-/// the frontend does not implement are refused. With `--cp`, they see the TASTy of those
+/// the frontend does not implement are refused. When it refuses a file, the refused files are
+/// reported, nothing is written and the run fails. With `--cp`, they see the TASTy of those
 /// directories, and macro calls run in a VM over the library and their NIR.
 ///
 /// Environment: SCIVOLO_LIBS holds the library jars (default: ref/libs).
@@ -46,6 +47,10 @@ struct Cli {
     /// A compiler option of all sources, checked as the options of their directives.
     #[arg(long = "scalac-option", allow_hyphen_values = true)]
     scalac_options: Vec<String>,
+    /// Writes the NIR of the files the frontend accepts, leaving out the refused ones and the
+    /// files that need them, then fails; for measurements only.
+    #[arg(long)]
+    leave_out_refused: bool,
     /// The Scala files.
     #[arg(required = true)]
     files: Vec<String>,
@@ -65,6 +70,7 @@ fn main() {
         sourceroot,
         position_root,
         scalac_options,
+        leave_out_refused,
         files,
         out_dir: out,
     } = Cli::parse();
@@ -122,15 +128,18 @@ fn main() {
             Err(e) => (Err(e), Vec::new()),
         },
     };
+    let _ = std::fs::remove_dir_all(&out);
     for r in &refused {
         eprintln!("{}: {}", r.file, r.refusal.what.replace("\n  ", " "));
+    }
+    if !refused.is_empty() && !leave_out_refused {
+        std::process::exit(1);
     }
     match lowered {
         Ok((_, warnings)) if fatal && !warnings.items.is_empty() => {
             fail("the typer does not support warnings under -Werror or -Wconf")
         }
         Ok((files, _)) => {
-            let _ = std::fs::remove_dir_all(&out);
             std::fs::create_dir_all(&out).expect("creating the output directory");
             for f in files {
                 let path = out.join(format!("{}.nir", f.name.replace('.', "/")));
