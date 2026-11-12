@@ -134,6 +134,11 @@ fn jdkstatics_run_on_the_jvm() {
 }
 
 #[test]
+fn jdk_mixin_forwarders_run_on_the_jvm() {
+    runs_on_the_jvm("jdkmixins", "Jdkmixins");
+}
+
+#[test]
 fn attributes_run_on_the_jvm() {
     runs_on_the_jvm("attributes", "Attributes");
 }
