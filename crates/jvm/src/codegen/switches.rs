@@ -7,7 +7,7 @@
 use super::body::{Body, Dest};
 use super::locals::int_like;
 use super::{Gen, unsupported};
-use classfile::{Invoke, Label};
+use classfile::{ATHROW, GOTO, IFEQ, IFNE, IFNONNULL, Invoke, Label};
 use lower::Result;
 use names::nme;
 use std::collections::BTreeMap;
@@ -114,9 +114,9 @@ impl Gen<'_, '_> {
         let depth = b.code.stack();
         let (other, hashed) = (b.code.new_label(), b.code.new_label());
         self.expr_as(b, selector, 1)?;
-        b.code.jump(0xc7, other);
+        b.code.jump(IFNONNULL, other);
         b.code.int(b.pool, 0);
-        b.code.jump(0xa7, hashed);
+        b.code.jump(GOTO, hashed);
         b.code.place(other);
         b.code.set_stack(depth);
         self.expr_as(b, selector, 1)?;
@@ -137,16 +137,16 @@ impl Gen<'_, '_> {
                 let equals = "(Ljava/lang/Object;)Z";
                 b.code.invoke(Invoke::Virtual, b.pool, "java/lang/Object", nme::EQUALS, equals);
                 match target {
-                    Target::Shared(label) => b.code.jump(0x9a, label),
+                    Target::Shared(label) => b.code.jump(IFNE, label),
                     Target::Body(body) => {
-                        b.code.jump(0x99, next);
+                        b.code.jump(IFEQ, next);
                         self.expr_to(b, body, slots, dest)?;
                     }
                 }
                 b.code.place(next);
                 b.code.set_stack(depth);
             }
-            b.code.jump(0xa7, default);
+            b.code.jump(GOTO, default);
         }
         Ok(())
     }
@@ -157,7 +157,7 @@ impl Gen<'_, '_> {
         b.code.dup();
         b.code.aconst_null();
         b.code.invoke(Invoke::Special, b.pool, "scala/MatchError", nme::CONSTRUCTOR, "(Ljava/lang/Object;)V");
-        b.code.insn(0xbf);
+        b.code.insn(ATHROW);
     }
 }
 

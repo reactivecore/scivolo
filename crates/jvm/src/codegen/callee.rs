@@ -6,7 +6,7 @@
 use super::body::Body;
 use super::descriptors::{class_descriptor, descriptor, internal};
 use super::{Gen, unsupported};
-use classfile::FieldOp;
+use classfile::{ATHROW, FieldOp};
 use lower::Result;
 use names::nme;
 use syntax::ast::Span;
@@ -27,7 +27,7 @@ const OBJECT_METHODS: [&str; 5] = [nme::EQUALS, nme::HASH_CODE, nme::TO_STRING, 
 /// of its value (dotty's `adapt`).
 pub fn adapt_phantom(b: &mut Body, result: &str) {
     match result {
-        "Lscala/runtime/Nothing$;" => b.code.insn(0xbf),
+        "Lscala/runtime/Nothing$;" => b.code.insn(ATHROW),
         "Lscala/runtime/Null$;" => {
             b.code.pop();
             b.code.aconst_null();
@@ -59,7 +59,7 @@ impl Gen<'_, '_> {
             && let &[e] = self.l.tpd.items(args)
         {
             self.expr(b, e)?;
-            b.code.insn(0xbf);
+            b.code.insn(ATHROW);
             return Ok(0);
         }
         if let Some(slots) = self.hash(b, t)? {

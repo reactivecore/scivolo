@@ -3,7 +3,9 @@
 mod attributes;
 mod code;
 mod frames;
+mod kind;
 mod modified_utf8;
+mod opcodes;
 mod pool;
 mod read;
 mod references;
@@ -12,6 +14,8 @@ mod writer;
 pub use attributes::{InnerClass, Last};
 pub use code::{Code, FieldOp, Invoke, Label, method_slots, split_method, value_slots};
 pub use frames::Lub;
+pub use kind::Kind;
+pub use opcodes::*;
 pub use pool::{
     Constant, Handle, Pool, REF_INVOKE_INTERFACE, REF_INVOKE_SPECIAL, REF_INVOKE_STATIC, REF_INVOKE_VIRTUAL,
     Ref,

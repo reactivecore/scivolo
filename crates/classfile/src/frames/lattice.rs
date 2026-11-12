@@ -1,5 +1,6 @@
 //! The verifier's types (JVMS §4.10.1.2) and their merge where control flow joins.
 
+use crate::kind::Kind;
 use crate::split_method;
 
 /// The common superclass of two classes, internal names; none if unknown.
@@ -25,13 +26,15 @@ pub enum VType {
 impl VType {
     /// The type of a value of field descriptor `d`, none for `V`.
     pub fn of(d: &str) -> Option<VType> {
-        Some(match d.as_bytes().first()? {
-            b'Z' | b'B' | b'C' | b'S' | b'I' => VType::Int,
-            b'F' => VType::Float,
-            b'J' => VType::Long,
-            b'D' => VType::Double,
-            b'L' => VType::Object(d[1..d.len() - 1].to_owned()),
-            b'[' => VType::Object(d.to_owned()),
+        Some(match Kind::of_letter(*d.as_bytes().first()?)?.widened() {
+            Kind::Int => VType::Int,
+            Kind::Float => VType::Float,
+            Kind::Long => VType::Long,
+            Kind::Double => VType::Double,
+            Kind::Reference => match d.strip_prefix('L') {
+                Some(class) => VType::Object(class[..class.len() - 1].to_owned()),
+                None => VType::Object(d.to_owned()),
+            },
             _ => return None,
         })
     }

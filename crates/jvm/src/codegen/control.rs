@@ -23,15 +23,15 @@ impl Gen<'_, '_> {
         match got - slots {
             _ if !b.code.live() => b.code.set_stack(depth + slots),
             0 => {}
-            1 if slots == 0 => b.code.insn(0x57),
-            2 if slots == 0 => b.code.insn(0x58),
+            1 if slots == 0 => b.code.insn(classfile::POP),
+            2 if slots == 0 => b.code.insn(classfile::POP2),
             -1 if got == 0 => {
                 b.push("L");
                 let unit = "scala/runtime/BoxedUnit";
                 b.code.field(classfile::FieldOp::GetStatic, b.pool, unit, "UNIT", &class_descriptor(unit));
             }
             _ if got == 1 && self.desc_of(t) == "Lscala/runtime/Nothing$;" => {
-                b.code.insn(0xbf);
+                b.code.insn(classfile::ATHROW);
                 b.code.set_stack(depth + slots);
             }
             _ => return unsupported(self.l.tpd.span(t), "a value of another size than its context's"),
@@ -89,7 +89,7 @@ impl Gen<'_, '_> {
         let call = matches!(self.l.tpd.tree(t), Tree::Apply { .. }) && !self.is_throw(t);
         if b.code.live() || call && self.desc_of(t) == "Lscala/runtime/Nothing$;" {
             match dest {
-                Dest::Jump(l) => b.code.jump(0xa7, l),
+                Dest::Jump(l) => b.code.jump(classfile::GOTO, l),
                 Dest::Return => {
                     let result = b.result.clone();
                     self.cast_to_null(b, t, &result);
@@ -180,7 +180,7 @@ impl Gen<'_, '_> {
                 b.early_return = Some(slot);
                 b.code.store(&result, slot);
             }
-            b.code.jump(0xa7, cleanup);
+            b.code.jump(classfile::GOTO, cleanup);
             b.emit_cleanup = true;
         } else {
             let result = b.result.clone();
