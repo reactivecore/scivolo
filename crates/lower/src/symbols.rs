@@ -111,8 +111,12 @@ pub fn jdk_api_owner(u: &Universe, m: SymbolId) -> Option<&'static str> {
     JAVALIB_ONLY_MEMBERS.iter().find(|e| e.0 == owner && e.2.contains(&name)).map(|&(_, jdk, _)| jdk)
 }
 
-/// Whether the compile sees the JDK 17 API and member `m` of a javalib class is not in it.
-pub fn beyond_jdk_view(u: &Universe, m: SymbolId) -> bool {
+/// Whether member `m` of a javalib class is not in the JDK API the compile sees: the JDK 17
+/// API, or the JDK's class files on the JVM.
+pub fn beyond_jdk_view(u: &mut Universe, m: SymbolId) -> bool {
+    if u.jdk_lacks(m) {
+        return true;
+    }
     let Some(class) = u.symbol(m).owner.filter(|&c| u.jdk_17_view() && u.may_be_java(c)) else {
         return false;
     };

@@ -6,6 +6,7 @@ mod class;
 mod classpath;
 mod constant;
 mod javalib;
+mod jdk_api;
 mod signatures;
 
 pub use annotation::Retention;
@@ -73,23 +74,28 @@ impl Universe {
     /// The erasure of method `def` entered from a JDK class file, its descriptor's; a
     /// constructor's result its class.
     pub fn classfile_erasure(&self, def: SymbolId) -> Option<(Vec<Erased>, Erased)> {
-        let descriptor = self.classfile_descriptors.get(&def)?;
-        let (params, result) = descriptor.strip_prefix('(')?.split_once(')')?;
-        let mut rest = params;
-        let mut erased = Vec::new();
-        while !rest.is_empty() {
-            let (e, r) = erase(rest)?;
-            erased.push(e);
-            rest = r;
-        }
+        let (params, result) = descriptor_erasure(self.classfile_descriptors.get(&def)?)?;
         let owner = self.symbol(def).owner?;
         let result = match self.symbol(def).name == nme::CONSTRUCTOR && self.symbol(owner).kind == Kind::Class
         {
             true => Erased::Class(self.full_name(owner)),
-            false => erase(result)?.0,
+            false => result,
         };
-        Some((erased, result))
+        Some((params, result))
     }
+}
+
+/// The erasure of method descriptor `descriptor`: its parameters' and result's.
+pub fn descriptor_erasure(descriptor: &str) -> Option<(Vec<Erased>, Erased)> {
+    let (params, result) = descriptor.strip_prefix('(')?.split_once(')')?;
+    let mut rest = params;
+    let mut erased = Vec::new();
+    while !rest.is_empty() {
+        let (e, r) = erase(rest)?;
+        erased.push(e);
+        rest = r;
+    }
+    Some((erased, erase(result)?.0))
 }
 
 /// The erasure of the field descriptor `descriptor` starts with, and the rest.
