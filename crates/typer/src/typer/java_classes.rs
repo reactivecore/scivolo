@@ -18,11 +18,13 @@ pub fn is_java_class_name(u: &mut Universe, c: SymbolId) -> bool {
         return false;
     }
     let name = u.full_name(c);
-    let library_java = name.rsplit_once('.').is_some_and(|(pkg, simple)| {
-        let simple = tasty::module_name(simple).unwrap_or(simple);
-        java_classes(pkg).any(|c| c == simple)
-    });
-    name.starts_with("java.") || name.starts_with("javax.") || library_java
+    let library_java = || {
+        name.rsplit_once('.').is_some_and(|(pkg, simple)| {
+            let simple = tasty::module_name(simple).unwrap_or(simple);
+            java_classes(pkg).any(|c| c == simple)
+        })
+    };
+    name.starts_with("java.") || name.starts_with("javax.") || library_java()
 }
 
 impl Typer<'_> {
