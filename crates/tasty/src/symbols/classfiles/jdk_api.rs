@@ -7,7 +7,9 @@ use super::javalib::library_owners;
 use super::signatures::Sig;
 use crate::tags::OBJECT;
 use crate::types::TypeId;
-use classfile::{ACC_BRIDGE, ACC_PROTECTED, ACC_PUBLIC, ACC_STATIC, ACC_SYNTHETIC, ClassInfo, MemberInfo};
+use classfile::{
+    ACC_BRIDGE, ACC_PROTECTED, ACC_PUBLIC, ACC_STATIC, ACC_SYNTHETIC, ACC_VARARGS, ClassInfo, MemberInfo,
+};
 use names::nme;
 
 impl Universe {
@@ -22,9 +24,8 @@ impl Universe {
     }
 
     /// Selects among members `found` of class `owner` those `jdk_lacks` finds, each member
-    /// checked once: methods and values, not objects nor members entered from class files. A
-    /// method the JDK has, but a constructor, takes its type from there (`jdk_info`) where both
-    /// have as many parameter clauses (javalib's `def pattern: String` stays parameterless).
+    /// checked once: methods and values, not objects nor members entered from class files. The
+    /// others take their types from the JDK (`take_jdk_type`).
     pub fn jdk_lacking(&mut self, owner: SymbolId, found: &[SymbolId]) -> Vec<SymbolId> {
         let fresh: Vec<SymbolId> =
             found.iter().copied().filter(|&m| self.jdk_checked.insert(m) && self.is_api_term(m)).collect();
@@ -34,19 +35,27 @@ impl Universe {
         let Some(info) = self.jdk_class_of(owner) else { return Vec::new() };
         let mut lacking = Vec::new();
         for m in fresh {
-            let Some(member) = declaration(self, m, &info) else {
-                lacking.push(m);
-                continue;
-            };
-            let method = self.symbol(m).kind == Kind::Def && member.name != nme::CONSTRUCTOR;
-            if method && let Some(t) = jdk_type(self, m, member, &info) {
-                let own = self.info(m);
-                if self.param_clauses(own).len() == self.param_clauses(t).len() {
-                    self.infos.insert(m, t);
-                }
+            match declaration(self, m, &info) {
+                Some(member) => self.take_jdk_type(m, member, &info),
+                None => lacking.push(m),
             }
         }
         lacking
+    }
+
+    /// Gives method `m` the type of its declaration `member` in JDK class file `info`
+    /// (`jdk_info`), but a constructor, a Java varargs method, or where they have different
+    /// numbers of parameter clauses (javalib's `def pattern: String` stays parameterless).
+    fn take_jdk_type(&mut self, m: SymbolId, member: &MemberInfo, info: &ClassInfo) {
+        let method = self.symbol(m).kind == Kind::Def && member.name != nme::CONSTRUCTOR;
+        if !method || member.access & ACC_VARARGS != 0 {
+            return;
+        }
+        let Some(t) = jdk_type(self, m, member, info) else { return };
+        let own = self.info(m);
+        if self.param_clauses(own).len() == self.param_clauses(t).len() {
+            self.infos.insert(m, t);
+        }
     }
 
     /// Whether `m` is a method or a value of a class's TASTy, neither an object, a trait's

@@ -146,9 +146,11 @@ impl Universe {
         if !self.named(owner, name).is_empty() {
             return;
         }
-        match lacking.is_empty() {
-            true => self.enter_jdk_members(owner),
-            false => self.enter_jdk_named(owner, &self.name(name).to_owned()),
+        if lacking.is_empty() {
+            self.enter_jdk_members(owner);
+        } else {
+            let text = self.name(name).to_owned();
+            self.enter_jdk_named(owner, &text);
         }
     }
 

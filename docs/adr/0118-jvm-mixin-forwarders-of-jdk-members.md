@@ -19,11 +19,13 @@ their generic signatures.
   signature is refused.
 - The typer sees the same: a lookup by name hides the library's methods and values the JDK
   lacks (`Universe::jdk_lacking`), and enters the JDK's members of that name where none is
-  left; a method the JDK has, but a constructor, takes the declaration's type.
+  left; a method the JDK has takes the declaration's type, but a constructor, a Java varargs
+  method, and one whose parameter clauses differ in number (`def pattern: String`).
 
 ## Consequences
 - A call of a javalib-only member is refused as "member not found", as dotty reports it.
 - Members are checked when first looked up by name; code that walks a class's declarations
   without a lookup (overriding checks) still sees javalib's.
-- Values keep javalib's types, so their constants still fold.
+- Values keep javalib's types, so their constants still fold; Java varargs methods keep
+  javalib's, which the typer adapts arguments to (`Collections.addAll(c, 5, 6)`).
 - The NIR path, without a JDK, is unchanged.
