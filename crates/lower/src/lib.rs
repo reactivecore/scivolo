@@ -345,6 +345,11 @@ impl<'a> Lower<'a> {
         self.bridges.contains(&m)
     }
 
+    /// Whether `m` is a varargs forwarder `ElimRepeated` made (dotty's `JavaVarargs`).
+    pub fn is_varargs_forwarder(&self, m: SymbolId) -> bool {
+        self.varargs_forwarders.contains(&m)
+    }
+
     /// Whether `LambdaLift` lifted method `m` out of a term.
     pub fn is_lifted(&self, m: SymbolId) -> bool {
         self.lifted_from.contains_key(&m)
