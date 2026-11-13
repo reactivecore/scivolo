@@ -110,7 +110,8 @@ impl<'u> Sig<'u> {
     }
 
     fn result(&mut self, t: TypeId) {
-        let unit = self.class_named(t, "scala.Unit");
+        let bounded = self.bounded(t);
+        let unit = self.class_named(bounded, "scala.Unit");
         if unit || self.constructor { self.out.push('V') } else { self.jsig(t, false, Boxing::Unbox) }
     }
 

@@ -35,11 +35,16 @@ impl Sig<'_> {
 
     /// Appends the erasure of `t`, the method type parameters in scope replaced by their bounds.
     pub fn erased(&mut self, t: TypeId, boxing: Boxing) {
-        let bounds: Vec<(Binder, Vec<TypeId>)> =
-            self.poly.iter().map(|(b, ps)| (*b, ps.iter().map(|p| p.1).collect())).collect();
-        let t = self.u.upper_bound(t, &bounds);
+        let t = self.bounded(t);
         let e = self.u.erase(t);
         self.erased_sig(&e, boxing);
+    }
+
+    /// Determines `t` with the method type parameters in scope replaced by their upper bounds.
+    pub fn bounded(&mut self, t: TypeId) -> TypeId {
+        let bounds: Vec<(Binder, Vec<TypeId>)> =
+            self.poly.iter().map(|(b, ps)| (*b, ps.iter().map(|p| p.1).collect())).collect();
+        self.u.upper_bound(t, &bounds)
     }
 
     /// Whether a method type parameter of `bounds` erases to a primitive, also through a value
