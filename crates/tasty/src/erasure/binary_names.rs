@@ -14,6 +14,24 @@ impl Universe {
         self.class_name_with(c, compactify)
     }
 
+    /// Finds the class of binary name `name`: a class of a package, or one nested in classes and
+    /// objects whose names have no `$`.
+    pub fn class_of_binary_name(&mut self, name: &str) -> Option<SymbolId> {
+        let (pkg, flat) = name.rsplit_once('.').unwrap_or(("", name));
+        let mut owners = vec![self.package(pkg)?];
+        for segment in flat.split('$').filter(|s| !s.is_empty()) {
+            let mut inner = Vec::new();
+            for o in owners {
+                for n in [segment.to_owned(), module_class_name(segment)] {
+                    let decls = self.decl(o, &n).unwrap_or_default();
+                    inner.extend(decls.into_iter().filter(|&d| self.symbol(d).kind == Kind::Class));
+                }
+            }
+            owners = inner;
+        }
+        owners.into_iter().find(|&c| self.binary_name(c) == name)
+    }
+
     /// `binary_name` without `compactify`, the prefix of an expanded name (`C$$$outer`).
     pub fn expanded_binary_name(&self, c: SymbolId) -> String {
         self.class_name_with(c, str::to_owned)
