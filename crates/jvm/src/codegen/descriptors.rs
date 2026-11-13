@@ -5,6 +5,9 @@
 use lower::jdk_class_name;
 use tasty::{Erased, SymbolId, Universe};
 
+/// The descriptor of `Nothing`'s values.
+pub const NOTHING: &str = "Lscala/runtime/Nothing$;";
+
 /// Builds the internal name of the class of binary name `binary`, as the JDK names it.
 pub fn internal(binary: &str) -> String {
     match binary {
@@ -33,7 +36,7 @@ pub fn descriptor(e: &Erased) -> String {
         }
         .into(),
         Erased::Unit => "V".into(),
-        Erased::Nothing => "Lscala/runtime/Nothing$;".into(),
+        Erased::Nothing => NOTHING.into(),
         Erased::Null => "Lscala/runtime/Null$;".into(),
         Erased::Class(name) | Erased::Value(name, _) => class_descriptor(&internal(name)),
         Erased::Array(elem) => format!("[{}", descriptor(elem)),

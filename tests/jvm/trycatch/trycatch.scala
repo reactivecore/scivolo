@@ -66,7 +66,10 @@ object Trycatch {
     count
   }
 
+  def unfinished: Nothing = ???
+
   def main(args: Array[String]): Unit = {
+    println(try unfinished catch { case _: NotImplementedError => "unfinished" })
     println(Stash.stashed("4") + " " + Stash.stashed("x"))
     println(s"${Stash.widened(2, "1.5")} ${Stash.widened(2, "x")}")
     println(s"${parse("12")} ${parse("x")}")

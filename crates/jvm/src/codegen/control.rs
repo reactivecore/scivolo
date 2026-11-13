@@ -4,7 +4,8 @@
 //! `genLabeledTo`, `genReturn`).
 
 use super::body::{Body, Dest};
-use super::{Gen, descriptors::class_descriptor, descriptors::descriptor, unsupported};
+use super::descriptors::{NOTHING, class_descriptor, descriptor};
+use super::{Gen, unsupported};
 use lower::Result;
 use syntax::ast::constant::Constant;
 use typer::tpd::{TNodeId, Tree};
@@ -30,7 +31,7 @@ impl Gen<'_, '_> {
                 let unit = "scala/runtime/BoxedUnit";
                 b.code.field(classfile::FieldOp::GetStatic, b.pool, unit, "UNIT", &class_descriptor(unit));
             }
-            _ if got == 1 && self.desc_of(t) == "Lscala/runtime/Nothing$;" => {
+            _ if got == 1 && self.desc_of(t) == NOTHING => {
                 b.code.insn(classfile::ATHROW);
                 b.code.set_stack(depth + slots);
             }
@@ -84,10 +85,14 @@ impl Gen<'_, '_> {
                 return Ok(());
             }
             Tree::Return { .. } => return self.expr(b, t).map(drop),
+            Tree::Apply { fun, .. } if dest == Dest::Return && b.result == NOTHING && !self.is_throw(t) => {
+                b.returned_phantom = Some(fun);
+                self.expr_as(b, t, slots)?
+            }
             _ => self.expr_as(b, t, slots)?,
         }
         let call = matches!(self.l.tpd.tree(t), Tree::Apply { .. }) && !self.is_throw(t);
-        if b.code.live() || call && self.desc_of(t) == "Lscala/runtime/Nothing$;" {
+        if b.code.live() || call && self.desc_of(t) == NOTHING {
             match dest {
                 Dest::Jump(l) => b.code.jump(classfile::GOTO, l),
                 Dest::Return => {
