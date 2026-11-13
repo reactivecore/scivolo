@@ -46,7 +46,7 @@ impl Cmp<'_> {
                     declared || self.gadt_applied(tycon, args, false).is_some_and(|glo| self.recur(a, glo))
                 }
                 Some(Meaning::Class(c)) => match self.nested_pairs(c, args) {
-                    Some(pairs) => self.try_base_type(a, b, c) || self.recur(a, pairs),
+                    Some(pairs) => self.recur(a, pairs) || self.try_base_type(a, b, c),
                     None => self.try_base_type(a, b, c),
                 },
                 _ => self.fourth_try(a, b),

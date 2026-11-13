@@ -13,8 +13,8 @@ impl Gadt {
     /// parameters of the classes between it and the next enclosing method from the outermost,
     /// then those of a polymorphic function value it is the body of, then its own; each
     /// method's at its nesting depth (dotty's `addToConstraint` in `typedDefDef`). Leaves out a
-    /// class's higher-kinded type parameters.
-    pub fn register(&self, u: &mut Universe, ctx: Ctx) {
+    /// class's higher-kinded type parameters. Gives the level of the case, below every method.
+    pub fn register(&self, u: &mut Universe, ctx: Ctx) -> u32 {
         let mut chain = Vec::new();
         let mut owner = Some(ctx.owner);
         while let Some(o) = owner {
@@ -44,6 +44,17 @@ impl Gadt {
                 }
                 _ => {}
             }
+        }
+        level
+    }
+
+    /// Registers pattern-bound types `syms` one by one at the case's `level` (dotty's
+    /// `newPatternBoundSymbol` with `addToGadt`).
+    pub fn register_bound(&self, u: &mut Universe, syms: &[SymbolId], level: u32) {
+        for &sym in syms {
+            let info = u.info(sym);
+            let Some((lo, hi)) = u.bounds(info).filter(|_| !u.gadt().contains(sym)) else { continue };
+            u.gadt_register(&[Registered { sym, lo, hi }], level);
         }
     }
 

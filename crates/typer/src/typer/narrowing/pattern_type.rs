@@ -108,7 +108,7 @@ fn constrain_simple(t: &mut Typer, pat: TypeId, scrut: TypeId, (p, s): (SymbolId
     let (mark, gadt_mark) = (t.constraint.mark(), t.u.gadt().mark());
     let ok = params.iter().zip(args_s.iter().zip(&args_p)).all(|(&param, (&arg_s, &arg_p))| {
         let variance = t.u.symbol(param).variance();
-        let same_class = p == s && t.gadt.bound.iter().any(|&b| t.u.sym_of(arg_p) == Some(b));
+        let same_class = p == s && t.u.sym_of(arg_p).is_some_and(|b| t.u.is_pattern_bound(b));
         if variance != 0 && !invariant && !same_class {
             return true;
         }

@@ -4,6 +4,7 @@
 //! The GADT constraint (ADR 0119): what the cases being typed know of the type parameters and
 //! pattern-bound types they narrow, as bounds and an ordering between those symbols.
 
+mod full_bounds;
 mod order;
 mod update;
 
@@ -233,20 +234,8 @@ impl Universe {
     /// Gives the GADT bounds of `sym` if a comparison narrowed it, with the symbols it is
     /// ordered with (dotty's `fullBounds`).
     pub fn gadt_bounds(&mut self, sym: SymbolId) -> Option<(TypeId, TypeId)> {
-        let e = self.gadt().entry(sym).filter(|e| e.narrowed)?;
-        if let Some(i) = e.instance {
-            return Some((i, i));
-        }
-        let (mut lo, mut hi) = (e.lo, e.hi);
-        for p in self.gadt().min_lower(sym) {
-            let r = self.gadt_ref(p);
-            lo = self.lub(lo, r);
-        }
-        for p in self.gadt().min_upper(sym) {
-            let r = self.gadt_ref(p);
-            hi = if hi == crate::ANY { r } else { self.glb(hi, r) };
-        }
-        Some((lo, hi))
+        self.gadt().entry(sym).filter(|e| e.narrowed)?;
+        self.gadt_full_bounds(sym)
     }
 
     /// Sets or removes the GADT bounds of `sym` as they are, unordered; the old ones.

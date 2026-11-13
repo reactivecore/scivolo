@@ -122,12 +122,16 @@ impl Gadt {
         }
     }
 
-    /// Gives the pattern-bound types from the `first`th on their GADT bounds as infos (dotty's
-    /// `indexPattern`).
+    /// Gives the pattern-bound types from the `first`th on their GADT bounds as infos, an alias
+    /// for one made equal to a type (dotty's `indexPattern`).
     pub fn index_binds(&self, u: &mut Universe, first: usize) {
         for &s in &self.bound[first..] {
-            let Some((lo, hi)) = u.gadt_bounds(s) else { continue };
-            let info = u.intern_type(Type::Bounds(lo, hi));
+            let Some((lo, hi)) = u.gadt_full_bounds(s) else { continue };
+            let info = match u.gadt().entry(s).and_then(|e| e.instance) {
+                Some(i) => Type::Alias(i),
+                None => Type::Bounds(lo, hi),
+            };
+            let info = u.intern_type(info);
             u.set_info(s, info);
         }
     }
