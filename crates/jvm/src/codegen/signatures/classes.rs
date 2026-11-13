@@ -4,7 +4,7 @@
 //! `minimizeParents`, `polyParamSig`, `boundsSig`, `classSymbol`).
 
 use super::Sig;
-use tasty::{SymbolId, Type, TypeId, Universe};
+use tasty::{Erased, SymbolId, Type, TypeId, Universe};
 
 /// Builds the generic signature of class `c` within top-level class `top` before local classes
 /// were lifted: its type parameters and parents.
@@ -73,6 +73,12 @@ impl Sig<'_> {
         }
     }
 
+    /// The erasure of the first of intersection `parts` in dotty's `erasedGlb`.
+    pub fn glb_erasure(&mut self, parts: &[TypeId]) -> Erased {
+        let glb = self.u.erased_glb(parts).expect("an intersection's parts");
+        self.u.erase(glb)
+    }
+
     /// Type parameters by name and bounds, `<A:…;B::…;>`.
     pub fn type_params(&mut self, params: &[(String, TypeId)]) {
         if params.is_empty() {
@@ -84,7 +90,7 @@ impl Sig<'_> {
             let hi = self.u.bounds(*bounds).map_or(*bounds, |(_, hi)| hi);
             let mut parts = Vec::new();
             self.and_parts(hi, &mut parts);
-            let whole = self.u.erase(hi);
+            let whole = self.glb_erasure(&parts);
             let repr = parts.iter().position(|&p| self.u.erase(p) == whole).unwrap_or(0);
             self.out.push(':');
             if self.is_trait(parts[repr]) {

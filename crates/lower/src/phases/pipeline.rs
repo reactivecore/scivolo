@@ -87,6 +87,7 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
     for &td in &classes {
         value_classes::transform(l, td)?;
         specialize::transform(l, td)?;
+        specialize_applies::transform(l, td)?;
         specialize_tuples::transform(l, td, &inits)?;
         repeated::transform(l, td)?;
         varargs_forwarders::transform(l, td)?;

@@ -15,7 +15,15 @@ impl Sig<'_> {
         }
         let (tycon, args) = self.u.applied(t).map_or((t, Vec::new()), |(c, a)| (c, a.to_vec()));
         match self.applied_param(tycon, &args) {
-            Some(Applied::Resolved(r)) => return self.jsig(r, false, boxing),
+            Some(Applied::Resolved(r)) => {
+                let r = self.u.dealias(r);
+                return match *self.u.ty(r) {
+                    Type::Sym(..) | Type::TypeRef(..) | Type::Applied(..) | Type::Param(..) => {
+                        self.jsig(r, false, boxing)
+                    }
+                    _ => self.erased(t, boxing),
+                };
+            }
             Some(Applied::Param(name)) => return self.out.push_str(&format!("T{name};")),
             Some(Applied::Erased) => return self.erased(t, boxing),
             None => {}

@@ -108,6 +108,7 @@ impl Gen<'_, '_> {
             if plain.contains(&full.as_str()) || full.starts_with("scala.scalanative.") {
                 continue;
             }
+            self.l.enter_specialized_applies(c);
             for m in self.l.u.decls(c).unwrap_or_default() {
                 if !self.is_method_member(m) {
                     continue;

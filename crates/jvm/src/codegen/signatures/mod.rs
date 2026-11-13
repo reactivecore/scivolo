@@ -157,7 +157,7 @@ impl<'u> Sig<'u> {
             Type::And(..) => {
                 let mut parts = Vec::new();
                 self.and_parts(t, &mut parts);
-                let whole = self.u.erase(t);
+                let whole = self.glb_erasure(&parts);
                 let mut reprs = parts.into_iter().filter(|&p| self.u.erase(p) == whole).collect::<Vec<_>>();
                 let param = reprs.iter().position(|&p| self.type_param(p).is_some()).unwrap_or(0);
                 match reprs.is_empty() {

@@ -354,6 +354,12 @@ impl<'a> Lower<'a> {
         self.varargs_forwarders.contains(&m)
     }
 
+    /// Enters the specialized `apply` methods of `class` if it is `scala.FunctionN` with them
+    /// (dotty's `SpecializeApplyMethods.transformInfo`).
+    pub fn enter_specialized_applies(&mut self, class: SymbolId) {
+        phases::same_run::enter_specialized(self, class);
+    }
+
     /// Whether `LambdaLift` lifted method `m` out of a term.
     pub fn is_lifted(&self, m: SymbolId) -> bool {
         self.lifted_from.contains_key(&m)
