@@ -70,6 +70,19 @@ impl Defn {
         }
     };
 
+    /// Determines whether `s` is a well-known symbol, of those resolved on first use only the
+    /// resolved ones.
+    pub fn is_well_known(&self, s: SymbolId) -> bool {
+        let first_use = self.on_first_use;
+        let known = [self.scala, self.java_lang, self.any, self.any_kind, self.matchable, self.nothing];
+        let more = [self.null, self.singleton, self.any_ref, self.object, self.from_java_object];
+        let library = [self.predef, self.unit, self.string];
+        let resolved =
+            [first_use.throwable, first_use.array, first_use.main_annot, first_use.command_line_parser];
+        known.into_iter().chain(more).chain(library).any(|k| k == s)
+            || resolved.into_iter().chain([self.any_val]).any(|k| k == Some(s))
+    }
+
     pub fn throwable(&mut self, u: &mut Universe) -> Result<SymbolId, String> {
         resolved(&mut self.on_first_use.throwable, u, self.java_lang, "Throwable", Kind::Class)
     }
