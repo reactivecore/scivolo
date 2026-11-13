@@ -33,6 +33,8 @@ mod serial;
 mod signatures;
 mod stash;
 mod switches;
+#[cfg(test)]
+mod tests;
 mod traits;
 mod tries;
 
