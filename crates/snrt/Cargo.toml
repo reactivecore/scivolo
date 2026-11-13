@@ -10,5 +10,8 @@ build = "build.rs"
 [lib]
 name = "snrt"
 
+[dependencies]
+dist.workspace = true
+
 [lints]
 workspace = true

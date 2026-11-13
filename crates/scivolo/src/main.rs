@@ -15,7 +15,8 @@ use vm::{Classpath, Vm, VmError};
 /// Runs a Scala program: a main class on the classpath, a Scala file or a script; without a
 /// target, starts the REPL.
 ///
-/// Environment: SCIVOLO_LIBS holds the library jars (default: the Coursier cache);
+/// Environment: SCIVOLO_LIBS holds the library jars (default: the distribution's, else the
+/// Coursier cache);
 /// SCIVOLO_CACHE holds the library image and compiled scripts; SCIVOLO_FRONTEND=strict compiles
 /// scripts with the own frontend only, =jvm with scala-cli only (default: the own frontend,
 /// scala-cli where it refuses); SCIVOLO_SCALA_CLI names the scala-cli binary; SCIVOLO_TIMEOUT

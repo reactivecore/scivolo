@@ -1,0 +1,13 @@
+[package]
+name = "scivolo-dist"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+name = "dist"
+
+[lints]
+workspace = true
