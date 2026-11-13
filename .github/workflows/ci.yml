@@ -17,7 +17,7 @@ env:
   CARGO_TERM_COLOR: always
   CARGO_INCREMENTAL: "0"
 
-# Job steps are thin: every command lives in the Justfile. Tool versions follow ci/Dockerfile.
+# Job steps are thin: every command lives in the Justfile, the tools in .github/actions/setup.
 jobs:
   test:
     name: test (${{ matrix.os }})
@@ -34,31 +34,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: Install system packages
-        if: runner.os == 'Linux'
-        run: sudo apt-get update -qq && sudo apt-get install -yqq --no-install-recommends clang zlib1g-dev bc
-
-      - name: Install Rust
-        run: |
-          rustup toolchain install 1.99.1 --profile minimal -c rustfmt,clippy
-          rustup default 1.99.1
-
-      - uses: extractions/setup-just@v4
-        with:
-          just-version: 1.58.0
-
-      - uses: coursier/setup-action@v3
-        with:
-          version: 2.1.26
-          apps: ""
-
-      - uses: Swatinem/rust-cache@v2
-
-      - name: Cache library jars
-        uses: actions/cache@v6
-        with:
-          path: ref/libs
-          key: libs-${{ hashFiles('scripts/fetch-libs.sh') }}
+      - uses: ./.github/actions/setup
 
       - name: Cache library image and Coursier downloads
         uses: actions/cache@v6
@@ -68,9 +44,6 @@ jobs:
             ${{ matrix.coursier-cache }}
           key: runtime-${{ matrix.os }}-${{ github.run_id }}
           restore-keys: runtime-${{ matrix.os }}-
-
-      - name: Versions
-        run: rustc --version && cargo --version && just --version && clang --version && cs version
 
       - name: Build and test
         run: just ci

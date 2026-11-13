@@ -1,0 +1,37 @@
+name: Setup
+description: Installs the tools the Justfile needs, in the versions of ci/Dockerfile.
+
+runs:
+  using: composite
+  steps:
+    - name: Install system packages
+      if: runner.os == 'Linux'
+      shell: bash
+      run: sudo apt-get update -qq && sudo apt-get install -yqq --no-install-recommends clang zlib1g-dev bc
+
+    - name: Install Rust
+      shell: bash
+      run: |
+        rustup toolchain install 1.99.1 --profile minimal -c rustfmt,clippy
+        rustup default 1.99.1
+
+    - uses: extractions/setup-just@v4
+      with:
+        just-version: 1.58.0
+
+    - uses: coursier/setup-action@v3
+      with:
+        version: 2.1.26
+        apps: ""
+
+    - uses: Swatinem/rust-cache@v2
+
+    - name: Cache library jars
+      uses: actions/cache@v6
+      with:
+        path: ref/libs
+        key: libs-${{ hashFiles('scripts/fetch-libs.sh') }}
+
+    - name: Versions
+      shell: bash
+      run: rustc --version && cargo --version && just --version && clang --version && cs version

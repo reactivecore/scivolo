@@ -11,6 +11,11 @@ below. Each such file names its upstream files in its first lines.
 - JLine, BSD-3-Clause; see licenses/jline.txt.
 - PPrint by Li Haoyi, MIT; see licenses/pprint.txt.
 
+The binary distribution also ships, unchanged, the library jars of Scala
+(scala-library, Apache-2.0) and Scala Native (Apache-2.0; in the distribution
+its license is licenses/scala-native.md) in lib/scala, and Scala Native's C
+runtime, compiled, in lib/.
+
 --------------------------------------------------------------------------------
 
 Scala 3 (https://www.scala-lang.org)

@@ -36,14 +36,14 @@ pub fn executable(object: &[u8], shims: &str, stub: &str, output: &Path) -> Resu
         (beside(output, ".scivolo-aot.o"), beside(output, ".scivolo-aot.c"), beside(output, ".shims.o"));
     std::fs::write(&obj, object).map_err(|e| format!("{}: {e}", obj.display()))?;
     std::fs::write(&src, shims).map_err(|e| format!("{}: {e}", src.display()))?;
-    let c = Path::new(env!("CARGO_MANIFEST_DIR")).join("c");
+    let c = dist::file("aot/c", Path::new(env!("CARGO_MANIFEST_DIR")).join("c"));
     let shimmed = run(cc().args(["-w", "-c", "-o"]).arg(&shim_obj).arg(&src), "cc (shims)");
     let mut cmd = cc();
     cmd.arg("-o").arg(output).arg(&obj).arg(&shim_obj);
     for file in [stub, "rt.c", "natives.c", "stack.c", "trace.c", "resources.c"] {
         cmd.arg(c.join(file));
     }
-    cmd.arg(snrt::ARCHIVE).arg("-lz");
+    cmd.arg(snrt::archive()).arg("-lz");
     if !cfg!(target_os = "macos") {
         cmd.args(["-lpthread", "-lm"]);
     }

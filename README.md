@@ -10,8 +10,8 @@ A Scala 3.9 interpreter and compiler for scripts, written in Rust, with no JVM.
 
 ## Status of the project
 
-- **Research and benchmarking project**, not a product. No releases, no stability guarantees;
-  not for production use. Build it from source.
+- **Research and benchmarking project**, not a product. No stability guarantees; not for
+  production use.
 - **Written by AI agents** (Claude Code): an experiment in how far that approach carries a
   project of this size.
   - Humans chose the goals and the order of work, reviewed code style and tested behaviour.
@@ -90,6 +90,23 @@ Features:
 
 ## Usage
 
+### Download
+
+The [GitHub releases](https://github.com/reactivecore/scivolo/releases) hold
+`scivolo-<version>-<target>.tar.gz` for linux-x86_64, linux-arm64 and macos-arm64.
+
+```sh
+tar xzf scivolo-<version>-<target>.tar.gz
+export PATH="$PWD/scivolo-<version>-<target>/bin:$PATH"
+```
+
+- `bin/` holds `scivolo`, `scivolo-aot` and `scivolo-jvm`; `lib/` what they read, the Scala
+  and Scala Native library jars included. The directory may be moved anywhere.
+- `scivolo-aot` needs a C compiler (`cc`) and zlib, `scivolo-jvm` a JDK 17+, `--dep`
+  Coursier; scala-cli is the optional fallback frontend.
+
+### Build from source
+
 Needs Rust 1.97+, `just`, a C compiler; optional: Coursier (`--dep`), scala-cli (fallback
 frontend), a JDK 17+ (`scivolo-jvm`).
 
@@ -99,7 +116,7 @@ cargo build --release -p scivolo -p scivolo-aot
 ```
 
 Outside `just`, set `SCIVOLO_LIBS` to `ref/libs`, or let `scivolo` find the jars in the
-Coursier cache.
+Coursier cache. `just dist` builds the distribution directory under `tmp/dist`.
 
 ### Scripts
 

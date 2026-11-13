@@ -650,6 +650,7 @@ dependencies = [
  "cranelift-module",
  "cranelift-object",
  "rustc-hash",
+ "scivolo-dist",
  "scivolo-libimage",
  "scivolo-libs",
  "scivolo-lower",
@@ -670,6 +671,10 @@ dependencies = [
  "rustc-hash",
  "zip",
 ]
+
+[[package]]
+name = "scivolo-dist"
+version = "0.2.1"
 
 [[package]]
 name = "scivolo-jvm"
@@ -701,6 +706,7 @@ dependencies = [
 name = "scivolo-libs"
 version = "0.2.1"
 dependencies = [
+ "scivolo-dist",
  "scivolo-libimage",
  "scivolo-tasty",
  "scivolo-vm",
@@ -774,6 +780,9 @@ dependencies = [
 [[package]]
 name = "scivolo-snrt"
 version = "0.2.1"
+dependencies = [
+ "scivolo-dist",
+]
 
 [[package]]
 name = "scivolo-syntax"

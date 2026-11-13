@@ -683,6 +683,16 @@ jdk-stubs:
 fetch-scala-native:
     scripts/fetch-scala-native.sh
 
+# Build the relocatable distribution tmp/dist/scivolo-<version>-<target>/ (bin/, lib/) and its
+# .tar.gz.
+dist:
+    python3 scripts/dist.py build
+
+# Run hello.scala through each program of a copy of the distribution, without the workspace's
+# jars or caches, 30 s per step.
+dist-check:
+    python3 scripts/dist.py check
+
 # Everything a pipeline job runs; the cache it leaves holds only the entries it used.
 ci: cache-mark fetch-libs gates check cache-prune
 

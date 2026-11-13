@@ -9,7 +9,9 @@ use std::ffi::{CStr, CString};
 /// `SCIVOLO_NATIVE_LIBS` (`:`-separated), visible to `dlsym`.
 pub fn load_runtime() -> Result<(), String> {
     let extra = std::env::var("SCIVOLO_NATIVE_LIBS").unwrap_or_default();
-    std::iter::once(snrt::PATH).chain(extra.split(':').filter(|p| !p.is_empty())).try_for_each(open)
+    let runtime = snrt::shared_library();
+    let runtime = runtime.to_str().ok_or("the C runtime's path is not UTF-8")?;
+    std::iter::once(runtime).chain(extra.split(':').filter(|p| !p.is_empty())).try_for_each(open)
 }
 
 fn open(lib: &str) -> Result<(), String> {

@@ -10,7 +10,8 @@ use tasty::Universe;
 /// files are typed as one unit, with the options of their `//> using options` directives. When the
 /// frontend refuses a file, the refused files are reported, nothing is written and the run fails.
 ///
-/// Environment: SCIVOLO_LIBS holds the library jars (default: ref/libs).
+/// Environment: SCIVOLO_LIBS holds the library jars (default: the distribution's, else the
+/// Coursier cache).
 #[derive(Parser)]
 #[command(name = "scivolo-jvm")]
 struct Cli {
@@ -53,9 +54,7 @@ fn main() {
         leave_out_refused,
         files,
     } = Cli::parse();
-    let libs = std::env::var_os("SCIVOLO_LIBS")
-        .map_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../ref/libs"), PathBuf::from);
-    let library = typer::dump::library_jars(&libs);
+    let library = library_jars().unwrap_or_else(|e| fail(&e));
     let jars = [&library[..], &cp].concat();
     let on_the_jvm: Vec<usize> = std::iter::once(0).chain(library.len()..jars.len()).collect();
     let mut open = || {
@@ -104,6 +103,17 @@ fn main() {
     if !refused.is_empty() {
         std::process::exit(1);
     }
+}
+
+/// The jars the sources are typed against, Scala's standard library first: those
+/// `typer::dump::library_jars` lists, found as the VM finds its libraries.
+fn library_jars() -> Result<Vec<PathBuf>, String> {
+    let mut out = vec![libs::scala_library()?];
+    for lib in ["nativelib", "clib", "posixlib"] {
+        out.push(libs::jar(lib)?);
+    }
+    out.extend([libs::JAVALIB_TASTY_JAR, libs::JDK_DECLARATIONS_JAR].map(libs::checked_in));
+    Ok(out)
 }
 
 /// Writes `entries` into the jar or directory `out`, the jar's manifest naming `main_class`.

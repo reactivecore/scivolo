@@ -2,6 +2,7 @@ workflow:
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     - if: '$CI_COMMIT_BRANCH == "main"'
+    - if: '$CI_COMMIT_TAG =~ /^v/'
     - when: never
 
 variables:
@@ -186,6 +187,57 @@ suite:macos:
     - export PATH="$CI_PROJECT_DIR/tmp/tools/scala-cli-1.14.0:$PATH"
     - rustc --version && clang --version && java -version && scala-cli version --cli-version
     - just ci-suite
+
+# The relocatable distribution (`just dist`), checked from a copy: on main, on release tags, and
+# in a merge request that changes how it is built.
+.dist:
+  stage: test
+  interruptible: true
+  rules:
+    - *not_scheduled
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes: [scripts/dist.py, crates/dist/**/*, crates/snrt/**/*, crates/aot/src/link.rs, Justfile, .gitlab-ci.yml]
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      when: never
+    - when: on_success
+  script:
+    - just dist dist-check
+  artifacts:
+    paths: [tmp/dist/*.tar.gz]
+    expire_in: 4 weeks
+
+dist:linux:
+  extends: .dist
+  image: ${CI_IMAGE}
+  needs:
+    - job: build-image
+      artifacts: true
+  variables:
+    XDG_CACHE_HOME: ${CI_PROJECT_DIR}/.cache
+  cache:
+    - key: scivolo-cargo-linux
+      paths: *cargo_cache_paths
+      policy: pull
+    - key:
+        prefix: scivolo-target-linux
+        files: [Cargo.lock, ci/Dockerfile]
+      paths: [target]
+      policy: pull
+    - key: scivolo-libs-linux
+      paths: *libs_cache_paths
+      policy: pull
+
+dist:macos:
+  extends: .dist
+  tags: [ "macos" ]
+  needs: []
+  cache:
+    - key: scivolo-cargo-macos
+      paths: *cargo_cache_paths
+      policy: pull
+    - key: scivolo-libs-macos
+      paths: *libs_cache_paths
+      policy: pull
 
 # Native shell runner: `image:` is ignored, the runner provides rustup and `just`, and it
 # keeps target/ between pipelines.
