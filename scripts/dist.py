@@ -14,7 +14,6 @@ import shutil
 import subprocess
 import sys
 import tarfile
-import tomllib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -42,8 +41,9 @@ def target():
 
 
 def version():
-    with open(ROOT / "Cargo.toml", "rb") as f:
-        return tomllib.load(f)["workspace"]["package"]["version"]
+    args = ["cargo", "metadata", "--no-deps", "--format-version", "1"]
+    meta = json.loads(subprocess.run(args, cwd=ROOT, check=True, stdout=subprocess.PIPE, text=True).stdout)
+    return next(p["version"] for p in meta["packages"] if p["name"] == "scivolo")
 
 
 def name():
