@@ -14,13 +14,15 @@ impl Typer<'_> {
         self.error_tree(span)
     }
 
-    /// Records that `id`, a reference to `name` that no lookup finds, is outside the subset as
-    /// `what`, or as a class of a jar's Scala 2 class file if a lookup left one so named out.
-    pub fn missing(&mut self, id: NodeId, name: &str, what: &str) -> TNodeId {
-        match self.u.refused_scala2_class(name) {
-            Some(class) => self.unsupported(id, &format!("Scala 2 class file `{class}` of a jar")),
-            None => self.unsupported(id, what),
+    /// Records that `id` is outside the subset if a lookup since `before`
+    /// (`Universe::scala2_lookups`) found a jar's Scala 2 class file, which dotty would read: an
+    /// error tree in its place.
+    pub fn scala2_refusal(&mut self, id: NodeId, before: usize) -> Option<TNodeId> {
+        if self.u.scala2_lookups() == before {
+            return None;
         }
+        let class = self.u.last_scala2_class()?.to_owned();
+        Some(self.unsupported(id, &format!("Scala 2 class file `{class}` of a jar")))
     }
 
     pub fn unsupported_tree(&mut self, span: Span, what: &str) -> TNodeId {

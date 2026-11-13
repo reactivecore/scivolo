@@ -50,16 +50,17 @@ impl Typer<'_> {
         if (text == nme::ROOT_PKG || text == nme::EMPTY_PACKAGE) && !name.is_type {
             let root = self.u.root();
             let tpe = self.u.intern_type(Type::Package(root));
-            let span = self.ast.span(id);
-            return self.tpd.node(T::Ident { name }, span, Some(tpe), Some(root));
+            return self.tpd.node(T::Ident { name }, self.ast.span(id), Some(tpe), Some(root));
         }
-        let found = match self.find_ref(&text, name.is_type, ctx) {
+        let scala2 = self.u.scala2_lookups();
+        let found = self.find_ref(&text, name.is_type, ctx);
+        if let Some(refused) = self.scala2_refusal(id, scala2) {
+            return refused;
+        }
+        let found = match found {
             Ok(Some(found)) => found,
             Ok(None) if matches!(pt, Pt::Fun(_) | Pt::PolyFun(_)) && !name.is_type => {
                 return self.proxy_ident(id, name, pt, ctx);
-            }
-            Ok(None) if self.u.refused_scala2_class(&text).is_some() => {
-                return self.missing(id, &text, "unresolved name");
             }
             Ok(None) => {
                 if let Some(t) = self.unresolved_term(id, name, ctx) {

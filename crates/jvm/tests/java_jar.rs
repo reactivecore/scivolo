@@ -56,29 +56,24 @@ fn a_java_jar_on_the_classpath_is_used() {
     assert_eq!(stdout, check);
 }
 
-/// scala-cli 2.13 compiles tests/jvm/javajar/legacy into a jar, and scivolo-jvm refuses
-/// tests/jvm/javajar/scala2.scala, which uses its class, by the class's name; skipped without
-/// scala-cli and jar.
+/// scivolo-jvm refuses the programs that use a class of tests/jvm/javajar/legacy/legacy.jar
+/// (`just scala2-fixture`), Scala 2 class files, by the class's name: tests/jvm/javajar/scala2.scala
+/// by its path, scala2_shadow.scala through a wildcard import that shadows `scala.StringBuilder`;
+/// skipped without java.
 #[test]
 fn scala2_class_files_are_refused_by_name() {
-    let missing = |tool: &str| Command::new(tool).arg("--version").output().is_err();
-    if missing("scala-cli") || missing("jar") {
-        eprintln!("no scala-cli or jar on the PATH: skipped");
+    if Command::new("java").arg("--version").output().is_err() {
+        eprintln!("no java on the PATH: skipped");
         return;
     }
+    let jar = root().join("tests/jvm/javajar/legacy/legacy.jar");
     let out = root().join("tmp/jvm-test/javajar-scala2");
-    let _ = std::fs::remove_dir_all(&out);
-    let (classes, jar) = (out.join("classes"), out.join("legacy.jar"));
-    run(Command::new("scala-cli")
-        .args(["--power", "compile", "-S", "2.13.16", "--server=false", "--quiet", "--workspace"])
-        .arg(out.join("ws"))
-        .arg("--compilation-output")
-        .arg(&classes)
-        .arg(root().join("tests/jvm/javajar/legacy/Old.scala")));
-    run(Command::new("jar").arg("cf").arg(&jar).arg("-C").arg(&classes).arg("legacy"));
-    let refused = output(&mut scivolo(&jar, &out.join("scala"), "scala2"));
-    let stderr = String::from_utf8_lossy(&refused.stderr);
-    assert!(!refused.status.success() && stderr.contains("Scala 2 class file `legacy.Old`"), "{stderr}");
+    for (name, class) in [("scala2", "legacy.Old"), ("scala2_shadow", "legacy.StringBuilder")] {
+        let refused = output(&mut scivolo(&jar, &out.join(name), name));
+        let stderr = String::from_utf8_lossy(&refused.stderr);
+        let message = format!("Scala 2 class file `{class}` of a jar");
+        assert!(!refused.status.success() && stderr.contains(&message), "{name}: {stderr}");
+    }
 }
 
 #[test]

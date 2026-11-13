@@ -43,9 +43,9 @@ impl Universe {
         self.enter_jdk_where(c, &info, |m| m.name == name);
     }
 
-    /// Gives class `c` of the library the constructor and retention of its JDK class file if
-    /// that is an annotation class, as `Retention` (`annotation::enter`), the library's
-    /// constructors hidden, once: whether it is one.
+    /// Enters, once, into library class `c` the constructor and retention of its JDK class file
+    /// if that is an annotation class (`annotation::enter`), the library's constructors removed:
+    /// whether it is one.
     pub fn enter_jdk_annotation(&mut self, c: SymbolId) -> bool {
         if self.classfile_annotations.contains_key(&c) {
             return true;

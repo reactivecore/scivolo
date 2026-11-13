@@ -9,12 +9,20 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use std::rc::Rc;
 
 /// The Java class files of the jars: the jar of each class by internal name, each class read
-/// once, and the internal names of the Scala 2 class files read.
+/// once, the internal names of the Scala 2 class files read, and the lookups that found one.
 #[derive(Default)]
 pub struct JavaClasses {
     jars: FxHashMap<String, usize>,
     read: FxHashMap<String, Option<Rc<ClassInfo>>>,
     scala2: FxHashSet<String>,
+    scala2_lookups: Scala2Lookups,
+}
+
+/// The lookups that found a Scala 2 class file in the jars: how many, and the last one's class.
+#[derive(Default)]
+struct Scala2Lookups {
+    count: usize,
+    last: String,
 }
 
 impl Universe {
@@ -41,12 +49,25 @@ impl Universe {
         Ok(())
     }
 
-    /// Names the class of simple name `name` that a lookup left out because its jar holds it as a
-    /// Scala 2 class file, whose pickle this reader does not read: `p.C`, if there is one.
-    pub fn refused_scala2_class(&self, name: &str) -> Option<String> {
-        let scala2 = &self.java_classes.as_ref()?.scala2;
-        let simple = |n: &&String| n.rsplit('/').next() == Some(name);
-        scala2.iter().filter(simple).min().map(|n| n.replace('/', "."))
+    /// Counts the lookups that found a jar's Scala 2 class file, whose pickle this reader does not
+    /// read: a class `p.C`, or the package object `p.package` of a name `p` lacks.
+    pub fn scala2_lookups(&self) -> usize {
+        self.java_classes.as_ref().map_or(0, |c| c.scala2_lookups.count)
+    }
+
+    /// Names the class of the last lookup `scala2_lookups` counts, as `p.C`.
+    pub fn last_scala2_class(&self) -> Option<&str> {
+        let last = &self.java_classes.as_ref()?.scala2_lookups.last;
+        (!last.is_empty()).then_some(last.as_str())
+    }
+
+    /// Counts a lookup of the package object of package `pkg` if a jar holds it as a Scala 2 class
+    /// file.
+    pub fn look_up_scala2_package_object(&mut self, pkg: SymbolId) {
+        let outer = self.full_name(pkg).replace('.', "/");
+        if !outer.is_empty() {
+            java_class(self, &format!("{outer}/package"));
+        }
     }
 
     /// Whether the universe uses the jars' Java class files, as a compile for the JVM does.
@@ -70,7 +91,10 @@ impl Universe {
         if class.contains(['$', '/']) || defined {
             return Vec::new();
         }
-        let Some(info) = java_class(self, &internal) else { return Vec::new() };
+        let Some(info) = java_class(self, &internal) else {
+            self.look_up_scala2_package_object(pkg);
+            return Vec::new();
+        };
         if info.access & ACC_MODULE != 0 {
             return Vec::new();
         }
@@ -100,19 +124,22 @@ pub fn enter(u: &mut Universe, owner: SymbolId, name: &str, info: &ClassInfo, ac
 }
 
 /// Reads the class of internal name `internal` from the jars' class files; none if they lack it,
-/// it is no class file or one compiled from Scala, which is kept as a Scala 2 class file.
+/// it is no class file or one compiled from Scala, which counts as a Scala 2 lookup.
 pub fn java_class(u: &mut Universe, internal: &str) -> Option<Rc<ClassInfo>> {
     let classes = u.java_classes.as_mut()?;
-    if let Some(info) = classes.read.get(internal) {
-        return info.clone();
+    if !classes.read.contains_key(internal) {
+        let jar = *classes.jars.get(internal)?;
+        let info = u.library.read_class(jar, internal).ok().and_then(|b| classfile::read(&b).ok());
+        let classes = u.java_classes.as_mut()?;
+        if info.as_ref().is_some_and(|i| i.scala) {
+            classes.scala2.insert(internal.to_owned());
+        }
+        classes.read.insert(internal.to_owned(), info.filter(|i| !i.scala).map(Rc::new));
     }
-    let jar = *classes.jars.get(internal)?;
-    let info = u.library.read_class(jar, internal).ok().and_then(|b| classfile::read(&b).ok());
     let classes = u.java_classes.as_mut()?;
-    if info.as_ref().is_some_and(|i| i.scala) {
-        classes.scala2.insert(internal.to_owned());
+    if classes.scala2.contains(internal) {
+        classes.scala2_lookups.count += 1;
+        classes.scala2_lookups.last = internal.replace('/', ".");
     }
-    let info = info.filter(|i| !i.scala).map(Rc::new);
-    classes.read.insert(internal.to_owned(), info.clone());
-    info
+    classes.read[internal].clone()
 }

@@ -18,15 +18,9 @@ const SPECIAL_SITES: [&str; 5] =
     ["scala.Dynamic", "scala.Selectable", crate::defn::TUPLE, "scala.Nothing", "scala.Null"];
 
 impl Typer<'_> {
-    /// `not_a_member` unless a class of that name was left out of a jar, else refused as a
-    /// missing member.
+    /// `not_a_member`, else refused as a missing member.
     pub fn member_not_found(&mut self, id: NodeId, qual: TNodeId, name: TName, ctx: Ctx) -> TNodeId {
-        let text = self.text(name.name).to_owned();
-        let error = match self.u.refused_scala2_class(&text) {
-            Some(_) => None,
-            None => self.not_a_member(id, qual, name, ctx),
-        };
-        error.unwrap_or_else(|| self.missing(id, &text, "member not found"))
+        self.not_a_member(id, qual, name, ctx).unwrap_or_else(|| self.unsupported(id, "member not found"))
     }
 
     /// `NotAMember` for selection `id` of `name` from term `qual` in `ctx`, whose type has no
