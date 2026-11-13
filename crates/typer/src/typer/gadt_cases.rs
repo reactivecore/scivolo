@@ -24,8 +24,6 @@ pub struct Gadt {
     pub bound: Vec<SymbolId>,
     /// How many cases are being typed.
     pub cases: u32,
-    /// Whether the innermost case being typed is one of an inline match.
-    pub inline: bool,
     /// The owners given to the functions of polymorphic function values, whose type parameters
     /// a case inside them may narrow.
     pub poly_owners: FxHashSet<SymbolId>,
@@ -37,7 +35,6 @@ pub struct CaseMark {
     bound: usize,
     open: usize,
     cases: u32,
-    inline: bool,
 }
 
 /// The GADT bounds undone while a definition is typed ahead, restored after it.
@@ -47,10 +44,9 @@ pub struct Suspended {
 }
 
 impl Typer<'_> {
-    /// Runs `f` as the typing of a case, of an inline match if `inline`, and restores the bounds
-    /// its pattern narrows after it.
-    pub fn in_gadt_case<R>(&mut self, inline: bool, f: impl FnOnce(&mut Self) -> R) -> R {
-        let mark = self.gadt.enter_case(self.u, inline);
+    /// Runs `f` as the typing of a case and restores the bounds its pattern narrows after it.
+    pub fn in_gadt_case<R>(&mut self, f: impl FnOnce(&mut Self) -> R) -> R {
+        let mark = self.gadt.enter_case(self.u);
         let result = f(self);
         self.gadt.leave_case(self.u, mark);
         result
@@ -68,23 +64,22 @@ impl Typer<'_> {
 }
 
 impl Gadt {
-    /// Enters the typing of a case, of an inline match if `inline`.
-    pub fn enter_case(&mut self, u: &Universe, inline: bool) -> CaseMark {
+    /// Enters the typing of a case.
+    pub fn enter_case(&mut self, u: &Universe) -> CaseMark {
         let mark = CaseMark {
             store: u.gadt().mark(),
             bound: self.bound.len(),
             open: self.open.len(),
             cases: self.cases,
-            inline: self.inline,
         };
-        (self.cases, self.inline) = (mark.cases + 1, inline);
+        self.cases = mark.cases + 1;
         mark
     }
 
     /// Leaves the case entered at `mark`, giving the types its pattern narrowed their bounds
     /// before.
     pub fn leave_case(&mut self, u: &mut Universe, mark: CaseMark) {
-        (self.cases, self.inline) = (mark.cases, mark.inline);
+        self.cases = mark.cases;
         self.bound.truncate(mark.bound);
         self.open.truncate(mark.open);
         u.gadt_mut().rollback(mark.store);

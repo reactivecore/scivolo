@@ -10,13 +10,12 @@ use super::gadt_cases::Gadt;
 use super::stability::is_stable_path;
 use super::type_ops::TypeOps;
 use crate::tpd::{TNodeId, Tree as T};
-use tasty::tags::INLINE;
-use tasty::{Kind, SymbolId, Type, TypeId, Universe};
+use tasty::{Type, TypeId, Universe};
 
 pub const GADT_HEALED_VIEW: &str = "implicit conversion of a GADT-approximated qualifier";
 
-/// Whether `t` is stable (dotty's `isStable`), `annot` marking a type `@uncheckedStable`.
-fn is_stable(u: &mut Universe, t: TypeId, annot: TypeId) -> bool {
+/// Tells whether `t` is stable (dotty's `isStable`), `annot` marking a type `@uncheckedStable`.
+pub fn is_stable(u: &mut Universe, t: TypeId, annot: TypeId) -> bool {
     match *u.ty(t) {
         Type::Annotated(p, a) => a == annot || is_stable(u, p, annot),
         Type::And(a, b) => {
@@ -48,10 +47,6 @@ impl Typer<'_> {
         if !self.is_singleton_tree(tree) {
             return self.type_cast(tree, pt);
         }
-        if self.gadt.inline {
-            let span = self.tpd.span(tree);
-            return self.unsupported_tree(span, "GADT cast of a singleton in an inline match case");
-        }
         let underlying = self.u.annotated(tpe).map_or(tpe, |(t, _)| t);
         let widened = self.u.widen(underlying);
         let approx = self.gadt.approximate(self.u, widened, 1);
@@ -75,14 +70,6 @@ impl Typer<'_> {
         self.is_singleton(underlying)
     }
 
-    /// Whether `owner` is or is nested in an inline method.
-    fn in_inline_method(&self, owner: SymbolId) -> bool {
-        std::iter::successors(Some(owner), |&o| self.u.symbol(o).owner).any(|o| {
-            let s = self.u.symbol(o);
-            s.kind == Kind::Def && s.flags.has(INLINE)
-        })
-    }
-
     /// Tells whether `a` conforms to `b` without the GADT bounds, constraining type variables.
     fn conforms_without_gadt(&mut self, a: TypeId, b: TypeId) -> bool {
         let ops = &mut TypeOps { u: self.u, constraint: &mut self.constraint };
@@ -101,21 +88,14 @@ impl Typer<'_> {
     }
 
     /// Applies `gadt_adapted` to a block's expression, as dotty adapts it while typing the
-    /// block; to a closure as a whole. Refuses to cast a singleton block in an inline method
-    /// enclosing `owner`.
-    pub fn gadt_adapted_in(&mut self, tree: TNodeId, pt: TypeId, owner: SymbolId) -> TNodeId {
+    /// block; to a closure as a whole.
+    pub fn gadt_adapted_in(&mut self, tree: TNodeId, pt: TypeId) -> TNodeId {
         let T::Block { stats, expr } = *self.tpd.tree(tree) else { return self.gadt_adapted(tree, pt) };
         if matches!(self.tpd.tree(expr), T::Closure { .. }) {
             return self.gadt_adapted(tree, pt);
         }
-        match self.gadt_adapted_in(expr, pt, owner) {
-            adapted if adapted == expr => match self.gadt_adapted(tree, pt) {
-                cast if cast != tree && self.is_singleton_tree(tree) && self.in_inline_method(owner) => {
-                    let span = self.tpd.span(tree);
-                    self.unsupported_tree(span, "GADT cast of a singleton block in an inline method")
-                }
-                cast => cast,
-            },
+        match self.gadt_adapted_in(expr, pt) {
+            adapted if adapted == expr => self.gadt_adapted(tree, pt),
             _ if self.is_singleton_tree(expr) => {
                 let span = self.tpd.span(tree);
                 self.unsupported_tree(span, "GADT cast of a singleton as a block's expression")

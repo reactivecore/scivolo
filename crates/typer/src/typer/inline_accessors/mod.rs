@@ -7,6 +7,7 @@ mod accessor_types;
 mod passing;
 mod passing_defs;
 mod retained;
+mod retyped;
 mod rewire;
 
 pub use retained::RETAINED_BODY;
@@ -97,15 +98,13 @@ impl MakeInlineable {
         }
 
         let before = t.tpd.get(tree).tpe;
-        let block_expr = match *t.tpd.tree(tree) {
-            T::Block { expr, .. } => Some((expr, t.tpd.get(expr).tpe)),
+        let child = match *t.tpd.tree(tree) {
+            T::Block { expr: c, .. } | T::Select { qualifier: c, .. } => Some((c, t.tpd.get(c).tpe)),
             _ => None,
         };
         self.children(t, tree);
-        if let Some((expr, old)) = block_expr
-            && old == before
-        {
-            t.tpd.get_mut(tree).tpe = t.tpd.get(expr).tpe;
+        if let Some((c, old)) = child {
+            self.retype(t, tree, c, (before, old));
         }
         if let T::Select { qualifier, .. } = *t.tpd.tree(tree)
             && let Some(tpe) = before
