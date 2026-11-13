@@ -136,10 +136,12 @@ impl Typer<'_> {
             flags = flags.and_not(f::PRIVATE_LOCAL);
         }
         self.check_def_name(tree, &text, flags, ctx.owner);
-        if self.u.symbol(ctx.owner).kind == Kind::Package {
-            self.unenter_classpath_members(tree, ctx.owner, &text);
-        }
+        let replaces_well_known = self.u.symbol(ctx.owner).kind == Kind::Package
+            && self.unenter_classpath_members(ctx.owner, &text);
         let sym = self.syms.define(self.u, &text, kind, ctx.owner, flags);
+        if replaces_well_known {
+            self.replacing_well_known.push((tree, sym));
+        }
         if self.is_scala2_macro_in_scala3(ctx.owner, written) {
             self.u.unenter(sym);
         }
