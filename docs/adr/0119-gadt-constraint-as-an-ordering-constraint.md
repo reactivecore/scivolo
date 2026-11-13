@@ -17,12 +17,16 @@ inside the comparer (`narrowGADTBounds`), after ordinary type variables.
   above it (transitively, most recently ordered first, as dotty's lists), an instance after
   `replace`, and the scope nesting level it was registered at. A change log gives `mark`,
   `rollback`, `changes_since` and `redo`, the shape of the ordinary constraint's.
-- Keyed by symbol, not by internal type parameters: dotty internalizes only a bound that is a
-  GADT symbol at its top level, so `mapping`/`externalize` collapse to "a top-level reference to
-  a registered symbol is that symbol". Difference case 2.
+- Keyed by symbol, not by internal type parameters: dotty internalizes a bound that is a GADT
+  symbol at its top level, so `mapping`/`externalize` collapse to "a top-level reference to a
+  registered symbol is that symbol". Difference case 2.
 - `replace` substitutes the replaced symbol only where an entry is that symbol at its top level;
   dotty's dependency maps (`coDeps`/`contraDeps`), used to instantiate ordinary variables, have
-  no counterpart. Difference case 2.
+  no counterpart. Difference case 2, except for one shape: dotty's `addToConstraint` also
+  internalizes a registered symbol inside the unions of a declared upper bound and the
+  intersections of a declared lower bound (`B <: A | Int`), and `replace` substitutes it there
+  (`B <: String | Int` once `A = String`). The store keeps the symbol; a case that makes such a
+  symbol equal to a type or unifies it is refused (`GadtConstraint::is_inexact`).
 - The store lives on `Universe`, as the GADT bounds did, so every comparison sees it. It holds
   only what the cases being typed added and is empty between cases, so no file sees another's
   entries and the order of files cannot change a result. Typing files in parallel needs a store

@@ -3,6 +3,7 @@
 //! Registering symbols in the GADT constraint and changing their entries.
 
 use super::{Entry, Unification};
+use crate::types::Type;
 use crate::{ANY, NOTHING, SymbolId, TypeId, Universe};
 
 /// A symbol to register with its declared bounds.
@@ -34,6 +35,28 @@ impl Universe {
             if let Some(p) = lower {
                 self.gadt_mut().order(p, r.sym, Unification::None);
             }
+            let mut nested = Vec::new();
+            self.gadt_nested_refs(r.lo, false, &mut nested);
+            self.gadt_nested_refs(r.hi, true, &mut nested);
+            for p in nested {
+                self.gadt_mut().add_nested(p);
+            }
+        }
+    }
+
+    /// Collects the registered symbols `t` refers to inside its intersections, or its unions if
+    /// `upper` (dotty's `substDependentSyms` below the top level).
+    fn gadt_nested_refs(&mut self, t: TypeId, upper: bool, out: &mut Vec<SymbolId>) {
+        let (a, b) = match *self.ty(t) {
+            Type::And(a, b) if !upper => (a, b),
+            Type::Or(a, b, _) if upper => (a, b),
+            _ => return,
+        };
+        for x in [a, b] {
+            match self.gadt_param(x) {
+                Some(p) => out.push(p),
+                None => self.gadt_nested_refs(x, upper, out),
+            }
         }
     }
 
@@ -63,6 +86,10 @@ impl Universe {
         let t = self.dealias(t);
         if !self.gadt().contains(s) || self.gadt_param(t) == Some(s) {
             return;
+        }
+        let kept = self.gadt_param(t);
+        if self.gadt().nested.iter().any(|&n| n == s || Some(n) == kept) {
+            self.gadt_mut().set_inexact();
         }
         self.gadt_mut().modify(s, |e| e.instance = Some(t));
         let (lower, upper) = (self.gadt().lower(s).to_vec(), self.gadt().upper(s).to_vec());

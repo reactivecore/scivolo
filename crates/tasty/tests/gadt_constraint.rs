@@ -76,6 +76,25 @@ fn replace_instantiates_and_keeps_the_ordering_around() {
 }
 
 #[test]
+fn replacing_a_symbol_inside_a_declared_union_is_inexact() {
+    let (mut u, [a, b, c], x) = setup(["A", "B", "C"]);
+    let a_ref = type_ref(&mut u, a);
+    let a_or_x = u.intern_type(Type::Or(a_ref, x, false));
+    u.gadt_add(
+        &[Registered { sym: a, lo: NOTHING, hi: ANY }, Registered { sym: b, lo: NOTHING, hi: a_or_x }],
+        0,
+    );
+    u.gadt_add(&unbounded(&[c]), 0);
+    let mark = u.gadt().mark();
+    u.gadt_replace(c, x);
+    assert!(!u.gadt().is_inexact());
+    u.gadt_replace(a, x);
+    assert!(u.gadt().is_inexact());
+    u.gadt_mut().rollback(mark);
+    assert!(!u.gadt().is_inexact());
+}
+
+#[test]
 fn rollback_undoes_and_redo_restores() {
     let (mut u, [a, b], x) = setup(["A", "B"]);
     u.gadt_add(&unbounded(&[a]), 0);
