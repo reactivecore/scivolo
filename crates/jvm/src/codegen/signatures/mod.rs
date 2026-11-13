@@ -103,7 +103,8 @@ impl<'u> Sig<'u> {
     }
 
     fn and_parts(&mut self, t: TypeId, parts: &mut Vec<TypeId>) {
-        let t = self.u.dealias(t);
+        let widened = self.u.widen(t);
+        let t = self.u.dealias(widened);
         match *self.u.ty(t) {
             Type::And(a, b) => {
                 self.and_parts(a, parts);

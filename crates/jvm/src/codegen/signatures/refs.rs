@@ -56,6 +56,7 @@ impl Sig<'_> {
             Erased::Prim(_) | Erased::Unit | Erased::Nothing | Erased::Null => {
                 self.erased_sig(&erased, boxing)
             }
+            _ if c == self.u.defn().any_kind => self.class_sig(&own, &args),
             Erased::Class(ref e) if internal(e) != own => {
                 let e = internal(e);
                 let function = e.starts_with("scala/Function") && full.contains("Function");
