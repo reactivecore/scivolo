@@ -104,9 +104,8 @@ impl Narrowing {
         t.gadt.register_bound(t.u, syms, level);
         constrain_pattern_type(t, pat, sel);
         t.gadt.bind(syms);
-        let narrowed: Vec<SymbolId> =
-            syms.iter().copied().filter(|&s| t.u.gadt().entry(s).is_some_and(|e| e.narrowed)).collect();
-        t.known_pattern_types.extend(narrowed);
+        let registered: Vec<SymbolId> = syms.iter().copied().filter(|&s| t.u.gadt().contains(s)).collect();
+        t.known_pattern_types.extend(registered);
     }
 }
 

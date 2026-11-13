@@ -57,6 +57,11 @@ inside the comparer (`narrowGADTBounds`), after ordinary type variables.
 - While the GADT constraint is inferred, a type variable's new upper bound is met with its old
   one comparing with the type variables' bounds (dotty's `hi & bound`), so that a GADT symbol
   bounded by a type with a variable drops a part it already is below.
+- A pattern-bound type registered in the GADT constraint has known bounds (its full bounds as
+  info), so a case's type that refers to it is avoided through them. It does not keep a match
+  type from being reduced, as dotty's reduction footprint holds only type parameters; a class's
+  higher-kinded type parameter, which dotty's constraint holds and ours leaves out, does while a
+  case is typed.
 - Patterns whose selector or pattern type has a narrowable higher-kinded parameter keep the
   earlier read-back path and its refusals until `compareAppliedType2`'s GADT cases are ported.
 - `compareAppliedType2` compares with a tuple class applied by its nested pairs first, ending in
