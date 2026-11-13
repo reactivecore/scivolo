@@ -360,6 +360,11 @@ impl<'a> Lower<'a> {
         phases::same_run::enter_specialized(self, class);
     }
 
+    /// Whether the unit is compiled with `-Yexplicit-nulls`.
+    pub fn explicit_nulls(&self) -> bool {
+        self.explicit_nulls
+    }
+
     /// The lazy value of a class whose `$lzyINIT` method is `init`.
     pub fn lazy_accessor_of(&self, init: SymbolId) -> Option<SymbolId> {
         self.lazy_members.iter().find(|(_, m)| m.init == init).map(|(&a, _)| a)

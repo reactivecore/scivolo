@@ -148,12 +148,13 @@ impl<'u> Sig<'u> {
             }
             Type::ByName(r) => self.class_sig("scala/Function0", &[r]),
             Type::Method { .. } | Type::Poly { .. } => self.method(t, top),
-            Type::Or(a, b, _) => match (self.class_named(a, "scala.Null"), self.class_named(b, "scala.Null"))
-            {
-                (false, true) if !self.is_value(a) => self.jsig(a, top, boxing),
-                (true, false) if !self.is_value(b) => self.jsig(b, top, boxing),
-                _ => self.erased(t, boxing),
-            },
+            Type::Or(a, b, _) => {
+                match (self.class_named(a, classes::NULL), self.class_named(b, classes::NULL)) {
+                    (false, true) if !self.is_value(a) => self.jsig(a, top, boxing),
+                    (true, false) if !self.is_value(b) => self.jsig(b, top, boxing),
+                    _ => self.erased(t, boxing),
+                }
+            }
             Type::And(..) => {
                 let mut parts = Vec::new();
                 self.and_parts(t, &mut parts);

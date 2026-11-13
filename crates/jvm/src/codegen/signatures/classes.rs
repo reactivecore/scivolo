@@ -6,6 +6,9 @@
 use super::Sig;
 use tasty::{Erased, SymbolId, Type, TypeId, Universe};
 
+/// The full name of class `Null`.
+pub const NULL: &str = "scala.Null";
+
 /// Builds the generic signature of class `c` within top-level class `top` before local classes
 /// were lifted: its type parameters and parents.
 pub fn class(u: &mut Universe, c: SymbolId, top: SymbolId) -> String {
@@ -45,7 +48,7 @@ impl Sig<'_> {
     }
 
     /// The class `t` stands for (dotty's `classSymbol`): of a type lambda its result's, of an
-    /// intersection the side deriving from the other, of a union its join's, of a type member of
+    /// intersection the side deriving from the other, of a union `union_class`, of a type member of
     /// a refinement its bound's; `depth` bounds the members followed.
     fn class_of(&mut self, t: TypeId, depth: u32) -> Option<SymbolId> {
         let depth = depth.checked_sub(1)?;
@@ -61,15 +64,31 @@ impl Sig<'_> {
                     _ => None,
                 }
             }
-            Type::Or(..) => match self.u.join(t)? {
-                j if j == t => None,
-                j => self.class_of(j, depth),
-            },
+            Type::Or(a, b, _) => self.union_class(t, (a, b), depth),
             Type::TypeRef(p, n) if unresolved => {
                 let info = self.u.refinement_named(p, n)?;
                 self.class_of(info, depth)
             }
             _ => self.u.class_symbol(t),
+        }
+    }
+
+    /// The class of union `t` of `sides` (dotty's `join`): with `Null`, the other side's class if
+    /// `Null` conforms to it, else `Matchable` or `Any`; else its join's.
+    fn union_class(&mut self, t: TypeId, (a, b): (TypeId, TypeId), depth: u32) -> Option<SymbolId> {
+        if self.class_named(a, NULL) || self.class_named(b, NULL) {
+            let other = if self.class_named(a, NULL) { b } else { a };
+            let c = self.class_of(other, depth)?;
+            let d = self.u.defn();
+            let value = d.any_val.is_some_and(|v| self.u.derives_from(c, v));
+            if !self.u.null_mode().explicit && !value {
+                return Some(c);
+            }
+            return Some(if self.u.derives_from(c, d.matchable) { d.matchable } else { d.any });
+        }
+        match self.u.join(t)? {
+            j if j == t => None,
+            j => self.class_of(j, depth),
         }
     }
 

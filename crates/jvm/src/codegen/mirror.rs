@@ -77,7 +77,7 @@ impl Gen<'_, '_> {
             let scope = self.class_type_vars(m);
             if !self.l.is_mixin_accessor(m)
                 && !self.l.is_bridge(m)
-                && let Some(sig) = super::signatures::member(self.l.u, member, info, &desc, &thrown)
+                && let Some(sig) = self.member_signature(member, info, &desc, &thrown)
                 && (unflattened.is_some() || super::signatures::erases_to(&sig, &desc, &scope))
             {
                 cf.member_signature(Last::Method, &sig);
