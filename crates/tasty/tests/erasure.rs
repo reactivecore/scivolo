@@ -81,6 +81,11 @@ fn erasure_of_unions_and_intersections() {
         ("scala.Array[scala.Int] | scala.Array[scala.Long]", class("java.lang.Object")),
         ("scala.Array[java.lang.String] | scala.Array[oracle.Box]", array(class("java.lang.Object"))),
         ("scala.Array[oracle.Dog] | scala.Array[oracle.Animal]", array(class("oracle.Animal"))),
+        (
+            "scala.Array[oracle.outer1.Sub] | scala.Array[oracle.outer1.Inner]",
+            array(class("oracle.Outer$Inner")),
+        ),
+        ("scala.Array[scala.Some[scala.Int]] | scala.Array[scala.None.type]", array(class("scala.Option"))),
         ("oracle.Dog & oracle.Animal", class("oracle.Dog")),
         ("oracle.Animal & oracle.Dog", class("oracle.Dog")),
         ("scala.Product & java.io.Serializable", class("java.io.Serializable")),

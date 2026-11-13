@@ -52,10 +52,7 @@ impl Universe {
                 (x, y) => Erased::Array(Box::new(self.erased_lub(x, y))),
             },
             (Erased::Class(x), Erased::Class(y)) => {
-                let [x, y] = [x, y].map(|n| {
-                    let r = self.class_ref(&n);
-                    self.class_symbol(r)
-                });
+                let [x, y] = [x, y].map(|n| self.class_of_binary_name(&n));
                 self.erased_common_base(x, y)
             }
             _ => object(),
