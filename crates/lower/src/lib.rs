@@ -1,6 +1,7 @@
 //! Lowering typed trees to NIR: ports of dotty's post-typer phases and of Scala Native's NIR
 //! generation (docs/research/10-lowering.md, ADRs 0010 and 0011).
 
+mod attributed;
 mod codegen;
 mod compile;
 mod definitions;
@@ -13,6 +14,7 @@ mod symbols;
 mod unit_files;
 mod units;
 
+pub use attributed::position;
 pub use codegen::names::{mapped as jdk_class_name, unmapped as jdk_class_source_name};
 pub use compile::{Refusal, compile, compile_with, lower};
 use definitions::Definitions;
@@ -31,7 +33,7 @@ use syntax::source::Sources;
 use tasty::{SymbolId, Universe};
 use typer::inlining::Lent;
 use typer::tpd::{TNodeId, Tpd};
-pub use units::{compile_sources, compile_units, position};
+pub use units::{compile_sources, compile_units};
 
 /// A construct the lowering does not support yet.
 #[derive(Debug)]

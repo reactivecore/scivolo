@@ -2,7 +2,8 @@
 //! need them.
 
 use crate::Refusal;
-use crate::units::{Attributed, compile_attributed};
+use crate::attributed::{Accepted, Attributed};
+use crate::units::compile_attributed;
 use syntax::config::Config;
 use syntax::diag::Diagnostics;
 use syntax::source::SourceFile;
@@ -58,7 +59,13 @@ pub fn compile_isolated<R>(
         let generate = (backend, &mut generate);
         let lent = macros.as_deref_mut().map(|m| m as &mut dyn Macros);
         match compile_attributed(&mut u, &kept, cfg, lent, generate) {
-            Ok((out, diags)) => return Ok(Isolated { out, diags, refused }),
+            Ok(Accepted { out, diags, left_out: typed_only }) => {
+                let left_out = typed_only
+                    .into_iter()
+                    .map(|a| FileRefusal { file: names(files, &a.files), refusal: a.refusal });
+                refused.extend(left_out);
+                return Ok(Isolated { out, diags, refused });
+            }
             Err(mut refusals) => {
                 let before = refused.len();
                 for Attributed { refusal, files: at } in std::mem::take(&mut refusals) {
@@ -71,8 +78,7 @@ pub fn compile_isolated<R>(
                         left_out[i] = true;
                         kept[i] = with_text(&files[i], blank(&files[i].text));
                     }
-                    let names = at.iter().map(|&i| files[i].name.clone()).collect::<Vec<_>>().join(", ");
-                    refused.push(FileRefusal { file: names, refusal });
+                    refused.push(FileRefusal { file: names(files, &at), refusal });
                 }
                 if refused.len() == before {
                     return Err(refusals.swap_remove(0).refusal);
@@ -80,6 +86,11 @@ pub fn compile_isolated<R>(
             }
         }
     }
+}
+
+/// The names of the files at indices `at` of `files`, comma-separated.
+fn names(files: &[SourceFile], at: &[usize]) -> String {
+    at.iter().map(|&i| files[i].name.as_str()).collect::<Vec<_>>().join(", ")
 }
 
 fn with_text(f: &SourceFile, text: String) -> SourceFile {

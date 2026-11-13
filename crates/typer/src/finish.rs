@@ -26,7 +26,9 @@ impl Units {
     /// Completes typed unit `typed` of source files `files`: its annotations, type variables,
     /// synthetic members and inline calls. Each stage runs on the files no refusal lies in so far,
     /// so that the refusals of all files are collected, and not at all after type errors or a
-    /// refusal in no file.
+    /// refusal in no file. Where all refusals come after typing and lie in some of several files,
+    /// the others are the typed unit and the refusals its `left_out`; where some come from
+    /// typing, only those refuse the unit.
     pub fn finish(&mut self, mut typer: Typer, typed: TNodeId, files: &[TNodeId]) -> Result<Typed, Fallback> {
         let mut pickles = Vec::new();
         self.note(&mut typer);
@@ -44,6 +46,7 @@ impl Units {
             typer.check_variances(root);
             self.note(&mut typer);
         }
+        let typing = self.refused.len();
         if !self.typer_only {
             self.expand(&mut typer, typed, files, &mut pickles);
         }
@@ -60,9 +63,17 @@ impl Units {
         if self.errors_first && typer.diags.has_errors() {
             return Err(Fallback::Errors(typer.diags));
         }
-        if let Some((at, what)) = self.refused.first().cloned() {
-            return Err(Fallback::Unsupported { at, what });
+        if typing == 0
+            && let Some(kept) = self.kept_files(&typer, files)
+        {
+            pickles.retain(|(file, _)| kept.contains(file));
         }
+        let pickles = pickles.into_iter().map(|(_, pickled)| pickled).collect();
+        let (root, left_out) = self.output_root(&mut typer, (typed, files), typing);
+        let Some(root) = root else {
+            let (at, what) = self.refused[0].clone();
+            return Err(Fallback::Unsupported { at, what });
+        };
         if typer.diags.has_errors() {
             return Err(Fallback::Errors(typer.diags));
         }
@@ -70,12 +81,39 @@ impl Units {
         if !self.typer_only {
             diags.items.append(&mut typer.erasure_diags.items);
         }
-        Ok(Typed { tpd: typer.tpd, root: typed, diags, pickles })
+        Ok(Typed { tpd: typer.tpd, root, diags, pickles, left_out })
+    }
+
+    /// `typed` without refusals; where all lie in `files` and come after typing (from index
+    /// `typing` on), the kept files and the refusals; none, `refused` cut to those of typing.
+    fn output_root(
+        &mut self,
+        typer: &mut Typer,
+        (typed, files): (TNodeId, &[TNodeId]),
+        typing: usize,
+    ) -> (Option<TNodeId>, Vec<(Span, String)>) {
+        if self.refused.is_empty() {
+            return (Some(typed), Vec::new());
+        }
+        if typing > 0 {
+            self.refused.truncate(typing);
+            return (None, Vec::new());
+        }
+        match self.kept_root(typer, typed, files) {
+            Some(root) => (Some(root), std::mem::take(&mut self.refused)),
+            None => (None, Vec::new()),
+        }
     }
 
     /// Flattens the spreads of the files of `files` not refused, adds their synthetic members,
     /// pickles them into `pickles` and expands their inline calls.
-    fn expand(&mut self, typer: &mut Typer, typed: TNodeId, files: &[TNodeId], pickles: &mut Vec<Pickled>) {
+    fn expand(
+        &mut self,
+        typer: &mut Typer,
+        typed: TNodeId,
+        files: &[TNodeId],
+        pickles: &mut Vec<(TNodeId, Pickled)>,
+    ) {
         if let Some(root) = self.kept_root(typer, typed, files)
             && !typer.spread_ctxs.is_empty()
         {
@@ -129,24 +167,24 @@ impl Units {
     }
 
     /// Pickles the top-level classes of typed source files `files` into `out` if `tasty_sources`
-    /// is set; a refusal at each file refused.
-    fn pickle_files(&mut self, typer: &mut Typer, files: &[TNodeId], out: &mut Vec<Pickled>) {
+    /// is set, each with its file; a refusal at each file refused.
+    fn pickle_files(&mut self, typer: &mut Typer, files: &[TNodeId], out: &mut Vec<(TNodeId, Pickled)>) {
         let Some(sources) = &self.tasty_sources else { return };
         for &f in files {
-            if let Err((at, what)) = pickle_one(typer, sources, f, out) {
-                self.refused.push((at, format!("pickling {what} into TASTy")));
+            match pickle_one(typer, sources, f) {
+                Ok(pickled) => out.extend(pickled.into_iter().map(|p| (f, p))),
+                Err((at, what)) => self.refused.push((at, format!("pickling {what} into TASTy"))),
             }
         }
     }
 }
 
-/// Pickles the top-level classes of typed source file `f` of `sources` into `out`.
+/// The TASTy of the top-level classes of typed source file `f` of `sources`.
 fn pickle_one(
     typer: &mut Typer,
     sources: &[(syntax::source::SourceFile, syntax::source::Offset)],
     f: TNodeId,
-    out: &mut Vec<Pickled>,
-) -> Result<(), (Span, Refusal)> {
+) -> Result<Vec<Pickled>, (Span, Refusal)> {
     let at = typer.tpd.span(f);
     let index = typer.file_of(at);
     let Some((file, base)) = sources.get(index) else {
@@ -158,6 +196,5 @@ fn pickle_one(
     source.others = sources.iter().filter(|(_, b)| b != base).map(|(f, b)| (f, *b)).collect();
     let annotations = typer.with_child_annotations(f).map_err(|r| (at, r))?;
     let cx = (&mut *typer.u, &mut typer.tpd, &*typer.names);
-    out.extend(pickle_file(cx, f, &source, (attributes, &annotations)).map_err(|r| (at, r))?);
-    Ok(())
+    pickle_file(cx, f, &source, (attributes, &annotations)).map_err(|r| (at, r))
 }
