@@ -136,7 +136,7 @@ pub fn stack_map(
 #[cfg(test)]
 mod tests {
     use super::{Method, stack_map};
-    use crate::{ATHROW, Code, ICONST_0, IFEQ, POP, Pool};
+    use crate::{ATHROW, Code, GOTO, ICONST_0, IFEQ, POP, Pool};
 
     const STATIC: Method = Method { class: "a/C", is_static: true, name: "m", descriptor: "()V" };
 
@@ -221,13 +221,32 @@ mod tests {
     }
 
     #[test]
+    fn handlers_do_not_see_the_locals_after_their_range() {
+        let (mut code, mut pool) = (Code::new(0), Pool::default());
+        let (end, handler) = (code.new_label(), code.new_label());
+        code.insn(ICONST_0);
+        code.store("I", 0);
+        let start = code.here();
+        code.aconst_null();
+        code.store("Ljava/lang/Object;", 0);
+        code.place(end);
+        code.ret("V");
+        code.place(handler);
+        code.set_stack(1);
+        code.insn(ATHROW);
+        code.protect(start, end, handler, 0);
+        let (table, [t0, t1]) = table(&mut code, &mut pool);
+        assert_eq!(table, Ok(Some(vec![0, 1, 255, 0, 5, 0, 1, 1, 0, 1, 7, t0, t1])));
+    }
+
+    #[test]
     fn ill_formed_flow_is_refused() {
         let (mut code, mut pool) = (Code::new(1), Pool::default());
         let (other, join) = (code.new_label(), code.new_label());
         code.load("I", 0);
         code.jump(IFEQ, other);
         code.insn(ICONST_0);
-        code.jump(0xa7, join);
+        code.jump(GOTO, join);
         code.place(other);
         code.place(join);
         code.ret("V");
