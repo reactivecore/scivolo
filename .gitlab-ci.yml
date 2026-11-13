@@ -3,6 +3,7 @@ workflow:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     - if: '$CI_COMMIT_BRANCH == "main"'
     - if: '$CI_COMMIT_TAG =~ /^v/'
+    - if: $CI_PIPELINE_SOURCE =~ /^(web|api|trigger)$/
     - when: never
 
 variables:
@@ -188,15 +189,13 @@ suite:macos:
     - rustc --version && clang --version && java -version && scala-cli version --cli-version
     - just ci-suite
 
-# The relocatable distribution (`just dist`), checked from a copy: on main, on release tags, and
-# in a merge request that changes how it is built.
+# The relocatable distribution (`just dist`), checked from a copy: on main, on release tags and
+# in pipelines run by hand or by trigger.
 .dist:
   stage: test
   interruptible: true
   rules:
     - *not_scheduled
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-      changes: [scripts/dist.py, crates/dist/**/*, crates/snrt/**/*, crates/aot/src/link.rs, Justfile, .gitlab-ci.yml]
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       when: never
     - when: on_success

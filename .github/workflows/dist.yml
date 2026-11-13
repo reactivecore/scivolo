@@ -1,19 +1,11 @@
 name: Distribution
 
 # The relocatable distribution (`just dist`), checked from a copy: on main, on release tags (then
-# attached to a GitHub release), and in a pull request that changes how it is built.
+# attached to a GitHub release) and when run by hand.
 on:
   push:
     branches: [main]
     tags: ["v*"]
-  pull_request:
-    paths:
-      - scripts/dist.py
-      - crates/dist/**
-      - crates/snrt/**
-      - crates/aot/src/link.rs
-      - Justfile
-      - .github/**
   workflow_dispatch:
 
 concurrency:
