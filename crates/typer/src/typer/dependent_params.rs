@@ -19,6 +19,20 @@ pub fn applied_result(
     if !mentions_clause_params(u, t, (binder, names), method) {
         return t;
     }
+    let replacements = singleton_args(u, t, (binder, names), method, args);
+    let param = |u: &Universe, part: TypeId| clause_param(u, part, (binder, names), method);
+    substituted(u, t, &param, &replacements)
+}
+
+/// Determines what `applied_result` substitutes for the parameters: the types `args`, a skolem of
+/// the widened type for an argument that `t` refers to and that is not stable.
+pub fn singleton_args(
+    u: &mut Universe,
+    t: TypeId,
+    (binder, names): (Binder, &[NameId]),
+    method: Option<SymbolId>,
+    args: &[TypeId],
+) -> Vec<TypeId> {
     let param = |u: &Universe, part: TypeId| clause_param(u, part, (binder, names), method);
     let mut used = vec![false; args.len()];
     u.map_type(t, &mut |u, part| {
@@ -34,7 +48,7 @@ pub fn applied_result(
             *r = u.fresh_skolem(widened);
         }
     }
-    substituted(u, t, &param, &replacements)
+    replacements
 }
 
 /// The number of the parameter of the clause of binder `binder` and parameter names `names` of

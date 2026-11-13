@@ -97,7 +97,8 @@ impl Typer<'_> {
     /// after instantiating the type variables of its match aliases (dotty's `instanceType`).
     pub fn instance_type(&mut self, v: VarId, from_below: bool) -> Result<TypeId, &'static str> {
         let (lo, hi) = self.constraint.bounds(v);
-        let inst = if from_below { self.zonk(lo) } else { self.zonk(hi) };
+        let bound = self.with_refined_var_members(if from_below { lo } else { hi });
+        let inst = self.zonk(bound);
         let inst = self.with_match_alias_vars_defined(inst);
         let inst = self.simplified_inferred(inst);
         if !from_below {
@@ -106,6 +107,21 @@ impl Typer<'_> {
         let widen = if self.constraint.is_hard(v) { Widen::Singletons } else { Widen::Unions };
         let bound = self.u.intern_type(Type::Var(v));
         self.widen_inferred(inst, bound, widen)
+    }
+
+    /// Replaces in `t` each type member of an instantiated variable that a refinement of the
+    /// variable's instance aliases by the alias (dotty's `simplify` of a selection on an
+    /// instantiated `TypeVar`, `derivedSelect` with `lookupRefined`).
+    fn with_refined_var_members(&mut self, t: TypeId) -> TypeId {
+        let c = &self.constraint;
+        self.u.map_type(t, &mut |u, part| {
+            let Some((Some(pre), s)) = u.sym_ref(part) else { return None };
+            let inst = zonked(u, c, c.instance(u.var(pre)?)?, false);
+            if !matches!(u.ty(inst), Type::Skolem(..) | Type::Refined(..)) {
+                return None;
+            }
+            u.refinement_info(inst, s).and_then(|i| u.type_alias(i))
+        })
     }
 
     /// Instantiates type variable `v` to its instance type, from its lower bound if `from_below`

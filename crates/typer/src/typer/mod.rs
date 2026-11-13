@@ -52,6 +52,7 @@ mod default_params;
 mod deferred_givens;
 mod define_further;
 mod defs;
+mod dependent_args;
 mod dependent_function_types;
 mod dependent_functions;
 mod dependent_matches;

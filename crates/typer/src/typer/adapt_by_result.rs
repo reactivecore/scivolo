@@ -7,24 +7,22 @@
 use super::dependent_params::{clause_param, mentions_clause_params, substituted};
 use super::{Pt, Typer};
 use crate::ctx::Ctx;
-use tasty::{Binder, NameId, SymbolId, Type, TypeId};
+use tasty::{Binder, NameId, SymbolId, Type, TypeId, TypeVars};
 
 impl Typer<'_> {
     /// Approximates result `result` of the clause of binder `binder` and parameters `params` of
     /// method `meth` by replacing each parameter with a fresh type variable below its type and
     /// `Singleton`, only `Singleton` where its type refers to the clause (dotty's
-    /// `resultTypeApprox` with `newDepTypeVar`); `None` unless `pt` is a fully defined type.
+    /// `resultTypeApprox` with `newDepTypeVar`), with those variables; `None` unless `pt` is a
+    /// type.
     pub fn result_type_approx(
         &mut self,
         result: TypeId,
         (binder, params): (Binder, &[(NameId, TypeId)]),
         meth: Option<SymbolId>,
         pt: Pt,
-    ) -> Option<TypeId> {
-        let Pt::Type(p) = pt else { return None };
-        if !self.is_fully_defined(p) {
-            return None;
-        }
+    ) -> Option<(TypeId, Vec<TypeId>)> {
+        let Pt::Type(_) = pt else { return None };
 
         let names: Vec<NameId> = params.iter().map(|&(n, _)| n).collect();
         let singleton = crate::defn::type_ref(self.u, self.u.defn().singleton);
@@ -36,12 +34,14 @@ impl Typer<'_> {
                 true => singleton,
                 false => self.u.intern_type(Type::And(p, singleton)),
             };
-            self.u.is_subtype_in(var, hi, &mut self.constraint);
+            if let Some(v) = self.u.var(var) {
+                self.constraint.add_upper(self.u, v, hi);
+            }
             vars.push(var);
         }
 
         let param = |u: &tasty::Universe, part: TypeId| clause_param(u, part, (binder, &names), meth);
-        Some(substituted(self.u, result, &param, &vars))
+        Some((substituted(self.u, result, &param, &vars), vars))
     }
 
     /// Constrains the result type `result` of an application of `meth` to conform to `pt`

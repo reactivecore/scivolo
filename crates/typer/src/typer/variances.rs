@@ -156,6 +156,9 @@ impl TypeOps<'_> {
                 go(self, lo, -v);
                 go(self, hi, v);
             }
+            Type::TypeRef(pre, _) | Type::TermRef(pre, _) | Type::Sym(Some(pre), _) => {
+                go(self, pre, v.max(0))
+            }
             _ => {
                 let mut vars = Vec::new();
                 self.u.map_type(t, &mut |u, part| {

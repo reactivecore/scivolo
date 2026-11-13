@@ -46,9 +46,21 @@ impl Cmp<'_> {
             (None, None) => match variance {
                 1 => self.recur(x, y),
                 -1 => self.recur(y, x),
-                _ => self.recur(y, x) && self.recur(x, y),
+                _ => self.instantiated(x) == self.instantiated(y) || self.recur(y, x) && self.recur(x, y),
             },
         }
+    }
+
+    /// Replaces in `t` each instantiated type variable by its instance.
+    fn instantiated(&mut self, t: TypeId) -> TypeId {
+        let vars = &*self.vars;
+        self.u.map_type(t, &mut |u, part| {
+            let mut inst = vars.instance(u.var(part)?)?;
+            while let Some(next) = u.var(inst).and_then(|w| vars.instance(w)) {
+                inst = next;
+            }
+            Some(inst)
+        })
     }
 
     /// The bounds of type parameter `p` with the parameters `tparams` replaced by `args`
