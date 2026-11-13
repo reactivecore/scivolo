@@ -98,14 +98,9 @@ impl MakeInlineable {
         }
 
         let before = t.tpd.get(tree).tpe;
-        let child = match *t.tpd.tree(tree) {
-            T::Block { expr: c, .. } | T::Select { qualifier: c, .. } => Some((c, t.tpd.get(c).tpe)),
-            _ => None,
-        };
+        let parts = retyped::Parts::of(t, tree);
         self.children(t, tree);
-        if let Some((c, old)) = child {
-            self.retype(t, tree, c, (before, old));
-        }
+        self.retype(t, tree, parts);
         if let T::Select { qualifier, .. } = *t.tpd.tree(tree)
             && let Some(tpe) = before
             && let Some((Some(_), m)) = t.u.sym_ref(tpe)

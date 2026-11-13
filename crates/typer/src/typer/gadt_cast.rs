@@ -15,7 +15,7 @@ use tasty::{Type, TypeId, Universe};
 pub const GADT_HEALED_VIEW: &str = "implicit conversion of a GADT-approximated qualifier";
 
 /// Tells whether `t` is stable (dotty's `isStable`), `annot` marking a type `@uncheckedStable`.
-pub fn is_stable(u: &mut Universe, t: TypeId, annot: TypeId) -> bool {
+fn is_stable(u: &mut Universe, t: TypeId, annot: TypeId) -> bool {
     match *u.ty(t) {
         Type::Annotated(p, a) => a == annot || is_stable(u, p, annot),
         Type::And(a, b) => {
@@ -23,6 +23,14 @@ pub fn is_stable(u: &mut Universe, t: TypeId, annot: TypeId) -> bool {
         }
         _ => is_stable_path(u, t),
     }
+}
+
+/// Drops the annotations around `t`.
+fn unannotated(u: &Universe, mut t: TypeId) -> TypeId {
+    while let Some((a, _)) = u.annotated(t) {
+        t = a;
+    }
+    t
 }
 
 /// Whether `t` is a class type or made of them (`isConcrete` of dotty's `realizability`).
@@ -47,7 +55,7 @@ impl Typer<'_> {
         if !self.is_singleton_tree(tree) {
             return self.type_cast(tree, pt);
         }
-        let underlying = self.u.annotated(tpe).map_or(tpe, |(t, _)| t);
+        let underlying = unannotated(self.u, tpe);
         let widened = self.u.widen(underlying);
         let approx = self.gadt.approximate(self.u, widened, 1);
         let conj = self.u.intern_type(Type::And(tpe, approx));
@@ -63,10 +71,10 @@ impl Typer<'_> {
         self.type_cast(tree, target)
     }
 
-    /// Whether the type of `tree`, an annotation dropped, is a singleton.
+    /// Whether the type of `tree`, its annotations dropped, is a singleton.
     fn is_singleton_tree(&mut self, tree: TNodeId) -> bool {
         let tpe = self.tpd.tpe(tree);
-        let underlying = self.u.annotated(tpe).map_or(tpe, |(t, _)| t);
+        let underlying = unannotated(self.u, tpe);
         self.is_singleton(underlying)
     }
 

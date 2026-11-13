@@ -2,6 +2,7 @@
 //   compiler/src/dotty/tools/dotc/core/ConstraintHandling.scala
 //! Bounds without the local symbols defined after a variable (dotty's `LevelAvoidMap`).
 
+use super::levels::LOCAL_REF_DEPTH;
 use super::unify::meet;
 use super::{At, Constraint};
 use names::nme;
@@ -22,7 +23,7 @@ impl Constraint {
     /// invariant; an invariant argument by the wildcard of its avoided bounds where covariant.
     /// `None` if another such symbol remains.
     pub fn avoided(&mut self, u: &mut Universe, t: TypeId, at: At, v: i32) -> Option<TypeId> {
-        if !self.refers_to_local(u, t, at, 4) {
+        if !self.refers_to_local(u, t, at, LOCAL_REF_DEPTH) {
             return Some(t);
         }
         let ty = *u.ty(t);
@@ -89,7 +90,9 @@ impl Constraint {
             Type::Applied(tycon, args) => {
                 let class = u.class_symbol(tycon)?;
                 let variances = u.variances(class);
-                if variances.len() != u.types_of(args).len() || self.refers_to_local(u, tycon, at, 4) {
+                if variances.len() != u.types_of(args).len()
+                    || self.refers_to_local(u, tycon, at, LOCAL_REF_DEPTH)
+                {
                     return None;
                 }
                 let mut out = Vec::with_capacity(variances.len());
@@ -99,7 +102,7 @@ impl Constraint {
                         out.push(self.avoided(u, a, at, 0)?);
                         continue;
                     }
-                    if pv == 0 && self.refers_to_local(u, a, at, 4) {
+                    if pv == 0 && self.refers_to_local(u, a, at, LOCAL_REF_DEPTH) {
                         let (bounds, wildcard) = match u.bounds(a) {
                             Some(bounds) => (bounds, true),
                             None => ((a, a), false),
@@ -121,7 +124,7 @@ impl Constraint {
                 let parent = self.avoided(u, parent, at, v)?;
                 let info_ty = *u.ty(info);
                 let info = match info_ty {
-                    _ if !self.refers_to_local(u, info, at, 4) => info,
+                    _ if !self.refers_to_local(u, info, at, LOCAL_REF_DEPTH) => info,
                     Type::Alias(_) if v > 0 => return Some(parent),
                     Type::Bounds(lo, hi) if v > 0 => {
                         let (lo, hi) = (self.avoided(u, lo, at, -1)?, self.avoided(u, hi, at, 1)?);

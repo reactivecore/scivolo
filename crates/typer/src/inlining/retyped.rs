@@ -59,6 +59,10 @@ impl Inlining<'_> {
                 }
                 Ok(t)
             }
+            T::TypeApply { .. } => match self.check_gadt_cast(t) {
+                Ok(()) => Ok(t),
+                Err(what) => Err((self.tpd.span(t), what)),
+            },
             _ => Ok(t),
         }
     }
