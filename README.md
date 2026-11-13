@@ -231,7 +231,10 @@ just --list                     # all recipes: oracles, reports, benchmarks
 ```
 
 Rules for contributors (human or agent): [CLAUDE.md](CLAUDE.md). Work is tracked in GitLab
-issues; pull requests on the GitHub mirror are welcome and run GitHub Actions.
+issues.
+
+- Issues and pull requests on the GitHub mirror are welcome; pull requests run GitHub Actions.
+- Internal work is ahead of the GitHub mirror: before a large pull request, please open an issue.
 
 ## License
 
