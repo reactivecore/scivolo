@@ -20,6 +20,7 @@ env:
 # Job steps are thin: every command lives in the Justfile. Tool versions follow ci/Dockerfile.
 jobs:
   test:
+    name: test (${{ matrix.os }})
     strategy:
       fail-fast: false
       matrix:
