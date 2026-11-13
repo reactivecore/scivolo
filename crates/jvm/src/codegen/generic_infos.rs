@@ -8,7 +8,7 @@ use super::Gen;
 use super::descriptors::internal;
 use super::signatures::Member;
 use names::name_kinds;
-use tasty::tags::PRIVATE;
+use tasty::tags::{FIELDaccessor, PRIVATE};
 use tasty::{Kind, SymbolId, TypeId};
 
 /// A forwarder to a default method of a Java interface.
@@ -34,7 +34,10 @@ impl Gen<'_, '_> {
             (None, Some(f)) => f.info,
             (None, None) => self.seen_from_owner(sym),
         };
-        if mixed.is_some_and(|o| self.l.u.symbol(o).flags.has(PRIVATE)) || self.is_local(sym) {
+        if mixed.is_some_and(|o| self.was_private(o))
+            || self.is_private_trait_setter(sym)
+            || self.is_local(sym)
+        {
             return None;
         }
 
@@ -155,6 +158,19 @@ impl Gen<'_, '_> {
         let info = self.l.u.info(sym);
         let info = self.l.u.as_seen_from(info, this, interface);
         Some(JavaForwarded { target, info })
+    }
+
+    /// Whether trait member `m` is private or an accessor of a private value, its name expanded.
+    fn was_private(&self, m: SymbolId) -> bool {
+        let s = self.l.u.symbol(m);
+        s.flags.has(PRIVATE) || s.flags.has(FIELDaccessor) && s.name.contains(name_kinds::EXPAND_SEPARATOR)
+    }
+
+    /// Whether `sym` is the setter `Mixin` makes for a private trait value, its name expanded.
+    fn is_private_trait_setter(&self, sym: SymbolId) -> bool {
+        let name = &self.l.u.symbol(sym).name;
+        let value = name.split_once(name_kinds::TRAIT_SETTER_SEPARATOR).map(|(_, v)| v);
+        value.is_some_and(|v| v.contains(name_kinds::EXPAND_SEPARATOR))
     }
 
     /// The trait member mixin accessor or forwarder `sym` copies, or the field of a mixin getter
