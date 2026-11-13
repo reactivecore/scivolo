@@ -158,9 +158,10 @@ pub struct Lower<'a> {
     inlined_spans: FxHashMap<TNodeId, Span>,
     /// The spans in another source of the trees `drop_inlined` gave the span of an inline call.
     own_spans: FxHashMap<TNodeId, Span>,
-    /// The value definitions inlined from another source with their span there, `Span::NONE` for
-    /// those later phases made.
-    foreign_vals: FxHashMap<TNodeId, Span>,
+    /// The trees `drop_inlined` gave the span of an inline call with their span in another file or
+    /// source (of a pattern-bound value's initializer, that of its pattern); `Span::NONE` for the
+    /// value definitions later phases made there without one.
+    foreign_spans: FxHashMap<TNodeId, Span>,
     /// The blocks `drop_inlined` made of `Inlined` trees with bindings.
     inlined_blocks: FxHashSet<TNodeId>,
     /// The start of the outermost inline call each definition of an expansion was inlined at.
@@ -323,7 +324,7 @@ impl<'a> Lower<'a> {
             super_accessors: FxHashMap::default(),
             inlined_spans: FxHashMap::default(),
             own_spans: FxHashMap::default(),
-            foreign_vals: FxHashMap::default(),
+            foreign_spans: FxHashMap::default(),
             inlined_at: FxHashMap::default(),
             inlined_blocks: FxHashSet::default(),
             impure_modules: FxHashSet::default(),
@@ -368,10 +369,10 @@ impl<'a> Lower<'a> {
         self.super_accessors.keys().copied()
     }
 
-    /// Determines whether value definition `t` was inlined from another source, and its span
-    /// there if known (dotty's `reposition` keeps that of a `DefTree`).
-    pub fn foreign_val_span(&self, t: TNodeId) -> Option<Span> {
-        self.foreign_vals.get(&t).copied()
+    /// Determines whether `t` was inlined from another file or source, and its span there if
+    /// known (dotty's `reposition` keeps that of a `DefTree`).
+    pub fn foreign_span(&self, t: TNodeId) -> Option<Span> {
+        self.foreign_spans.get(&t).copied()
     }
 
     /// The owner of `s`, of a lifted local class the one before lifting.

@@ -174,7 +174,8 @@ impl Gen<'_, '_> {
         if !span.exists() {
             return None;
         }
-        let Some(own) = self.l.foreign_val_span(t) else {
+        let foreign = self.l.foreign_span(t).filter(|_| matches!(self.l.tpd.tree(t), Tree::ValDef { .. }));
+        let Some(own) = foreign else {
             return Some(self.line_at(span.point()));
         };
         let at = match own.exists() {

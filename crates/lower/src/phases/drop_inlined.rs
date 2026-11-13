@@ -66,9 +66,7 @@ fn reposition(l: &mut Lower, t: TNodeId, at: Span) {
         l.own_spans.insert(t, span);
     }
     if span.is_in_other_source() || other_file {
-        if matches!(l.tpd.tree(t), Tree::ValDef { .. }) {
-            l.foreign_vals.insert(t, span);
-        }
+        l.foreign_spans.insert(t, span);
         l.tpd.get_mut(t).span = at.as_inlined_call();
     }
 }
@@ -86,7 +84,7 @@ pub fn unmark_calls(l: &mut Lower) {
         let t = TNodeId::new(i);
         let span = l.tpd.span(t);
         if span.is_inlined_call() && matches!(l.tpd.tree(t), Tree::ValDef { .. }) {
-            l.foreign_vals.entry(t).or_insert(Span::NONE);
+            l.foreign_spans.entry(t).or_insert(Span::NONE);
         }
         l.tpd.get_mut(t).span = span.without_inlined_call();
     }

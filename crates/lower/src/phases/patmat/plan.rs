@@ -186,6 +186,9 @@ impl Translator<'_, '_> {
             Tree::Bind { body, .. } => {
                 let bound = self.l.tpd.sym(pat).expect("a bound symbol");
                 let value = self.l.ident(scrutinee, Span::NONE);
+                if let Some(own) = self.l.foreign_span(pat) {
+                    self.l.foreign_spans.insert(value, own);
+                }
                 self.initializer.insert(bound, value);
                 self.spans.insert(bound, super::coord(span));
                 let on_success = self.add(Plan::Let { sym: bound, body: on_success });
