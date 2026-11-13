@@ -20,6 +20,17 @@ RUN curl --proto '=https' --tlsv1.2 -sSfL \
     rm /tmp/just.tar.gz && \
     just --version
 
+# cargo-nextest runs the test binaries of `just test` in parallel; scripts/nextest.sh names the
+# same version.
+ARG NEXTEST_VERSION=0.9.150
+ARG NEXTEST_SHA256=84f0f9ba75d0b6fa117bc418d49747ba78e20e4583057f6fa628f1b17c17234d
+RUN curl --proto '=https' --tlsv1.2 -sSfL \
+        "https://github.com/nextest-rs/nextest/releases/download/cargo-nextest-${NEXTEST_VERSION}/cargo-nextest-${NEXTEST_VERSION}-x86_64-unknown-linux-musl.tar.gz" \
+        -o /tmp/nextest.tar.gz && \
+    echo "${NEXTEST_SHA256}  /tmp/nextest.tar.gz" | sha256sum -c - && \
+    tar -xzf /tmp/nextest.tar.gz -C /usr/local/bin cargo-nextest && \
+    rm /tmp/nextest.tar.gz
+
 # Coursier fetches the Maven dependencies of `--dep` and the REPL dependency tests.
 ARG COURSIER_VERSION=2.1.26
 ARG COURSIER_SHA256=348e37bc2a8c706640e6b032c4551a0e055a7f1537485b4a91540e9d3598ec6d

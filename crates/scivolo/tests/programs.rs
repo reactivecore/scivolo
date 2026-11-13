@@ -4,6 +4,8 @@
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::Mutex;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 fn command(cp: &[&Path], main: &str, snapshot: Option<&Path>) -> Command {
     let mut command = Command::new(env!("CARGO_BIN_EXE_scivolo"));
@@ -31,25 +33,39 @@ fn root() -> PathBuf {
 }
 
 fn run_all(snapshot: Option<&Path>) {
-    let mut failures = Vec::new();
-    for entry in std::fs::read_dir(root()).unwrap() {
-        let dir = entry.unwrap().path();
-        if !dir.is_dir() {
-            continue;
+    let dirs: Vec<PathBuf> =
+        std::fs::read_dir(root()).unwrap().map(|e| e.unwrap().path()).filter(|d| d.is_dir()).collect();
+    let next = AtomicUsize::new(0);
+    let failures = Mutex::new(Vec::new());
+    let threads = std::thread::available_parallelism().map_or(1, |n| n.get());
+    std::thread::scope(|s| {
+        for _ in 0..threads {
+            s.spawn(|| {
+                while let Some(dir) = dirs.get(next.fetch_add(1, Ordering::Relaxed)) {
+                    if let Some(failure) = failure(dir, snapshot) {
+                        failures.lock().unwrap().push(failure);
+                    }
+                }
+            });
         }
-        let name = dir.file_name().unwrap().to_str().unwrap().to_owned();
-        let expected = std::fs::read_to_string(dir.join(format!("{name}.check"))).unwrap();
-        match run(&dir, &name, snapshot) {
-            Err(e) if e.contains("or the Coursier cache") && std::env::var_os("CI").is_none() => {
-                eprintln!("skipped: Scala Native libraries are not in the Coursier cache");
-                return;
-            }
-            Ok(out) if out == expected => {}
-            Ok(out) => failures.push(format!("{name}: expected\n{expected}\ngot\n{out}")),
-            Err(e) => failures.push(format!("{name}: {e}")),
-        }
+    });
+    let failures = failures.into_inner().unwrap();
+    if failures.iter().any(|f| f.contains("or the Coursier cache")) && std::env::var_os("CI").is_none() {
+        eprintln!("skipped: Scala Native libraries are not in the Coursier cache");
+        return;
     }
     assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
+
+/// Runs the program in `dir`; returns how its output differs from its `.check`, if it does.
+fn failure(dir: &Path, snapshot: Option<&Path>) -> Option<String> {
+    let name = dir.file_name().unwrap().to_str().unwrap();
+    let expected = std::fs::read_to_string(dir.join(format!("{name}.check"))).unwrap();
+    match run(dir, name, snapshot) {
+        Ok(out) if out == expected => None,
+        Ok(out) => Some(format!("{name}: expected\n{expected}\ngot\n{out}")),
+        Err(e) => Some(format!("{name}: {e}")),
+    }
 }
 
 #[test]

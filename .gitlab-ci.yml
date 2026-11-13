@@ -10,6 +10,10 @@ variables:
   CARGO_HOME: ${CI_PROJECT_DIR}/.cargo
   CARGO_TERM_COLOR: "always"
   CARGO_INCREMENTAL: "0"
+  # Test builds without debuginfo; caches zipped by fastzip at its fastest level.
+  CARGO_PROFILE_DEV_DEBUG: "0"
+  FF_USE_FASTZIP: "true"
+  CACHE_COMPRESSION_LEVEL: "fastest"
   CI_IMAGE: $CI_REGISTRY_IMAGE/builder:$BUILDER_TAG
   SUITE_IMAGE: $CI_REGISTRY_IMAGE/suite:$BUILDER_TAG
 
@@ -66,13 +70,19 @@ build-image:
   if: $CI_PIPELINE_SOURCE == "schedule"
   when: never
 
+# Pushes target/ on main only; merge requests pull it.
 test:linux:
   image: ${CI_IMAGE}
   stage: test
   interruptible: true
   rules:
     - *not_scheduled
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      variables:
+        TARGET_CACHE_POLICY: pull-push
     - when: on_success
+      variables:
+        TARGET_CACHE_POLICY: pull-push
   needs:
     - job: build-image
       artifacts: true
@@ -85,12 +95,14 @@ test:linux:
         prefix: scivolo-target-linux
         files: [Cargo.lock, ci/Dockerfile]
       paths: [target]
+      policy: $TARGET_CACHE_POLICY
     - key: scivolo-libs-linux
       paths: *libs_cache_paths
     - key: scivolo-coursier-linux
       paths: [.cache/coursier]
   script:
     - rustc --version && cargo --version && just --version && clang --version && cs version
+    - cargo nextest --version && nproc
     - just ci
 
 # Scala Native's unit tests: on main, and on demand in a merge request.
@@ -253,6 +265,9 @@ test:macos:
       paths: *cargo_cache_paths
     - key: scivolo-libs-macos
       paths: *libs_cache_paths
+    # cargo-nextest from scripts/nextest.sh.
+    - key: scivolo-tools-macos
+      paths: [tmp/tools]
   script:
     - rustc --version && cargo --version && just --version && clang --version
     - just ci
