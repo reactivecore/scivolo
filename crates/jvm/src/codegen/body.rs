@@ -6,13 +6,14 @@ use classfile::{Code, Label, Pool};
 use tasty::SymbolId;
 use typer::tpd::TNodeId;
 
-/// Where the value of a tree goes (dotty's `LoadDestination`): on the stack, to a label, or
-/// returned from the method.
+/// Where the value of a tree goes (dotty's `LoadDestination`): on the stack, to a label,
+/// returned from the method or thrown.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Dest {
     Fall,
     Jump(Label),
     Return,
+    Throw,
 }
 
 /// A value on the stack: that of a tree, or one of a descriptor.

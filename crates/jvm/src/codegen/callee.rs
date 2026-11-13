@@ -58,8 +58,7 @@ impl Gen<'_, '_> {
         if self.is_throw(t)
             && let &[e] = self.l.tpd.items(args)
         {
-            self.expr(b, e)?;
-            b.code.insn(ATHROW);
+            self.expr_to(b, e, 1, super::body::Dest::Throw)?;
             return Ok(0);
         }
         if let Some(slots) = self.hash(b, t)? {

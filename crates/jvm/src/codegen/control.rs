@@ -100,6 +100,7 @@ impl Gen<'_, '_> {
                     self.cast_to_null(b, t, &result);
                     b.code.ret(&result)
                 }
+                Dest::Throw => b.code.insn(classfile::ATHROW),
                 Dest::Fall => {}
             }
         }
