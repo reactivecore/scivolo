@@ -14,6 +14,15 @@ impl Typer<'_> {
         self.error_tree(span)
     }
 
+    /// Records that `id`, a reference to `name` that no lookup finds, is outside the subset as
+    /// `what`, or as a class of a jar's Scala 2 class file if a lookup left one so named out.
+    pub fn missing(&mut self, id: NodeId, name: &str, what: &str) -> TNodeId {
+        match self.u.refused_scala2_class(name) {
+            Some(class) => self.unsupported(id, &format!("Scala 2 class file `{class}` of a jar")),
+            None => self.unsupported(id, what),
+        }
+    }
+
     pub fn unsupported_tree(&mut self, span: Span, what: &str) -> TNodeId {
         self.unsupported_at(span, what);
         self.error_tree(span)

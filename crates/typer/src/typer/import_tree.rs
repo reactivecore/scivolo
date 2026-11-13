@@ -81,7 +81,8 @@ impl Typer<'_> {
             .collect();
         for (k, (name, rename)) in named.iter().enumerate() {
             if self.type_members(qual, name).is_empty() {
-                return Err("import of a missing member");
+                let scala2 = self.u.refused_scala2_class(name).is_some();
+                return Err(if scala2 { "import of a Scala 2 class file of a jar" } else { "import of a missing member" });
             }
             let earlier = &named[..k];
             if rename != nme::WILDCARD && earlier.iter().any(|(_, r)| r == rename) {

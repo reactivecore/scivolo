@@ -58,6 +58,9 @@ impl Typer<'_> {
             Ok(None) if matches!(pt, Pt::Fun(_) | Pt::PolyFun(_)) && !name.is_type => {
                 return self.proxy_ident(id, name, pt, ctx);
             }
+            Ok(None) if self.u.refused_scala2_class(&text).is_some() => {
+                return self.missing(id, &text, "unresolved name");
+            }
             Ok(None) => {
                 if let Some(t) = self.unresolved_term(id, name, ctx) {
                     return t;

@@ -122,7 +122,7 @@ impl Typer<'_> {
                     let dynamic = dynamic.or_else(|| self.selectable_field(id, (qual, qual_tpe), name, ctx));
                     return dynamic.unwrap_or_else(|| self.member_not_found(id, qual, name, ctx));
                 }
-                Ok(None) => return self.unsupported(id, "member not found"),
+                Ok(None) => return self.missing(id, &text, "member not found"),
                 Err(what) => return self.unsupported(id, what),
             }
             converted = true;
@@ -134,7 +134,7 @@ impl Typer<'_> {
             return refined;
         }
         if syms.is_empty() {
-            return self.unsupported(id, "member not found");
+            return self.missing(id, &text, "member not found");
         }
         let syms = match converted {
             true => syms,

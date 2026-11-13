@@ -8,12 +8,13 @@ use classfile::{ACC_MODULE, ACC_PRIVATE, ACC_PROTECTED, ACC_PUBLIC, ACC_STATIC, 
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::rc::Rc;
 
-/// The Java class files of the jars: the jar of each class by internal name, and each class read
-/// once.
+/// The Java class files of the jars: the jar of each class by internal name, each class read
+/// once, and the internal names of the Scala 2 class files read.
 #[derive(Default)]
 pub struct JavaClasses {
     jars: FxHashMap<String, usize>,
     read: FxHashMap<String, Option<Rc<ClassInfo>>>,
+    scala2: FxHashSet<String>,
 }
 
 impl Universe {
@@ -36,8 +37,16 @@ impl Universe {
                 self.java_stubs.remove(&s);
             }
         }
-        self.java_classes = Some(JavaClasses { jars, read: FxHashMap::default() });
+        self.java_classes = Some(JavaClasses { jars, ..JavaClasses::default() });
         Ok(())
+    }
+
+    /// Names the class of simple name `name` that a lookup left out because its jar holds it as a
+    /// Scala 2 class file, whose pickle this reader does not read: `p.C`, if there is one.
+    pub fn refused_scala2_class(&self, name: &str) -> Option<String> {
+        let scala2 = &self.java_classes.as_ref()?.scala2;
+        let simple = |n: &&String| n.rsplit('/').next() == Some(name);
+        scala2.iter().filter(simple).min().map(|n| n.replace('/', "."))
     }
 
     /// Whether the universe uses the jars' Java class files, as a compile for the JVM does.
@@ -91,7 +100,7 @@ pub fn enter(u: &mut Universe, owner: SymbolId, name: &str, info: &ClassInfo, ac
 }
 
 /// Reads the class of internal name `internal` from the jars' class files; none if they lack it,
-/// it is no class file or one compiled from Scala.
+/// it is no class file or one compiled from Scala, which is kept as a Scala 2 class file.
 pub fn java_class(u: &mut Universe, internal: &str) -> Option<Rc<ClassInfo>> {
     let classes = u.java_classes.as_mut()?;
     if let Some(info) = classes.read.get(internal) {
@@ -99,7 +108,11 @@ pub fn java_class(u: &mut Universe, internal: &str) -> Option<Rc<ClassInfo>> {
     }
     let jar = *classes.jars.get(internal)?;
     let info = u.library.read_class(jar, internal).ok().and_then(|b| classfile::read(&b).ok());
+    let classes = u.java_classes.as_mut()?;
+    if info.as_ref().is_some_and(|i| i.scala) {
+        classes.scala2.insert(internal.to_owned());
+    }
     let info = info.filter(|i| !i.scala).map(Rc::new);
-    u.java_classes.as_mut()?.read.insert(internal.to_owned(), info.clone());
+    classes.read.insert(internal.to_owned(), info.clone());
     info
 }
