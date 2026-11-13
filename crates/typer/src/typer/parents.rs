@@ -146,10 +146,14 @@ impl Typer<'_> {
         }
         let object = type_ref(self.u, self.defn.object);
         let mut first = object;
+        let monomorphic = self.u.is_static_symbol(pcls) && self.u.type_params(pcls).is_empty();
         for &p in &parents {
-            if let Some(base) = self.u.base_type(p, pcls) {
-                first = self.u.glb(first, base);
-            }
+            let Some(base) = self.u.base_type(p, pcls) else { continue };
+            let base = match monomorphic && self.u.class_symbol(p) != Some(pcls) {
+                true => type_ref(self.u, pcls),
+                false => base,
+            };
+            first = self.u.glb(first, base);
         }
         let mut out = vec![first];
         out.extend(parents);

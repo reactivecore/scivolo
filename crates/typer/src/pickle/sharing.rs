@@ -34,13 +34,13 @@ impl TreePickler<'_> {
             return Ok(k.clone());
         }
         let (buf, binders) = (std::mem::take(&mut self.buf), self.binders.clone());
-        self.keying = true;
+        (self.keying, self.keyed_by_place) = (true, false);
         let pickled = self.new_type(t, rich, Addr(0));
         self.keying = false;
         let scratch = std::mem::replace(&mut self.buf, buf);
         self.binders = binders;
         pickled?;
-        if !own_tree {
+        if !own_tree && !self.keyed_by_place {
             self.keys.insert(t, scratch.buf.bytes.clone());
         }
         Ok(scratch.buf.bytes)

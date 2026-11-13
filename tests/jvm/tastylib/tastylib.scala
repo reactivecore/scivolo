@@ -72,5 +72,13 @@ object Shapes {
     }
     -1
   }
+  def shapesOf(x: Any) = x match {
+    case s: (List[Shape] @unchecked) => s
+    case _ => Nil
+  }
+  def countOf(x: Any) = x match {
+    case s: (List[Shape] @unchecked) => val t = s; t.size
+    case _ => 0
+  }
   def main(args: Array[String]): Unit = println(total(List(unit, new Rect(2.0, 3.0))))
 }

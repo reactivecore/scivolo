@@ -41,8 +41,9 @@ pub struct Tpd {
     annotations: FxHashMap<SymbolId, Vec<TNodeId>>,
     copies: FxHashMap<TNodeId, TNodeId>,
     read_from: FxHashMap<TNodeId, SymbolId>,
-    /// The annotation trees of each annotated type annotated expressions `e: @a(args)` gave.
-    type_annotations: FxHashMap<TypeId, Vec<TNodeId>>,
+    /// The annotation tree of each annotated type an annotated expression `e: @a(args)` gave;
+    /// `None` for one that several trees gave.
+    type_annotations: FxHashMap<TypeId, Option<TNodeId>>,
     /// The annotation tree of each type tree an annotated expression gave.
     tpt_annotations: FxHashMap<TNodeId, TNodeId>,
     /// The type trees whose type is pickled anew, not shared.
@@ -193,27 +194,16 @@ impl Tpd {
     /// `tpt`.
     pub fn set_type_annotation(&mut self, annotated: TypeId, annot: TNodeId, tpt: TNodeId) {
         self.tpt_annotations.insert(tpt, annot);
-        let trees = self.type_annotations.entry(annotated).or_default();
-        if !trees.contains(&annot) {
-            trees.push(annot);
+        let tree = self.type_annotations.entry(annotated).or_insert(Some(annot));
+        if *tree != Some(annot) {
+            *tree = None;
         }
     }
 
     /// The annotation tree of annotated type `annotated`: `Some(None)` if several annotated
     /// expressions gave it, `None` if none did.
     pub fn type_annotation(&self, annotated: TypeId) -> Option<Option<TNodeId>> {
-        match self.type_annotations.get(&annotated)?.as_slice() {
-            [tree] => Some(Some(*tree)),
-            _ => Some(None),
-        }
-    }
-
-    /// The annotation tree of annotated type `annotated` that the only annotated expression
-    /// within `span` giving it has, if one does.
-    pub fn type_annotation_within(&self, annotated: TypeId, span: Span) -> Option<TNodeId> {
-        let trees = self.type_annotations.get(&annotated)?.iter().copied();
-        let mut within = trees.filter(|&t| self.span(t).exists() && span.contains(self.span(t)));
-        within.next().filter(|_| within.next().is_none())
+        self.type_annotations.get(&annotated).copied()
     }
 
     /// The annotation tree of the type of type tree `tpt`, if an annotated expression gave it.
