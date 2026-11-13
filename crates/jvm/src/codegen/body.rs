@@ -100,6 +100,20 @@ impl<'p> Body<'p> {
         (at == self.code.stack()).then_some(out)
     }
 
+    /// Binds `params` to the parameters of method descriptor `desc` after the first `skip` and
+    /// takes its result; false if their numbers differ.
+    pub fn bind_params(&mut self, params: &[SymbolId], desc: &str, skip: usize) -> bool {
+        let (descs, result) = classfile::split_method(desc);
+        if params.len() + skip != descs.len() {
+            return false;
+        }
+        for (&p, d) in params.iter().zip(&descs[skip..]) {
+            self.bind(p, (*d).to_owned());
+        }
+        self.result = result.to_owned();
+        true
+    }
+
     /// A slot for local `s` of descriptor `desc`.
     pub fn bind(&mut self, s: SymbolId, desc: String) -> u16 {
         let slot = self.temp(&desc);
