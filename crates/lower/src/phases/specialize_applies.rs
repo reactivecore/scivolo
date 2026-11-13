@@ -7,7 +7,6 @@ use super::mixin::function_arity;
 use crate::definitions::specialized_applies;
 use crate::{Lower, Result, unsupported};
 use names::nme;
-use syntax::ast::Span;
 use typer::tpd::{TNodeId, Tree};
 
 /// Adds the specialized `apply` methods to class definition `td` if it is `Function0`,
@@ -25,14 +24,15 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
     let this_type = l.u.this_type(class);
     let apply_info = l.u.member_info(this_type, apply);
     let apply_result = l.u.result_type(apply_info);
+    let at = l.tpd.span(template).end_pos();
     let mut stats = l.tpd.items(body).to_vec();
     for spec in specialized {
         let spec_info = l.u.info(spec);
         let result = l.u.result_type(spec_info);
-        let def = l.forwarding_def(spec, Span::NONE, |l, args, _| {
-            let this = l.this(class, Span::NONE);
-            let fun = l.select(this, apply, Span::NONE);
-            let call = l.apply(fun, args, apply_result, Span::NONE);
+        let def = l.forwarding_def(spec, at, |l, args, _| {
+            let this = l.this(class, at);
+            let fun = l.select(this, apply, at);
+            let call = l.apply(fun, args, apply_result, at);
             l.ensure_conforms(call, result)
         });
         stats.push(l.positioned(def));
