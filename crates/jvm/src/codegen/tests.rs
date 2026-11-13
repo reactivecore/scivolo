@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use std::path::Path;
 use syntax::config::Config;
 use syntax::source::SourceFile;
-use tasty::Universe;
+use tasty::{SymbolId, Universe};
 use typer::tpd::{TNodeId, Tree};
 
 /// Runs `f` on the generator of unit `source` and its root; none without the library jars.
@@ -56,17 +56,14 @@ fn code(g: &mut Gen, root: TNodeId, name: &str) -> Vec<u8> {
     };
     let sym = g.l.tpd.sym(dd).expect("a method's symbol");
     let desc = method_descriptor(g.l.u, sym);
-    let (descs, result) = classfile::split_method(&desc);
-    let params: Vec<TNodeId> =
-        g.l.tpd.clause_items(paramss).iter().flat_map(|&c| g.l.tpd.items(c)).copied().collect();
+    let params = g.l.tpd.clause_items(paramss).iter().flat_map(|&c| g.l.tpd.items(c));
+    let params: Vec<SymbolId> = params.map(|&p| g.l.tpd.sym(p).expect("a parameter's symbol")).collect();
     let mut pool = Pool::default();
     let mut b = Body::new(&mut pool, None, 1);
     b.method = Some(sym);
-    b.result = result.to_owned();
-    for (p, d) in params.into_iter().zip(descs) {
-        b.bind(g.l.tpd.sym(p).expect("a parameter's symbol"), d.to_owned());
-    }
-    g.method_body(&mut b, rhs, result).unwrap_or_else(|e| panic!("{name}: {}", e.what));
+    assert!(b.bind_params(&params, &desc, 0), "{name}");
+    let result = b.result.clone();
+    g.method_body(&mut b, rhs, &result).unwrap_or_else(|e| panic!("{name}: {}", e.what));
     assert!(b.code.problem().is_none(), "{name}");
     b.code.bytes
 }

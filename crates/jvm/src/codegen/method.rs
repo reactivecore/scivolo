@@ -59,23 +59,16 @@ impl Gen<'_, '_> {
         let mut b = Body::new(&mut cf.pool, None, u16::from(!static_ || trait_init));
         b.this_class = this_class;
         b.method = Some(sym);
-        let (mut param_descs, result) = classfile::split_method(&desc);
-        if trait_init {
-            param_descs.remove(0);
-        }
-        if params.len() != param_descs.len() {
+        if !b.bind_params(&param_syms, &desc, usize::from(trait_init)) {
             return unsupported(self.l.tpd.span(dd), "parameters other than the descriptor's on the JVM");
         }
-        for (p, param) in params.into_iter().zip(param_descs) {
-            b.bind(self.l.tpd.sym(p).expect("a parameter's symbol"), param.to_owned());
-        }
-        b.result = result.to_owned();
+        let result = b.result.clone();
         let unit = matches!(self.l.tpd.tree(rhs), Tree::Literal { value: Constant::Unit });
         if unit && name.contains(name_kinds::TRAIT_SETTER_SEPARATOR) {
             b.code.ret("V");
         } else {
             self.line(&mut b, rhs);
-            self.method_body(&mut b, rhs, result)?;
+            self.method_body(&mut b, rhs, &result)?;
         }
         let code = b.code;
         cf.method(flags, &name, &desc, Some(code), &mut |a, b| self.jvm_lub(a, b));
