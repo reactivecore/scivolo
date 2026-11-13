@@ -21,6 +21,31 @@ impl Constraint {
         std::mem::replace(&mut self.nesting, nesting)
     }
 
+    /// Gives where a variable made now is made.
+    pub fn here(&self, u: &Universe) -> At {
+        At { born: u.next_symbol(), nesting: self.nesting }
+    }
+
+    /// Replaces each variable without instance in `t` whose bounds refer to a local symbol
+    /// defined since `at` by one made `at` with those bounds avoided (dotty's `atLevel` when a
+    /// nonvariant variable is interpolated in an enclosing scope); false if a bound cannot do
+    /// without them.
+    pub fn leveled(&mut self, u: &mut Universe, t: TypeId, at: At) -> bool {
+        let mut vars = Vec::new();
+        u.map_type(t, &mut |u, part| {
+            if let Some(x) = u.var(part) {
+                vars.push(x);
+            }
+            None
+        });
+        vars.into_iter().all(|x| {
+            let e = self.vars[x.0 as usize];
+            e.instance.is_some()
+                || !(self.refers_to_local(u, e.lo, at, 4) || self.refers_to_local(u, e.hi, at, 4))
+                || self.unified_at(u, x, at).is_some()
+        })
+    }
+
     /// Makes symbol `s` count as defined where symbol `at` was.
     pub fn define_at(&mut self, s: SymbolId, at: SymbolId) {
         self.defined_at.insert(s, at);

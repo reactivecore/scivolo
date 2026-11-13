@@ -132,6 +132,7 @@ impl Typer<'_> {
         }
         self.gadt.index_binds(self.u, first);
         self.check_duplicate_binds(pat, &mut Vec::new());
+        let here = self.constraint.here(self.u);
         let body_pt = case.map(|c| self.dependent_case_body_pt(pat, c));
         let pt = match body_pt {
             Some(Some(b)) => Pt::Type(b),
@@ -170,7 +171,11 @@ impl Typer<'_> {
         let body_type = self.tpd.tpe(body);
         let pt_defined = matches!(pt, Pt::Type(p) if self.is_fully_defined(p));
         if !pt_defined && self.types().any_var_bounds_refer_to(body_type, &bound) {
-            return self.unsupported(id, "case type inferred from a type its pattern binds");
+            let leveled = self.constraint.leveled(self.u, body_type, here);
+            let body_type = self.zonk(body_type);
+            if !leveled || self.types().any_var_bounds_refer_to(body_type, &bound) {
+                return self.unsupported(id, "case type inferred from a type its pattern binds");
+            }
         }
         let span = self.ast.span(id);
         self.tpd.node(T::CaseDef { pat, guard, body }, span, None, None)
