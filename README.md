@@ -86,7 +86,7 @@ Features:
 
 - macOS arm64 (development)
 - Linux x86-64
-- Both tested in GitLab CI. Windows is not supported.
+- Both tested in GitLab CI and GitHub Actions. Windows is not supported.
 
 ## Usage
 
@@ -231,7 +231,7 @@ just --list                     # all recipes: oracles, reports, benchmarks
 ```
 
 Rules for contributors (human or agent): [CLAUDE.md](CLAUDE.md). Work is tracked in GitLab
-issues.
+issues; pull requests on the GitHub mirror are welcome and run GitHub Actions.
 
 ## License
 
