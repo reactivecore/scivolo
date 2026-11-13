@@ -84,4 +84,15 @@ impl Universe {
             self.gadt_mut().modify(o, |e| (e.lo, e.hi, e.instance) = (lo, hi, instance));
         }
     }
+
+    /// Maps the bounds and instance of every entry by `f`, as a type variable replaced by the
+    /// pattern-bound type it was instantiated to (dotty's `replace` of a type variable's origin).
+    pub fn gadt_map_entries(&mut self, f: &mut dyn FnMut(&mut Self, TypeId) -> TypeId) {
+        let syms: Vec<_> = self.gadt().symbols().collect();
+        for s in syms {
+            let Some(e) = self.gadt().entry(s).cloned() else { continue };
+            let (lo, hi, instance) = (f(self, e.lo), f(self, e.hi), e.instance.map(|i| f(self, i)));
+            self.gadt_mut().modify(s, |e| (e.lo, e.hi, e.instance) = (lo, hi, instance));
+        }
+    }
 }

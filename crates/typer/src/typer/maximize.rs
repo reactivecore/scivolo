@@ -11,19 +11,22 @@ use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::TName;
 use syntax::ast::flags::CASE;
 use tasty::tags::FINAL;
-use tasty::{Kind, NameId, SymbolId, Type, TypeId, TypeVars, VarId};
+use tasty::{Kind, NameId, Registered, SymbolId, Type, TypeId, TypeVars, VarId};
 
 impl Typer<'_> {
     /// Instantiates the type variables from id `vars` on that occur in `t`: a covariant one from
     /// above, a contravariant one from below, unless it occurs in the bounds of GADT variables
-    /// `gadt` or of the GADT constraint's symbols; else from above if its bounds coincide or its upper bound is a final class, else
-    /// to a fresh pattern-bound type of its bounds; those types, named after the type parameters
-    /// of extractor `unapp`.
+    /// `gadt` or of the GADT constraint's symbols; else from above if its bounds coincide or its
+    /// upper bound is a final class, else to a fresh pattern-bound type of its bounds; those
+    /// types, named after the type parameters of extractor `unapp`. With `level`, the GADT
+    /// constraint has the variables replaced by those types, which are then registered in it at
+    /// that level all at once (dotty's `maximizeType`).
     pub fn maximize_type(
         &mut self,
         t: TypeId,
         (vars, gadt): (usize, &[GadtVar]),
         unapp: TNodeId,
+        level: Option<u32>,
         ctx: Ctx,
     ) -> Result<Vec<SymbolId>, &'static str> {
         let t = self.zonk(t);
@@ -67,15 +70,34 @@ impl Typer<'_> {
             self.constraint.instantiate(v, tpe);
             bound.push((sym, lo, hi));
         }
-        Ok(bound
-            .into_iter()
-            .map(|(sym, lo, hi)| {
-                let info = self.u.intern_type(Type::Bounds(lo, hi));
-                let info = self.zonk(info);
-                self.u.set_info(sym, info);
-                sym
-            })
-            .collect())
+        let mut registered = Vec::new();
+        for &(sym, lo, hi) in &bound {
+            let info = self.u.intern_type(Type::Bounds(lo, hi));
+            let info = self.zonk(info);
+            self.u.set_info(sym, info);
+            let (lo, hi) = self.u.bounds(info).unwrap_or((lo, hi));
+            registered.push(Registered { sym, lo, hi });
+        }
+        if let Some(level) = level {
+            self.zonk_gadt_constraint();
+            if !registered.is_empty() {
+                self.u.gadt_register(&registered, level);
+            }
+        }
+        Ok(registered.into_iter().map(|r| r.sym).collect())
+    }
+
+    /// Replaces the instantiated type variables in the GADT constraint by their instances.
+    fn zonk_gadt_constraint(&mut self) {
+        let constraint = &self.constraint;
+        self.u.gadt_map_entries(&mut |u, t| {
+            let mut has_var = false;
+            u.map_type(t, &mut |u, p| {
+                has_var |= u.var(p).is_some();
+                None
+            });
+            if has_var { super::infer::zonked(u, constraint, t, false) } else { t }
+        });
     }
 
     /// Lower bound `lo` of type variable `var` joined with each GADT variable of `gadt` whose upper

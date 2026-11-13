@@ -267,6 +267,8 @@ impl TypeVars for Constraint {
             e.hi
         } else if u.is_subtype(hi, e.hi) {
             hi
+        } else if u.gadt().inferring {
+            u.glb_in(e.hi, hi, self)
         } else {
             u.glb(e.hi, hi)
         };

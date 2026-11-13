@@ -3,7 +3,7 @@
 //! Greatest lower bounds of ground types (dotty's `glb`).
 
 use super::hk::Connective;
-use super::{Cmp, NoVars};
+use super::{Cmp, NoVars, TypeVars};
 use crate::types::{Type, TypeId};
 use crate::{NOTHING, Universe};
 
@@ -12,6 +12,13 @@ impl Universe {
     /// their intersection, arguments of a common constructor merged.
     pub fn glb(&mut self, a: TypeId, b: TypeId) -> TypeId {
         Cmp::new(self, &mut NoVars).glb(a, b)
+    }
+
+    /// `glb` with the type variables of `vars`, compared frozen.
+    pub fn glb_in(&mut self, a: TypeId, b: TypeId, vars: &mut dyn TypeVars) -> TypeId {
+        let mut c = Cmp::new(self, vars);
+        c.frozen = true;
+        c.glb(a, b)
     }
 }
 

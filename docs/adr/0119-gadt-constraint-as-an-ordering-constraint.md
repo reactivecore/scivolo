@@ -46,6 +46,13 @@ inside the comparer (`narrowGADTBounds`), after ordinary type variables.
   equal to a type. A GADT approximation of a registered symbol is dotty's `approximation`: its
   instance, else its full upper bound (lower where contravariant or its upper bound refers to
   it).
+- An extractor pattern whose argument type does not take the selector's is constrained in GADT
+  mode and maximized as dotty's `maximizeType`, also for an open class with invariant
+  parameters or an F-bounded one: the type variables it binds are replaced in the GADT
+  constraint by their pattern-bound types, which are registered all at once at the case's level.
+- While the GADT constraint is inferred, a type variable's new upper bound is met with its old
+  one comparing with the type variables' bounds (dotty's `hi & bound`), so that a GADT symbol
+  bounded by a type with a variable drops a part it already is below.
 - Patterns whose selector or pattern type has a narrowable higher-kinded parameter keep the
   earlier read-back path and its refusals until `compareAppliedType2`'s GADT cases are ported.
 - `compareAppliedType2` compares with a tuple class applied by its nested pairs first, ending in
