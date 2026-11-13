@@ -42,11 +42,13 @@ inside the comparer (`narrowGADTBounds`), after ordinary type variables.
   `unify`, `addBoundTransitively` and `addOneBound` as dotty's `GadtState`. A failed bound
   rolls the store back; `necessaryEither` keeps the GADT state of the subsumed branch or none,
   `sufficientEither` leaves it alone, as dotty.
-- A bound reached through another abstract type's bounds narrows nothing (`ApproxState`); the
-  state is reset per type argument, where dotty starts a fresh `isSubType`.
+- A bound reached through another abstract type's bounds or a singleton's underlying type
+  narrows nothing (`ApproxState`); the state is reset where dotty starts a fresh `isSubType`:
+  type arguments, prefixes and the members of refinements.
 - `unify` gives the kept symbol both bounds without dotty's `validBoundsFor` and
-  `LevelAvoidMap`: GADT bounds hold no type variables of deeper levels and, the symbol being
-  keyed, no internal references to it. Difference case 2.
+  `LevelAvoidMap`: with `Config.checkLevelsOnConstraints` off the map avoids nothing and GADT
+  bounds hold no wildcards; `validBoundsFor` changes only internal references below the top
+  level, which the refused shape above alone has. Difference case 2.
 
 ## Consequences
 - The read-back rules of ADRs 0090, 0092, 0096 and 0109 go as the comparer narrows the store;

@@ -156,7 +156,7 @@ impl Cmp<'_> {
                 return true;
             }
         }
-        self.recur(p1, p2)
+        self.recur_fresh(p1, p2)
     }
 }
 
