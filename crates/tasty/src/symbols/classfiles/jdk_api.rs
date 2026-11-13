@@ -7,9 +7,7 @@ use super::javalib::library_owners;
 use super::signatures::Sig;
 use crate::tags::OBJECT;
 use crate::types::TypeId;
-use classfile::{
-    ACC_BRIDGE, ACC_PROTECTED, ACC_PUBLIC, ACC_STATIC, ACC_SYNTHETIC, ACC_VARARGS, ClassInfo, MemberInfo,
-};
+use classfile::{ACC_BRIDGE, ACC_PROTECTED, ACC_PUBLIC, ACC_STATIC, ACC_SYNTHETIC, ClassInfo, MemberInfo};
 use names::nme;
 
 impl Universe {
@@ -44,11 +42,10 @@ impl Universe {
     }
 
     /// Gives method `m` the type of its declaration `member` in JDK class file `info`
-    /// (`jdk_info`), but a constructor, a Java varargs method, or where they have different
-    /// numbers of parameter clauses (javalib's `def pattern: String` stays parameterless).
+    /// (`jdk_info`), but a constructor, or where they have different numbers of parameter
+    /// clauses (javalib's `def pattern: String` stays parameterless).
     fn take_jdk_type(&mut self, m: SymbolId, member: &MemberInfo, info: &ClassInfo) {
-        let method = self.symbol(m).kind == Kind::Def && member.name != nme::CONSTRUCTOR;
-        if !method || member.access & ACC_VARARGS != 0 {
+        if self.symbol(m).kind != Kind::Def || member.name == nme::CONSTRUCTOR {
             return;
         }
         let Some(t) = jdk_type(self, m, member, info) else { return };

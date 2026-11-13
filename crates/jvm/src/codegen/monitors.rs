@@ -6,7 +6,7 @@
 use super::body::Body;
 use super::tries::{nop_if_needed, pending_cleanups};
 use super::{Gen, unsupported};
-use classfile::value_slots;
+use classfile::{ATHROW, GOTO, MONITORENTER, MONITOREXIT, value_slots};
 use lower::Result;
 use names::nme;
 use typer::tpd::{List, TNodeId, Tree};
@@ -50,7 +50,7 @@ impl Gen<'_, '_> {
         self.expr_as(b, qualifier, 1)?;
         b.code.dup();
         b.code.store("L", monitor);
-        b.code.insn(0xc2);
+        b.code.insn(MONITORENTER);
         let start = b.code.here();
         b.cleanups.push(cleanup);
         self.expr_as(b, body, slots)?;
@@ -61,23 +61,23 @@ impl Gen<'_, '_> {
         nop_if_needed(b, start);
         let end = b.code.here();
         b.code.load("L", monitor);
-        b.code.insn(0xc3);
+        b.code.insn(MONITOREXIT);
         if let Some((slot, r)) = &kept {
             b.code.load(r, *slot);
         }
         let post = b.code.new_label();
-        b.code.jump(0xa7, post);
+        b.code.jump(GOTO, post);
         b.code.set_stack(depth + 1);
         let handler = b.code.here();
         b.code.protect(start, end, handler, 0);
         b.code.load("L", monitor);
-        b.code.insn(0xc3);
-        b.code.insn(0xbf);
+        b.code.insn(MONITOREXIT);
+        b.code.insn(ATHROW);
         if b.emit_cleanup {
             b.code.place(cleanup);
             b.code.set_stack(depth);
             b.code.load("L", monitor);
-            b.code.insn(0xc3);
+            b.code.insn(MONITOREXIT);
             pending_cleanups(b);
         }
         b.code.place(post);

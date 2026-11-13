@@ -65,7 +65,8 @@ inlining (ADR 0006).
 
 Exit criterion (met): editing and then running `moderate.scala` takes 48 ms with no
 JVM (`just bench-edit`). Measured by dotty's `tests/run` through typer, lowering and VM
-(`just dotty-lower-report`, 2026-11-11): 1,496 of 1,711 pass; 10 stop at the typer, 32 fail in
+(`just dotty-lower-report`, 2026-11-12): 1,497 of 1,711 pass; 8 stop at the typer, 1 at the
+lowering, 32 fail in
 the VM.
 
 1. **Parser** (`crates/syntax`): ports of dotty's `Scanners`, `Parsers`, `Desugar` and
@@ -124,7 +125,7 @@ libraries work. dotty's `tests/run-macros`: 308 of 321 pass
 
 Compatibility first, in order of the tests it unblocks; startup comes last and must not get
 slower meanwhile:
-1. **Typer groups** ([research 37](docs/research/37-refusals-after-1023.md)): the 10 typer
+1. **Typer groups** ([research 37](docs/research/37-refusals-after-1023.md)): the 8 typer
    refusals in `tests/run` (see [docs/conformance.md](docs/conformance.md)) and the 478 in
    `tests/pos`; implicit candidates with undetermined type variables (#123).
 2. **Macros** (#40, [research 26](docs/research/26-macros-next.md)): the 13 failing
@@ -137,7 +138,7 @@ slower meanwhile:
    cyclic references in `Api.scala`); 2 differ also from scala-cli compiling the file alone
    (docs/conformance.md). Their `tests/aot` programs pass on our NIR.
 4. **Lowering and inlining gaps** ([research 42](docs/research/42-lowering-leftovers-after-1029.md)):
-   done; `tests/run` has no lowering refusals left.
+   done but for one lowering refusal in `tests/run` (`Parser`).
 5. **Scala Native's library through the own frontend** (#168,
    [research 36](docs/research/36-compiling-the-native-stdlib.md), ADR 0042, 0043, 0046): `just
    lib-compile MODULE` lowers each file and compares its NIR with Scala Native's 3.9.0 build of
@@ -152,11 +153,9 @@ slower meanwhile:
    | clib | 21 of 21 | 114 | | 1 |
    | posixlib | 67 of 67 | 270 | | |
    | windowslib | 34 | 130 | | |
-   | scalalib | 649 of 649 | 4,347 | 17 | 45 |
+   | scalalib | 649 of 649 | 4,379 | 17 | 13 |
 
-   scalalib is compared with `just lib-oracle`'s build of it; 32 of its differing files,
-   `FromExpr`'s and `Expr$`, differ only in the positions inside TASTy quotes (`quote-pos`; ours have fewer
-   position entries, open). clib, posixlib and scalalib pass Scala Native's unit tests on our jars (`just lib-jar-report`).
+   scalalib is compared with `just lib-oracle`'s build of it. clib, posixlib and scalalib pass Scala Native's unit tests on our jars (`just lib-jar-report`).
    `unsafe/package{,$}` in nativelib differ only as a joint compilation with
    `UnsafePackageCompat` does. Open: the rest of scalalib.
 6. **Startup** (#9): decoded definitions and lowered code in the heap snapshot.

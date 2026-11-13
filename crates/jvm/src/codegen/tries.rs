@@ -6,7 +6,7 @@
 use super::body::Body;
 use super::descriptors::{class_internal, descriptor};
 use super::{Gen, stash, unsupported};
-use classfile::{Label, value_slots};
+use classfile::{ATHROW, GOTO, Label, NOP, value_slots};
 use lower::Result;
 use names::nme;
 use tasty::SymbolId;
@@ -50,7 +50,7 @@ impl Gen<'_, '_> {
         b.cleanups.truncate(b.cleanups.len() - usize::from(cleanup.is_some()));
         nop_if_needed(b, start);
         let end = b.code.here();
-        b.code.jump(0xa7, post);
+        b.code.jump(GOTO, post);
         for c in catches {
             let outer = std::mem::replace(&mut b.emit_cleanup, false);
             b.code.set_stack(depth + 1);
@@ -68,7 +68,7 @@ impl Gen<'_, '_> {
             b.cleanups.truncate(b.cleanups.len() - usize::from(cleanup.is_some()));
             let class = b.pool.class(&c.class);
             b.code.protect(start, end, handler, class);
-            b.code.jump(0xa7, post);
+            b.code.jump(GOTO, post);
             b.emit_cleanup |= outer;
         }
         let needs_cleanup = b.emit_cleanup;
@@ -81,7 +81,7 @@ impl Gen<'_, '_> {
             b.code.store("L", exc);
             self.expr_as(b, fin, 0)?;
             b.code.load("L", exc);
-            b.code.insn(0xbf);
+            b.code.insn(ATHROW);
             b.emit_cleanup |= outer;
         }
         if let (Some(fin), Some(cleanup), true) = (finalizer, cleanup, needs_cleanup) {
@@ -142,7 +142,7 @@ impl Gen<'_, '_> {
 /// A `nop` if no instruction follows `start`, so that a protected range is not empty.
 pub fn nop_if_needed(b: &mut Body, start: Label) {
     if b.code.is_here(start) {
-        b.code.insn(0x00);
+        b.code.insn(NOP);
     }
 }
 
@@ -150,7 +150,7 @@ pub fn nop_if_needed(b: &mut Body, start: Label) {
 /// left (dotty's `pendingCleanups`).
 pub fn pending_cleanups(b: &mut Body) {
     match b.cleanups.last() {
-        Some(&next) => b.code.jump(0xa7, next),
+        Some(&next) => b.code.jump(GOTO, next),
         None => {
             let result = b.result.clone();
             if let Some(slot) = b.early_return.filter(|_| result != "V") {

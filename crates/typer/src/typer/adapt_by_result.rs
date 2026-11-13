@@ -4,11 +4,46 @@
 //! The expected result type of an application: the result constrained by it (dotty's
 //! `constrainResult`), the results of alternatives compared with it (`resultConforms`).
 
+use super::dependent_params::{clause_param, mentions_clause_params, substituted};
 use super::{Pt, Typer};
 use crate::ctx::Ctx;
-use tasty::{NameId, SymbolId, Type, TypeId};
+use tasty::{Binder, NameId, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
+    /// Approximates result `result` of the clause of binder `binder` and parameters `params` of
+    /// method `meth` by replacing each parameter with a fresh type variable below its type and
+    /// `Singleton`, only `Singleton` where its type refers to the clause (dotty's
+    /// `resultTypeApprox` with `newDepTypeVar`); `None` unless `pt` is a fully defined type.
+    pub fn result_type_approx(
+        &mut self,
+        result: TypeId,
+        (binder, params): (Binder, &[(NameId, TypeId)]),
+        meth: Option<SymbolId>,
+        pt: Pt,
+    ) -> Option<TypeId> {
+        let Pt::Type(p) = pt else { return None };
+        if !self.is_fully_defined(p) {
+            return None;
+        }
+
+        let names: Vec<NameId> = params.iter().map(|&(n, _)| n).collect();
+        let singleton = crate::defn::type_ref(self.u, self.u.defn().singleton);
+        let mut vars = Vec::with_capacity(params.len());
+        for &(_, p) in params {
+            let var = self.constraint.fresh(self.u);
+            let p = self.u.by_name(p).unwrap_or(p);
+            let hi = match mentions_clause_params(self.u, p, (binder, &names), meth) {
+                true => singleton,
+                false => self.u.intern_type(Type::And(p, singleton)),
+            };
+            self.u.is_subtype_in(var, hi, &mut self.constraint);
+            vars.push(var);
+        }
+
+        let param = |u: &tasty::Universe, part: TypeId| clause_param(u, part, (binder, &names), meth);
+        Some(substituted(self.u, result, &param, &vars))
+    }
+
     /// Constrains the result type `result` of an application of `meth` to conform to `pt`
     /// (dotty's `constrainResult`), only necessary constraints kept: normalized against a fully
     /// defined `pt`, not at all against `Unit`, else a value result after the implicit clauses
@@ -24,7 +59,7 @@ impl Typer<'_> {
         let defined = self.is_fully_defined(p);
         let stripped = self.strip_implicit(result);
         let stripped = self.zonk(stripped);
-        self.refinement_result(result, pt)?;
+        self.refinement_result((result, meth), pt)?;
         if defined && self.u.class_symbol(p) == Some(self.defn.unit) {
             return Ok(());
         }
@@ -42,14 +77,25 @@ impl Typer<'_> {
         Ok(())
     }
 
-    /// Refuses implicit method type `result` whose result selects a type member only a
-    /// refinement has under a `pt` with type variables (dotty constrains by its approximation).
-    pub fn refinement_result(&mut self, result: TypeId, pt: Pt) -> Result<(), &'static str> {
+    /// Refuses implicit method type `result` of `meth` under a `pt` with type variables whose
+    /// result selects a type member only a refinement has, or holds a type lambda over the
+    /// implicit parameters (dotty constrains by their approximation).
+    pub fn refinement_result(
+        &mut self,
+        (result, meth): (TypeId, Option<SymbolId>),
+        pt: Pt,
+    ) -> Result<(), &'static str> {
         let Pt::Type(p) = pt else { return Ok(()) };
         let stripped = self.strip_implicit(result);
         if stripped == result || self.is_fully_defined(p) {
             return Ok(());
         }
+        if self.lambda_of_implicit_params(result, stripped, meth) {
+            return Err(
+                "implicit method result with a type lambda over its implicit parameters under type variables",
+            );
+        }
+
         let mut found = false;
         self.u.map_type(stripped, &mut |u, part| {
             found |= u.type_ref(part).is_some() && u.resolve_ref(part).is_none();
@@ -65,6 +111,25 @@ impl Typer<'_> {
     fn refers_to_implicit_params(&mut self, mut t: TypeId, stripped: TypeId, meth: Option<SymbolId>) -> bool {
         while let Type::Method { binder, result, implicit: true, .. } = *self.u.ty(t) {
             if self.mentions_params(stripped, binder, meth) {
+                return true;
+            }
+            t = result;
+        }
+        false
+    }
+
+    /// Whether `stripped` holds a type lambda that refers to a parameter of the leading implicit
+    /// clauses of `t` (`Bar[fn.R]` for a higher-kinded member `R` of `using fn: Fn`).
+    fn lambda_of_implicit_params(&mut self, mut t: TypeId, stripped: TypeId, meth: Option<SymbolId>) -> bool {
+        let mut lambdas = Vec::new();
+        self.u.map_type(stripped, &mut |u, part| {
+            if matches!(u.ty(part), Type::Lambda { .. }) {
+                lambdas.push(part);
+            }
+            None
+        });
+        while let Type::Method { binder, result, implicit: true, .. } = *self.u.ty(t) {
+            if lambdas.iter().any(|&l| self.mentions_params(l, binder, meth)) {
                 return true;
             }
             t = result;

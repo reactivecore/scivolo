@@ -40,7 +40,7 @@ pub fn enum_value_members(l: &mut Lower, root: TNodeId, class: SymbolId, span: S
         };
         Source::Literals { name: l.u.symbol(owner).name.clone(), ordinal }
     };
-    let focus = Span::new(span.point(), span.point(), span.point());
+    let focus = Span::at(span.point());
     let java = super::java_enums::derives_from_java_enum(l, class);
     let mut out = Vec::new();
     if !java && !has_serialization_method(l, class, nme::READ_RESOLVE) {

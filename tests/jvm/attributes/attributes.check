@@ -9,3 +9,6 @@ local
 List(a, b)
 anon
 63
+scala.math.Ordering<java.lang.Object>$OrderingOps
+scala.Function0<A>
+List(class ByName$In)

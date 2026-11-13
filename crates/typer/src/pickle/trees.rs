@@ -8,6 +8,9 @@ use crate::tpd::{List, TNodeId, Tree as T, constant_type_of};
 use tasty::Type;
 use tasty::tags::*;
 
+/// The first key of the trees pickled anew, among those of the trees registered without a node.
+const ANEW: u32 = u32::MAX / 4 * 3;
+
 impl TreePickler<'_> {
     /// The key tree `id` is registered under: the tree it is shared with or a copy of, else itself.
     pub fn tree_key(&self, id: TNodeId) -> u32 {
@@ -18,8 +21,12 @@ impl TreePickler<'_> {
     /// Tree `id`, a `SHAREDterm` if pickled before and not to be pickled anew.
     pub fn tree(&mut self, id: TNodeId) -> Result<(), Refusal> {
         let at = match self.anew.remove(&id) {
-            true => self.buf.buf.current_addr(),
-            false => self.buf.register_tree(self.tree_key(id)),
+            Some(owner) => {
+                let key = ANEW + self.anew_at.len() as u32;
+                self.anew_at.insert((owner, id), key);
+                self.buf.register_tree(key)
+            }
+            None => self.buf.register_tree(self.tree_key(id)),
         };
         if at != self.buf.buf.current_addr() {
             self.byte(SHAREDterm);
@@ -113,7 +120,10 @@ impl TreePickler<'_> {
             T::Inlined { call, bindings, expansion } => self.inlined(call, bindings, expansion),
             T::TypeTree { .. } => {
                 self.type_tree = Some(id);
-                let pickled = self.ty(typed()?, false);
+                let pickled = match self.tpd.has_fresh_type(id) {
+                    true => self.new_type(typed()?, false, self.buf.buf.current_addr()),
+                    false => self.ty(typed()?, false),
+                };
                 self.type_tree = None;
                 pickled
             }
@@ -130,6 +140,8 @@ impl TreePickler<'_> {
             T::Return { expr, from } => self.return_(expr, from),
             T::Annotated { arg, annot } => self.annotated_tree(arg, annot),
             T::RefinedTypeTree { tpt, refinements } => self.refined_tree(tpt, refinements),
+            T::QuotePattern { bindings, body, quotes } => self.quote_pattern(id, bindings, body, quotes),
+            T::SplicePattern { body, typeargs, args } => self.splice_pattern(id, body, typeargs, args),
             _ => Err("a tree outside the subset pickled"),
         }
     }

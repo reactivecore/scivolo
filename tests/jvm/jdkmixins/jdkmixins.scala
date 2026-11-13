@@ -21,6 +21,10 @@ class Counts extends java.util.Map[String, Int] {
   def entrySet(): java.util.Set[java.util.Map.Entry[String, Int]] = m.entrySet()
 }
 
+class Tagged(out: java.io.OutputStream) extends java.io.PrintStream(out) {
+  override def format(f: String, args: Object*): java.io.PrintStream = super.format("<" + f + ">", args*)
+}
+
 object Jdkmixins {
   def main(args: Array[String]): Unit = {
     val c = new ByLength
@@ -32,5 +36,10 @@ object Jdkmixins {
     m.merge("a", 5, (x, y) => x + y)
     m.forEach((k, v) => println(s"$k=$v"))
     println(classOf[Counts].getMethods.exists(_.getName == "usingEntry"))
+    val bytes = new java.io.ByteArrayOutputStream()
+    val p: java.io.PrintStream = new Tagged(bytes)
+    p.printf("%s-%s", "a", "b").flush()
+    val forwarder = classOf[Tagged].getMethod("format", classOf[String], classOf[Array[Object]])
+    println(bytes.toString + " " + forwarder.isVarArgs)
   }
 }

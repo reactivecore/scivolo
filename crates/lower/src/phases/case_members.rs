@@ -5,6 +5,7 @@
 //! class has one: `hashCode`, `equals` (not for objects), `toString`, `canEqual`,
 //! `productArity`, `productPrefix`, `productElement`, `productElementName`.
 
+use super::synthetic::{any_override_info, pickled_ref};
 use super::value_members::hash_code_body as value_hash_code_body;
 use crate::definitions::{CaseClasses, applied, type_ref};
 use crate::symbols::has;
@@ -31,7 +32,7 @@ pub fn case_members(l: &mut Lower, class: SymbolId, span: Span) -> Result<Vec<TN
         cc.product_element,
         cc.product_element_name,
     ];
-    let focus = Span::new(span.point(), span.point(), span.point());
+    let focus = Span::at(span.point());
     let mut out = Vec::new();
     let can_equal = existing_def(l, class, cc.can_equal);
     for sym in members {
@@ -39,7 +40,7 @@ pub fn case_members(l: &mut Lower, class: SymbolId, span: Span) -> Result<Vec<TN
             continue;
         }
         let flags = Flags::default().with(SYNTHETIC).with(OVERRIDE);
-        let info = l.u.info(sym);
+        let info = any_override_info(l, sym);
         let mut locals = Vec::new();
         let (method, def) = l.method_like(class, sym, flags, info, focus, |l, args, _| {
             body(l, class, sym, args, can_equal, &mut locals, cc)
@@ -74,7 +75,8 @@ fn body(
         _ if sym == cc.any_equals => l.equals_body(class, &accessors, args[0], can_equal, locals, cc),
         _ if sym == cc.to_string && l.u.is_module_class(class) => l.string_literal(&own_name),
         _ if sym == cc.to_string => {
-            let fun = l.ident(cc.runtime_to_string, Span::NONE);
+            let tpe = pickled_ref(l, cc.runtime_to_string);
+            let fun = l.build().ident(cc.runtime_to_string, tpe, Span::NONE);
             let fun = l.positioned(fun);
             let this = l.this(class, Span::NONE);
             let info = l.u.info(cc.runtime_to_string);
@@ -84,7 +86,12 @@ fn body(
         }
         _ if sym == cc.can_equal => {
             let tpe = unchecked_applied_ref(l, class);
-            l.is_instance(args[0], tpe)
+            let test = l.is_instance(args[0], tpe);
+            if let Tree::TypeApply { args, .. } = *l.tpd.tree(test) {
+                let tpt = l.tpd.items(args)[0];
+                l.tpd.mark_fresh_type(tpt);
+            }
+            test
         }
         _ if sym == cc.product_arity => l.int_literal(accessors.len() as i32),
         _ if sym == cc.product_prefix => l.string_literal(&own_name),
@@ -122,8 +129,11 @@ fn index_match(l: &mut Lower, index: TNodeId, elems: Vec<TNodeId>, cc: CaseClass
         let pat = l.int_literal(i as i32);
         cases.push(l.tpd.node(Tree::CaseDef { pat, guard: None, body }, Span::NONE, None, None));
     }
-    let new = l.new_(cc.ioobe, Span::NONE);
+    let ioobe = pickled_ref(l, cc.ioobe);
+    let tpt = l.type_tree(ioobe, Span::NONE);
+    let new = l.tpd.node(Tree::New { tpt }, Span::NONE, Some(ioobe), None);
     let index_ref = l.copy_ident(index);
+    l.tpd.mark_copy(index_ref, index);
     let error = l.call(new, cc.ioobe_ctor, &[index_ref]);
     l.tpd.get_mut(error).tpe = l.tpd.get(new).tpe;
     let throw = l.throw_(error);

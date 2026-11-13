@@ -87,8 +87,8 @@ pub struct Units {
     /// The next unit's source files, each at its offset among the sources, if the TASTy of its
     /// top-level classes is pickled before its inline calls expand.
     pub tasty_sources: Option<Vec<(SourceFile, syntax::source::Offset)>>,
-    /// Where and why `type_units` refused its last unit, the first refusal first; none where it
-    /// refused after typing.
+    /// Where and why the last unit was refused, the first refusal first: at most one per file and
+    /// stage, and per definition the inline calls of which do not expand.
     pub refused: Vec<(Span, String)>,
 }
 
@@ -114,6 +114,7 @@ impl Units {
         (root, cfg): (NodeId, syntax::config::Config),
         macros: Option<&mut dyn Macros>,
     ) -> Result<Typed, Fallback> {
+        self.refused.clear();
         let mut typer = Typer::new(u, (ast, root), (names, fresh), cfg, &mut self.syms)
             .map_err(|what| Fallback::Unsupported { at: Span::NONE, what })?;
         typer.macros = macros.map(|m| m as &mut dyn Macros);
@@ -173,7 +174,6 @@ impl Units {
             typed.extend(roots.iter().map(|&r| typer.typed(r, typer::Pt::Any, ctx)));
             self.refused.extend(typer.unsupported.take());
         }
-        typer.unsupported = self.refused.first().cloned();
         let unit = finish::root_package(&mut typer, &typed);
         self.finish(typer, unit, &typed)
     }

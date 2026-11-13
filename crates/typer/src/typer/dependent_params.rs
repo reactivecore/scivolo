@@ -104,7 +104,7 @@ pub fn has_false_dependency(
 
 /// `t` with each parameter `param` numbers replaced by its replacement, a type member of a
 /// replaced prefix selected again as a member of the new prefix.
-fn substituted(
+pub fn substituted(
     u: &mut Universe,
     t: TypeId,
     param: &dyn Fn(&Universe, TypeId) -> Option<usize>,

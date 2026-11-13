@@ -57,7 +57,7 @@ impl Sig<'_> {
                     self.erased_sig(&erased, boxing)
                 }
             }
-            _ if let Some((outer, outer_args)) = self.generic_outer(c, tycon) => {
+            _ if let Some((outer, outer_args)) = self.generic_outer(c, tycon, !args.is_empty()) => {
                 let outer = internal(&self.u.binary_name(outer));
                 self.class_sig(&outer, &outer_args);
                 self.out.pop();
@@ -70,9 +70,22 @@ impl Sig<'_> {
     }
 
     /// The class `c` is a member of and its type arguments, if the prefix of reference `tycon`
-    /// applies it to some (dotty's `classSig` of a `pre` with arguments).
-    fn generic_outer(&mut self, c: SymbolId, tycon: TypeId) -> Option<(SymbolId, Vec<TypeId>)> {
+    /// seen as an instance of it applies it to some (dotty's `classSig` of a `pre` with
+    /// arguments, `pre.baseType(sym.owner)`); of a reference with arguments `applied`, the prefix
+    /// is `c` itself, as dotty's `RefOrAppliedType` takes it.
+    fn generic_outer(
+        &mut self,
+        c: SymbolId,
+        tycon: TypeId,
+        applied: bool,
+    ) -> Option<(SymbolId, Vec<TypeId>)> {
         let outer = self.u.symbol(c).owner.filter(|&o| self.u.is_class(o))?;
+        if applied {
+            let own = self.u.this_type(c);
+            let base = self.u.base_type(own, outer)?;
+            let (_, args) = self.u.applied(base).filter(|(_, args)| !args.is_empty())?;
+            return Some((outer, args.to_vec()));
+        }
         let prefix = match *self.u.ty(tycon) {
             Type::Sym(Some(p), _) | Type::TypeRef(p, _) => p,
             _ => return None,
@@ -83,10 +96,15 @@ impl Sig<'_> {
             Type::And(a, b) => vec![a, b],
             _ => vec![prefix],
         };
-        parts.into_iter().find_map(|p| {
+        let direct = parts.into_iter().find_map(|p| {
             let (t, args) = self.u.applied(p).filter(|(_, args)| !args.is_empty())?;
             let args = args.to_vec();
             (self.u.class_symbol(t) == Some(outer)).then_some((outer, args))
+        });
+        direct.or_else(|| {
+            let base = self.u.base_type(prefix, outer)?;
+            let (_, args) = self.u.applied(base).filter(|(_, args)| !args.is_empty())?;
+            Some((outer, args.to_vec()))
         })
     }
 

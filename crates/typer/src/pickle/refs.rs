@@ -2,6 +2,7 @@
 //   compiler/src/dotty/tools/dotc/core/tasty/TreePickler.scala
 //! References to symbols and named members (dotty's `NamedType` case of `pickleNewType`).
 
+use super::sharing::BY_NAME;
 use super::{Refusal, TreePickler};
 use crate::defn::type_ref;
 use crate::tpd::TNodeId;
@@ -10,7 +11,7 @@ use tasty::write::Name;
 use tasty::{Flags, Kind, NameId, SymbolId, Type, TypeId};
 
 /// The prefix of a reference: a type, the `this` of a package, or the companion object of a
-/// Java class of the JDK, which holds its static members.
+/// Java class of the JDK, which holds its static members, by the `this` of its class.
 #[derive(Clone, Copy)]
 enum Prefix {
     Type(TypeId),
@@ -78,23 +79,21 @@ impl TreePickler<'_> {
         self.prefix(prefix)
     }
 
-    /// Prefix `p` of static member `s` of a Java class, the class's `this` as a reference to its
-    /// companion object unless `s` is a nested class of a class file's class.
+    /// Prefix `p` of static member `s` of a Java class, the class's `this` as the `this` of its
+    /// companion object's class unless `s` is a nested class of a class file's class.
     fn java_statics_ref(&mut self, p: TypeId, s: SymbolId) -> Prefix {
         let Some(class) = self.u.this_of(p) else { return Prefix::Type(p) };
         let Some(c) = self.u.class_symbol(class) else { return Prefix::Type(p) };
-        if self.u.is_class(s) && self.u.is_java_defined(c) {
+        let java_static = self.u.symbol(s).flags.has(STATIC) && !self.u.is_module_class(c);
+        if !java_static || self.u.is_class(s) && self.u.is_java_defined(c) {
             return Prefix::Type(p);
         }
-        let module = match self.u.is_java_statics(c) {
-            true => self.u.source_module(c),
-            false if self.u.symbol(s).flags.has(STATIC) && !self.u.is_module_class(c) => {
-                self.u.companion_module(c)
+        let module_class = self.u.companion_module(c).and_then(|m| self.u.module_class(m));
+        match module_class {
+            Some(mc) => {
+                let mc = type_ref(self.u, mc);
+                Prefix::Type(self.u.intern_type(Type::This(mc)))
             }
-            false => return Prefix::Type(p),
-        };
-        match module {
-            Some(m) => Prefix::Type(type_ref(self.u, m)),
             None => Prefix::JavaStatics(c),
         }
     }
@@ -143,15 +142,27 @@ impl TreePickler<'_> {
             }
             Prefix::JavaStatics(c) => {
                 let owner = self.u.symbol(c).owner.ok_or("a Java class without owner")?;
-                self.byte(TERMREF);
-                self.name(&Name::utf8(&self.u.symbol(c).name.clone()));
+                self.byte(THIS);
+                self.byte(TYPEREF);
+                let name = Name::ObjectClass(Box::new(Name::utf8(&self.u.symbol(c).name.clone())));
+                self.name(&name);
                 self.prefix(Prefix::PackageThis(owner))
             }
         }
     }
 
+    /// Pickles type `prefix.name`; a class file's reference, through the `this` of a package,
+    /// shared as the reference to its symbol (dotty's `typeRef` of a class file's class).
+    pub fn named_type(&mut self, prefix: TypeId, name: NameId, is_type: bool) -> Result<(), Refusal> {
+        let package_this = self.u.this_of(prefix).is_some_and(|c| matches!(self.u.ty(c), Type::Package(_)));
+        if self.keying && !package_this {
+            self.byte(BY_NAME);
+        }
+        self.named_ref(prefix, name, is_type)
+    }
+
     /// `prefix.name`, through the symbol it resolves to if it does.
-    pub fn named_ref(&mut self, prefix: TypeId, name: NameId, is_type: bool) -> Result<(), Refusal> {
+    fn named_ref(&mut self, prefix: TypeId, name: NameId, is_type: bool) -> Result<(), Refusal> {
         if let Some(s) = self.u.resolve(prefix, name, is_type) {
             return self.sym_ref(Some(prefix), s);
         }

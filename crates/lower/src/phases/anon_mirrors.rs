@@ -36,7 +36,7 @@ pub fn anon_mirror_support(
     let (Some(mono), Some(linked)) = (mono, linked) else {
         return unsupported(span, "anonymous mirror of a type that is no class");
     };
-    let focus = Span::new(span.point(), span.point(), span.point());
+    let focus = Span::synthetic(span.point(), span.point());
     let cc = l.case_classes()?;
     let this = type_ref(l.u, class);
     let this = l.u.intern_type(Type::This(this));

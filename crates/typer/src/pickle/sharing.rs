@@ -29,7 +29,8 @@ impl TreePickler<'_> {
     /// What identifies type `t` as dotty shares types: its bytes without sharing, the `this` of a
     /// package told from the package's reference, definitions and names by identity.
     fn key(&mut self, t: TypeId, rich: bool) -> Result<Vec<u8>, Refusal> {
-        if let Some(k) = self.keys.get(&t) {
+        let own_tree = self.tpt_annotation(t).is_some();
+        if let Some(k) = self.keys.get(&t).filter(|_| !own_tree) {
             return Ok(k.clone());
         }
         let (buf, binders) = (std::mem::take(&mut self.buf), self.binders.clone());
@@ -39,7 +40,9 @@ impl TreePickler<'_> {
         let scratch = std::mem::replace(&mut self.buf, buf);
         self.binders = binders;
         pickled?;
-        self.keys.insert(t, scratch.buf.bytes.clone());
+        if !own_tree {
+            self.keys.insert(t, scratch.buf.bytes.clone());
+        }
         Ok(scratch.buf.bytes)
     }
 

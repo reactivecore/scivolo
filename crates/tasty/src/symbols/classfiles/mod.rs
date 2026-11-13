@@ -66,7 +66,8 @@ impl Universe {
         entered.into_iter().filter(|&d| self.symbol(d).name == name).collect()
     }
 
-    /// Whether `s` is a class, object or object's class entered from a JDK class file.
+    /// Whether `s` is a class, object or object's class entered from a class file of the JDK or
+    /// a jar.
     pub fn is_from_classfile(&self, s: SymbolId) -> bool {
         self.classfile_classes.contains(&s)
     }

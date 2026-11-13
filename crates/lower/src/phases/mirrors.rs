@@ -45,7 +45,7 @@ pub fn mirror_support(
         return Ok(Some((l.case_classes()?.mirror_singleton, Vec::new())));
     }
     let Some(linked) = linked_class(l, root, class) else { return Ok(None) };
-    let focus = Span::new(span.point(), span.point(), span.point());
+    let focus = Span::at(span.point());
     let is_enum = has(l.u, linked, SEALED) && has(l.u, linked, ENUM);
     let product = !is_enum && is_generic_product(l, linked);
     if !is_enum && !product && !(has(l.u, linked, SEALED) && is_generic_sum(l, root, linked)) {

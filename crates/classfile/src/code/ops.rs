@@ -1,7 +1,9 @@
 //! Constants, operand-free instructions (arithmetic, conversions, comparisons, array elements)
 //! and arrays.
 
-use super::{Code, method_slots, slots};
+use super::{Code, method_slots};
+use crate::kind::Kind;
+use crate::opcodes::{ANEWARRAY, IALOAD, IASTORE, IRETURN, NEWARRAY, POP, POP2, RETURN};
 use crate::pool::{Constant, Handle, Pool};
 
 impl Code {
@@ -91,37 +93,17 @@ impl Code {
 
     /// The new array of element descriptor `elem`, its length on the stack.
     pub fn new_array(&mut self, pool: &mut Pool, elem: &str) {
-        let atype = match elem.as_bytes()[0] {
-            b'Z' => 4,
-            b'C' => 5,
-            b'F' => 6,
-            b'D' => 7,
-            b'B' => 8,
-            b'S' => 9,
-            b'I' => 10,
-            b'J' => 11,
-            _ => {
-                let class = elem.strip_prefix('L').and_then(|e| e.strip_suffix(';')).unwrap_or(elem);
-                let index = pool.class(class);
-                return self.op(0xbd, &index.to_be_bytes(), 0);
-            }
+        let Some(atype) = Kind::of(elem).array_type() else {
+            let class = elem.strip_prefix('L').and_then(|e| e.strip_suffix(';')).unwrap_or(elem);
+            let index = pool.class(class);
+            return self.op(ANEWARRAY, &index.to_be_bytes(), 0);
         };
-        self.op(0xbc, &[atype], 0);
+        self.op(NEWARRAY, &[atype], 0);
     }
 
     /// The load (`store` false) or store of an element of an array of element descriptor `elem`.
     pub fn element(&mut self, elem: &str, store: bool) {
-        let kind = match elem.as_bytes()[0] {
-            b'I' => 0,
-            b'J' => 1,
-            b'F' => 2,
-            b'D' => 3,
-            b'L' | b'[' => 4,
-            b'Z' | b'B' => 5,
-            b'C' => 6,
-            _ => 7,
-        };
-        self.insn(if store { 0x4f } else { 0x2e } + kind);
+        self.insn(if store { IASTORE } else { IALOAD } + Kind::of(elem).element_offset());
     }
 
     pub fn instance_of(&mut self, pool: &mut Pool, class: &str) {
@@ -145,23 +127,20 @@ impl Code {
 
     /// The return of a value of descriptor `result`, `V` for none.
     pub fn ret(&mut self, result: &str) {
-        let (opcode, delta) = match result.as_bytes()[0] {
-            b'V' => (0xb1, 0),
-            b'L' | b'[' => (0xb0, -1),
-            b'J' => (0xad, -2),
-            b'F' => (0xae, -1),
-            b'D' => (0xaf, -2),
-            _ => (0xac, -1),
+        let kind = Kind::of(result);
+        let opcode = match kind {
+            Kind::Void => RETURN,
+            _ => IRETURN + kind.offset(),
         };
-        self.op(opcode, &[], delta);
+        self.op(opcode, &[], -kind.slots());
     }
 
     /// Drops a value of descriptor `desc`.
     pub fn drop_value(&mut self, desc: &str) {
-        match slots(desc.as_bytes()[0]) {
+        match Kind::of(desc).slots() {
             0 => {}
-            1 => self.insn(0x57),
-            _ => self.insn(0x58),
+            1 => self.insn(POP),
+            _ => self.insn(POP2),
         }
     }
 }

@@ -7,14 +7,14 @@
 
 use super::descriptors::method_descriptor;
 use super::{Gen, java_flags, method_name};
-use classfile::{ACC_FINAL, ACC_PUBLIC, ACC_STATIC, ACC_SUPER, ClassFile, InnerClass};
+use classfile::{ACC_FINAL, ACC_MODULE, ACC_PUBLIC, ACC_STATIC, ACC_SUPER, ClassFile, InnerClass};
 use names::nme;
 use std::collections::BTreeMap;
 use tasty::{Kind, SymbolId};
 use typer::tpd::{TNodeId, Tree};
 
 /// The flags an `InnerClasses` entry keeps: all but `ACC_SUPER` and `ACC_MODULE`.
-const INNER_CLASSES_FLAGS: u16 = !(ACC_SUPER | 0x8000);
+const INNER_CLASSES_FLAGS: u16 = !(ACC_SUPER | ACC_MODULE);
 
 /// The class of the lookup argument of `invokedynamic` bootstrap methods.
 const LOOKUP: &str = "java/lang/invoke/MethodHandles$Lookup";
@@ -115,6 +115,7 @@ impl Gen<'_, '_> {
                 }
                 Kind::Val
                     if self.l.has_getter(s)
+                        && !self.l.is_getterless_field(s)
                         && !self.l.u.symbol(s).flags.has(tasty::tags::SYNTHETIC)
                         && !self.l.u.symbol(s).flags.has(tasty::tags::STATIC) =>
                 {
@@ -158,7 +159,7 @@ impl Gen<'_, '_> {
     }
 
     /// The class of internal name `name`, if the unit defines it or the universe has it.
-    fn resolve_class(&mut self, name: &str) -> Option<SymbolId> {
+    pub fn resolve_class(&mut self, name: &str) -> Option<SymbolId> {
         if let Some(&c) = self.classes.get(name) {
             return c;
         }

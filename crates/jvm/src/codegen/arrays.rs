@@ -5,6 +5,7 @@
 use super::body::Body;
 use super::descriptors::{class_internal, descriptor};
 use super::{Gen, unsupported};
+use classfile::{ARRAYLENGTH, DUP, Kind};
 use lower::Result;
 use names::nme;
 use syntax::ast::Span;
@@ -34,7 +35,7 @@ impl Gen<'_, '_> {
             let [length] = args[..] else {
                 return unsupported(self.l.tpd.span(t), "arrays of several dimensions");
             };
-            self.operand(b, length, 'I')?;
+            self.operand(b, length, Kind::Int)?;
             b.code.new_array(b.pool, &elem);
             b.code.checkcast(b.pool, &desc);
             return Ok(Some(1));
@@ -42,18 +43,18 @@ impl Gen<'_, '_> {
         self.expr(b, array)?;
         Ok(Some(match (name.as_str(), &args[..]) {
             (nme::APPLY, &[i]) => {
-                self.operand(b, i, 'I')?;
+                self.operand(b, i, Kind::Int)?;
                 b.code.element(&elem, false);
                 classfile::value_slots(&elem)
             }
             (nme::UPDATE, &[i, value]) => {
-                self.operand(b, i, 'I')?;
+                self.operand(b, i, Kind::Int)?;
                 self.expr_as(b, value, classfile::value_slots(&elem))?;
                 b.code.element(&elem, true);
                 0
             }
             (nme::LENGTH, []) => {
-                b.code.insn(0xbe);
+                b.code.insn(ARRAYLENGTH);
                 1
             }
             _ => return unsupported(self.l.tpd.span(t), "array operations"),
@@ -73,7 +74,7 @@ impl Gen<'_, '_> {
         b.code.new_array(b.pool, &elem);
         for (i, e) in elems.into_iter().enumerate() {
             b.push("L");
-            b.code.insn(0x59);
+            b.code.insn(DUP);
             b.push("I");
             b.code.int(b.pool, i as i32);
             self.expr_as(b, e, classfile::value_slots(&elem))?;
@@ -95,7 +96,7 @@ impl Gen<'_, '_> {
         let tested = self.l.u.erase_boxed(self.l.tpd.tpe(targ));
         let from = self.desc_of(qualifier);
         let to = descriptor(&tested);
-        let reference = |d: &str| d.starts_with('L') || d.starts_with('[');
+        let reference = |d: &str| Kind::of(d) == Kind::Reference;
         use tasty::Erased::{Array, Class, Nothing, Null};
         let class_or_array = matches!(tested, Class(_) | Array(_) | Nothing | Null);
         if !reference(&to) || !class_or_array {

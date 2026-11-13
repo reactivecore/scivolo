@@ -7,9 +7,11 @@ mod annotated;
 mod applies;
 mod cases;
 mod defs;
+mod kept_annotations;
 mod names;
 mod packages;
 mod positions;
+mod quote_patterns;
 mod quote_source;
 mod refs;
 mod selects;
@@ -62,9 +64,11 @@ pub struct TreePickler<'a> {
     /// The trees that are one tree in dotty's, by the tree pickled first: the class of a module
     /// val's `new` its type's.
     shared: FxHashMap<TNodeId, TNodeId>,
-    /// The trees pickled anew where pickled before: the calls of a parameter's annotation that
-    /// its field has too.
-    anew: FxHashSet<TNodeId>,
+    /// The trees pickled anew where pickled before, each with the definition whose annotation it
+    /// is in: the calls of a parameter's or setter's annotation that its field has too.
+    anew: FxHashMap<TNodeId, SymbolId>,
+    /// The key of each tree pickled anew, by that definition and the tree.
+    anew_at: FxHashMap<(SymbolId, TNodeId), u32>,
     /// The references to a self pickled as `C.this`, the class name after their tag.
     self_refs: FxHashSet<TNodeId>,
     /// The type tree of each parameter pickled.
@@ -94,6 +98,8 @@ pub struct TreePickler<'a> {
     /// `Apply` and `New`, and the type tree.
     type_tree: Option<TNodeId>,
     annots: Vec<(u32, u32, TNodeId)>,
+    /// The type trees of the case patterns and pattern variables enclosing the tree pickled now.
+    typed_tpts: Vec<TNodeId>,
     /// The annotation trees pickled in types, in order (dotty's `typeAnnots`).
     type_annots: Vec<TNodeId>,
 }
@@ -144,7 +150,8 @@ fn pickle<'a>(
         defs: FxHashMap::default(),
         forward: FxHashMap::default(),
         shared: FxHashMap::default(),
-        anew: FxHashSet::default(),
+        anew: FxHashMap::default(),
+        anew_at: FxHashMap::default(),
         self_refs: FxHashSet::default(),
         param_tpts: FxHashMap::default(),
         file,
@@ -159,6 +166,7 @@ fn pickle<'a>(
         accessors: Vec::new(),
         type_tree: None,
         annots: Vec::new(),
+        typed_tpts: Vec::new(),
         type_annots: Vec::new(),
     };
     p.tree(root)?;

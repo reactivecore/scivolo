@@ -6,11 +6,12 @@ mod lines;
 mod ops;
 mod widen;
 
-use descriptors::{kind, slots};
 pub use descriptors::{method_slots, split_method, value_slots};
 use jumps::Fixup;
 pub use jumps::Label;
 
+use crate::kind::Kind;
+use crate::opcodes::{ILOAD, ILOAD_0, ISTORE, ISTORE_0, SHORT_VARS, WIDE};
 use crate::pool::{Pool, Ref};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -100,14 +101,14 @@ impl Code {
 
     /// The load of local `slot` holding a value of descriptor `desc`.
     pub fn load(&mut self, desc: &str, slot: u16) {
-        let kind = kind(desc);
-        self.var(0x1a + 4 * kind, 0x15 + kind, slot, slots(desc.as_bytes()[0]));
+        let kind = Kind::of(desc);
+        self.var(ILOAD_0 + SHORT_VARS * kind.offset(), ILOAD + kind.offset(), slot, kind.slots());
     }
 
     /// The store into local `slot` of a value of descriptor `desc`.
     pub fn store(&mut self, desc: &str, slot: u16) {
-        let kind = kind(desc);
-        self.var(0x3b + 4 * kind, 0x36 + kind, slot, -slots(desc.as_bytes()[0]));
+        let kind = Kind::of(desc);
+        self.var(ISTORE_0 + SHORT_VARS * kind.offset(), ISTORE + kind.offset(), slot, -kind.slots());
     }
 
     /// A load or store of `slot`: `short + slot` for slots 0 to 3, else `long slot`; the stack
@@ -115,11 +116,11 @@ impl Code {
     fn var(&mut self, short: u8, long: u8, slot: u16, delta: i32) {
         let size = delta.unsigned_abs() as u16;
         self.max_locals = self.max_locals.max(slot.saturating_add(size));
-        match slot {
-            0..=3 => self.op(short + slot as u8, &[], delta),
-            4..=255 => self.op(long, &[slot as u8], delta),
-            _ => {
-                self.bytes.push(0xc4);
+        match u8::try_from(slot) {
+            Ok(n) if n < SHORT_VARS => self.op(short + n, &[], delta),
+            Ok(n) => self.op(long, &[n], delta),
+            Err(_) => {
+                self.bytes.push(WIDE);
                 self.op(long, &slot.to_be_bytes(), delta);
             }
         }
@@ -134,7 +135,7 @@ impl Code {
     }
 
     pub fn field(&mut self, op: FieldOp, pool: &mut Pool, owner: &str, name: &str, descriptor: &str) {
-        let size = slots(descriptor.as_bytes()[0]);
+        let size = Kind::of(descriptor).slots();
         let (opcode, delta) = match op {
             FieldOp::GetStatic => (0xb2, size),
             FieldOp::PutStatic => (0xb3, -size),

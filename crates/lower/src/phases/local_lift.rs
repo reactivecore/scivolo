@@ -9,7 +9,7 @@ use crate::Lower;
 use names::name_kinds;
 use rustc_hash::{FxHashMap, FxHashSet};
 use tasty::SymbolId;
-use tasty::tags::OBJECT;
+use tasty::tags::{FINAL, OBJECT};
 use typer::tpd::{TNodeId, Tree};
 
 /// A constructor call `new C(...)` with the innermost method and class definition around it.
@@ -84,16 +84,17 @@ pub fn pass_values(
 }
 
 /// Names local class `class` in class `outer` `Outer$Name$N`, an object's class `Outer$Name$N$`
-/// and no longer an object's.
+/// and no longer an object's but final.
 pub fn name_class(l: &mut Lower, class: SymbolId, outer: SymbolId) {
     let class_name = l.u.symbol(class).name.clone();
     l.local_names.insert(class, class_name.clone());
+    let object = l.u.is_module_class(class);
     let (base, module) = match tasty::module_name(&class_name) {
-        Some(m) if l.u.is_module_class(class) => (m, "$"),
+        Some(m) if object => (m, "$"),
         _ => (class_name.as_str(), ""),
     };
     let flags = l.u.symbol(class).flags.without(OBJECT);
-    l.u.set_flags(class, flags);
+    l.u.set_flags(class, if object { flags.with(FINAL) } else { flags });
     let local = l.fresh_name(outer, &name_kinds::unique_prefix(base));
     let local = [local.as_str(), module].concat();
     let outer_name = l.u.binary_name(outer);

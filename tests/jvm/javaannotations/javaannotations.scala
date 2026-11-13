@@ -10,6 +10,7 @@ class Names {
 
 object Javaannotations {
   @Documented def kept = 3
+  @SuppressWarnings(Array("unused")) def quiet = 4
 
   def main(args: Array[String]): Unit = {
     val inc: Inc = x => x + 1
@@ -23,5 +24,6 @@ object Javaannotations {
     println(names.getMethod("size").isAnnotationPresent(classOf[Documented]))
     val forwarder = Class.forName("Javaannotations").getMethod("kept")
     println(forwarder.isAnnotationPresent(classOf[Documented]))
+    println(quiet)
   }
 }

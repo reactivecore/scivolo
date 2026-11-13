@@ -5,10 +5,10 @@
 use super::Typer;
 use tasty::{SymbolId, Universe};
 
-/// Whether `s` is a member of a `java.*` or `javax.*` class or a Java class of the Scala
-/// library, its parameter names unknown.
+/// Whether `s` is a member of a `java.*` or `javax.*` class, a Java class of the Scala library
+/// or a class of a class file, its parameter names unknown.
 pub fn is_java_member(u: &mut Universe, s: SymbolId) -> bool {
-    u.symbol(s).owner.is_some_and(|owner| is_java_class_name(u, owner))
+    u.symbol(s).owner.is_some_and(|owner| u.is_from_classfile(owner) || is_java_class_name(u, owner))
 }
 
 /// Whether `c`, from TASTy, is named as a `java.*` or `javax.*` class or a Java class of the

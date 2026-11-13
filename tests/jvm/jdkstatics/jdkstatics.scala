@@ -9,5 +9,14 @@ object Jdkstatics {
     println(java.util.Collections.EMPTY_LIST.toString + java.util.Collections.emptyList[String]())
     println(TimeUnit.SECONDS.toMillis(1) + java.util.Comparator.naturalOrder[Integer]().compare(1, 2))
     println(java.nio.charset.StandardCharsets.UTF_8.toString + " " + PosixFilePermission.values.length)
+    val ints = new java.util.ArrayList[Int]()
+    java.util.Collections.addAll(ints, 5, 6)
+    println(ints.toString + added("a", "b"))
+  }
+
+  def added[A](a1: A, a2: A): java.util.List[A] = {
+    val coll = new java.util.ArrayList[A]()
+    java.util.Collections.addAll(coll, a1, a2)
+    coll
   }
 }

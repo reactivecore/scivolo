@@ -28,6 +28,7 @@ mod mirror;
 mod monitors;
 mod nested;
 mod prims;
+mod pure_stats;
 mod serial;
 mod signatures;
 mod stash;
@@ -134,5 +135,6 @@ fn java_flags(l: &Lower, s: SymbolId) -> u16 {
     let outer = !class && name_kinds::is_outer(&u.symbol(s).name);
     flags |= if has(ARTIFACT) || outer { ACC_SYNTHETIC } else { 0 };
     flags |= if has(ENUM) { ACC_ENUM } else { 0 };
+    flags |= if l.is_varargs_forwarder(s) { ACC_VARARGS } else { 0 };
     flags | if class && !has(TRAIT) { ACC_SUPER } else { 0 }
 }

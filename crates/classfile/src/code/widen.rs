@@ -4,10 +4,8 @@
 use super::Code;
 use super::jumps::Fixup;
 use crate::frames::length;
+use crate::opcodes::{GOTO, GOTO_W};
 use std::collections::BTreeSet;
-
-const GOTO: u8 = 0xa7;
-const GOTO_W: u8 = 0xc8;
 
 impl Code {
     /// Rewrites the jumps that do not reach and moves the offsets after them, until all reach.

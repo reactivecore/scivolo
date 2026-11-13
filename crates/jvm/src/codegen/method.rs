@@ -119,7 +119,7 @@ impl Gen<'_, '_> {
             Tree::Typed { expr, .. } => self.expr(b, expr)?,
             Tree::Block { stats, expr } => {
                 for s in self.l.tpd.items(stats).to_vec() {
-                    self.stat(b, s)?;
+                    self.block_stat(b, s)?;
                 }
                 self.expr(b, expr)?
             }

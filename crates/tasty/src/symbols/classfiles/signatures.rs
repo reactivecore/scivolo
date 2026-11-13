@@ -158,7 +158,7 @@ impl<'a> Sig<'a> {
     }
 
     /// The parameter and result types of a method signature, the last array parameter of a
-    /// varargs method `Array[T] @Repeated`; exceptions are skipped.
+    /// varargs method `Array[T] @Repeated`, `T` without `Object &`; exceptions are skipped.
     pub fn method(
         &mut self,
         u: &mut Universe,
@@ -175,8 +175,9 @@ impl<'a> Sig<'a> {
         if let Some(last) = params.last_mut().filter(|_| varargs)
             && u.is_array(*last)
         {
+            let array = repeated_array(u, *last, vars);
             let repeated = u.class_ref("scala.annotation.internal.Repeated");
-            *last = u.types.intern(Type::Annotated(*last, repeated));
+            *last = u.types.intern(Type::Annotated(array, repeated));
         }
         Ok((params, result))
     }
@@ -184,6 +185,17 @@ impl<'a> Sig<'a> {
     /// Whether the signature is read to its end.
     pub fn at_end(&self) -> bool {
         self.at == self.text.len()
+    }
+}
+
+/// Array type `array` of a varargs parameter with element `Object & T` read as `T`, for a type
+/// variable `T` bounded by `Object` only (dotty's `sig2type` of a repeated parameter).
+fn repeated_array(u: &mut Universe, array: TypeId, vars: &[Var]) -> TypeId {
+    let Some((tycon, &[elem])) = u.applied(array) else { return array };
+    let Type::And(_, var) = *u.ty(elem) else { return array };
+    match vars.iter().any(|&(_, t, plain)| t == var && plain) {
+        true => u.types.intern_applied(tycon, &[var]),
+        false => array,
     }
 }
 
@@ -225,8 +237,8 @@ pub fn cooked(u: &mut Universe, internal: &str) -> TypeId {
     u.types.intern_applied(class, &vec![wildcard; n])
 }
 
-/// A reference to the class of internal name `internal`, a nested class `A$B` as `A.B`, an inner
-/// one of a jar's class file as `A#B` (dotty's `innerType`).
+/// A reference to the class of internal name `internal` through its package's `this`, a nested
+/// class `A$B` as `A.B`, an inner one of a jar's class file as `A#B` (dotty's `innerType`).
 fn class_ref(u: &mut Universe, internal: &str) -> TypeId {
     let nesting = super::classpath::java_class(u, internal).and_then(|info| {
         let entry = info.inner_classes.iter().find(|e| e.inner == internal && e.flags & ACC_STATIC == 0)?;
@@ -239,7 +251,8 @@ fn class_ref(u: &mut Universe, internal: &str) -> TypeId {
     }
     let (pkg, name) = internal.rsplit_once('/').unwrap_or(("", internal));
     let pkg = u.enter_package(&pkg.replace('/', "."));
-    let mut prefix = u.types.intern(Type::Package(pkg));
+    let pkg = u.types.intern(Type::Package(pkg));
+    let mut prefix = u.types.intern(Type::This(pkg));
     let mut parts: Vec<&str> = name.split('$').filter(|p| !p.is_empty()).collect();
     let last = parts.pop().unwrap_or(name);
     for outer in parts {

@@ -9,7 +9,7 @@ use super::enum_values::enum_value_members;
 use super::mirrors::mirror_support;
 use super::value_members::value_members;
 use super::walk::class_defs_inner_first;
-use crate::definitions::{applied, symbol, type_ref};
+use crate::definitions::{applied, symbol};
 use crate::{Lower, Result, unsupported};
 use names::nme;
 use syntax::ast::Span;
@@ -45,11 +45,12 @@ fn add_synthetic_members(l: &mut Lower, root: TNodeId, td: TNodeId) -> Result<()
     let mut parents = l.tpd.items(parents).to_vec();
     if let Some((parent, defs)) = mirror {
         members.extend(defs);
-        let parent = type_ref(l.u, parent);
+        let parent = pickled_ref(l, parent);
         let mut types = l.u.parents(class);
         types.push(parent);
         l.u.set_parents(class, types);
-        parents.push(l.type_tree(parent, Span::NONE));
+        let focus = l.tpd.span(template).start_pos().to_synthetic();
+        parents.push(l.type_tree(parent, focus));
     }
     let body = l.tpd.list(&members);
     let parents = l.tpd.list(&parents);
@@ -94,7 +95,7 @@ pub fn private_method(l: &mut Lower, class: SymbolId, name: &str) -> (SymbolId, 
 
 /// The type of a reference to `s` as the typer gives it: a member of a class through the class's
 /// `this`, else without prefix (dotty's `typeRef`).
-fn pickled_ref(l: &mut Lower, s: SymbolId) -> TypeId {
+pub fn pickled_ref(l: &mut Lower, s: SymbolId) -> TypeId {
     let prefix = match l.u.symbol(s).owner {
         Some(o) if l.u.symbol(o).kind == Kind::Class => {
             let class = pickled_ref(l, o);
@@ -103,6 +104,20 @@ fn pickled_ref(l: &mut Lower, s: SymbolId) -> TypeId {
         _ => None,
     };
     l.u.intern_type(Type::Sym(prefix, s))
+}
+
+/// The type of an override of member `of`, of a member of `Any` as dotty's `Definitions` gives
+/// it: its result a reference to its class (`defn.IntType`), not by name.
+pub fn any_override_info(l: &mut Lower, of: SymbolId) -> TypeId {
+    let info = l.u.info(of);
+    let Some(method) = l.u.method(info).filter(|_| l.u.symbol(of).owner == Some(l.u.defn().any)) else {
+        return info;
+    };
+    let (params, result) = (method.params.to_vec(), method.result);
+    let Some(class) = l.u.class_symbol(result) else { return info };
+    let result = pickled_ref(l, class);
+    let binder = l.u.fresh_binder();
+    l.u.intern_method(binder, &params, result, false, false)
 }
 
 /// The member synthetic member `m` of a class compiled in the same run overrides, the first

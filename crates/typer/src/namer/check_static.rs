@@ -25,7 +25,10 @@ impl Typer<'_> {
         let is_field = |t: &Self, d: SymbolId| t.u.symbol(d).kind == Kind::Val;
         let decls = self.u.symbol(owner).decls.clone();
         let field_after = is_field(self, sym)
-            && decls.iter().take_while(|&&d| d != sym).any(|&d| is_field(self, d) && !self.is_static(d));
+            && decls
+                .iter()
+                .take_while(|&&d| d != sym)
+                .any(|&d| is_field(self, d) && !self.is_scala_static(d));
         let in_companion = !self.class_members(companion, &name).is_empty();
         let site = crate::defn::type_ref(self.u, owner);
         let overridden: Vec<SymbolId> = self
@@ -40,7 +43,8 @@ impl Typer<'_> {
         }
     }
 
-    fn is_static(&self, s: SymbolId) -> bool {
+    /// Whether member `s` is annotated `@static` (dotty's `isScalaStatic`).
+    pub fn is_scala_static(&self, s: SymbolId) -> bool {
         self.u.has_recorded_annotation(s, STATIC_ANNOT)
     }
 }

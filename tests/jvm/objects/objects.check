@@ -12,3 +12,4 @@ void
 class [Ljava.lang.String;
 class Meter
 List(1.5, 2.5)
+true

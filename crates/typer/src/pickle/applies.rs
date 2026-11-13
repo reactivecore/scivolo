@@ -25,10 +25,14 @@ impl TreePickler<'_> {
         }
         let Some(targs) = self.constructor_type_args(fun) else { return self.node(APPLY, &[fun], &[args]) };
         let args = self.tpd.items(args).to_vec();
+        let span = self.tpd.span(fun);
         self.with_length(APPLY, &mut |p| {
             p.with_length(TYPEAPPLY, &mut |p| {
                 p.tree(fun)?;
-                targs.iter().try_for_each(|&t| p.ty(t, false))
+                targs.iter().try_for_each(|&t| {
+                    p.synthetic_here(span, None);
+                    p.ty(t, false)
+                })
             })?;
             args.iter().try_for_each(|&a| p.tree(a))
         })

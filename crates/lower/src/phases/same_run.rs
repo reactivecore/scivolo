@@ -6,7 +6,8 @@
 #![allow(non_upper_case_globals)]
 
 use super::bridges;
-use super::mixin::{forwarded, function_arity, is_jdk, mixins, with_java_param_names};
+use super::mixin::{function_arity, is_jdk, mixins, with_java_param_names};
+use super::mixin_forwarders::forwarded;
 use crate::Lower;
 use crate::definitions::{specialized_applies, symbol};
 use crate::symbols::has;

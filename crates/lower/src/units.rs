@@ -115,7 +115,7 @@ pub fn compile_attributed<R>(
         }
     };
     let located = Sources::new(files).map_err(|e| whole(refused(e)))?;
-    let sources = (sources, cfg.explicit_nulls);
+    let sources = (sources, cfg);
     let pickles = std::mem::take(&mut typed.pickles);
     let mut in_backend = false;
     let generate = |l: &mut crate::Lower, root| generate(l, root, pickles).inspect_err(|_| in_backend = true);
