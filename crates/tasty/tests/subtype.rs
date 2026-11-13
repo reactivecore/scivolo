@@ -391,3 +391,109 @@ fn lub_and_glb_are_least_and_greatest_among_the_fixture_types() {
     let shown: Vec<&String> = wrong.iter().take(40).collect();
     assert!(wrong.is_empty(), "{} failures:\n{shown:#?}", wrong.len());
 }
+
+fn same_type(u: &mut Universe, a: TypeId, b: TypeId) -> bool {
+    u.is_subtype(a, b) && u.is_subtype(b, a)
+}
+
+#[test]
+fn joins_of_unions_as_dotty_s_or_dominator() {
+    let Some(mut u) = universe() else { return };
+    let dotty = [
+        ("scala.Some[scala.Int] | scala.None.type", "scala.Option[scala.Int]"),
+        ("oracle.Dog | oracle.Animal", "oracle.Animal"),
+        ("oracle.Cov[scala.Int] | oracle.Cov[java.lang.String]", "oracle.Cov[scala.Int | java.lang.String]"),
+        (
+            "oracle.Contra[scala.Int] | oracle.Contra[java.lang.String]",
+            "oracle.Contra[scala.Int & java.lang.String]",
+        ),
+        ("1 | 2", "scala.Int"),
+        ("\"a\" | \"b\"", "java.lang.String"),
+        ("scala.Null | java.lang.String", "java.lang.String"),
+        ("oracle.a.type | oracle.b.type", "oracle.Box"),
+        ("oracle.Box", "oracle.Box"),
+    ];
+    for (union, expected) in dotty {
+        let (t, e) = (parse(&mut u, union), parse(&mut u, expected));
+        let joined = u.join(t).unwrap_or_else(|| panic!("{union} has no join"));
+        assert!(same_type(&mut u, joined, e), "{union}: {}", u.show(joined));
+    }
+    let (inv_int, inv_string) =
+        (parse(&mut u, "oracle.Inv[scala.Int]"), parse(&mut u, "oracle.Inv[java.lang.String]"));
+    let union = u.intern_type(Type::Or(inv_int, inv_string, false));
+    let joined = u.join(union).unwrap();
+    let Some((_, &[arg])) = u.applied(joined) else { panic!("{}", u.show(joined)) };
+    let Type::Bounds(lo, hi) = *u.types().get(arg) else { panic!("{}", u.show(joined)) };
+    let (glb, lub) =
+        (parse(&mut u, "scala.Int & java.lang.String"), parse(&mut u, "scala.Int | java.lang.String"));
+    assert!(same_type(&mut u, lo, glb) && same_type(&mut u, hi, lub), "{}", u.show(joined));
+}
+
+#[test]
+fn joins_widen_class_type_parameters_through_their_prefix_arguments() {
+    let Some(mut u) = universe() else { return };
+    let (option_int, int, one) =
+        (parse(&mut u, "scala.Option[scala.Int]"), parse(&mut u, "scala.Int"), parse(&mut u, "1"));
+    let option = u.class_symbol(option_int).unwrap();
+    let a = u.type_params(option)[0];
+    let x = u.fresh_skolem(option_int);
+    let x_a = u.intern_type(Type::Sym(Some(x), a));
+    let union = u.intern_type(Type::Or(x_a, one, false));
+    let joined = u.join(union).unwrap();
+    assert!(same_type(&mut u, joined, int), "{}", u.show(joined));
+}
+
+#[test]
+fn glbs_merge_arguments_by_variance() {
+    let Some(mut u) = universe() else { return };
+    let dotty = [
+        ("oracle.Dog", "oracle.Animal", "oracle.Dog"),
+        ("1", "2", "scala.Nothing"),
+        ("1 | 2", "scala.Int", "1 | 2"),
+        ("oracle.Cov[scala.Int]", "oracle.Cov[java.lang.String]", "oracle.Cov[scala.Int & java.lang.String]"),
+        (
+            "oracle.Contra[scala.Int]",
+            "oracle.Contra[java.lang.String]",
+            "oracle.Contra[scala.Int | java.lang.String]",
+        ),
+        ("oracle.Inv[? <: oracle.Animal]", "oracle.Inv[? <: oracle.Dog]", "oracle.Inv[? <: oracle.Dog]"),
+    ];
+    for (a, b, expected) in dotty {
+        let [ta, tb, te] = [a, b, expected].map(|t| parse(&mut u, t));
+        let glb = u.glb(ta, tb);
+        assert!(same_type(&mut u, glb, te), "{a} & {b}: {}", u.show(glb));
+    }
+    let (inv_int, inv_string) =
+        (parse(&mut u, "oracle.Inv[scala.Int]"), parse(&mut u, "oracle.Inv[java.lang.String]"));
+    let glb = u.glb(inv_int, inv_string);
+    assert_eq!(*u.types().get(glb), Type::And(inv_int, inv_string));
+}
+
+#[test]
+fn gadt_bounds_take_part_in_subtyping() {
+    let Some(mut u) = universe() else { return };
+    let root = u.root();
+    let unbounded = u.intern_type(Type::Bounds(NOTHING, ANY));
+    let t = define(&mut u, "T", Kind::TypeParam, root, unbounded);
+    let t_ref = u.intern_type(Type::Sym(None, t));
+    let [int, string, null] = ["scala.Int", "java.lang.String", "scala.Null"].map(|s| parse(&mut u, s));
+    let or_null = |u: &mut Universe, x| u.intern_type(Type::Or(x, null, false));
+    let (t_or_null, int_or_null) = (or_null(&mut u, t_ref), or_null(&mut u, int));
+    let checks = |u: &mut Universe| {
+        [
+            u.is_subtype(t_ref, int),
+            u.is_subtype(int, t_ref),
+            u.is_subtype(t_or_null, int_or_null),
+            u.is_subtype(int, t_or_null),
+            u.is_subtype(string, t_ref),
+        ]
+    };
+    assert_eq!(checks(&mut u), [false; 5]);
+    assert_eq!(u.set_gadt_bounds(t, Some((int, int))), None);
+    assert_eq!(checks(&mut u), [true, true, true, true, false]);
+    assert_eq!(u.set_gadt_bounds(t, Some((NOTHING, int))), Some((int, int)));
+    assert_eq!(checks(&mut u), [true, false, true, false, false]);
+    u.set_gadt_bounds(t, None);
+    assert!(!u.has_gadt_bounds());
+    assert_eq!(checks(&mut u), [false; 5]);
+}

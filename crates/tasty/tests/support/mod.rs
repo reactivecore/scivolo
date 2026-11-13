@@ -2,7 +2,7 @@
 #![allow(dead_code)]
 
 use std::path::Path;
-use tasty::{ANY, Flags, Kind, NOTHING, Symbol, SymbolId, Type, TypeId, Universe};
+use tasty::{ANY, Binder, FileId, Flags, Kind, NOTHING, Symbol, SymbolId, Type, TypeId, Universe};
 
 pub fn universe() -> Option<Universe> {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
@@ -24,9 +24,12 @@ pub fn universe() -> Option<Universe> {
 }
 
 /// Parses the fixtures' types: qualified names, `[…]` arguments, `?` wildcards with bounds,
-/// `p.type` singletons, integer and string literals, and `|`/`&` between them.
+/// `p.type` singletons, integer and string literals, and `|`/`&` between them; a simple name
+/// among `captures` as the parameter of `binder` it names.
 struct Parser<'a> {
     s: &'a str,
+    binder: Binder,
+    captures: &'a [&'a str],
 }
 
 impl Parser<'_> {
@@ -74,7 +77,9 @@ impl Parser<'_> {
         if let Ok(n) = path.parse::<i64>() {
             return u.intern_type(Type::Constant(tasty::tags::INTconst, n));
         }
+        let capture = self.captures.iter().position(|&c| c == path);
         let tycon = match path.strip_suffix(".type") {
+            _ if let Some(i) = capture => u.intern_type(Type::Param(self.binder, i as u32)),
             Some(term) => {
                 let (prefix, name) = term.rsplit_once('.').unwrap();
                 let prefix = path_prefix(u, prefix);
@@ -130,7 +135,12 @@ pub fn path_prefix(u: &mut Universe, path: &str) -> TypeId {
 }
 
 pub fn parse(u: &mut Universe, s: &str) -> TypeId {
-    let mut p = Parser { s };
+    parse_in(u, s, Binder(FileId(u32::MAX), 0), &[])
+}
+
+/// Parses `s` with the simple names `captures` standing for the parameters of `binder`.
+pub fn parse_in(u: &mut Universe, s: &str, binder: Binder, captures: &[&str]) -> TypeId {
+    let mut p = Parser { s, binder, captures };
     let t = p.infix(u);
     assert!(p.s.is_empty(), "unparsed rest `{}` of `{s}`", p.s);
     t
