@@ -380,6 +380,11 @@ impl<'a> Lower<'a> {
         self.lifted_from.contains_key(&m)
     }
 
+    /// The member super accessor `acc` accesses.
+    pub fn super_accessed(&self, acc: SymbolId) -> Option<SymbolId> {
+        self.super_accessors.get(&acc).map(|&(m, _)| m)
+    }
+
     /// The accessors `SuperAccessors` made in the unit.
     pub fn super_accessors(&self) -> impl Iterator<Item = SymbolId> + '_ {
         self.super_accessors.keys().copied()

@@ -28,7 +28,7 @@ impl Gen<'_, '_> {
     pub fn generic_signature(&mut self, sym: SymbolId, desc: &str) -> Option<String> {
         let mixed = self.mixed_origin(sym);
         let java_forwarded = self.java_forwarded(sym);
-        let origin = mixed.or(java_forwarded.map(|f| f.target)).unwrap_or(sym);
+        let origin = mixed.or(java_forwarded.map(|f| f.target)).or(self.l.super_accessed(sym)).unwrap_or(sym);
         let info = match (self.l.unflattened_info(origin), java_forwarded) {
             (Some(info), _) => info,
             (None, Some(f)) => f.info,
