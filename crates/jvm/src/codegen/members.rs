@@ -160,15 +160,18 @@ impl Gen<'_, '_> {
         transient | if annotated("scala.volatile") { classfile::ACC_VOLATILE } else { 0 }
     }
 
-    /// Marks the code from here as of the source line of `t` (dotty's `lineNumber`).
+    /// Marks the code from here as of the source line of `t` (dotty's `lineNumber`); a value
+    /// definition inlined from another file at an unknown offset there gets a new mark.
     pub fn line(&mut self, b: &mut Body, t: TNodeId) {
-        if let Some(line) = self.line_of(t) {
-            b.code.line(line);
+        match self.line_of(t) {
+            Some(0) => b.code.new_line(self.line_at(self.l.tpd.span(t).point())),
+            Some(line) => b.code.line(line),
+            None => {}
         }
     }
 
     /// The source line of `t`, if it has a position: of a value definition inlined from another
-    /// source, the line of the call's file at its offset there, or 0 if unknown.
+    /// file, the line of the call's file at its offset there, or 0 if unknown.
     pub fn line_of(&self, t: TNodeId) -> Option<u16> {
         let span = self.l.tpd.span(t);
         if !span.exists() {

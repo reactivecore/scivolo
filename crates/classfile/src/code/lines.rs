@@ -17,6 +17,12 @@ impl Code {
         }
     }
 
+    /// Marks the code from here as of source line `line` even if the last mark had it.
+    pub fn new_line(&mut self, line: u16) {
+        self.last_line = 0;
+        self.line(line);
+    }
+
     /// Lists the offsets of the line marks.
     pub fn line_offsets(&self) -> impl Iterator<Item = usize> + '_ {
         self.lines.iter().map(|l| usize::from(l.0))
