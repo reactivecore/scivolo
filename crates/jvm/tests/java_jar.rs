@@ -56,6 +56,26 @@ fn a_java_jar_on_the_classpath_is_used() {
     assert_eq!(stdout, check);
 }
 
+/// scivolo-jvm refuses the programs that use a class of tests/jvm/javajar/legacy/legacy.jar
+/// (`just scala2-fixture`), Scala 2 class files, by the class's name: tests/jvm/javajar/scala2.scala
+/// by its path, scala2_shadow.scala through a wildcard import that shadows `scala.StringBuilder`;
+/// skipped without java.
+#[test]
+fn scala2_class_files_are_refused_by_name() {
+    if Command::new("java").arg("--version").output().is_err() {
+        eprintln!("no java on the PATH: skipped");
+        return;
+    }
+    let jar = root().join("tests/jvm/javajar/legacy/legacy.jar");
+    let out = root().join("tmp/jvm-test/javajar-scala2");
+    for (name, class) in [("scala2", "legacy.Old"), ("scala2_shadow", "legacy.StringBuilder")] {
+        let refused = output(&mut scivolo(&jar, &out.join(name), name));
+        let stderr = String::from_utf8_lossy(&refused.stderr);
+        let message = format!("Scala 2 class file `{class}` of a jar");
+        assert!(!refused.status.success() && stderr.contains(&message), "{name}: {stderr}");
+    }
+}
+
 #[test]
 fn inaccessible_java_classes_and_native_classes_are_refused() {
     let Some(jar) = shapes_jar("javajar-refused") else { return };

@@ -25,7 +25,8 @@ impl ClassFile {
             }
         }
         let bootstraps = self.pool.bootstrap_methods().map(|(name, bytes)| Attribute { name, bytes });
-        let attrs: Vec<&Attribute> = self.attributes.iter().chain(&bootstraps).chain(&self.custom).collect();
+        let attrs: Vec<&Attribute> =
+            self.attributes.iter().map(|(_, a)| a).chain(&bootstraps).chain(&self.custom).collect();
         attributes(&mut out, attrs)?;
         Ok(out)
     }

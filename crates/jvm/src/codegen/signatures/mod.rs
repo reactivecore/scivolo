@@ -8,6 +8,7 @@ mod erased;
 mod methods;
 mod needed;
 mod refs;
+mod unit_nulls;
 mod values;
 
 pub use classes::class;
@@ -103,7 +104,8 @@ impl<'u> Sig<'u> {
     }
 
     fn and_parts(&mut self, t: TypeId, parts: &mut Vec<TypeId>) {
-        let t = self.u.dealias(t);
+        let widened = self.u.widen(t);
+        let t = self.u.dealias(widened);
         match *self.u.ty(t) {
             Type::And(a, b) => {
                 self.and_parts(a, parts);
@@ -148,16 +150,17 @@ impl<'u> Sig<'u> {
             }
             Type::ByName(r) => self.class_sig("scala/Function0", &[r]),
             Type::Method { .. } | Type::Poly { .. } => self.method(t, top),
-            Type::Or(a, b, _) => match (self.class_named(a, "scala.Null"), self.class_named(b, "scala.Null"))
-            {
-                (false, true) if !self.is_value(a) => self.jsig(a, top, boxing),
-                (true, false) if !self.is_value(b) => self.jsig(b, top, boxing),
-                _ => self.erased(t, boxing),
-            },
+            Type::Or(a, b, _) => {
+                match (self.class_named(a, classes::NULL), self.class_named(b, classes::NULL)) {
+                    (false, true) if !self.is_value(a) => self.jsig(a, top, boxing),
+                    (true, false) if !self.is_value(b) => self.jsig(b, top, boxing),
+                    _ => self.erased(t, boxing),
+                }
+            }
             Type::And(..) => {
                 let mut parts = Vec::new();
                 self.and_parts(t, &mut parts);
-                let whole = self.u.erase(t);
+                let whole = self.glb_erasure(&parts);
                 let mut reprs = parts.into_iter().filter(|&p| self.u.erase(p) == whole).collect::<Vec<_>>();
                 let param = reprs.iter().position(|&p| self.type_param(p).is_some()).unwrap_or(0);
                 match reprs.is_empty() {
@@ -175,28 +178,5 @@ impl<'u> Sig<'u> {
             Some(w) => self.jsig(w, top, boxing),
             None => self.erased(t, boxing),
         }
-    }
-
-    /// The type parameter `t` refers to, if it appears in the signature by name.
-    fn type_param(&mut self, t: TypeId) -> Option<SymbolId> {
-        let s = match *self.u.ty(t) {
-            Type::Sym(_, s) => s,
-            Type::TypeRef(..) => self.u.resolve_ref(t)?,
-            _ => return None,
-        };
-        let owner = self.u.symbol(s).owner?;
-        if self.u.symbol(s).kind != Kind::TypeParam
-            || self.u.symbol(owner).kind.is_type() && !self.u.is_class(owner)
-        {
-            return None;
-        }
-        let mut o = Some(s);
-        while let Some(x) = o {
-            if self.tops.contains(&x) || x == self.sym0 || x == self.origin || Some(x) == self.extended {
-                return Some(s);
-            }
-            o = self.u.symbol(x).owner;
-        }
-        None
     }
 }

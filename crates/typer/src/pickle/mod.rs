@@ -4,6 +4,7 @@
 //! dotty's `TreePickler` and `PositionPickler` over typed trees, for the TASTy of quotes.
 
 mod annotated;
+mod annotation_origins;
 mod applies;
 mod cases;
 mod defs;
@@ -102,6 +103,11 @@ pub struct TreePickler<'a> {
     typed_tpts: Vec<TNodeId>,
     /// The annotation trees pickled in types, in order (dotty's `typeAnnots`).
     type_annots: Vec<TNodeId>,
+    root: TNodeId,
+    /// The definitions of `root`, collected at the first inferred type of several annotation trees.
+    origins: Option<annotation_origins::AnnotationOrigins>,
+    /// Whether the type keyed has an annotation tree told by the type tree pickled.
+    keyed_by_place: bool,
 }
 
 /// The TASTy of quote `root`, `holes` its term holes, without positions (dotty's `pickleQuote`).
@@ -168,6 +174,9 @@ fn pickle<'a>(
         annots: Vec::new(),
         typed_tpts: Vec::new(),
         type_annots: Vec::new(),
+        root,
+        origins: None,
+        keyed_by_place: false,
     };
     p.tree(root)?;
     if !p.forward.is_empty() {

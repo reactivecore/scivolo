@@ -6,6 +6,7 @@
 mod alternatives;
 mod applicability;
 mod applies;
+mod by_result;
 mod compatible;
 mod errors;
 mod mapped;
@@ -26,6 +27,8 @@ use tasty::{SymbolId, Type, TypeId};
 
 /// Why alternatives are compared undecided: an implicit conversion outside the subset.
 const UNDECIDED: &str = "overload resolution with implicit conversions";
+/// Why an alternative's result is not compared with the expected type: outside the subset.
+const UNDECIDED_RESULT: &str = "overload resolution by an undecided result type";
 /// Why a value with `apply` methods among the alternatives is not resolved.
 const VALUE_APPLY: &str = "overloaded value with an apply method";
 /// Why a function argument with modifiers is not resolved against the alternatives.

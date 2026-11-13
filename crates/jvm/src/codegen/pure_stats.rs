@@ -28,11 +28,11 @@ impl Gen<'_, '_> {
     }
 
     /// Whether statement `t` has no effect: a literal, `this`, `super`, a parameter or an
-    /// immutable non-lazy local value, a final Java instance field of such, possibly typed, or a
-    /// block of such.
+    /// immutable non-lazy local value, a final Java instance field of such, a closure, possibly
+    /// typed, or a block of such.
     fn is_pure_stat(&self, t: TNodeId) -> bool {
         match *self.l.tpd.tree(t) {
-            Tree::Literal { .. } | Tree::This { .. } | Tree::Super { .. } => true,
+            Tree::Literal { .. } | Tree::This { .. } | Tree::Super { .. } | Tree::Closure { .. } => true,
             Tree::Ident { .. } => {
                 self.l.tpd.sym(t).is_some_and(|s| self.is_pure_local(s) || self.is_stable_field(s))
             }

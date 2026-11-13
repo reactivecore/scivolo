@@ -79,7 +79,7 @@ impl Typer<'_> {
 
     /// `t` zonked after instantiating the type variables of each applied match alias in it
     /// (dotty's `isFullyDefined` with `ForceDegree.all` in `TypeOps.simplify`).
-    fn with_match_alias_vars_defined(&mut self, t: TypeId) -> TypeId {
+    pub fn with_match_alias_vars_defined(&mut self, t: TypeId) -> TypeId {
         if !self.types().has_type_var(t) {
             return t;
         }

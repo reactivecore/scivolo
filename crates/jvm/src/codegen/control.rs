@@ -1,10 +1,10 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/backend/jvm/BCodeBodyBuilder.scala
-//! Branches, loops, labeled blocks and returns (dotty's `genLoadIfTo`, `genLoadTo`, `genWhileDo`,
-//! `genLabeledTo`, `genReturn`).
+//! Branches, loops and destinations of values (dotty's `genLoadIfTo`, `genLoadTo`, `genWhileDo`).
 
 use super::body::{Body, Dest};
-use super::{Gen, descriptors::class_descriptor, descriptors::descriptor, unsupported};
+use super::descriptors::{NOTHING, class_descriptor, descriptor};
+use super::{Gen, unsupported};
 use lower::Result;
 use syntax::ast::constant::Constant;
 use typer::tpd::{TNodeId, Tree};
@@ -30,7 +30,7 @@ impl Gen<'_, '_> {
                 let unit = "scala/runtime/BoxedUnit";
                 b.code.field(classfile::FieldOp::GetStatic, b.pool, unit, "UNIT", &class_descriptor(unit));
             }
-            _ if got == 1 && self.desc_of(t) == "Lscala/runtime/Nothing$;" => {
+            _ if got == 1 && self.desc_of(t) == NOTHING => {
                 b.code.insn(classfile::ATHROW);
                 b.code.set_stack(depth + slots);
             }
@@ -84,10 +84,14 @@ impl Gen<'_, '_> {
                 return Ok(());
             }
             Tree::Return { .. } => return self.expr(b, t).map(drop),
+            Tree::Apply { fun, .. } if self.sends_phantom(b, t, dest) => {
+                b.sent_phantom = Some(fun);
+                self.expr_as(b, t, slots)?
+            }
             _ => self.expr_as(b, t, slots)?,
         }
         let call = matches!(self.l.tpd.tree(t), Tree::Apply { .. }) && !self.is_throw(t);
-        if b.code.live() || call && self.desc_of(t) == "Lscala/runtime/Nothing$;" {
+        if b.code.live() || call && self.desc_of(t) == NOTHING {
             match dest {
                 Dest::Jump(l) => b.code.jump(classfile::GOTO, l),
                 Dest::Return => {
@@ -95,6 +99,7 @@ impl Gen<'_, '_> {
                     self.cast_to_null(b, t, &result);
                     b.code.ret(&result)
                 }
+                Dest::Throw(_) => b.code.insn(classfile::ATHROW),
                 Dest::Fall => {}
             }
         }
@@ -151,42 +156,12 @@ impl Gen<'_, '_> {
         Ok(0)
     }
 
-    /// Labeled block `t` whose value stays on the stack, which `return[t]` leaves.
-    pub fn gen_labeled(&mut self, b: &mut Body, t: TNodeId, expr: TNodeId) -> Result<i32> {
-        let label = self.l.tpd.sym(t).expect("a label's symbol");
-        let slots = classfile::value_slots(&self.desc_of(t));
-        let (end, depth) = (b.code.new_label(), b.code.stack());
-        b.labels.push((label, Dest::Jump(end), slots));
-        self.expr_as(b, expr, slots)?;
-        b.labels.pop();
-        b.code.place(end);
-        b.code.set_stack(depth + slots);
-        Ok(slots)
-    }
-
-    /// `return[from] expr`: from a method or an enclosing labeled block; within a `finally` or
-    /// `synchronized`, its value is stored and the cleanup runs first.
-    pub fn gen_return(&mut self, b: &mut Body, t: TNodeId, expr: TNodeId, from: TNodeId) -> Result<i32> {
-        let from = self.l.tpd.sym(from);
-        if let Some(&(_, dest, slots)) = b.labels.iter().rev().find(|l| Some(l.0) == from) {
-            self.expr_to(b, expr, slots, dest)?;
-        } else if from.is_none() || from != b.method {
-            return unsupported(self.l.tpd.span(t), "a return from an enclosing method");
-        } else if let Some(&cleanup) = b.cleanups.last() {
-            let result = b.result.clone();
-            self.expr_as(b, expr, classfile::value_slots(&result))?;
-            if result != "V" {
-                let slot = b.early_return.unwrap_or_else(|| b.temp(&result));
-                b.early_return = Some(slot);
-                b.code.store(&result, slot);
-            }
-            b.code.jump(classfile::GOTO, cleanup);
-            b.emit_cleanup = true;
-        } else {
-            let result = b.result.clone();
-            self.expr_ret(b, expr, &result)?;
-        }
-        Ok(0)
+    /// Whether call `t` sent to `dest` passes on its `Nothing$` value as it is (dotty's `genLoadTo`
+    /// not adapting a value of the expected type): thrown in a throw or returned from a method of
+    /// type `Nothing`.
+    fn sends_phantom(&self, b: &Body, t: TNodeId, dest: Dest) -> bool {
+        let nothing = dest == Dest::Throw(true) || dest == Dest::Return && b.result == NOTHING;
+        nothing && !self.is_throw(t)
     }
 
     /// Whether `elsep` of `if` `t` is a `()` added for a missing `else` (dotty's `SyntheticUnit`):

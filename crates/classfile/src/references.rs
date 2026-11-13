@@ -18,7 +18,7 @@ impl ClassFile {
         };
         let signature = self.pool.find_utf8("Signature");
         let signatures = (self.fields.iter().chain(&self.methods).flat_map(|m| &m.attributes))
-            .chain(&self.attributes)
+            .chain(self.attributes.iter().map(|(_, a)| a))
             .filter(|a| signature == Some(a.name) && a.bytes.len() == 2)
             .map(|a| u16::from_be_bytes([a.bytes[0], a.bytes[1]]));
         let members = self.fields.iter().chain(&self.methods).map(|m| m.descriptor);

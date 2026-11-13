@@ -3,6 +3,7 @@
 //! Annotated and refined types and type trees (dotty's `AnnotatedType` case of
 //! `pickleNewType`, `Annotated` and `RefinedTypeTree` cases of `pickleTree`).
 
+use super::annotation_origins::AnnotationOrigins;
 use super::{Refusal, TreePickler};
 use crate::defn::type_ref;
 use crate::tpd::{List, TNodeId, Tree};
@@ -13,13 +14,16 @@ use tasty::tags::{ANNOTATEDtpt, ANNOTATEDtype, APPLY, NEW, REFINEDtpt, SELECTin}
 impl TreePickler<'_> {
     /// Type `annotated`, `parent` annotated with class type `annot`: with the annotation tree an
     /// annotated expression of the file gave it, else `new annot()`; told from the others by its
-    /// tree when keyed. Refuses a type several annotated expressions gave, outside their type trees.
+    /// tree when keyed. Refuses a type several annotated expressions gave, outside their type trees
+    /// and the type trees derived from or inferred from one of them (`AnnotationOrigins`), and a
+    /// type of a derived type tree with several annotated type trees of `annot` it may come from.
     pub fn annotated(&mut self, annotated: TypeId, parent: TypeId, annot: TypeId) -> Result<(), Refusal> {
+        let several = "an annotated type of several annotation trees";
         let tree = match self.tpt_annotation(annotated) {
             Some(tree) => Some(tree),
-            None => match self.tpd.type_annotation(annotated) {
-                Some(None) => return Err("an annotated type of several annotation trees"),
-                given => given.flatten(),
+            None => match self.origin_annotation(annotated, annot) {
+                Some(origin) => Some(origin.ok_or(several)?),
+                None => self.tpd.type_annotation(annotated).map(|t| t.ok_or(several)).transpose()?,
             },
         };
         if let Some(tree) = tree {
@@ -48,6 +52,17 @@ impl TreePickler<'_> {
         let enclosing = self.typed_tpts.iter().rev().copied();
         let tpts = self.type_tree.into_iter().chain(enclosing);
         tpts.filter(|&tpt| self.tpd.tpe(tpt) == annotated).find_map(|tpt| self.annotation_of(tpt))
+    }
+
+    /// The annotation tree of `annotated`, of annotation class `annot` and part of the type of the
+    /// type tree pickled, that the type tree it derives from or the right-hand side it is inferred
+    /// from gave, `Some(None)` if several may have; marks the type keyed as told by its place.
+    fn origin_annotation(&mut self, annotated: TypeId, annot: TypeId) -> Option<Option<TNodeId>> {
+        let tpt = self.type_tree?;
+        let origins = self.origins.get_or_insert_with(|| AnnotationOrigins::new(self.tpd, self.root));
+        let tree = origins.of_type_tree(self.tpd, tpt, annotated, annot)?;
+        self.keyed_by_place = true;
+        Some(tree)
     }
 
     /// The annotation tree of type tree `tpt`, if an annotated expression or type gave its type.

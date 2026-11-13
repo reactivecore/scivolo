@@ -8,7 +8,7 @@ use super::Gen;
 use super::descriptors::internal;
 use super::signatures::Member;
 use names::name_kinds;
-use tasty::tags::PRIVATE;
+use tasty::tags::{FIELDaccessor, PRIVATE};
 use tasty::{Kind, SymbolId, TypeId};
 
 /// A forwarder to a default method of a Java interface.
@@ -22,25 +22,25 @@ struct JavaForwarded {
 
 impl Gen<'_, '_> {
     /// The generic signature of member `sym` of descriptor `desc` (dotty's `getGenericSignature`
-    /// with `Mixin`'s `mixinGenericInfos`): none for an accessor of a private trait value, a member
-    /// of a local class, nor for a mixin forwarder whose signature does not erase to `desc`; of a method whose context
-    /// closures became parameter clauses, from its type before.
+    /// with `Mixin`'s `mixinGenericInfos`): none for a member of a private trait value or of a
+    /// local class, nor for a mixin forwarder whose signature does not erase to `desc`; of a
+    /// method whose context closures became parameter clauses, from its type before.
     pub fn generic_signature(&mut self, sym: SymbolId, desc: &str) -> Option<String> {
         let mixed = self.mixed_origin(sym);
         let java_forwarded = self.java_forwarded(sym);
-        let origin = mixed.or(java_forwarded.map(|f| f.target)).unwrap_or(sym);
+        let origin = mixed.or(java_forwarded.map(|f| f.target)).or(self.l.super_accessed(sym)).unwrap_or(sym);
         let info = match (self.l.unflattened_info(origin), java_forwarded) {
             (Some(info), _) => info,
             (None, Some(f)) => f.info,
             (None, None) => self.seen_from_owner(sym),
         };
-        if mixed.is_some_and(|o| self.l.u.symbol(o).flags.has(PRIVATE)) || self.is_local(sym) {
+        if self.of_private_trait_value(sym, mixed) || self.is_local(sym) {
             return None;
         }
 
         let thrown = self.thrown(sym);
         let member = self.signed_member(sym, origin);
-        let sig = super::signatures::member(self.l.u, member, info, desc, &thrown)?;
+        let sig = self.member_signature(member, info, desc, &thrown)?;
         let forwarder =
             self.l.mixed_in_from(sym).is_some() && !self.l.is_mixin_accessor(sym) || java_forwarded.is_some();
         if !forwarder {
@@ -155,6 +155,16 @@ impl Gen<'_, '_> {
         let info = self.l.u.info(sym);
         let info = self.l.u.as_seen_from(info, this, interface);
         Some(JavaForwarded { target, info })
+    }
+
+    /// Whether `sym`, copying trait member `mixed` if any, is of a private trait value: a copy of a
+    /// private member or of an accessor whose name `Mixin` expanded, or a trait setter of one.
+    fn of_private_trait_value(&self, sym: SymbolId, mixed: Option<SymbolId>) -> bool {
+        let expanded = |n: &str| n.contains(name_kinds::EXPAND_SEPARATOR);
+        let s = |m| self.l.u.symbol(m);
+        let private = |m| s(m).flags.has(PRIVATE) || s(m).flags.has(FIELDaccessor) && expanded(&s(m).name);
+        let setter = s(sym).name.split_once(name_kinds::TRAIT_SETTER_SEPARATOR);
+        mixed.is_some_and(private) || setter.is_some_and(|(_, value)| expanded(value))
     }
 
     /// The trait member mixin accessor or forwarder `sym` copies, or the field of a mixin getter

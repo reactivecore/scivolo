@@ -158,6 +158,10 @@ pub struct Lower<'a> {
     inlined_spans: FxHashMap<TNodeId, Span>,
     /// The spans in another source of the trees `drop_inlined` gave the span of an inline call.
     own_spans: FxHashMap<TNodeId, Span>,
+    /// The trees `drop_inlined` gave the span of an inline call with their span in another file or
+    /// source (of a pattern-bound value's initializer, that of its pattern); `Span::NONE` for the
+    /// value definitions later phases made there without one.
+    foreign_spans: FxHashMap<TNodeId, Span>,
     /// The blocks `drop_inlined` made of `Inlined` trees with bindings.
     inlined_blocks: FxHashSet<TNodeId>,
     /// The start of the outermost inline call each definition of an expansion was inlined at.
@@ -320,6 +324,7 @@ impl<'a> Lower<'a> {
             super_accessors: FxHashMap::default(),
             inlined_spans: FxHashMap::default(),
             own_spans: FxHashMap::default(),
+            foreign_spans: FxHashMap::default(),
             inlined_at: FxHashMap::default(),
             inlined_blocks: FxHashSet::default(),
             impure_modules: FxHashSet::default(),
@@ -354,14 +359,40 @@ impl<'a> Lower<'a> {
         self.varargs_forwarders.contains(&m)
     }
 
+    /// Whether the unit is compiled with `-Yexplicit-nulls`.
+    pub fn explicit_nulls(&self) -> bool {
+        self.explicit_nulls
+    }
+
+    /// The lazy value of a class whose `$lzyINIT` method is `init`.
+    pub fn lazy_accessor_of(&self, init: SymbolId) -> Option<SymbolId> {
+        self.lazy_members.iter().find(|(_, m)| m.init == init).map(|(&a, _)| a)
+    }
+
+    /// Whether `t` was inlined from another source and given the span of the inline call.
+    pub fn is_from_other_source(&self, t: TNodeId) -> bool {
+        self.own_spans.contains_key(&t)
+    }
+
     /// Whether `LambdaLift` lifted method `m` out of a term.
     pub fn is_lifted(&self, m: SymbolId) -> bool {
         self.lifted_from.contains_key(&m)
     }
 
+    /// The member super accessor `acc` accesses.
+    pub fn super_accessed(&self, acc: SymbolId) -> Option<SymbolId> {
+        self.super_accessors.get(&acc).map(|&(m, _)| m)
+    }
+
     /// The accessors `SuperAccessors` made in the unit.
     pub fn super_accessors(&self) -> impl Iterator<Item = SymbolId> + '_ {
         self.super_accessors.keys().copied()
+    }
+
+    /// Determines whether `t` was inlined from another file or source, and its span there if
+    /// known (dotty's `reposition` keeps that of a `DefTree`).
+    pub fn foreign_span(&self, t: TNodeId) -> Option<Span> {
+        self.foreign_spans.get(&t).copied()
     }
 
     /// The owner of `s`, of a lifted local class the one before lifting.

@@ -121,6 +121,7 @@ impl Gen<'_, '_> {
                 {
                     return Some(s);
                 }
+                Kind::Def if let Some(accessor) = self.l.lazy_accessor_of(s) => return Some(accessor),
                 _ => s = self.l.original_owner(s)?,
             }
         }

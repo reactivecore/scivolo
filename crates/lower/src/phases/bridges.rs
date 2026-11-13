@@ -8,7 +8,7 @@
 use super::adapt::adapt;
 use super::mixin::{is_jdk, javalib_only_bases, with_java_param_names};
 use super::varargs_forwarders::forwarded;
-use crate::symbols::has;
+use crate::symbols::{has, same_erasure};
 use crate::{Lower, Result};
 use rustc_hash::FxHashSet;
 use syntax::ast::Span;
@@ -66,9 +66,10 @@ pub fn transform(l: &mut Lower, td: TNodeId, deferred: &FxHashSet<SymbolId>) -> 
 
 /// Whether `member` overriding `other` needs a bridge: their run-time names or erasures differ.
 pub fn differ(l: &mut Lower, member: SymbolId, other: SymbolId) -> bool {
-    let target =
-        |l: &Lower, s: SymbolId| l.u.symbol(s).target.clone().unwrap_or_else(|| l.u.symbol(s).name.clone());
-    target(l, member) != target(l, other) || l.u.erased_method(member) != l.u.erased_method(other)
+    fn target(s: &tasty::Symbol) -> &str {
+        s.target.as_deref().unwrap_or(&s.name)
+    }
+    target(l.u.symbol(member)) != target(l.u.symbol(other)) || !same_erasure(l.u, member, other)
 }
 
 /// The pairs of a member of `class` and a member it overrides, in the order dotty's

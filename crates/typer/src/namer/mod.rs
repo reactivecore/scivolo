@@ -11,6 +11,7 @@ mod checks;
 mod complete;
 mod def_names;
 mod defaults;
+mod deprecated_names;
 mod double_definitions;
 mod erased;
 mod export_annotations;
@@ -30,6 +31,7 @@ mod module_vals;
 mod non_cyclic;
 mod params;
 mod provisional;
+mod replaced_members;
 mod split_companions;
 mod value_classes;
 
@@ -135,10 +137,12 @@ impl Typer<'_> {
             flags = flags.and_not(f::PRIVATE_LOCAL);
         }
         self.check_def_name(tree, &text, flags, ctx.owner);
-        if self.u.symbol(ctx.owner).kind == Kind::Package {
-            self.unenter_classpath_members(ctx.owner, &text);
-        }
+        let replaces_well_known = self.u.symbol(ctx.owner).kind == Kind::Package
+            && self.unenter_classpath_members(ctx.owner, &text);
         let sym = self.syms.define(self.u, &text, kind, ctx.owner, flags);
+        if replaces_well_known {
+            self.replacing_well_known.push((tree, sym));
+        }
         if self.is_scala2_macro_in_scala3(ctx.owner, written) {
             self.u.unenter(sym);
         }
@@ -173,27 +177,6 @@ impl Typer<'_> {
         }
         self.syms.def_trees.insert(sym, tree);
         Some(sym)
-    }
-
-    /// Removes the TASTy members and the Scala library's Java classes of package `package` that a
-    /// unit's member `name` replaces: those of that name and of its companion's (dotty's
-    /// `isDefinedInCurrentRun`), not the JDK classes a name Scala Native gives them stands for;
-    /// replacing a TASTy one of package `scala` but not `scala.scalanative` marks the run as
-    /// building the Scala library.
-    fn unenter_classpath_members(&mut self, package: SymbolId, name: &str) {
-        let base = name.strip_suffix('$').unwrap_or(name);
-        for n in [base.to_owned(), format!("{base}$")] {
-            for d in self.u.decls_named(package, &n) {
-                let tasty = self.u.symbol(d).tree.is_some();
-                if (tasty || self.u.is_library_java_stub(d)) && self.u.symbol(d).name == n {
-                    let full = self.u.full_name(d);
-                    if tasty && full.starts_with("scala.") && !full.starts_with("scala.scalanative.") {
-                        self.u.set_builds_scala_library();
-                    }
-                    self.u.unenter(d);
-                }
-            }
-        }
     }
 
     /// Whether `owner` is a package or a package object, whose private members are private to the

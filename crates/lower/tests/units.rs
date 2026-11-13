@@ -1,6 +1,9 @@
 //! Several sources compiled as one unit: each sees the definitions of the others, and errors
 //! name the file they are in.
 
+mod snippet;
+
+use snippet::{dump, jars};
 use std::path::Path;
 use syntax::config::Config;
 use syntax::source::SourceFile;
@@ -8,12 +11,7 @@ use tasty::Universe;
 
 #[test]
 fn sources_refer_to_each_other_and_errors_name_their_file() {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let jars = typer::dump::library_jars(&root.join("ref/libs"));
-    if !jars[0].exists() && std::env::var_os("CI").is_none() {
-        eprintln!("skipped: the library jars are not in ref/libs");
-        return;
-    }
+    let Some(jars) = jars() else { return };
     let compile = |a: &str, b: &str| {
         let sources = [SourceFile::new("a.scala", a), SourceFile::new("b.scala", b)];
         let mut u = Universe::open(&jars).unwrap();
@@ -45,12 +43,7 @@ fn sources_refer_to_each_other_and_errors_name_their_file() {
 
 #[test]
 fn a_refused_file_leaves_out_itself_and_the_files_needing_it() {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let jars = typer::dump::library_jars(&root.join("ref/libs"));
-    if !jars[0].exists() && std::env::var_os("CI").is_none() {
-        eprintln!("skipped: the library jars are not in ref/libs");
-        return;
-    }
+    let Some(jars) = jars() else { return };
     let sources = [
         SourceFile::new("a.scala", "object A { def f: Int = 1 }"),
         SourceFile::new("b.scala", "object B { def g: Int = \"s\" }"),
@@ -70,12 +63,7 @@ fn a_refused_file_leaves_out_itself_and_the_files_needing_it() {
 
 #[test]
 fn refusals_after_typing_are_collected_from_all_files_at_once() {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let jars = typer::dump::library_jars(&root.join("ref/libs"));
-    if !jars[0].exists() && std::env::var_os("CI").is_none() {
-        eprintln!("skipped: the library jars are not in ref/libs");
-        return;
-    }
+    let Some(jars) = jars() else { return };
     let deferred = |o: &str| {
         format!(
             "trait T{o} {{ inline def f: Int }}\nobject {o} {{ inline def g(t: T{o}) = t.f; def h(t: T{o}) = g(t) }}"
@@ -107,12 +95,7 @@ fn refusals_after_typing_are_collected_from_all_files_at_once() {
 
 #[test]
 fn library_java_classes_redefined_and_lifted_classes_in_units() {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let jars = typer::dump::library_jars(&root.join("ref/libs"));
-    if !jars[0].exists() && std::env::var_os("CI").is_none() {
-        eprintln!("skipped: the library jars are not in ref/libs");
-        return;
-    }
+    let Some(jars) = jars() else { return };
     let dump = |sources: &[SourceFile], name: &str| dump(&jars, sources, name);
     let a = SourceFile::new("a.scala", "package p\nobject A { val x = new Object {} }");
     let anon = dump(&[a, SourceFile::new("b.scala", "package p\nclass B")], "p.A$$anon$1");
@@ -142,12 +125,7 @@ fn library_java_classes_redefined_and_lifted_classes_in_units() {
 
 #[test]
 fn files_of_a_unit_lower_as_alone() {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let jars = typer::dump::library_jars(&root.join("ref/libs"));
-    if !jars[0].exists() && std::env::var_os("CI").is_none() {
-        eprintln!("skipped: the library jars are not in ref/libs");
-        return;
-    }
+    let Some(jars) = jars() else { return };
     let dumps = |sources: &[SourceFile]| {
         let mut u = Universe::open(&jars).unwrap();
         let (files, _) = lower::compile_sources(&mut u, sources, Config::from_options(&[]), None)
@@ -189,12 +167,7 @@ fn files_of_a_unit_lower_as_alone() {
 
 #[test]
 fn empty_package_definitions_and_top_level_packages_shadow_root_imports() {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let jars = typer::dump::library_jars(&root.join("ref/libs"));
-    if !jars[0].exists() && std::env::var_os("CI").is_none() {
-        eprintln!("skipped: the library jars are not in ref/libs");
-        return;
-    }
+    let Some(jars) = jars() else { return };
     let a = "object Thread { def apply(s: String) = s }\nclass Record(val n: Int)";
     let b = "package p\nobject B { def f = io.Top.n }";
     let c = "object C { def f = Thread(\"x\"); def g = new Record(1).n; def h = io.Top.n + p.B.f }";
@@ -209,12 +182,7 @@ fn empty_package_definitions_and_top_level_packages_shadow_root_imports() {
 
 #[test]
 fn empty_package_givens_are_not_seen_from_a_named_package() {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let jars = typer::dump::library_jars(&root.join("ref/libs"));
-    if !jars[0].exists() && std::env::var_os("CI").is_none() {
-        eprintln!("skipped: the library jars are not in ref/libs");
-        return;
-    }
+    let Some(jars) = jars() else { return };
     let a = "given Ordering[String] = Ordering.String.reverse\nobject E { def o = summon[Ordering[String]] }";
     let b = "package p\nobject P { def o = summon[Ordering[String]] }";
     let sources = [SourceFile::new("a.scala", a), SourceFile::new("b.scala", b)];
@@ -224,30 +192,9 @@ fn empty_package_givens_are_not_seen_from_a_named_package() {
     assert!(!p.contains("@a$package$") && p.contains("@scala.math.Ordering$String$"), "{p}");
 }
 
-/// Lowers `sources` together and shows the NIR of class `name`.
-fn dump(jars: &[std::path::PathBuf], sources: &[SourceFile], name: &str) -> String {
-    let mut u = Universe::open(jars).unwrap();
-    let files = match sources {
-        [one] => lower::compile(&mut u, one, &[]).map_err(|r| r.what),
-        many => lower::compile_sources(&mut u, many, Config::from_options(&[]), None)
-            .map(|(files, _)| files)
-            .map_err(|r| r.what),
-    };
-    let files = files.expect("lowered");
-    let file = files.iter().find(|f| f.name == name).unwrap_or_else(|| panic!("{name} missing"));
-    let (mut caches, mut pool) = (nir::Caches::default(), nir::Pool::default());
-    let defs = nir::Reader::new(&file.bytes, &mut caches, &mut pool).unwrap().all().unwrap();
-    defs.iter().map(|d| nir::show::defn_with_debug_info(&pool, d)).collect::<Vec<_>>().join("\n")
-}
-
 #[test]
 fn array_branches_in_reference_contexts() {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let jars = typer::dump::library_jars(&root.join("ref/libs"));
-    if !jars[0].exists() && std::env::var_os("CI").is_none() {
-        eprintln!("skipped: the library jars are not in ref/libs");
-        return;
-    }
+    let Some(jars) = jars() else { return };
     let source = SourceFile::new(
         "arrays.scala",
         "object Arrays { def f(c: Boolean, a: Array[Int], b: Array[Int]): AnyRef = if c then a else b; \
@@ -261,12 +208,7 @@ fn array_branches_in_reference_contexts() {
 
 #[test]
 fn default_alignment_is_emitted_on_fields() {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let jars = typer::dump::library_jars(&root.join("ref/libs"));
-    if !jars[0].exists() && std::env::var_os("CI").is_none() {
-        eprintln!("skipped: the library jars are not in ref/libs");
-        return;
-    }
+    let Some(jars) = jars() else { return };
     let mut u = Universe::open(&jars).unwrap();
     let source =
         SourceFile::new("align.scala", "@scala.scalanative.annotation.align class A { var x: Long = 0L }");
@@ -287,26 +229,14 @@ fn default_alignment_is_emitted_on_fields() {
 
 #[test]
 fn reads_an_extern_field_from_the_library() {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let jars = typer::dump::library_jars(&root.join("ref/libs"));
-    if !jars[0].exists() && std::env::var_os("CI").is_none() {
-        eprintln!("skipped: the library jars are not in ref/libs");
-        return;
-    }
+    let Some(jars) = jars() else { return };
     let source = SourceFile::new(
         "extern.scala",
         "import scala.scalanative.posix.unistd.*\n\
          object E { def recv: scala.scalanative.posix.unistd.type = { println(\"receiver\"); scala.scalanative.posix.unistd }; \
          def read = recv.environ; def imported = environ; def write = { recv.environ = null } }",
     );
-    let mut u = Universe::open(&jars).unwrap();
-    let files = lower::compile(&mut u, &source, &[]).unwrap();
-    let (mut caches, mut pool) = (nir::Caches::default(), nir::Pool::default());
-    let mut reader =
-        nir::Reader::new(&files.iter().find(|f| f.name == "E$").unwrap().bytes, &mut caches, &mut pool)
-            .unwrap();
-    let defs = reader.all().unwrap();
-    let dump = defs.iter().map(|d| nir::show::defn_with_debug_info(&pool, d)).collect::<Vec<_>>().join("\n");
+    let dump = dump(&jars, &[source], "E$");
     assert_eq!(dump.matches("load[ptr]").count(), 2, "{dump}");
     assert_eq!(dump.matches("store[ptr]").count(), 1, "{dump}");
     assert!(dump.contains("::extern environ"), "{dump}");
@@ -315,12 +245,7 @@ fn reads_an_extern_field_from_the_library() {
 
 #[test]
 fn extern_vararg_declarations() {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let jars = typer::dump::library_jars(&root.join("ref/libs"));
-    if !jars[0].exists() && std::env::var_os("CI").is_none() {
-        eprintln!("skipped: the library jars are not in ref/libs");
-        return;
-    }
+    let Some(jars) = jars() else { return };
     let source = SourceFile::new(
         "varargs.scala",
         "import scala.scalanative.unsafe.*\n@extern object libc { def printf(f: CString, xs: CVarArg*): CInt = extern }",
@@ -346,26 +271,14 @@ fn extern_vararg_declarations() {
 
 #[test]
 fn library_static_members_and_annotated_switch_selectors() {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let mut jars = typer::dump::library_jars(&root.join("ref/libs"));
-    if !jars[0].exists() && std::env::var_os("CI").is_none() {
-        eprintln!("skipped: the library jars are not in ref/libs");
-        return;
-    }
-    jars.push(root.join("libs/jdk-stubs.jar"));
+    let Some(mut jars) = jars() else { return };
+    jars.push(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../libs/jdk-stubs.jar"));
     let source = SourceFile::new(
         "statics.scala",
         "object S { def now = java.time.Instant.ofEpochMilli(1L); \
          def f(c: Char): Int = (c: @scala.annotation.switch) match { case 'a' => 1; case 'b' => 2; case 'c' => 3; case _ => 4 } }",
     );
-    let mut u = Universe::open(&jars).unwrap();
-    let files = lower::compile(&mut u, &source, &[]).unwrap();
-    let (mut caches, mut pool) = (nir::Caches::default(), nir::Pool::default());
-    let mut reader =
-        nir::Reader::new(&files.iter().find(|f| f.name == "S$").unwrap().bytes, &mut caches, &mut pool)
-            .unwrap();
-    let defs = reader.all().unwrap();
-    let dump = defs.iter().map(|d| nir::show::defn_with_debug_info(&pool, d)).collect::<Vec<_>>().join("\n");
+    let dump = dump(&jars, &[source], "S$");
     assert!(dump.contains("@java.time.Instant::static ofEpochMilli(long)"), "{dump}");
     assert!(dump.contains("switch"), "{dump}");
 }

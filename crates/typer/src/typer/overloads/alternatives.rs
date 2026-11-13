@@ -81,17 +81,24 @@ impl Resolution {
 
         t.untuple_unless_unary(proto, &methods)?;
         let n = t.protos[proto].args.len();
-        let (fitting, applies) = by_size(t, methods, n)?;
+        let (fitting, applies) = by_size(t, &methods, n)?;
         let chosen = match fitting.as_slice() {
             [s] => *s,
             [] if applies.is_empty() => return Err(NO_SIZE.into()),
             [] => return Err(RESULT_APPLY.into()),
             _ => self.resolve_overloaded(t, &fitting, proto)?,
         };
-        if !applies.is_empty() && !self.wins_over_applies(t, chosen, &applies, proto) {
+        if !applies.is_empty()
+            && (!self.wins_over_applies(t, chosen, &applies, proto)
+                || self.result_fits(t, chosen, proto) == Some(false))
+        {
             return Err(RESULT_APPLY.into());
         }
-        Ok(chosen)
+        methods.retain(|&s| {
+            let info = t.u.info(s);
+            !t.u.param_clauses(info).is_empty()
+        });
+        self.adapted_by_result(t, chosen, &methods, proto)
     }
 }
 
@@ -100,12 +107,12 @@ impl Resolution {
 /// `narrowBySize`); refuses methods whose parameter types depend on each other.
 fn by_size(
     t: &mut Typer,
-    methods: Vec<SymbolId>,
+    methods: &[SymbolId],
     n: usize,
 ) -> Result<(Vec<SymbolId>, Vec<ApplyMember>), &'static str> {
     let mut fitting = Vec::new();
     let mut applies = Vec::new();
-    for s in methods {
+    for &s in methods {
         let info = t.u.info(s);
         let Some((_, ps)) = t.u.param_clauses(info).into_iter().next() else {
             applies.extend(result_applies(t, info, n));

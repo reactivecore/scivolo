@@ -48,5 +48,11 @@ object Closures {
     var count = 0
     (1 to 3).foreach(i => count += i)
     println(count)
+    ((x: Int) => x + 1): (Int => Int)
+    println(Succ(41))
   }
+}
+
+object Succ extends (Int => Int) {
+  def apply(x: Int): Int = x + 1
 }

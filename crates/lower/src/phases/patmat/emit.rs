@@ -111,14 +111,21 @@ impl Translator<'_, '_> {
         self.l.call(a, self.l.defs.and, &[b])
     }
 
-    /// The definition of variable `sym` with its initializer, at the variable.
+    /// The definition of variable `sym` with its initializer, at the variable; inlined from
+    /// another file or source if its initializer was.
     fn val_def(&mut self, sym: SymbolId) -> TNodeId {
         let name = self.l.build().term_name(sym);
         let info = self.l.u.info(sym);
-        let rhs = self.l.ensure_conforms(self.initializer[&sym], info);
+        let init = self.initializer[&sym];
+        let rhs = self.l.ensure_conforms(init, info);
         let tpt = self.l.type_tree(info, Span::NONE);
         let def = self.node(Tree::ValDef { name, tpt, rhs: Some(rhs) }, info, Some(sym));
-        self.l.with_span(def, self.spans[&sym])
+        let def = self.l.with_span(def, self.spans[&sym]);
+
+        if let Some(own) = self.l.foreign_span(init) {
+            self.l.foreign_spans.insert(def, own);
+        }
+        def
     }
 
     /// `stats` before `expr`, joined with the statements of block `expr` (dotty's `seq`).

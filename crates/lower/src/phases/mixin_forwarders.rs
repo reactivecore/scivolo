@@ -9,7 +9,7 @@ use crate::symbols::{beyond_jdk_view, has};
 use names::{name_kinds, nme};
 use rustc_hash::FxHashSet;
 use tasty::tags::{FIELDaccessor, INLINE, PRIVATE, STATIC};
-use tasty::{Kind, SymbolId, TypeId};
+use tasty::{Erased, Kind, SymbolId, TypeId, Universe};
 
 /// The methods of trait `mixin` that `class` gets forwarders to.
 pub fn forwarded(l: &mut Lower, class: SymbolId, mixin: SymbolId) -> Vec<SymbolId> {
@@ -43,12 +43,12 @@ fn needs_forwarder(l: &mut Lower, class: SymbolId, meth: SymbolId) -> bool {
     {
         return false;
     }
-    let site = l.u.this_type(class);
-    if !inherits(l, class, meth, site, &mut FxHashSet::default()) {
+    let wanted = Wanted::new(l, meth, class);
+    if !inherits(l, class, &wanted, &mut FxHashSet::default()) {
         return false;
     }
     for base in erased_linearization(l, class) {
-        for other in matching_decls(l, base, meth, site) {
+        for other in matching_decls(l, base, &wanted) {
             if !is_deferred(l, other) {
                 return other == meth;
             }
@@ -66,14 +66,14 @@ fn needed_unforced(l: &mut Lower, class: SymbolId, mixin: SymbolId, meth: Symbol
     {
         return true;
     }
-    let site = l.u.this_type(class);
+    let wanted = Wanted::new(l, meth, class);
     let mixin_bases = erased_linearization(l, mixin);
     for base in erased_linearization(l, class) {
         if base == mixin {
             continue;
         }
         let is_trait = l.u.is_trait(base);
-        for other in matching_decls(l, base, meth, site) {
+        for other in matching_decls(l, base, &wanted) {
             if !is_trait || !is_deferred(l, other) && !mixin_bases.contains(&base) {
                 return true;
             }
@@ -93,39 +93,54 @@ fn is_deferred(l: &mut Lower, s: SymbolId) -> bool {
 
 /// Whether `meth` is a member of `class`, not hidden by a matching declaration of `class` or of
 /// a base class between them (dotty's `nonPrivateMembersNamed`, `mapInherited`).
-fn inherits(
-    l: &mut Lower,
-    class: SymbolId,
-    meth: SymbolId,
-    site: TypeId,
-    seen: &mut FxHashSet<SymbolId>,
-) -> bool {
-    let Some(owner) = l.u.symbol(meth).owner else { return false };
+fn inherits(l: &mut Lower, class: SymbolId, w: &Wanted, seen: &mut FxHashSet<SymbolId>) -> bool {
+    let Some(owner) = l.u.symbol(w.meth).owner else { return false };
     if class == owner {
         return true;
     }
-    if !seen.insert(class) || !matching_decls(l, class, meth, site).is_empty() {
+    if !seen.insert(class) || !matching_decls(l, class, w).is_empty() {
         return false;
     }
     let parents: Vec<SymbolId> = l.u.parents(class).into_iter().filter_map(|p| l.u.class_symbol(p)).collect();
     let parents = erased_classes(l, parents);
-    parents
-        .into_iter()
-        .any(|p| erased_linearization(l, p).contains(&owner) && inherits(l, p, meth, site, seen))
+    parents.into_iter().any(|p| erased_linearization(l, p).contains(&owner) && inherits(l, p, w, seen))
+}
+
+/// A method looked up in the bases of a class: its name and erased signature, and the class's
+/// this-type.
+struct Wanted {
+    meth: SymbolId,
+    name: String,
+    signature: (Vec<Erased>, Erased),
+    site: TypeId,
+}
+
+impl Wanted {
+    fn new(l: &mut Lower, meth: SymbolId, class: SymbolId) -> Wanted {
+        let site = l.u.this_type(class);
+        let signature = l.u.erased_method(meth);
+        Wanted { meth, name: l.u.symbol(meth).name.clone(), signature, site }
+    }
 }
 
 /// The non-private methods and values of `base`, bridges aside, with the name and erased
-/// signature of `meth`, or matching it as members of `site`.
-fn matching_decls(l: &mut Lower, base: SymbolId, meth: SymbolId, site: TypeId) -> Vec<SymbolId> {
-    let name = l.u.symbol(meth).name.clone();
-    let signature = l.u.erased_method(meth);
+/// signature of `w.meth`, or matching it as members of `w.site`.
+fn matching_decls(l: &mut Lower, base: SymbolId, w: &Wanted) -> Vec<SymbolId> {
     let Lower { u, bridges, .. } = l;
-    let mut decls = u.decls_named(base, &name);
+    let mut decls = u.decls_named(base, &w.name);
     decls.retain(|&other| {
         matches!(u.symbol(other).kind, Kind::Def | Kind::Val)
             && !has(u, other, PRIVATE)
             && !bridges.contains(&other)
-            && (u.erased_method(other) == signature || u.info_matches(site, other, meth))
+            && (same_signature(u, other, &w.signature) || u.info_matches(w.site, other, w.meth))
     });
     decls
+}
+
+/// Whether method `s` erases to `signature`, compared in the memo of erasures where it is there.
+fn same_signature(u: &mut Universe, s: SymbolId, signature: &(Vec<Erased>, Erased)) -> bool {
+    match u.erased_memo(s, false) {
+        Some(e) => e == signature,
+        None => u.erased_method(s) == *signature,
+    }
 }

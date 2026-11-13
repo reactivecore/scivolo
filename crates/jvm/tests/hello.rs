@@ -242,8 +242,103 @@ fn refuses(name: &str, code: &str, message: &str) {
 #[test]
 fn a_definition_the_tasty_pickler_lacks_is_refused() {
     let code = "class tag extends scala.annotation.StaticAnnotation\n\
-                trait B { def f: Int @tag = 1; def g: Int @tag = 2; def h = f }";
+                trait B { def f: Int @tag = 1; def g: Int @tag = 2; def h(b: Boolean) = if b then f else g }";
     refuses("refusedtasty", code, "an annotated type of several annotation trees");
+    let code = "import scala.annotation.unchecked.uncheckedVariance as uV\n\
+                class C[+A](val m: Map[A @uV, A @uV])";
+    refuses("refusedaccessor", code, "an annotated type of several annotation trees");
+}
+
+/// Writes `files`, each a name and its code, into tmp/jvm-test/`name`.
+fn written(name: &str, files: &[(&str, &str)]) -> Vec<PathBuf> {
+    let dir = root().join("tmp/jvm-test").join(name);
+    std::fs::create_dir_all(&dir).expect("tmp/jvm-test");
+    let write = |&(file, code): &(&str, &str)| {
+        let path = dir.join(file);
+        std::fs::write(&path, code).expect("writing");
+        path
+    };
+    files.iter().map(write).collect()
+}
+
+#[test]
+fn an_annotated_type_other_files_give_too_pickles_as_alone() {
+    let sources = written(
+        "annotatedunit",
+        &[
+            (
+                "a.scala",
+                "class tag extends scala.annotation.StaticAnnotation\ntrait A { def f: Int @tag = 1; def h = f }\n",
+            ),
+            ("b.scala", "trait B { def g: Int @tag = 2 }\n"),
+        ],
+    );
+    let (unit, compiled) = compile_all("annotatedunit-unit", &sources);
+    assert!(compiled.status.success(), "{}", String::from_utf8_lossy(&compiled.stderr));
+    let (alone, compiled) = compile("annotatedunit-alone", &sources[0]);
+    assert!(compiled.status.success(), "{}", String::from_utf8_lossy(&compiled.stderr));
+    for name in ["A.tasty", "A.class", "tag.tasty"] {
+        let bytes = |out: &Path| std::fs::read(out.join(name)).expect("an output file");
+        assert!(bytes(&unit) == bytes(&alone), "{name} differs");
+    }
+}
+
+#[test]
+fn an_annotated_type_inferred_from_another_file_with_its_own_tree_is_refused() {
+    let sources = written(
+        "annotatedfrom",
+        &[
+            (
+                "a.scala",
+                "class tag(n: Int) extends scala.annotation.StaticAnnotation\nobject A { def x: Int @tag(1) = 1 }\n",
+            ),
+            ("b.scala", "object B { def y: Int @tag(2) = 2; def f = A.x }\n"),
+        ],
+    );
+    let (_, compiled) = compile_all("annotatedfrom-out", &sources);
+    let stderr = String::from_utf8_lossy(&compiled.stderr);
+    assert!(stderr.contains("b.scala: ") && stderr.contains("several annotation trees"), "{stderr}");
+}
+
+#[test]
+fn a_definition_of_scala_unit_is_refused() {
+    let code = "package scala { final abstract class Unit private extends AnyVal }\n\
+                package p { class U { def t = summon[scala.reflect.ClassTag[Unit]] } }\n";
+    refuses("unitdefined", code, "a definition replacing a well-known library symbol");
+}
+
+#[test]
+fn any_val_of_a_unit_of_several_files_is_left_out() {
+    let any_val = "package scala\nimport scala.language.`2.13`\n\
+                   transparent abstract class AnyVal extends Any, Matchable {\n\
+                   def getClass(): Class[? <: AnyVal] = null.asInstanceOf[Class[? <: AnyVal]]\n}\n";
+    let value = "final class V(private val n: Int) extends AnyVal { def twice: Int = n * 2 }\n";
+    let sources = written("anyvalunit", &[("AnyVal.scala", any_val), ("v.scala", value)]);
+    let out = root().join("tmp/jvm-test/anyvalunit-out");
+    let _ = std::fs::remove_dir_all(&out);
+    let run = Command::new(env!("CARGO_BIN_EXE_scivolo-jvm"))
+        .args(["--scalalib", "--leave-out-refused", "-d"])
+        .arg(&out)
+        .args(&sources)
+        .output()
+        .expect("running scivolo-jvm");
+    let stderr = String::from_utf8_lossy(&run.stderr);
+    assert!(stderr.contains("AnyVal.scala: ") && !stderr.contains("v.scala: "), "{stderr}");
+    let companion = std::fs::read(out.join("V$.class")).expect("V$.class");
+    assert!(companion.windows(15).any(|w| w == b"twice$extension"), "{stderr}");
+}
+
+#[test]
+fn a_class_extending_a_namesake_with_statements_of_another_file_compiles() {
+    let sources = written(
+        "localdummyunit",
+        &[
+            ("a.scala", "package p\ntrait M { println(1) }\n"),
+            ("b.scala", "package q\ntrait M extends p.M { println(2) }\n"),
+        ],
+    );
+    let (_, compiled) = compile_all("localdummyunit-out", &sources);
+    assert!(compiled.status.success(), "{}", String::from_utf8_lossy(&compiled.stderr));
 }
 
 #[test]

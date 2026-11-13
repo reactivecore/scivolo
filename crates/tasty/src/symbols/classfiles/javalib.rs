@@ -2,11 +2,13 @@
 //! that class (ADR 0108).
 
 use super::super::{Kind, SymbolId, Universe};
+use super::annotation;
 use super::class::{Owners, member};
 use super::signatures::{Sig, bounded_by_object};
 use crate::tags::OBJECT;
 use crate::types::Type;
-use classfile::{ACC_PROTECTED, ACC_PUBLIC, ACC_STATIC, ClassInfo, MemberInfo};
+use classfile::{ACC_ANNOTATION, ACC_PROTECTED, ACC_PUBLIC, ACC_STATIC, ClassInfo, MemberInfo};
+use names::nme;
 use rustc_hash::FxHashSet;
 use std::rc::Rc;
 
@@ -39,6 +41,25 @@ impl Universe {
     pub fn enter_jdk_named(&mut self, c: SymbolId, name: &str) {
         let Some(info) = self.jdk_class_of(c) else { return };
         self.enter_jdk_where(c, &info, |m| m.name == name);
+    }
+
+    /// Enters, once, into library class `c` the constructor and retention of its JDK class file
+    /// if that is an annotation class (`annotation::enter`), the library's constructors removed:
+    /// whether it is one.
+    pub fn enter_jdk_annotation(&mut self, c: SymbolId) -> bool {
+        if self.classfile_annotations.contains_key(&c) {
+            return true;
+        }
+        let Some(info) = self.jdk_class_of(c).filter(|i| i.access & ACC_ANNOTATION != 0) else {
+            return false;
+        };
+        let decls = self.symbol(c).decls.clone();
+        let constructors = decls.into_iter().filter(|&d| self.symbol(d).name == nme::CONSTRUCTOR);
+        constructors.collect::<Vec<_>>().into_iter().for_each(|m| self.unenter(m));
+        self.enter_jdk_members(c);
+        let members = self.symbol(c).decls.clone();
+        annotation::enter(self, c, &info, &members);
+        true
     }
 
     /// Enters into class `c` the members of its JDK class file `info` that `keep` selects and
