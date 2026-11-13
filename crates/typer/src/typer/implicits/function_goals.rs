@@ -96,7 +96,7 @@ impl ImplicitSearch {
             return Err("not an implicit value");
         }
         let fits = t.types().conforms(tpe, pt);
-        fits.then(|| t.gadt_adapted(tree, pt, ctx)).ok_or("implicit of another type")
+        fits.then(|| t.gadt_adapted(tree, pt)).ok_or("implicit of another type")
     }
 
     /// Method reference `tree` eta-expanded to function type `pt`; a misfit if it refers to an

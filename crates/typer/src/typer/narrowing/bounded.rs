@@ -70,14 +70,9 @@ impl Narrowing {
             false => Vec::new(),
         };
         t.constraint.rollback(mark);
-        if !ok && t.gadt.first_order(t.u, (tpe, sel), self.ctx) {
-            self.by_bound_types(t, (tpe, sel), &syms);
-            return tpe;
-        }
         if !ok {
-            if let Err(what) = self.by_binding_pattern(t, (tpe, sel), &syms) {
-                let span = t.tpd.span(tpt);
-                t.unsupported_at(span, what);
+            if t.gadt.cases > 0 {
+                self.by_bound_types(t, (tpe, sel), &syms);
             }
             return tpe;
         }

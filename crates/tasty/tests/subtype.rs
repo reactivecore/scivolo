@@ -596,6 +596,46 @@ fn gadt_symbols_ordered_both_ways_unify_keeping_the_shallower() {
 }
 
 #[test]
+fn gadt_applications_of_type_constructors_narrow_only_through_injective_ones() {
+    let Some(mut u) = universe() else { return };
+    let binder = u.fresh_binder();
+    let x = u.intern_name("X");
+    let any_lambda = u.intern_lambda(binder, &[(x, ANY)], ANY);
+    let hk = u.intern_type(Type::Bounds(NOTHING, any_lambda));
+    let root = u.root();
+    let [f, g] = ["F", "G"].map(|n| define(&mut u, n, Kind::TypeParam, root, hk));
+    u.gadt_add(
+        &[
+            Registered { sym: f, lo: NOTHING, hi: any_lambda },
+            Registered { sym: g, lo: NOTHING, hi: any_lambda },
+        ],
+        0,
+    );
+    let [(a, a_ref)] = gadt_symbols(&mut u, [("A", 0)]);
+    let [f_ref, g_ref] = [f, g].map(|s| u.intern_type(Type::Sym(None, s)));
+    let [int, list] = ["scala.Int", "scala.collection.immutable.List"].map(|s| parse(&mut u, s));
+    let (f_a, g_int) = (u.intern_applied(f_ref, &[a_ref]), u.intern_applied(g_ref, &[int]));
+
+    assert!(u.constrain_gadt_in(f_ref, g_ref, &mut NoVars));
+    assert!(u.gadt().is_less(f, g));
+    assert!(!u.constrain_gadt_in(f_a, g_int, &mut NoVars), "F < G: arguments compared frozen");
+    assert_eq!(u.gadt_bounds(a), None);
+    u.gadt_mut().rollback(tasty::Mark(0));
+
+    let option = parse(&mut u, "scala.Option");
+    u.gadt_add(&[Registered { sym: f, lo: option, hi: option }], 0);
+    u.gadt_add(&[Registered { sym: g, lo: option, hi: any_lambda }], 0);
+    let [(a, a_ref)] = gadt_symbols(&mut u, [("A", 0)]);
+    let f_a = u.intern_applied(f_ref, &[a_ref]);
+    assert!(!u.constrain_gadt_in(f_a, g_int, &mut NoVars), "F = Option, G >: Option: G may be [t] =>> Any");
+    assert_eq!(u.gadt_bounds(a), None);
+
+    let (list_a, list_int) = (u.intern_applied(list, &[a_ref]), u.intern_applied(list, &[int]));
+    assert!(u.constrain_gadt_in(list_a, list_int, &mut NoVars), "a class is injective");
+    assert_eq!(u.gadt_bounds(a), Some((NOTHING, int)));
+}
+
+#[test]
 fn gadt_narrowing_in_either_branch_keeps_the_weaker_or_none() {
     let Some(mut u) = universe() else { return };
     let [(t, t_ref)] = gadt_symbols(&mut u, [("T", 0)]);

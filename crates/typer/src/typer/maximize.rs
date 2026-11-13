@@ -5,7 +5,6 @@
 //! extractor's type arguments (`addBinders`).
 
 use super::Typer;
-use super::narrowing::GadtVar;
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::TName;
@@ -15,16 +14,16 @@ use tasty::{Kind, NameId, Registered, SymbolId, Type, TypeId, TypeVars, VarId};
 
 impl Typer<'_> {
     /// Instantiates the type variables from id `vars` on that occur in `t`: a covariant one from
-    /// above, a contravariant one from below, unless it occurs in the bounds of GADT variables
-    /// `gadt` or of the GADT constraint's symbols; else from above if its bounds coincide or its
-    /// upper bound is a final class, else to a fresh pattern-bound type of its bounds; those
-    /// types, named after the type parameters of extractor `unapp`. With `level`, the GADT
-    /// constraint has the variables replaced by those types, which are then registered in it at
-    /// that level all at once (dotty's `maximizeType`).
+    /// above, a contravariant one from below, unless it occurs in the bounds of the GADT
+    /// constraint's symbols; else from above if its bounds coincide or its upper bound is a final
+    /// class, else to a fresh pattern-bound type of its bounds; those types, named after the type
+    /// parameters of extractor `unapp`. With `level`, the GADT constraint has the variables
+    /// replaced by those types, which are then registered in it at that level all at once
+    /// (dotty's `maximizeType`).
     pub fn maximize_type(
         &mut self,
         t: TypeId,
-        (vars, gadt): (usize, &[GadtVar]),
+        vars: usize,
         unapp: TNodeId,
         level: Option<u32>,
         ctx: Ctx,
@@ -32,7 +31,7 @@ impl Typer<'_> {
         let t = self.zonk(t);
         let variances = self.types().variances(t, None, vars);
         let names = self.type_var_names(unapp);
-        let mut gadt_bounds = self.types().gadt_var_bounds(gadt);
+        let mut gadt_bounds = Vec::new();
         let registered: Vec<SymbolId> = self.u.gadt().symbols().collect();
         for s in registered {
             let Some((lo, hi)) = self.u.gadt().bounds(s) else { continue };
@@ -46,16 +45,12 @@ impl Typer<'_> {
                 continue;
             }
             let var = self.u.intern_type(Type::Var(v));
-            if gadt.iter().any(|&(_, g)| g == var) {
-                continue;
-            }
             if variance != 0 && !gadt_bounds.iter().any(|&b| self.types().refers_to_type(b, var)) {
                 self.instantiate_var(v, variance == -1)?;
                 continue;
             }
             let (lo, hi) = self.constraint.bounds(v);
             let (lo, hi) = (self.zonk(lo), self.zonk(hi));
-            let lo = self.with_gadt_params_below(lo, var, gadt);
             let final_hi = self.u.class_symbol(hi).is_some_and(|c| self.u.symbol(c).flags.has(FINAL));
             let fixed = lo == hi || final_hi || self.u.is_subtype_frozen_in(hi, lo, &mut self.constraint);
             if fixed {
@@ -100,21 +95,6 @@ impl Typer<'_> {
         });
     }
 
-    /// Lower bound `lo` of type variable `var` joined with each GADT variable of `gadt` whose upper
-    /// bound is `var` or an intersection with it (dotty's `fullLowerBound`).
-    fn with_gadt_params_below(&mut self, mut lo: TypeId, var: TypeId, gadt: &[GadtVar]) -> TypeId {
-        for &(g, gv) in gadt {
-            let Some(id) = self.u.var(gv) else { continue };
-            let (_, hi) = self.constraint.bounds(id);
-            if !and_parts(self.u, hi).contains(&var) {
-                continue;
-            }
-            let below = self.u.gadt_ref(g);
-            lo = self.u.lub(lo, below);
-        }
-        lo
-    }
-
     /// The type variables that are type arguments of `unapp`, with their parameters' names.
     fn type_var_names(&mut self, unapp: TNodeId) -> Vec<(VarId, NameId)> {
         let T::TypeApply { fun, args } = *self.tpd.tree(unapp) else { return Vec::new() };
@@ -147,13 +127,5 @@ impl Typer<'_> {
         }
         let args = self.tpd.list(&args);
         self.tpd.get_mut(unapp).tree = T::TypeApply { fun, args };
-    }
-}
-
-/// The parts of intersection `t`, or `t`.
-fn and_parts(u: &mut tasty::Universe, t: TypeId) -> Vec<TypeId> {
-    match *u.ty(t) {
-        Type::And(a, b) => [and_parts(u, a), and_parts(u, b)].concat(),
-        _ => vec![t],
     }
 }

@@ -1,18 +1,15 @@
 mod bounded;
 mod constrain;
 mod either;
-mod order;
 mod pattern_type;
-mod tuples;
 mod typed_pattern;
 mod upcast;
 mod upcasted;
-mod vars;
 
 use super::{Pt, Typer};
 use crate::ctx::Ctx;
 use crate::tpd::TNodeId;
-use tasty::{SymbolId, TypeId};
+use tasty::TypeId;
 
 /// Narrows the GADT bounds by one pattern against the selector's type: in
 /// `def f[T](b: Box[T]): T = b match { case _: IntBox => 1 }` the case knows `T = Int`, and the
@@ -22,10 +19,6 @@ use tasty::{SymbolId, TypeId};
 pub struct Narrowing {
     ctx: Ctx,
 }
-
-/// A type parameter a pattern narrows, with the type variable standing for it while the pattern
-/// is compared with the selector.
-pub type GadtVar = (SymbolId, TypeId);
 
 impl Typer<'_> {
     /// Types pattern type tree `tpt` against `pt`, bounding the types it binds by what the
@@ -52,24 +45,5 @@ impl Typer<'_> {
     /// share an instance.
     pub fn constrain_pattern_type(&mut self, pat: TypeId, sel: TypeId) -> bool {
         pattern_type::constrain_pattern_type(self, pat, sel)
-    }
-
-    /// Finds the type parameters of `sel` that pattern type `pat` narrows, with the type
-    /// variables standing for them while `pat` is compared with `sel`; the type variables from
-    /// id `from` on are the pattern's own. `None` if the pattern does not conform or narrows
-    /// nothing.
-    pub fn gadt_vars(
-        &mut self,
-        (pat, from): (TypeId, usize),
-        sel: TypeId,
-        ctx: Ctx,
-    ) -> Result<Option<Vec<GadtVar>>, &'static str> {
-        Narrowing { ctx }.vars(self, (pat, from), sel)
-    }
-
-    /// Narrows each type parameter of `vars` to the bounds its variable got while the case is
-    /// typed; refused for a bound the comparison left undetermined.
-    pub fn narrow_gadt(&mut self, vars: &[GadtVar]) -> Result<(), &'static str> {
-        vars::narrow(self, vars)
     }
 }

@@ -10,10 +10,9 @@ use tasty::{Kind, NOTHING, SymbolId, TypeId, TypeVars, Universe};
 impl UnapplyPattern {
     /// Infers the type of the pattern whose extractor `unapp` takes `arg_type`: the scrutinee's
     /// type if it conforms, else `arg_type` constrained by it in GADT mode and maximized with the
-    /// binders added to `unapp`; type variables from id `vars` on instantiated. Where a type
-    /// parameter a case may narrow takes type arguments, the earlier read-back path: refuses
-    /// patterns that would constrain invariant type arguments of an open class or type parameters
-    /// no GADT bounds narrow.
+    /// binders added to `unapp`; type variables from id `vars` on instantiated. Outside a case, as
+    /// in a pattern definition, refuses patterns that would constrain invariant type arguments of
+    /// an open class or type parameters.
     pub fn pattern_type(
         &self,
         t: &mut Typer<'_>,
@@ -29,10 +28,10 @@ impl UnapplyPattern {
         }
         t.constraint.rollback(mark);
 
-        if t.gadt.first_order(t.u, (arg_type, sel), self.ctx) {
+        if t.gadt.cases > 0 {
             let level = t.gadt.register(t.u, self.ctx);
             t.constrain_pattern_type(arg_type, sel);
-            let bound = t.maximize_type(arg_type, (vars, &[]), unapp, Some(level), self.ctx)?;
+            let bound = t.maximize_type(arg_type, vars, unapp, Some(level), self.ctx)?;
             t.gadt.bind(&bound);
             t.add_binders(unapp, &bound);
             return Ok(t.zonk(arg_type));
@@ -47,27 +46,13 @@ impl UnapplyPattern {
         if unconstrained && variances.values().any(|&v| v == 0) {
             return Err("invariant type arguments of a pattern of an open class");
         }
-
-        let mut gadt = Vec::new();
         if !unconstrained && !t.constrain_pattern(arg_type, sel)? {
             t.constraint.rollback(mark);
-            match t.gadt_vars((arg_type, vars), sel, self.ctx)? {
-                Some(narrowed) => gadt = narrowed,
-                None => {
-                    t.constraint.rollback(mark);
-                    if has_abstract_arg(t.u, sel) && !args_unrelated(t.u, arg_type, sel) {
-                        return Err("pattern constraining type parameters (GADT)");
-                    }
-                }
+            if has_abstract_arg(t.u, sel) && !args_unrelated(t.u, arg_type, sel) {
+                return Err("pattern constraining type parameters (GADT)");
             }
         }
-
-        if !gadt.is_empty() && has_f_bounded_param(t, arg_type) {
-            return Err("GADT bounds from a pattern of a class with an F-bounded type parameter");
-        }
-        let bound = t.maximize_type(arg_type, (vars, &gadt), unapp, None, self.ctx)?;
-        t.narrow_gadt(&gadt)?;
-        t.gadt.bind(&bound);
+        let bound = t.maximize_type(arg_type, vars, unapp, None, self.ctx)?;
         t.add_binders(unapp, &bound);
         Ok(t.zonk(arg_type))
     }
@@ -104,17 +89,8 @@ fn no_lower_bound(u: &mut Universe, f: SymbolId) -> bool {
     lo == NOTHING
 }
 
-/// Whether the class of `t` has a type parameter whose bounds refer to it (`C[D <: Doc[D]]`).
-fn has_f_bounded_param(t: &mut Typer<'_>, tpe: TypeId) -> bool {
-    let Some(class) = t.u.class_symbol(tpe) else { return false };
-    t.u.type_params(class).into_iter().any(|p| {
-        let info = t.u.info(p);
-        t.refers_to(info, &[p])
-    })
-}
-
 /// Whether a type argument of `t`, or a part of one, is a type parameter or an abstract type
-/// other than an opaque one, which no GADT bounds narrow.
+/// other than an opaque one.
 fn has_abstract_arg(u: &mut Universe, t: TypeId) -> bool {
     let widened = u.widen(t);
     let Some(args) = u.applied(widened).map(|(_, args)| args.to_vec()) else { return false };

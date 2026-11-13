@@ -60,10 +60,17 @@ inside the comparer (`narrowGADTBounds`), after ordinary type variables.
 - A pattern-bound type registered in the GADT constraint has known bounds (its full bounds as
   info), so a case's type that refers to it is avoided through them. It does not keep a match
   type from being reduced, as dotty's reduction footprint holds only type parameters; a class's
-  higher-kinded type parameter, which dotty's constraint holds and ours leaves out, does while a
-  case is typed.
-- Patterns whose selector or pattern type has a narrowable higher-kinded parameter keep the
-  earlier read-back path and its refusals until `compareAppliedType2`'s GADT cases are ported.
+  higher-kinded type parameter does while a case is typed, as dotty registers it at every
+  method and ours only once a case constrains.
+- Higher-kinded type parameters are registered as the others. An application of one is compared
+  as dotty's `compareAppliedType1/2`: constructors equal by their GADT bounds or ordering, the
+  arguments compared with the GADT constraint frozen unless one constructor is a class and the
+  bound used made the other equal to it (`tyconIsInjective`); else through the GADT bounds of
+  the constructor, frozen (`byGadtBounds`). The read-back path of ADRs 0090–0109 is gone; a
+  pattern outside a case (a pattern definition) narrows nothing, as no symbol is registered
+  there, and keeps its refusals.
+- While the GADT constraint is inferred, a type variable whose bounds become the same type
+  constructor is instantiated to it, as dotty's `tryReplace`; outside, it stays a variable.
 - `compareAppliedType2` compares with a tuple class applied by its nested pairs first, ending in
   `EmptyTuple.type`, then by base type, as dotty: the order decides which bounds a GADT
   comparison narrows.

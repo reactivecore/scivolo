@@ -4,6 +4,7 @@
 //! variables, whose constraint the caller keeps behind `TypeVars`.
 
 mod applied;
+mod applied_gadt;
 mod args;
 mod atoms;
 mod atoms_lub;

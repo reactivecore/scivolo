@@ -20,8 +20,7 @@ impl Universe {
     pub fn gadt_add(&mut self, syms: &[Registered], level: u32) {
         for r in syms {
             let (lower, upper) = (Vec::new(), Vec::new());
-            let (narrowed, registered) = (false, true);
-            let e = Entry { lo: r.lo, hi: r.hi, instance: None, lower, upper, level, narrowed, registered };
+            let e = Entry { lo: r.lo, hi: r.hi, instance: None, lower, upper, level, narrowed: false };
             self.gadt_mut().set_entry(r.sym, e);
         }
         for r in syms {

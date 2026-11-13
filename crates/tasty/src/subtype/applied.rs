@@ -38,12 +38,14 @@ impl Cmp<'_> {
                     _ => self.fourth_try(a, b),
                 },
                 Some(Meaning::Abstract(lo, hi)) => {
+                    if self.gadt_applied_below(a, b, tycon, args) {
+                        return true;
+                    }
                     let lower = self.apply(lo, args);
-                    let declared = match lo == hi {
+                    match lo == hi {
                         true => self.recur(a, lower),
                         false => self.either(|s| s.fourth_try(a, b), |s| s.recur(a, lower)),
-                    };
-                    declared || self.gadt_applied(tycon, args, false).is_some_and(|glo| self.recur(a, glo))
+                    }
                 }
                 Some(Meaning::Class(c)) => match self.nested_pairs(c, args) {
                     Some(pairs) => self.recur(a, pairs) || self.try_base_type(a, b, c),
@@ -82,16 +84,31 @@ impl Cmp<'_> {
                 Type::Annotated(inner, _) => tycon1 = inner,
                 Type::TypeRef(..) | Type::Sym(..) => {
                     let (Some(n1), Some(n2)) = (self.named(tycon1), self.named(tycon2)) else { return false };
-                    let same = match (n1.sym, n2.sym) {
-                        (Some(s1), Some(s2)) => s1 == s2 && self.sub_prefix_of(s1, n1.prefix, n2.prefix),
-                        (None, None) => n1.same_unresolved(&n2),
-                        _ => false,
+                    let (same, by_gadt) = match (n1.sym, n2.sym) {
+                        (Some(s1), Some(s2)) if s1 == s2 && self.sub_prefix_of(s1, n1.prefix, n2.prefix) => {
+                            (true, None)
+                        }
+                        (Some(_), Some(_)) => match self.same_by_gadt(tycon1, tycon2) {
+                            Some(instantiated) => (true, Some(instantiated)),
+                            None => (false, None),
+                        },
+                        (None, None) => (n1.same_unresolved(&n2), None),
+                        _ => (false, None),
                     };
+                    if !same {
+                        return false;
+                    }
                     let tparams = match n2.sym {
                         Some(s) if self.u.symbol(s).kind == Kind::Class => self.u.type_params(s),
                         _ => Vec::new(),
                     };
-                    return same && self.sub_args(&args1, args2, variances, &tparams);
+                    let is_class = |c: &Self, n: Option<crate::SymbolId>| n.is_some_and(|s| c.u.is_class(s));
+                    let injective =
+                        (is_class(self, n1.sym) || is_class(self, n2.sym)) && by_gadt != Some(false);
+                    return match injective {
+                        true => self.sub_args(&args1, args2, variances, &tparams),
+                        false => self.in_frozen_gadt(|c| c.sub_args(&args1, args2, variances, &tparams)),
+                    };
                 }
                 Type::Param(..) => return tycon1 == tycon2 && self.sub_args(&args1, args2, variances, &[]),
                 _ => return false,
@@ -123,8 +140,7 @@ impl Cmp<'_> {
                 },
                 Some(Meaning::Abstract(_, hi)) => {
                     let upper = self.apply(hi, args);
-                    upper != a && self.recur(upper, b)
-                        || self.gadt_applied(tycon, args, true).is_some_and(|ghi| self.recur(ghi, b))
+                    upper != a && self.recur(upper, b) || self.gadt_applied_above(b, tycon, args)
                 }
                 _ => false,
             },
@@ -139,14 +155,6 @@ impl Cmp<'_> {
             Type::Applied(..) => self.compare_curried1(a, b, tycon, args),
             _ => false,
         }
-    }
-
-    /// Abstract type constructor `tycon`'s GADT upper bound if `upper`, else its lower bound
-    /// unless `Nothing`, applied to `args`.
-    fn gadt_applied(&mut self, tycon: TypeId, args: &[TypeId], upper: bool) -> Option<TypeId> {
-        let (lo, hi) = self.gadt_bounds(tycon)?;
-        let bound = if upper { hi } else { lo };
-        (bound != NOTHING && bound != tycon).then(|| self.apply(bound, args))
     }
 
     /// The variances of the `n` type parameters of `tycon`, +1, -1 or 0; invariant where unknown.

@@ -12,8 +12,8 @@ impl Gadt {
     /// not yet registered, in dotty's order: per enclosing method from the outermost, the type
     /// parameters of the classes between it and the next enclosing method from the outermost,
     /// then those of a polymorphic function value it is the body of, then its own; each
-    /// method's at its nesting depth (dotty's `addToConstraint` in `typedDefDef`). Leaves out a
-    /// class's higher-kinded type parameters. Gives the level of the case, below every method.
+    /// method's at its nesting depth (dotty's `addToConstraint` in `typedDefDef`). Gives the
+    /// level of the case, below every method.
     pub fn register(&self, u: &mut Universe, ctx: Ctx) -> u32 {
         let mut chain = Vec::new();
         let mut owner = Some(ctx.owner);
@@ -28,7 +28,7 @@ impl Gadt {
                 Kind::Def => {
                     let mut params: Vec<SymbolId> = Vec::new();
                     for c in classes.drain(..) {
-                        params.extend(u.type_params(c).into_iter().filter(|&p| !is_higher_kinded(u, p)));
+                        params.extend(u.type_params(c));
                     }
                     let site = u.symbol(o).owner;
                     let polys: Vec<SymbolId> =
@@ -72,10 +72,4 @@ impl Gadt {
         }
         u.gadt_register(&registered, level);
     }
-}
-
-/// Whether type parameter `p` takes type arguments.
-fn is_higher_kinded(u: &mut Universe, p: SymbolId) -> bool {
-    let info = u.info(p);
-    u.bounds(info).is_some_and(|(_, hi)| u.lambda(hi).is_some())
 }
