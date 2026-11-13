@@ -24,6 +24,9 @@ impl Universe {
                 if self.derives_from(a, b) { Some(a) } else { self.derives_from(b, a).then_some(b) }
             }
             Type::Or(..) => self.join(t).filter(|&j| j != t).and_then(|j| self.least_class_within(j, depth)),
+            Type::Refined(parent, ..) | Type::Rec(_, parent) | Type::Annotated(parent, _) => {
+                self.least_class_within(parent, depth)
+            }
             _ => match self.sym_of(t) {
                 Some(s) if matches!(self.symbol(s).kind, Kind::Type | Kind::TypeParam) => {
                     let info = self.info(s);
