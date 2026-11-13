@@ -5,7 +5,7 @@ use super::{Entry, Pool};
 impl Pool {
     /// The `constant_pool_count` and the entries, or `None` past 65,534 entries.
     pub fn write(&self, out: &mut Vec<u8>) -> Option<()> {
-        let count = u16::try_from(self.entries.len() + 1).ok().filter(|&c| c < u16::MAX)?;
+        let count = u16::try_from(self.entries.len() + 1).ok()?;
         out.extend(count.to_be_bytes());
         for e in &self.entries {
             let (tag, a, b) = match *e {
