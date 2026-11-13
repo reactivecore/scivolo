@@ -144,12 +144,12 @@ impl Cmp<'_> {
             return true;
         }
         if let Some(underlying) = self.singleton_underlying(a)
-            && self.recur(underlying, b)
+            && self.recur_approx(underlying, b, true)
         {
             return true;
         }
         let widened = self.u.widen(a);
-        widened != a && self.recur(widened, b)
+        widened != a && self.recur_approx(widened, b, true)
     }
 
     /// The declared type of term reference `t` if it is a singleton other than `t`.

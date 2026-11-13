@@ -26,6 +26,11 @@ pub struct GadtConstraint {
     /// Whether the comparisons running narrow the constraint (dotty's
     /// `Mode.GadtConstraintInference`).
     pub inferring: bool,
+    /// The registered symbols a registered symbol's declared bound refers to inside a union
+    /// (upper bound) or an intersection (lower bound), where dotty's `replace` substitutes.
+    nested: Vec<SymbolId>,
+    /// Whether one of `nested` was made equal to a type or unified (ADR 0119).
+    inexact: bool,
 }
 
 /// What the constraint knows of one symbol.
@@ -53,6 +58,8 @@ enum Undo {
     Added,
     Removed(usize, SymbolId, Entry),
     Narrowed,
+    Nested,
+    Inexact,
 }
 
 /// A state of the constraint that `redo` restores after a rollback.
@@ -60,6 +67,7 @@ enum Undo {
 pub struct GadtChanges {
     entries: Vec<(SymbolId, Entry)>,
     narrowed: bool,
+    inexact: bool,
 }
 
 impl GadtChanges {
@@ -98,6 +106,25 @@ impl GadtConstraint {
         }
     }
 
+    /// Tells whether a symbol a declared bound refers to inside a union or an intersection was
+    /// made equal to a type or unified (ADR 0119).
+    pub fn is_inexact(&self) -> bool {
+        self.inexact
+    }
+
+    fn set_inexact(&mut self) {
+        if !self.inexact {
+            self.inexact = true;
+            self.log.push(Undo::Inexact);
+        }
+    }
+
+    /// Records that a declared bound refers to registered `s` inside a union or an intersection.
+    fn add_nested(&mut self, s: SymbolId) {
+        self.nested.push(s);
+        self.log.push(Undo::Nested);
+    }
+
     /// Gets the entry of `s`.
     pub fn entry(&self, s: SymbolId) -> Option<&Entry> {
         self.index(s).map(|i| &self.entries[i].1)
@@ -122,6 +149,8 @@ impl GadtConstraint {
                 Some(Undo::Added) => drop(self.entries.pop()),
                 Some(Undo::Removed(i, s, e)) => self.entries.insert(i, (s, e)),
                 Some(Undo::Narrowed) => self.narrowed = false,
+                Some(Undo::Nested) => drop(self.nested.pop()),
+                Some(Undo::Inexact) => self.inexact = false,
                 None => {}
             }
         }
@@ -130,7 +159,11 @@ impl GadtConstraint {
     /// Captures the current state for `redo` after a rollback to `m`, or `None` if nothing
     /// changed since `m`.
     pub fn changes_since(&self, m: Mark) -> Option<GadtChanges> {
-        (self.log.len() > m.0).then(|| GadtChanges { entries: self.entries.clone(), narrowed: self.narrowed })
+        (self.log.len() > m.0).then(|| GadtChanges {
+            entries: self.entries.clone(),
+            narrowed: self.narrowed,
+            inexact: self.inexact,
+        })
     }
 
     /// Restores the state `changes` captured, logging each change.
@@ -145,6 +178,9 @@ impl GadtConstraint {
         }
         if changes.narrowed {
             self.set_narrowing();
+        }
+        if changes.inexact {
+            self.set_inexact();
         }
     }
 
