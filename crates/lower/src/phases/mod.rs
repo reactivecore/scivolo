@@ -131,6 +131,7 @@ pub(crate) mod select_static;
 mod sensical;
 mod setter_calls;
 mod specialize;
+mod specialize_applies;
 mod specialize_tuples;
 mod standard_interpolator;
 mod static_members;

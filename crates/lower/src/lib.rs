@@ -359,9 +359,29 @@ impl<'a> Lower<'a> {
         self.varargs_forwarders.contains(&m)
     }
 
+    /// Whether the unit is compiled with `-Yexplicit-nulls`.
+    pub fn explicit_nulls(&self) -> bool {
+        self.explicit_nulls
+    }
+
+    /// The lazy value of a class whose `$lzyINIT` method is `init`.
+    pub fn lazy_accessor_of(&self, init: SymbolId) -> Option<SymbolId> {
+        self.lazy_members.iter().find(|(_, m)| m.init == init).map(|(&a, _)| a)
+    }
+
+    /// Whether `t` was inlined from another source and given the span of the inline call.
+    pub fn is_from_other_source(&self, t: TNodeId) -> bool {
+        self.own_spans.contains_key(&t)
+    }
+
     /// Whether `LambdaLift` lifted method `m` out of a term.
     pub fn is_lifted(&self, m: SymbolId) -> bool {
         self.lifted_from.contains_key(&m)
+    }
+
+    /// The member super accessor `acc` accesses.
+    pub fn super_accessed(&self, acc: SymbolId) -> Option<SymbolId> {
+        self.super_accessors.get(&acc).map(|&(m, _)| m)
     }
 
     /// The accessors `SuperAccessors` made in the unit.

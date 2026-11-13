@@ -89,6 +89,7 @@ impl Gen<'_, '_> {
     /// Calls `fun` with `args`: a constructor of a new instance, a superclass method or a method
     /// of a receiver; returns the slots of the result.
     pub fn apply(&mut self, b: &mut Body, mut fun: TNodeId, args: List) -> Result<i32> {
+        let sent = b.sent_phantom.take() == Some(fun);
         while let Tree::TypeApply { fun: f, .. } = *self.l.tpd.tree(fun) {
             fun = f;
         }
@@ -186,7 +187,9 @@ impl Gen<'_, '_> {
         let in_trait = self.l.u.is_trait(owner) && owner_name == self.class_name(owner);
         let interface = interface || kind == Invoke::Interface || in_trait || jdk_interface;
         b.code.invoke_in(kind, interface, b.pool, (&owner_name, &name, &call_desc));
-        adapt_phantom(b, classfile::split_method(&call_desc).1);
+        if !sent {
+            adapt_phantom(b, classfile::split_method(&call_desc).1);
+        }
         Ok(result)
     }
 }

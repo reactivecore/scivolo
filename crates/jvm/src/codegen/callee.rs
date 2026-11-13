@@ -4,7 +4,7 @@
 //! `genCallMethod`).
 
 use super::body::Body;
-use super::descriptors::{class_descriptor, descriptor, internal};
+use super::descriptors::{NOTHING, class_descriptor, descriptor, internal};
 use super::{Gen, unsupported};
 use classfile::{ATHROW, FieldOp};
 use lower::Result;
@@ -27,7 +27,7 @@ const OBJECT_METHODS: [&str; 5] = [nme::EQUALS, nme::HASH_CODE, nme::TO_STRING, 
 /// of its value (dotty's `adapt`).
 pub fn adapt_phantom(b: &mut Body, result: &str) {
     match result {
-        "Lscala/runtime/Nothing$;" => b.code.insn(ATHROW),
+        NOTHING => b.code.insn(ATHROW),
         "Lscala/runtime/Null$;" => {
             b.code.pop();
             b.code.aconst_null();
@@ -58,8 +58,8 @@ impl Gen<'_, '_> {
         if self.is_throw(t)
             && let &[e] = self.l.tpd.items(args)
         {
-            self.expr(b, e)?;
-            b.code.insn(ATHROW);
+            let nothing = self.desc_of(e) == NOTHING;
+            self.expr_to(b, e, 1, super::body::Dest::Throw(nothing))?;
             return Ok(0);
         }
         if let Some(slots) = self.hash(b, t)? {

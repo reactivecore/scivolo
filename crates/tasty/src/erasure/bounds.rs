@@ -32,6 +32,12 @@ impl Universe {
         }
     }
 
+    /// Picks the first of `parts` in dotty's `compareErasedGlb`, `caps.Pure` not set aside (dotty's
+    /// `erasedGlb` of a list, as `GenericSignatures.splitIntersection` takes it).
+    pub fn erased_glb(&mut self, parts: &[TypeId]) -> Option<TypeId> {
+        parts.iter().copied().reduce(|a, b| if self.glb_prefers(a, b) { a } else { b })
+    }
+
     /// Whether `a` comes before `b` in dotty's order for intersections: value classes, arrays
     /// (by element), primitives, classes, traits, `Object`; subclasses before their bases, then
     /// by name.
