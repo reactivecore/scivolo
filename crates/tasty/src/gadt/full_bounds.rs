@@ -18,14 +18,18 @@ impl Universe {
         let (mut lo, mut hi) = (e.lo, e.hi);
         let own = self.gadt_ref(sym);
         for p in self.gadt().min_lower(sym) {
-            if self.is_pattern_bound(p) && self.declared_bounds(p).is_some_and(|(_, h)| self.is_subtype(h, own)) {
+            if self.is_pattern_bound(p)
+                && self.declared_bounds(p).is_some_and(|(_, h)| self.is_subtype(h, own))
+            {
                 continue;
             }
             let r = self.gadt_ref(p);
             lo = self.lub(lo, r);
         }
         for p in self.gadt().min_upper(sym) {
-            if self.is_pattern_bound(p) && self.declared_bounds(p).is_some_and(|(l, _)| self.is_subtype(own, l)) {
+            if self.is_pattern_bound(p)
+                && self.declared_bounds(p).is_some_and(|(l, _)| self.is_subtype(own, l))
+            {
                 continue;
             }
             let r = self.gadt_ref(p);

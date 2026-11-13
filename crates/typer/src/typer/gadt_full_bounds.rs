@@ -10,11 +10,20 @@ use tasty::{SymbolId, Type, TypeId, Universe};
 impl Gadt {
     /// Gives the upper bound for `variance` 1, the lower bound for -1 of `s` or the last parameter
     /// it was made one with, transitively; for the upper bound, a GADT-narrowed type outside
-    /// those whose lower bound is that parameter if it conforms to that bound; the type the
-    /// GADT constraint made `s` equal to if it did (dotty's `approximation`).
+    /// those whose lower bound is that parameter if it conforms to that bound. For a symbol of
+    /// the GADT constraint, the type it was made equal to, else its full bound (dotty's
+    /// `approximation`).
     pub fn bound(&self, u: &mut Universe, mut s: SymbolId, variance: i8) -> TypeId {
-        if let Some(instance) = u.gadt().entry(s).and_then(|e| e.instance) {
-            return instance;
+        if u.gadt().entry(s).is_some_and(|e| e.registered)
+            && let Some((lo, hi)) = u.gadt_full_bounds(s)
+        {
+            let entry_hi = u.gadt().bounds(s).map_or(hi, |(_, h)| h);
+            let mut occurs = false;
+            u.map_type(entry_hi, &mut |u, p| {
+                occurs |= u.sym_ref(p).is_some_and(|(_, r)| r == s);
+                None
+            });
+            return if variance < 0 || occurs { lo } else { hi };
         }
         let mut seen = vec![s];
         while let Some((lo, hi)) = u.gadt_bounds(s)

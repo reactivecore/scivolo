@@ -40,9 +40,17 @@ inside the comparer (`narrowGADTBounds`), after ordinary type variables.
 - The typer reads `Universe::gadt_bounds`: the full bounds of a narrowed symbol (dotty's
   `fullBounds`, the ordered symbols joined in), the instance of one made equal to another type;
   the comparer reads the bounds of every registered symbol.
-- Patterns whose selector or pattern type has a narrowable higher-kinded parameter, and typed
-  patterns that bind types, keep the earlier read-back path and its refusals until their
-  steps port `compareAppliedType2`'s GADT cases and `indexPattern`.
+- A typed pattern that binds types and does not conform to the selector without GADT bounds
+  registers each bound type one by one at the case's level (dotty's `newPatternBoundSymbol`),
+  then constrains; `indexPattern` gives each its full bounds as info, an alias for one made
+  equal to a type. A GADT approximation of a registered symbol is dotty's `approximation`: its
+  instance, else its full upper bound (lower where contravariant or its upper bound refers to
+  it).
+- Patterns whose selector or pattern type has a narrowable higher-kinded parameter keep the
+  earlier read-back path and its refusals until `compareAppliedType2`'s GADT cases are ported.
+- `compareAppliedType2` compares with a tuple class applied by its nested pairs first, ending in
+  `EmptyTuple.type`, then by base type, as dotty: the order decides which bounds a GADT
+  comparison narrows.
 
 - The comparer narrows the store only in GADT mode (`Universe::constrain_gadt_in`, necessary
   constraints only): `third_try_named` adds a lower bound or an ordering to the right-hand

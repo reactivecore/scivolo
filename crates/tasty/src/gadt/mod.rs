@@ -45,6 +45,9 @@ pub struct Entry {
     pub level: u32,
     /// Whether a comparison changed the entry since the symbol was registered.
     pub narrowed: bool,
+    /// Whether the symbol was registered, not given its bounds by the read-back path of
+    /// ADRs 0090–0109.
+    pub registered: bool,
 }
 
 /// One change to undo.
@@ -248,7 +251,8 @@ impl Universe {
         match bounds {
             Some((lo, hi)) => {
                 let (lower, upper) = (Vec::new(), Vec::new());
-                let e = Entry { lo, hi, instance: None, lower, upper, level: 0, narrowed: true };
+                let (narrowed, registered) = (true, false);
+                let e = Entry { lo, hi, instance: None, lower, upper, level: 0, narrowed, registered };
                 self.gadt_mut().set_entry(sym, e);
             }
             None => self.gadt_mut().remove(sym),
