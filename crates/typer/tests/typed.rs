@@ -3,6 +3,7 @@
 //! errors; `just typer-report` compares on dotty's tests.
 
 use std::path::Path;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use syntax::source::SourceFile;
 use tasty::Universe;
 use typer::dump::{dump, library_jars};
@@ -32,10 +33,10 @@ fn typed_trees_and_diagnostics_match_dotty() {
         .collect();
     inputs.sort();
     assert!(!inputs.is_empty());
-    for input in inputs {
+    in_parallel(&inputs, |input| {
         let mut u = Universe::open(&jars).expect("the library");
         let expected = std::fs::read_to_string(input.with_extension("check")).expect("a .check file");
-        let actual = typed(&mut u, &input);
+        let actual = typed(&mut u, input);
         if expected.contains("\n== E ") {
             let diagnostics =
                 |s: &str| s.lines().filter(|l| l.starts_with("== ")).collect::<Vec<_>>().join("\n");
@@ -43,5 +44,20 @@ fn typed_trees_and_diagnostics_match_dotty() {
         } else {
             assert_eq!(actual, expected, "{}", input.display());
         }
-    }
+    });
+}
+
+/// Runs `check` on each of `items`, on as many threads as there are cores.
+fn in_parallel<T: Sync>(items: &[T], check: impl Fn(&T) + Sync) {
+    let next = AtomicUsize::new(0);
+    let threads = std::thread::available_parallelism().map_or(1, |n| n.get()).min(items.len());
+    std::thread::scope(|s| {
+        for _ in 0..threads {
+            s.spawn(|| {
+                while let Some(item) = items.get(next.fetch_add(1, Ordering::Relaxed)) {
+                    check(item);
+                }
+            });
+        }
+    });
 }
