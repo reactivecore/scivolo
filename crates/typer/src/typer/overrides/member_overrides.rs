@@ -26,6 +26,7 @@ impl OverrideChecks {
                 || kind == Kind::Param
                 || name == nme::CONSTRUCTOR
                 || getter
+                || name.starts_with("<local ")
                 || flags.is_none_or(|fl| fl.is_one_of(exempt))
             {
                 continue;
