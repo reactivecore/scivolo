@@ -8,6 +8,7 @@ use super::Typer;
 use super::narrowing::GadtVar;
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
+use rustc_hash::FxHashMap;
 use syntax::ast::TName;
 use syntax::ast::flags::CASE;
 use tasty::tags::FINAL;
@@ -39,9 +40,8 @@ impl Typer<'_> {
             gadt_bounds.extend([self.zonk(lo), self.zonk(hi)]);
         }
         let mut bound = Vec::new();
-        for i in vars..self.constraint.count() {
-            let v = VarId(i as u32);
-            let Some(&variance) = variances.get(&v.0) else { continue };
+        for v in self.variance_order(t, &variances) {
+            let variance = variances[&v.0];
             if self.constraint.instance(v).is_some() {
                 continue;
             }
@@ -56,7 +56,7 @@ impl Typer<'_> {
             let (lo, hi) = self.constraint.bounds(v);
             let (lo, hi) = (self.zonk(lo), self.zonk(hi));
             let lo = self.with_gadt_params_below(lo, var, gadt);
-            let final_hi = self.u.class_symbol(hi).is_some_and(|c| self.u.symbol(c).flags.has(FINAL));
+            let final_hi = self.u.least_class(hi).is_some_and(|c| self.u.symbol(c).flags.has(FINAL));
             let fixed = lo == hi || final_hi || self.u.is_subtype_frozen_in(hi, lo, &mut self.constraint);
             if fixed {
                 self.instantiate_var(v, false)?;
@@ -85,6 +85,26 @@ impl Typer<'_> {
             }
         }
         Ok(registered.into_iter().map(|r| r.sym).collect())
+    }
+
+    /// Orders the type variables of `variances` as dotty's variance map holds them: by their
+    /// first occurrence in `t`, then the others, which bounds brought in, by id.
+    fn variance_order(&mut self, t: TypeId, variances: &FxHashMap<u32, i8>) -> Vec<VarId> {
+        let mut order = Vec::new();
+        self.u.map_type(t, &mut |u, part| {
+            if let Some(v) = u.var(part)
+                && variances.contains_key(&v.0)
+                && !order.contains(&v)
+            {
+                order.push(v);
+            }
+            None
+        });
+        let mut rest: Vec<VarId> =
+            variances.keys().map(|&k| VarId(k)).filter(|v| !order.contains(v)).collect();
+        rest.sort_by_key(|v| v.0);
+        order.extend(rest);
+        order
     }
 
     /// Replaces the instantiated type variables in the GADT constraint by their instances.
