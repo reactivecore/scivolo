@@ -109,6 +109,7 @@ fn iinc_takes_wide_forms_and_refuses_increments_past_two_bytes() {
         let mut code = Code::new(1);
         assert_eq!(code.iinc(slot, by).is_some(), !expected.is_empty(), "iinc {slot} {by}");
         assert_eq!(code.bytes, expected, "iinc {slot} {by}");
+        assert_eq!(code.max_locals, if expected.is_empty() { 1 } else { slot + 1 }, "iinc {slot} {by}");
     }
 }
 
