@@ -301,6 +301,13 @@ fn an_annotated_type_inferred_from_another_file_with_its_own_tree_is_refused() {
 }
 
 #[test]
+fn a_definition_of_scala_unit_is_refused() {
+    let code = "package scala { final abstract class Unit private extends AnyVal }\n\
+                package p { class U { def t = summon[scala.reflect.ClassTag[Unit]] } }\n";
+    refuses("unitdefined", code, "a definition replacing a well-known library symbol");
+}
+
+#[test]
 fn any_val_of_a_unit_of_several_files_is_left_out() {
     let any_val = "package scala\nimport scala.language.`2.13`\n\
                    transparent abstract class AnyVal extends Any, Matchable {\n\

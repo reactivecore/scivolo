@@ -30,6 +30,7 @@ mod module_vals;
 mod non_cyclic;
 mod params;
 mod provisional;
+mod replaced_members;
 mod split_companions;
 mod value_classes;
 
@@ -173,31 +174,6 @@ impl Typer<'_> {
         }
         self.syms.def_trees.insert(sym, tree);
         Some(sym)
-    }
-
-    /// Removes the TASTy members and the Scala library's Java classes of package `package` that a
-    /// unit's member `name` replaces: those of that name and of its companion's (dotty's
-    /// `isDefinedInCurrentRun`), not the JDK classes a name Scala Native gives them stands for;
-    /// replacing a TASTy one of package `scala` but not `scala.scalanative` marks the run as
-    /// building the Scala library. Refuses definition `tree` replacing `scala.AnyVal` in a unit of
-    /// several files.
-    fn unenter_classpath_members(&mut self, tree: NodeId, package: SymbolId, name: &str) {
-        let base = name.strip_suffix('$').unwrap_or(name);
-        for n in [base.to_owned(), format!("{base}$")] {
-            for d in self.u.decls_named(package, &n) {
-                let tasty = self.u.symbol(d).tree.is_some();
-                if (tasty || self.u.is_library_java_stub(d)) && self.u.symbol(d).name == n {
-                    if Some(d) == self.u.defn().any_val && !self.file_starts.is_empty() {
-                        self.unsupported(tree, "a definition of scala.AnyVal in a unit of several files");
-                    }
-                    let full = self.u.full_name(d);
-                    if tasty && full.starts_with("scala.") && !full.starts_with("scala.scalanative.") {
-                        self.u.set_builds_scala_library();
-                    }
-                    self.u.unenter(d);
-                }
-            }
-        }
     }
 
     /// Whether `owner` is a package or a package object, whose private members are private to the
