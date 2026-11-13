@@ -62,7 +62,7 @@ pub fn stack_map_table(frames: &[(usize, Frame)], initial: &Frame, pool: &mut Po
                 out.extend(delta.to_be_bytes());
             }
             1 if same => {
-                match delta < 64 {
+                match delta < 63 {
                     true => out.push(64 + delta as u8),
                     false => {
                         out.push(247);
@@ -110,6 +110,7 @@ mod tests {
         let frames = [
             (5, frame(&[Int, Top], &[])),
             (6, frame(&[Int], &[Object("a/A".into())])),
+            (70, frame(&[Int], &[Int])),
             (100, frame(&[Int, Long, Top, Top], &[])),
             (101, frame(&[Int, Top, Top], &[])),
             (200, frame(&[Int], &[])),
@@ -122,10 +123,11 @@ mod tests {
         let table = stack_map_table(&frames, &frame(&[Int, Top], &[]), &mut pool);
         let [a0, a1] = pool.class("a/A").to_be_bytes();
         let expected = [
-            &[0, 10][..],
+            &[0, 11][..],
             &[5],
             &[64, 7, a0, a1],
-            &[252, 0, 93, 4],
+            &[247, 0, 63, 1],
+            &[252, 0, 29, 4],
             &[250, 0, 0],
             &[251, 0, 98],
             &[247, 0, 99, 4],
