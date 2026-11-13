@@ -12,7 +12,7 @@ pub fn may_need(u: &mut Universe, t: TypeId) -> bool {
     let primitive = |u: &Universe, c| PRIMITIVE_VALUE_CLASSES.contains(&u.full_name(c).as_str());
     let t = u.dealias(t);
     let class = match *u.ty(t) {
-        Type::ByName(r) => return may_need(u, r),
+        Type::ByName(_) => return true,
         Type::Method { params, result, .. } => {
             return may_need(u, result)
                 || (0..u.params_of(params).len()).any(|i| {
