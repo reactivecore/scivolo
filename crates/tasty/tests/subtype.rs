@@ -515,6 +515,45 @@ fn glbs_merge_arguments_by_variance() {
 }
 
 #[test]
+fn least_classes_as_dotty_s_class_symbol() {
+    let Some(mut u) = universe() else { return };
+    let root = u.root();
+    let dog = parse(&mut u, "oracle.Dog");
+    let unbounded = u.intern_type(Type::Bounds(NOTHING, ANY));
+    let below_dog = u.intern_type(Type::Bounds(NOTHING, dog));
+    let t = define(&mut u, "T", Kind::TypeParam, root, unbounded);
+    let d = define(&mut u, "D", Kind::Type, root, below_dog);
+    let locals = [("T", t), ("D", d)].map(|(n, s)| (n, u.intern_type(Type::Sym(None, s))));
+    // (type, its `classSymbol` in dotty, `None` for `NoSymbol`)
+    let rows = [
+        ("oracle.Dog & oracle.Animal", Some("oracle.Dog")),
+        ("oracle.Animal & oracle.Dog", Some("oracle.Dog")),
+        ("oracle.Dog & java.lang.String", None),
+        ("oracle.AB", None),
+        ("scala.Nothing | oracle.Dog", Some("oracle.Dog")),
+        ("oracle.Dog | oracle.Animal", Some("oracle.Animal")),
+        ("oracle.Cov[scala.Int] | oracle.Cov[java.lang.String]", Some("oracle.Cov")),
+        ("oracle.Pair[scala.Int]", Some("scala.Tuple2")),
+        ("oracle.BoxInt", Some("oracle.Box")),
+        ("D", Some("oracle.Dog")),
+        ("D & oracle.Animal", Some("oracle.Dog")),
+        ("T", Some("scala.Any")),
+        ("T & java.lang.String", Some("java.lang.String")),
+        ("D | T", Some("scala.Any")),
+    ];
+    for (t, expected) in rows {
+        let ty = support::parse_with(&mut u, t, &locals);
+        let expected = expected.map(|c| {
+            let c = parse(&mut u, c);
+            u.sym_ref(c).unwrap().1
+        });
+        let actual = u.least_class(ty);
+        let show = actual.map(|c| u.symbol(c).name.clone());
+        assert_eq!(actual, expected, "{t}: {show:?}");
+    }
+}
+
+#[test]
 fn gadt_bounds_take_part_in_subtyping() {
     let Some(mut u) = universe() else { return };
     let root = u.root();

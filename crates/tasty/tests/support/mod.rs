@@ -25,11 +25,12 @@ pub fn universe() -> Option<Universe> {
 
 /// Parses the fixtures' types: qualified names, `[…]` arguments, `?` wildcards with bounds,
 /// `p.type` singletons, integer and string literals, and `|`/`&` between them; a simple name
-/// among `captures` as the parameter of `binder` it names.
+/// among `captures` as the parameter of `binder` it names, one among `locals` as its type.
 struct Parser<'a> {
     s: &'a str,
     binder: Binder,
     captures: &'a [&'a str],
+    locals: &'a [(&'a str, TypeId)],
 }
 
 impl Parser<'_> {
@@ -78,8 +79,10 @@ impl Parser<'_> {
             return u.intern_type(Type::Constant(tasty::tags::INTconst, n));
         }
         let capture = self.captures.iter().position(|&c| c == path);
+        let local = self.locals.iter().find(|&&(l, _)| l == path).map(|&(_, t)| t);
         let tycon = match path.strip_suffix(".type") {
             _ if let Some(i) = capture => u.intern_type(Type::Param(self.binder, i as u32)),
+            _ if let Some(t) = local => t,
             Some(term) => {
                 let (prefix, name) = term.rsplit_once('.').unwrap();
                 let prefix = path_prefix(u, prefix);
@@ -140,7 +143,15 @@ pub fn parse(u: &mut Universe, s: &str) -> TypeId {
 
 /// Parses `s` with the simple names `captures` standing for the parameters of `binder`.
 pub fn parse_in(u: &mut Universe, s: &str, binder: Binder, captures: &[&str]) -> TypeId {
-    let mut p = Parser { s, binder, captures };
+    parse_any(u, s, Parser { s, binder, captures, locals: &[] })
+}
+
+/// Parses `s` with the simple names `locals` standing for their types.
+pub fn parse_with(u: &mut Universe, s: &str, locals: &[(&str, TypeId)]) -> TypeId {
+    parse_any(u, s, Parser { s, binder: Binder(FileId(u32::MAX), 0), captures: &[], locals })
+}
+
+fn parse_any(u: &mut Universe, s: &str, mut p: Parser) -> TypeId {
     let t = p.infix(u);
     assert!(p.s.is_empty(), "unparsed rest `{}` of `{s}`", p.s);
     t
