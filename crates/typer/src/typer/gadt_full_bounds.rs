@@ -18,12 +18,7 @@ impl Gadt {
             && let Some((lo, hi)) = u.gadt_full_bounds(s)
         {
             let entry_hi = u.gadt().bounds(s).map_or(hi, |(_, h)| h);
-            let mut occurs = false;
-            u.map_type(entry_hi, &mut |u, p| {
-                occurs |= u.sym_ref(p).is_some_and(|(_, r)| r == s);
-                None
-            });
-            return if variance < 0 || occurs { lo } else { hi };
+            return if variance < 0 || refers_at_top(u, entry_hi, s) { lo } else { hi };
         }
         let mut seen = vec![s];
         while let Some((lo, hi)) = u.gadt_bounds(s)
@@ -83,6 +78,15 @@ impl Gadt {
                 _ => t,
             },
         }
+    }
+}
+
+/// Tells whether `t` or an operand of its unions and intersections refers to `s`, where the GADT
+/// constraint holds its references to registered symbols.
+fn refers_at_top(u: &mut Universe, t: TypeId, s: SymbolId) -> bool {
+    match *u.ty(t) {
+        Type::And(a, b) | Type::Or(a, b, _) => refers_at_top(u, a, s) || refers_at_top(u, b, s),
+        _ => u.sym_ref(t).is_some_and(|(_, r)| r == s),
     }
 }
 

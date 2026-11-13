@@ -17,12 +17,16 @@ inside the comparer (`narrowGADTBounds`), after ordinary type variables.
   above it (transitively, most recently ordered first, as dotty's lists), an instance after
   `replace`, and the scope nesting level it was registered at. A change log gives `mark`,
   `rollback`, `changes_since` and `redo`, the shape of the ordinary constraint's.
-- Keyed by symbol, not by internal type parameters: dotty internalizes only a bound that is a
-  GADT symbol at its top level, so `mapping`/`externalize` collapse to "a top-level reference to
-  a registered symbol is that symbol". Difference case 2.
+- Keyed by symbol, not by internal type parameters: dotty internalizes a bound that is a GADT
+  symbol at its top level, so `mapping`/`externalize` collapse to "a top-level reference to a
+  registered symbol is that symbol". Difference case 2.
 - `replace` substitutes the replaced symbol only where an entry is that symbol at its top level;
   dotty's dependency maps (`coDeps`/`contraDeps`), used to instantiate ordinary variables, have
-  no counterpart. Difference case 2.
+  no counterpart. Difference case 2, except for one shape: dotty's `addToConstraint` also
+  internalizes a registered symbol inside the unions of a declared upper bound and the
+  intersections of a declared lower bound (`B <: A | Int`), and `replace` substitutes it there
+  (`B <: String | Int` once `A = String`). The store keeps the symbol; a case that makes such a
+  symbol equal to a type or unifies it is refused (`GadtConstraint::is_inexact`).
 - The store lives on `Universe`, as the GADT bounds did, so every comparison sees it. It holds
   only what the cases being typed added and is empty between cases, so no file sees another's
   entries and the order of files cannot change a result. Typing files in parallel needs a store
@@ -65,11 +69,13 @@ inside the comparer (`narrowGADTBounds`), after ordinary type variables.
   `unify`, `addBoundTransitively` and `addOneBound` as dotty's `GadtState`. A failed bound
   rolls the store back; `necessaryEither` keeps the GADT state of the subsumed branch or none,
   `sufficientEither` leaves it alone, as dotty.
-- A bound reached through another abstract type's bounds narrows nothing (`ApproxState`); the
-  state is reset per type argument, where dotty starts a fresh `isSubType`.
+- A bound reached through another abstract type's bounds or a singleton's underlying type
+  narrows nothing (`ApproxState`); the state is reset where dotty starts a fresh `isSubType`:
+  type arguments, prefixes and the members of refinements.
 - `unify` gives the kept symbol both bounds without dotty's `validBoundsFor` and
-  `LevelAvoidMap`: GADT bounds hold no type variables of deeper levels and, the symbol being
-  keyed, no internal references to it. Difference case 2.
+  `LevelAvoidMap`: with `Config.checkLevelsOnConstraints` off the map avoids nothing and GADT
+  bounds hold no wildcards; `validBoundsFor` changes only internal references below the top
+  level, which the refused shape above alone has. Difference case 2.
 
 ## Consequences
 - The read-back rules of ADRs 0090, 0092, 0096 and 0109 go as the comparer narrows the store;

@@ -96,7 +96,7 @@ impl Cmp<'_> {
             return false;
         }
         let selected = self.u.intern_type(Type::Sym(Some(a), m));
-        self.recur(selected, want)
+        self.recur_fresh(selected, want)
     }
 
     /// Whether abstract type member `m` of path `a`, selected on `a`, lies within the bounds
@@ -113,7 +113,7 @@ impl Cmp<'_> {
         }
         let a = self.u.by_name(a).unwrap_or(a);
         let selected = self.u.intern_type(Type::Sym(Some(a), m));
-        self.recur(lo2, selected) && self.recur(selected, hi2)
+        self.recur_fresh(lo2, selected) && self.recur_fresh(selected, hi2)
     }
 
     /// Whether member info `have` conforms to refinement info `want`: type bounds within
@@ -127,17 +127,17 @@ impl Cmp<'_> {
         match *self.u.ty(want) {
             Type::Bounds(..) | Type::Alias(_) => {
                 let ((lo1, hi1), (lo2, hi2)) = (bounds(self, have), bounds(self, want));
-                self.recur(lo2, lo1) && self.recur(hi1, hi2)
+                self.recur_fresh(lo2, lo1) && self.recur_fresh(hi1, hi2)
             }
-            Type::Method { .. } | Type::Poly { .. } => self.recur(have, want),
+            Type::Method { .. } | Type::Poly { .. } => self.recur_fresh(have, want),
             Type::ByName(want) => self.info_conforms(have, want),
             _ => match *self.u.ty(have) {
                 Type::Method { params, result, .. } if self.u.params_of(params).is_empty() => {
-                    self.recur(result, want)
+                    self.recur_fresh(result, want)
                 }
-                Type::ByName(result) => self.recur(result, want),
+                Type::ByName(result) => self.recur_fresh(result, want),
                 Type::Method { .. } | Type::Poly { .. } => false,
-                _ => self.recur(have, want),
+                _ => self.recur_fresh(have, want),
             },
         }
     }
