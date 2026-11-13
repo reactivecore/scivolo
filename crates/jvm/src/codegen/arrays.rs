@@ -119,9 +119,11 @@ impl Gen<'_, '_> {
     }
 
     /// Whether `qualifier` of a cast at `span` is a `null` the source casts, which erasure drops
-    /// the cast of; the casts phases add have no extent.
+    /// the cast of; the casts phases add have no extent, a `null` inlined from another source has
+    /// the call's.
     fn is_written_null(&self, qualifier: TNodeId, span: Span) -> bool {
         let at = self.l.tpd.span(qualifier);
-        super::equality::is_null(self, qualifier) && at.start() < at.end() && at != span
+        let written = at.start() < at.end() && at != span || self.l.is_from_other_source(qualifier);
+        super::equality::is_null(self, qualifier) && written
     }
 }

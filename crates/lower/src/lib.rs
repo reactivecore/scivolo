@@ -360,6 +360,11 @@ impl<'a> Lower<'a> {
         phases::same_run::enter_specialized(self, class);
     }
 
+    /// Whether `t` was inlined from another source and given the span of the inline call.
+    pub fn is_from_other_source(&self, t: TNodeId) -> bool {
+        self.own_spans.contains_key(&t)
+    }
+
     /// Whether `LambdaLift` lifted method `m` out of a term.
     pub fn is_lifted(&self, m: SymbolId) -> bool {
         self.lifted_from.contains_key(&m)
