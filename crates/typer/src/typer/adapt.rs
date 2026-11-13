@@ -87,6 +87,7 @@ impl Typer<'_> {
             });
         }
         if let Some(inlined) = self.inlined_transparent(tree, pt, ctx) {
+            self.settle_adapted(inlined, pt, ctx);
             return self.adapt(inlined, pt, ctx);
         }
         self.record_inline_call(tree, ctx);
