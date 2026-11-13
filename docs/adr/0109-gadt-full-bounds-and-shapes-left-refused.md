@@ -1,6 +1,6 @@
 # ADR 0109 — GADT: full bounds through pattern-bound types, shapes left refused
 
-Status: accepted · Date: 2026-11-09 · Amends: ADR 0096
+Status: accepted, amended by ADR 0119 · Date: 2026-11-09 · Amends: ADR 0096
 
 ## Context
 ADR 0096 left fifteen `tests/pos` GADT rows refused or differing. In dotty a pattern-bound

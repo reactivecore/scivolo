@@ -17,7 +17,6 @@ mod enter;
 mod entries;
 mod full_names;
 mod function_classes;
-mod gadt_bounds;
 mod higher_kinds;
 mod impure_functions;
 mod info;
@@ -51,6 +50,7 @@ mod table;
 mod varargs;
 mod variance;
 
+use crate::gadt::GadtConstraint;
 use crate::library::Library;
 use crate::subtype::Unions;
 use crate::types::{Binder, TypeId, Types};
@@ -96,8 +96,8 @@ pub struct Universe {
     infos: FxHashMap<SymbolId, TypeId>,
     /// The type under explicit nulls of each symbol whose type was asked for in that mode.
     nullified_infos: FxHashMap<SymbolId, TypeId>,
-    /// The GADT bounds of type parameters (dotty's `GadtConstraint`), compared frozen.
-    gadt_bounds: FxHashMap<SymbolId, (TypeId, TypeId)>,
+    /// The GADT constraint of the cases being typed (ADR 0119).
+    gadt: GadtConstraint,
     parents: FxHashMap<SymbolId, Vec<TypeId>>,
     linearizations: FxHashMap<SymbolId, Vec<SymbolId>>,
     /// Per class and base class, whether the class's parents give the base different types.
@@ -203,6 +203,16 @@ impl std::error::Error for Error {}
 impl Universe {
     pub fn root(&self) -> SymbolId {
         SymbolId(0)
+    }
+
+    /// Gets the GADT constraint.
+    pub fn gadt(&self) -> &GadtConstraint {
+        &self.gadt
+    }
+
+    /// Gets the GADT constraint to change it.
+    pub fn gadt_mut(&mut self) -> &mut GadtConstraint {
+        &mut self.gadt
     }
 
     pub fn symbol(&self, id: SymbolId) -> &Symbol {
