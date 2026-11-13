@@ -244,6 +244,9 @@ fn a_definition_the_tasty_pickler_lacks_is_refused() {
     let code = "class tag extends scala.annotation.StaticAnnotation\n\
                 trait B { def f: Int @tag = 1; def g: Int @tag = 2; def h(b: Boolean) = if b then f else g }";
     refuses("refusedtasty", code, "an annotated type of several annotation trees");
+    let code = "import scala.annotation.unchecked.uncheckedVariance as uV\n\
+                class C[+A](val m: Map[A @uV, A @uV])";
+    refuses("refusedaccessor", code, "an annotated type of several annotation trees");
 }
 
 #[test]

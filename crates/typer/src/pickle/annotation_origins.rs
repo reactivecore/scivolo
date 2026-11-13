@@ -52,27 +52,36 @@ impl AnnotationOrigins {
         origins
     }
 
-    /// The annotation tree of `annotated`, a part of the type of type tree `tpt` pickled: of a
-    /// type tree derived from a written one (a parameter accessor's from its parameter's), the one
-    /// annotated type tree of the written one's span with that type; of an inferred type tree of
-    /// type `annotated`, the tree its right-hand side gives where it ends in a type ascription or
-    /// a reference to a definition or pattern variable of this tree, a conditional or match only
-    /// where all its branches but those of type `Nothing` give the same tree.
-    pub fn of_type_tree(&self, tpd: &Tpd, tpt: TNodeId, annotated: TypeId) -> Option<TNodeId> {
+    /// The annotation tree of `annotated`, of annotation class `annot` and a part of the type of
+    /// type tree `tpt` pickled, `Some(None)` if several may be: of a type tree derived from a
+    /// written one (a parameter accessor's from its parameter's), the annotated type trees of the
+    /// written one's span with that type, else with that annotation class (a class parameter's
+    /// type of the class's type parameters); of an inferred type tree of type `annotated`, the
+    /// tree its right-hand side gives where it ends in a type ascription or a reference to a
+    /// definition or pattern variable of this tree, a conditional or match only where all its
+    /// branches but those of type `Nothing` give the same tree.
+    pub fn of_type_tree(
+        &self,
+        tpd: &Tpd,
+        tpt: TNodeId,
+        annotated: TypeId,
+        annot: TypeId,
+    ) -> Option<Option<TNodeId>> {
         match *tpd.tree(tpt) {
-            T::TypeTree { inferred: false } => self.derived(tpd, tpt, |t, _| t == annotated),
-            _ => self.of_tpt(tpd, tpt, annotated, MAX_HOPS),
+            T::TypeTree { inferred: false } => (self.derived(tpd, tpt, |t, _| t == annotated))
+                .or_else(|| self.derived(tpd, tpt, |_, a| tpd.get(a).tpe == Some(annot))),
+            _ => self.of_tpt(tpd, tpt, annotated, MAX_HOPS).map(Some),
         }
     }
 
-    /// The one annotation tree within the span of type tree `tpt` whose annotated type and tree
-    /// `matching` holds of.
+    /// The annotation tree within the span of type tree `tpt` whose annotated type and tree
+    /// `matching` holds of, `Some(None)` if several, `None` if none.
     fn derived(
         &self,
         tpd: &Tpd,
         tpt: TNodeId,
         matching: impl Fn(TypeId, TNodeId) -> bool,
-    ) -> Option<TNodeId> {
+    ) -> Option<Option<TNodeId>> {
         let span = tpd.span(tpt);
         if !span.exists() || span.start() == span.end() {
             return None;
@@ -83,7 +92,7 @@ impl AnnotationOrigins {
             })
             .map(|&(.., annot)| annot);
         let first = annots.next()?;
-        annots.all(|a| a == first).then_some(first)
+        Some(annots.all(|a| a == first).then_some(first))
     }
 
     fn of_tpt(&self, tpd: &Tpd, tpt: TNodeId, annotated: TypeId, hops: usize) -> Option<TNodeId> {
@@ -96,7 +105,7 @@ impl AnnotationOrigins {
                 self.of_rhs(tpd, *self.rhs_of.get(&tpt)?, annotated, hops.checked_sub(1)?)
             }
             T::TypeTree { inferred: false } => {
-                self.derived(tpd, tpt, |t, _| t == annotated).or_else(|| tpd.tpt_annotation(tpt))
+                (self.derived(tpd, tpt, |t, _| t == annotated).flatten()).or_else(|| tpd.tpt_annotation(tpt))
             }
             _ => tpd.tpt_annotation(tpt),
         }
