@@ -14,3 +14,5 @@ object DependentLowerBounds:
   def k: Option[Int] = Option(dep(bx))
   def s = Option(dep(mk()))
   def p = (dep(bx), 1)
+  class Inv[T](val t: T)
+  def v = new Inv(dep(mk()))

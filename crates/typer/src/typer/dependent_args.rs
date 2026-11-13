@@ -69,8 +69,8 @@ impl Typer<'_> {
 
     /// Replaces in `t` each type member of an instantiated variable that a refinement of the
     /// variable's instance aliases by the alias (dotty's `simplify` of a selection on an
-    /// instantiated `TypeVar`, `derivedSelect` with `lookupRefined`).
-    pub fn with_refined_var_members(&mut self, t: TypeId) -> TypeId {
+    /// instantiated `TypeVar`, `derivedSelect` with `lookupRefined`), dealiased if `dealiased`.
+    pub fn with_refined_var_members(&mut self, t: TypeId, dealiased: bool) -> TypeId {
         let c = &self.constraint;
         self.u.map_type(t, &mut |u, part| {
             let Some((Some(pre), s)) = u.sym_ref(part) else { return None };
@@ -78,7 +78,8 @@ impl Typer<'_> {
             if !matches!(u.ty(inst), Type::Skolem(..) | Type::Refined(..)) {
                 return None;
             }
-            u.refinement_info(inst, s).and_then(|i| u.type_alias(i))
+            let alias = u.refinement_info(inst, s).and_then(|i| u.type_alias(i))?;
+            Some(if dealiased { u.dealias(alias) } else { alias })
         })
     }
 

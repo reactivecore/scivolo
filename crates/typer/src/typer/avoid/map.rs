@@ -160,7 +160,7 @@ impl Avoid<'_> {
         }
         let (lo, hi) = t.constraint.bounds(var);
         let from_below = v > 0 || v == 0 && lo != NOTHING;
-        let bound = match t.instance_type(var, from_below) {
+        let bound = match t.instance_type(var, (from_below, false)) {
             Ok(inst) => inst,
             Err(_) => t.zonk(if from_below { lo } else { hi }),
         };

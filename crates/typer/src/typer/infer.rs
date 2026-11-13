@@ -94,10 +94,16 @@ impl TypeOps<'_> {
 
 impl Typer<'_> {
     /// `v`'s lower bound widened below `v`, which may constrain `v`, or its upper bound, simplified
-    /// after instantiating the type variables of its match aliases (dotty's `instanceType`).
-    pub fn instance_type(&mut self, v: VarId, from_below: bool) -> Result<TypeId, &'static str> {
+    /// after instantiating the type variables of its match aliases (dotty's `instanceType`); a
+    /// member of an instantiated variable reduced through its refinement, dealiased if `forced`
+    /// (`isFullyDefined`).
+    pub fn instance_type(
+        &mut self,
+        v: VarId,
+        (from_below, forced): (bool, bool),
+    ) -> Result<TypeId, &'static str> {
         let (lo, hi) = self.constraint.bounds(v);
-        let bound = self.with_refined_var_members(if from_below { lo } else { hi });
+        let bound = self.with_refined_var_members(if from_below { lo } else { hi }, forced);
         let inst = self.zonk(bound);
         let inst = self.with_match_alias_vars_defined(inst);
         let inst = self.simplified_inferred(inst);
@@ -114,7 +120,12 @@ impl Typer<'_> {
     /// a union or intersection of type constructors (`List | Option`), a singleton below another
     /// type variable, and a higher-kinded variable of the script fixed to its upper bound.
     pub fn instantiate_var(&mut self, v: VarId, from_below: bool) -> Result<(), &'static str> {
-        let inst = self.instance_type(v, from_below)?;
+        self.instantiate_var_as(v, from_below, false)
+    }
+
+    /// `instantiate_var`, `forced` as `instance_type` takes it.
+    fn instantiate_var_as(&mut self, v: VarId, from_below: bool, forced: bool) -> Result<(), &'static str> {
+        let inst = self.instance_type(v, (from_below, forced))?;
         let hi = self.constraint.bounds(v).1;
         let hi = self.zonk(hi);
         if from_below
@@ -184,7 +195,7 @@ impl Typer<'_> {
                     (0, false) => bottom_ok && (variance > 0 || variance == 0 && self.is_exactly_any(hi)),
                     (direction, _) => direction < 0,
                 };
-                self.instantiate_var(v, from_below)?;
+                self.instantiate_var_as(v, from_below, true)?;
             }
         }
         Err("type variables")
