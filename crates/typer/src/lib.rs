@@ -49,8 +49,6 @@ pub struct Typed {
     pub root: TNodeId,
     pub diags: Diagnostics,
     pub pickles: Vec<pickle::Pickled>,
-    /// The refusals after typing of the files of a unit of several left out of `root`.
-    pub left_out: Vec<(Span, String)>,
 }
 
 /// A source file of a unit of several: its desugared root, the offset it starts at and the

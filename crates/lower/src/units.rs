@@ -1,14 +1,13 @@
 //! Several source files through the whole frontend as one unit, each referring to the others.
 
-use crate::attributed::{Accepted, Attributed, at_point, error_files, file_at, first, refusal, refused};
 use crate::{NirFile, Refusal};
-use syntax::ast::{Ast, Span};
+use syntax::ast::Ast;
 use syntax::config::Config;
 use syntax::desugar::Desugar;
-use syntax::diag::Diagnostics;
+use syntax::diag::{Diagnostics, Level};
 use syntax::names::{FreshNames, Names};
 use syntax::parse::Parser;
-use syntax::source::{SourceFile, Sources};
+use syntax::source::{Offset, SourceFile, Sources};
 use tasty::Universe;
 use typer::inlining::Macros;
 use typer::pickle::Pickled;
@@ -42,16 +41,17 @@ pub fn compile_units<R>(
         impl FnOnce(&mut crate::Lower, TNodeId, Vec<Pickled>) -> crate::Result<R>,
     ),
 ) -> Result<(R, Diagnostics), Refusal> {
-    match compile_attributed(u, files, cfg, macros, (backend, generate)) {
-        Ok(Accepted { left_out, .. }) if !left_out.is_empty() => Err(first(left_out)),
-        Ok(Accepted { out, diags, .. }) => Ok((out, diags)),
-        Err(refusals) => Err(first(refusals)),
-    }
+    compile_attributed(u, files, cfg, macros, (backend, generate)).map_err(|mut r| r.swap_remove(0).refusal)
+}
+
+/// A refusal of a unit and the indices of the files it lies in, none if it lies in no file.
+pub struct Attributed {
+    pub refusal: Refusal,
+    pub files: Vec<usize>,
 }
 
 /// `compile_units`, its refusals attributed to the files they lie in: one or more, the first
-/// the one `compile_units` gives; where all lie in files and come after typing, the output of
-/// the others.
+/// the one `compile_units` gives.
 pub fn compile_attributed<R>(
     u: &mut Universe,
     files: &[SourceFile],
@@ -61,7 +61,7 @@ pub fn compile_attributed<R>(
         crate::Backend,
         impl FnOnce(&mut crate::Lower, TNodeId, Vec<Pickled>) -> crate::Result<R>,
     ),
-) -> Result<Accepted<R>, Vec<Attributed>> {
+) -> Result<(R, Diagnostics), Vec<Attributed>> {
     let whole = |refusal| vec![Attributed { refusal, files: Vec::new() }];
     let sources = Sources::new(files).map_err(|e| whole(refused(e)))?;
     let (mut names, mut ast) = (Names::default(), Ast::default());
@@ -96,13 +96,6 @@ pub fn compile_attributed<R>(
         typer.tasty_sources = Some(copies.collect());
     }
     let typed = typer.type_units(u, &mut ast, (&mut names, &mut fresh), &units, macros);
-    let attributed = |all: Vec<(Span, String)>| -> Vec<Attributed> {
-        let attribute = |(at, what)| {
-            let what = format!("the typer does not support {what}{}", at_point(&sources, at));
-            Attributed { refusal: refused(what), files: file_at(&sources, at) }
-        };
-        all.into_iter().map(attribute).collect()
-    };
     let mut typed = match typed {
         Ok(typed) => typed,
         Err(Fallback::Unsupported { what, at }) => {
@@ -110,14 +103,17 @@ pub fn compile_attributed<R>(
                 true => vec![(at, what)],
                 false => std::mem::take(&mut typer.refused),
             };
-            return Err(attributed(all));
+            let attributed = all.into_iter().map(|(at, what)| {
+                let what = format!("the typer does not support {what}{}", at_point(&sources, at));
+                Attributed { refusal: refused(what), files: file_at(&sources, at) }
+            });
+            return Err(attributed.collect());
         }
         Err(Fallback::Errors(diags)) => {
             let files = error_files(&diags, &sources);
             return Err(vec![Attributed { refusal: refusal("type errors", &diags, &sources), files }]);
         }
     };
-    let left_out = attributed(std::mem::take(&mut typed.left_out));
     let located = Sources::new(files).map_err(|e| whole(refused(e)))?;
     let sources = (sources, cfg);
     let pickles = std::mem::take(&mut typed.pickles);
@@ -134,11 +130,58 @@ pub fn compile_attributed<R>(
         let what = format!("{stage} does not support {}{}", e.what, at_point(&located, e.at));
         vec![Attributed { refusal: refused(what), files: file_at(&located, e.at) }]
     })?;
-    Ok(Accepted { out, diags: typed.diags, left_out })
+    Ok((out, typed.diags))
+}
+
+/// The indices of the files the errors among `diags` are in, none if one of them has no position.
+fn error_files(diags: &Diagnostics, sources: &Sources) -> Vec<usize> {
+    let errors = diags.items.iter().filter(|d| d.level == Level::Error);
+    let Some(mut files) = errors.map(|d| d.offset.map(|o| sources.index(o))).collect::<Option<Vec<_>>>()
+    else {
+        return Vec::new();
+    };
+    files.sort_unstable();
+    files.dedup();
+    files
+}
+
+/// The index of the file the point of `at` is in, if it has one in `sources`.
+fn file_at(sources: &Sources, at: syntax::ast::Span) -> Vec<usize> {
+    match at.exists() && !at.is_in_other_source() {
+        true => vec![sources.index(at.without_inlined_call().point())],
+        false => Vec::new(),
+    }
 }
 
 fn copy(f: &SourceFile) -> SourceFile {
     let mut copy = SourceFile::new(f.name.clone(), f.text.clone());
     copy.tasty_path.clone_from(&f.tasty_path);
     copy
+}
+
+fn refused(what: String) -> Refusal {
+    Refusal { what, diags: Diagnostics::default() }
+}
+
+/// ` at FILE:LINE:COLUMN` of the point of `at`, if it has one in `sources`.
+fn at_point(sources: &Sources, at: syntax::ast::Span) -> String {
+    match at.exists() && !at.is_in_other_source() {
+        true => format!(" at {}", position(sources, at.without_inlined_call().point())),
+        false => String::new(),
+    }
+}
+
+/// `FILE:LINE:COLUMN` of `offset`.
+pub fn position(sources: &Sources, offset: Offset) -> String {
+    let (file, at) = sources.locate(offset);
+    format!("{}:{}:{}", file.name, file.offset_to_line(at) + 1, file.column(at) + 1)
+}
+
+/// A refusal `what` listing the errors among `diags`, each with its position in `sources`.
+fn refusal(what: &str, diags: &Diagnostics, sources: &Sources) -> Refusal {
+    let errors = diags.items.iter().filter(|d| d.level == syntax::diag::Level::Error).map(|d| {
+        let at = d.offset.map_or_else(String::new, |o| format!("{}: ", position(sources, o)));
+        format!("\n  {at}{}", d.message)
+    });
+    refused(format!("{what}:{}", errors.collect::<String>()))
 }
