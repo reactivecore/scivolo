@@ -70,6 +70,9 @@ object Trycatch {
 
   def main(args: Array[String]): Unit = {
     println(try unfinished catch { case _: NotImplementedError => "unfinished" })
+    val e = try throw (if args.isEmpty then new IllegalStateException("i") else new RuntimeException("r"))
+      catch { case x: RuntimeException => x.getMessage }
+    println(e)
     println(Stash.stashed("4") + " " + Stash.stashed("x"))
     println(s"${Stash.widened(2, "1.5")} ${Stash.widened(2, "x")}")
     println(s"${parse("12")} ${parse("x")}")
