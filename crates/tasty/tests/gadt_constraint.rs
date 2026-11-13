@@ -49,16 +49,16 @@ fn a_bound_that_is_a_registered_symbol_becomes_an_ordering() {
         &[Registered { sym: a, lo: NOTHING, hi: x }, Registered { sym: b, lo: NOTHING, hi: a_ref }],
         0,
     );
-    assert_eq!(u.gadt_bounds(b), Some((NOTHING, ANY)));
+    assert_eq!(u.gadt().bounds(b), Some((NOTHING, ANY)));
     assert!(u.gadt().is_less(b, a));
-    assert_eq!(u.gadt_bounds(a), Some((NOTHING, x)));
+    assert_eq!(u.gadt().bounds(a), Some((NOTHING, x)));
 
     u.gadt_add(&unbounded(&[c]), 1);
     let b_ref = type_ref(&mut u, b);
     u.gadt_update_entry(c, b_ref, ANY);
     assert!(u.gadt().is_less(b, c) && !u.gadt().is_less(a, c));
     assert_eq!(u.gadt().lower(c), [b]);
-    assert_eq!(u.gadt_bounds(c), Some((b_ref, ANY)));
+    assert_eq!(u.gadt().bounds(c), Some((b_ref, ANY)));
 }
 
 #[test]
@@ -87,12 +87,12 @@ fn rollback_undoes_and_redo_restores() {
     let changes = u.gadt().changes_since(mark).expect("changed");
     u.gadt_mut().rollback(mark);
     assert_eq!(u.gadt().symbols().collect::<Vec<_>>(), [a]);
-    assert_eq!(u.gadt_bounds(a), Some((NOTHING, ANY)));
+    assert_eq!(u.gadt().bounds(a), Some((NOTHING, ANY)));
     assert!(u.gadt().upper(a).is_empty() && !u.gadt().is_narrowing());
 
     u.gadt_mut().redo(changes);
     assert_eq!(u.gadt().symbols().collect::<Vec<_>>(), [a, b]);
-    assert_eq!(u.gadt_bounds(a), Some((x, ANY)));
+    assert_eq!(u.gadt().bounds(a), Some((x, ANY)));
     assert!(u.gadt().is_less(a, b) && u.gadt().is_narrowing());
     assert!(u.gadt().changes_since(u.gadt().mark()).is_none());
 }

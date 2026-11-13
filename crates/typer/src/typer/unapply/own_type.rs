@@ -39,7 +39,16 @@ impl UnapplyPattern {
         }
 
         let mut gadt = Vec::new();
-        if !unconstrained && !t.constrain_pattern(arg_type, sel)? {
+        let gadt_mark = t.u.gadt().mark();
+        if t.gadt.first_order(t.u, (arg_type, sel), self.ctx) {
+            t.gadt.register(t.u, self.ctx);
+            let registered = t.u.gadt().mark();
+            t.constrain_pattern_type(arg_type, sel);
+            if t.u.gadt().changes_since(registered).is_some() && has_f_bounded_param(t, arg_type) {
+                t.u.gadt_mut().rollback(gadt_mark);
+                return Err("GADT bounds from a pattern of a class with an F-bounded type parameter");
+            }
+        } else if !unconstrained && !t.constrain_pattern(arg_type, sel)? {
             t.constraint.rollback(mark);
             match t.gadt_vars((arg_type, vars), sel, self.ctx)? {
                 Some(narrowed) => gadt = narrowed,

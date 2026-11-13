@@ -23,6 +23,9 @@ pub struct GadtConstraint {
     /// Whether a bound was narrowed since the constraint was empty (dotty's `wasConstrained`).
     narrowed: bool,
     log: Vec<Undo>,
+    /// Whether the comparisons running narrow the constraint (dotty's
+    /// `Mode.GadtConstraintInference`).
+    pub inferring: bool,
 }
 
 /// What the constraint knows of one symbol.

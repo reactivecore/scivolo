@@ -16,7 +16,7 @@ use tasty::{Kind, NameId, SymbolId, Type, TypeId, TypeVars, VarId};
 impl Typer<'_> {
     /// Instantiates the type variables from id `vars` on that occur in `t`: a covariant one from
     /// above, a contravariant one from below, unless it occurs in the bounds of GADT variables
-    /// `gadt`; else from above if its bounds coincide or its upper bound is a final class, else
+    /// `gadt` or of the GADT constraint's symbols; else from above if its bounds coincide or its upper bound is a final class, else
     /// to a fresh pattern-bound type of its bounds; those types, named after the type parameters
     /// of extractor `unapp`.
     pub fn maximize_type(
@@ -29,7 +29,12 @@ impl Typer<'_> {
         let t = self.zonk(t);
         let variances = self.types().variances(t, None, vars);
         let names = self.type_var_names(unapp);
-        let gadt_bounds = self.types().gadt_var_bounds(gadt);
+        let mut gadt_bounds = self.types().gadt_var_bounds(gadt);
+        let registered: Vec<SymbolId> = self.u.gadt().symbols().collect();
+        for s in registered {
+            let Some((lo, hi)) = self.u.gadt().bounds(s) else { continue };
+            gadt_bounds.extend([self.zonk(lo), self.zonk(hi)]);
+        }
         let mut bound = Vec::new();
         for i in vars..self.constraint.count() {
             let v = VarId(i as u32);

@@ -11,8 +11,9 @@ impl Gadt {
     /// Registers in the GADT constraint the type parameters a case at `ctx` may narrow that are
     /// not yet registered, in dotty's order: per enclosing method from the outermost, the type
     /// parameters of the classes between it and the next enclosing method from the outermost,
-    /// then its own; each method's at its nesting depth (dotty's `addToConstraint` in
-    /// `typedDefDef`). Leaves out a class's higher-kinded type parameters.
+    /// then those of a polymorphic function value it is the body of, then its own; each
+    /// method's at its nesting depth (dotty's `addToConstraint` in `typedDefDef`). Leaves out a
+    /// class's higher-kinded type parameters.
     pub fn register(&self, u: &mut Universe, ctx: Ctx) {
         let mut chain = Vec::new();
         let mut owner = Some(ctx.owner);
@@ -28,6 +29,12 @@ impl Gadt {
                     let mut params: Vec<SymbolId> = Vec::new();
                     for c in classes.drain(..) {
                         params.extend(u.type_params(c).into_iter().filter(|&p| !is_higher_kinded(u, p)));
+                    }
+                    let site = u.symbol(o).owner;
+                    let polys: Vec<SymbolId> =
+                        self.poly_owners.iter().copied().filter(|&p| u.symbol(p).owner == site).collect();
+                    for p in polys {
+                        params.extend(u.type_params(p));
                     }
                     if !u.is_constructor(o) {
                         params.extend(u.type_params(o));

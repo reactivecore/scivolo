@@ -43,9 +43,9 @@ impl Cmp<'_> {
         if self.u.gadt().mark() == mark {
             return true;
         }
-        let (lo, hi) = self.u.gadt_bounds(p).unwrap_or((lo, hi));
+        let (lo, hi) = self.u.gadt().bounds(p).unwrap_or((lo, hi));
         let sat = self.recur_fresh(lo, hi);
-        if sat && let Some((lo, hi)) = self.u.gadt_bounds(p) {
+        if sat && let Some((lo, hi)) = self.u.gadt().bounds(p) {
             self.try_replace(p, lo, hi);
         }
         sat
@@ -99,8 +99,8 @@ impl Cmp<'_> {
         down1.extend(self.u.gadt().exclusive_lower(p1, p2));
         let mut up2 = vec![p2];
         up2.extend(self.u.gadt().exclusive_upper(p2, p1));
-        let lo1 = self.u.gadt_bounds(p1).map_or(NOTHING, |(lo, _)| lo);
-        let hi2 = self.u.gadt_bounds(p2).map_or(crate::ANY, |(_, hi)| hi);
+        let lo1 = self.u.gadt().bounds(p1).map_or(NOTHING, |(lo, _)| lo);
+        let hi2 = self.u.gadt().bounds(p2).map_or(crate::ANY, |(_, hi)| hi);
         self.u.gadt_mut().order(p1, p2, Unification::None);
         down1.into_iter().all(|q| self.add_one_bound(q, hi2, true))
             && up2.into_iter().all(|q| self.add_one_bound(q, lo1, false))
@@ -119,8 +119,8 @@ impl Cmp<'_> {
         let direction = if kept == p1 { Unification::KeepSecond } else { Unification::KeepFirst };
         self.u.gadt_mut().order(p2, p1, direction);
 
-        let (lo1, hi1) = self.u.gadt_bounds(kept).unwrap_or((NOTHING, crate::ANY));
-        let (lo2, hi2) = self.u.gadt_bounds(removed).unwrap_or((NOTHING, crate::ANY));
+        let (lo1, hi1) = self.u.gadt().bounds(kept).unwrap_or((NOTHING, crate::ANY));
+        let (lo2, hi2) = self.u.gadt().bounds(removed).unwrap_or((NOTHING, crate::ANY));
         let (lo, hi) = (self.lub(lo1, lo2), self.glb(hi1, hi2));
         self.u.gadt_update_entry(kept, lo, hi);
         let kept_ref = self.u.gadt_ref(kept);

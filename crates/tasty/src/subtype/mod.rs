@@ -71,9 +71,13 @@ pub struct Changes {
 }
 
 impl Universe {
-    /// Whether `a` is a subtype of `b`, type variables compared as themselves.
+    /// Whether `a` is a subtype of `b`, type variables compared as themselves and the GADT
+    /// constraint only consulted.
     pub fn is_subtype(&mut self, a: TypeId, b: TypeId) -> bool {
-        self.is_subtype_in(a, b, &mut NoVars)
+        let inferring = std::mem::replace(&mut self.gadt_mut().inferring, false);
+        let result = self.is_subtype_in(a, b, &mut NoVars);
+        self.gadt_mut().inferring = inferring;
+        result
     }
 
     /// Whether `a` is a subtype of `b` under the constraint `vars`, which the comparison extends
@@ -111,10 +115,12 @@ impl Universe {
     /// as they were.
     pub fn constrain_gadt_in(&mut self, a: TypeId, b: TypeId, vars: &mut dyn TypeVars) -> bool {
         let (mark, gadt_mark) = (vars.mark(), self.gadt().mark());
+        let inferring = std::mem::replace(&mut self.gadt_mut().inferring, true);
         let mut c = Cmp::new(self, vars);
-        (c.necessary, c.gadt_mode) = (true, true);
+        c.necessary = true;
         let result = c.recur(a, b);
         drop(c);
+        self.gadt_mut().inferring = inferring;
         if !result {
             vars.rollback(mark);
             self.gadt_mut().rollback(gadt_mark);
@@ -173,11 +179,12 @@ const MAX_STEPS: u32 = 1_000_000;
 
 impl<'a> Cmp<'a> {
     fn new(u: &'a mut Universe, vars: &'a mut dyn TypeVars) -> Self {
+        let inferring = u.gadt().inferring;
         Cmp {
             u,
             vars,
             frozen: false,
-            necessary: false,
+            necessary: inferring,
             depth: 0,
             pending: FxHashSet::default(),
             provisional: false,
@@ -185,7 +192,7 @@ impl<'a> Cmp<'a> {
             walk: walk::Walk::default(),
             reductions: 0,
             normalizing: Vec::new(),
-            gadt_mode: false,
+            gadt_mode: inferring,
             frozen_gadt: false,
             approx: gadt_narrow::Approx::default(),
         }

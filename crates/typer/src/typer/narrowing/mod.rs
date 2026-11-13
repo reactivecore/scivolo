@@ -46,6 +46,13 @@ impl Typer<'_> {
         constrain::constrain_pattern(self, pat, sel)
     }
 
+    /// Constrains type variables and the GADT constraint by what pattern type `pat` matching a
+    /// selector of type `sel` implies (dotty's `constrainPatternType`); false if they cannot
+    /// share an instance.
+    pub fn constrain_pattern_type(&mut self, pat: TypeId, sel: TypeId) -> bool {
+        pattern_type::constrain_pattern_type(self, pat, sel)
+    }
+
     /// Finds the type parameters of `sel` that pattern type `pat` narrows, with the type
     /// variables standing for them while `pat` is compared with `sel`; the type variables from
     /// id `from` on are the pattern's own. `None` if the pattern does not conform or narrows

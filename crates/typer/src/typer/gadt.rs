@@ -72,9 +72,11 @@ impl Gadt {
     }
 
     /// Tells whether selector type `sel` has type parameters a case may narrow, and those of
-    /// `sel` and pattern type `pat` all take no type arguments (ADR 0119's subset).
+    /// `sel` and pattern type `pat`, its type variables aside, all take no type arguments
+    /// (ADR 0119's subset).
     pub fn first_order(&self, u: &mut Universe, (pat, sel): (TypeId, TypeId), ctx: Ctx) -> bool {
         let (mut in_pat, mut in_sel) = (Vec::new(), Vec::new());
+        let pat = u.map_type(pat, &mut |u, x| u.var(x).map(|_| tasty::ANY));
         let ok = self.cases > 0 && self.first_order_params(u, pat, &mut in_pat) && self.first_order_params(u, sel, &mut in_sel);
         in_sel.retain(|&s| self.is_symbol(u, s, ctx));
         ok && !in_sel.is_empty()

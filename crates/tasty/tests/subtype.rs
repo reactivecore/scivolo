@@ -562,7 +562,8 @@ fn gadt_comparisons_narrow_registered_symbols() {
     let [int, string] = ["scala.Int", "java.lang.String"].map(|s| parse(&mut u, s));
 
     assert!(!u.is_subtype(t_ref, int), "a comparison outside GADT mode narrows nothing");
-    assert_eq!(u.gadt_bounds(t), Some((NOTHING, ANY)));
+    assert_eq!(u.gadt().bounds(t), Some((NOTHING, ANY)));
+    assert_eq!(u.gadt_bounds(t), None, "registered, not narrowed");
     assert!(!u.gadt().is_narrowing());
 
     assert!(u.constrain_gadt_in(t_ref, int, &mut NoVars));
@@ -604,7 +605,7 @@ fn gadt_narrowing_in_either_branch_keeps_the_weaker_or_none() {
     let int_or_matchable = u.intern_type(Type::Or(int, matchable, false));
 
     assert!(u.constrain_gadt_in(t_ref, int_or_string, &mut NoVars));
-    assert_eq!(u.gadt_bounds(t), Some((NOTHING, ANY)), "neither branch's bound is necessary");
+    assert_eq!(u.gadt().bounds(t), Some((NOTHING, ANY)), "neither branch's bound is necessary");
 
     assert!(u.constrain_gadt_in(t_ref, int_or_matchable, &mut NoVars));
     assert_eq!(u.gadt_bounds(t), Some((NOTHING, matchable)), "the weaker bound is kept");
