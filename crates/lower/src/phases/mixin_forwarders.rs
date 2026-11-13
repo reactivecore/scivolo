@@ -5,7 +5,7 @@
 use super::function_classes::{erased_classes, erased_linearization};
 use super::mixin::has_body;
 use crate::Lower;
-use crate::symbols::{beyond_jdk_view, has};
+use crate::symbols::{beyond_jdk_view, has, same_erasure};
 use names::{name_kinds, nme};
 use rustc_hash::FxHashSet;
 use tasty::tags::{FIELDaccessor, INLINE, PRIVATE, STATIC};
@@ -118,14 +118,16 @@ fn inherits(
 /// signature of `meth`, or matching it as members of `site`.
 fn matching_decls(l: &mut Lower, base: SymbolId, meth: SymbolId, site: TypeId) -> Vec<SymbolId> {
     let name = l.u.symbol(meth).name.clone();
-    let signature = l.u.erased_method(meth);
+    if l.u.erased_memo(meth, false).is_none() {
+        l.u.erased_method(meth);
+    }
     let Lower { u, bridges, .. } = l;
     let mut decls = u.decls_named(base, &name);
     decls.retain(|&other| {
         matches!(u.symbol(other).kind, Kind::Def | Kind::Val)
             && !has(u, other, PRIVATE)
             && !bridges.contains(&other)
-            && (u.erased_method(other) == signature || u.info_matches(site, other, meth))
+            && (same_erasure(u, other, meth) || u.info_matches(site, other, meth))
     });
     decls
 }

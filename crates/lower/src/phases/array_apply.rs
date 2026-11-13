@@ -111,12 +111,15 @@ pub fn applied(l: &Lower, t: TNodeId) -> Option<(SymbolId, TNodeId)> {
 fn seq_elems(l: &Lower, t: TNodeId) -> Option<Vec<TNodeId>> {
     let Tree::Apply { args, .. } = *l.tpd.tree(t) else { return None };
     let (m, qual) = applied(l, t)?;
-    let full = l.u.full_name(qualifier_symbol(l, qual)?);
-    if l.u.symbol(m).name != nme::APPLY || !SEQ_MODULES.contains(&full.as_str()) {
+    let &[arg] = l.tpd.items(args) else { return None };
+    if l.u.symbol(m).name != nme::APPLY {
         return None;
     }
-    let &[arg] = l.tpd.items(args) else { return None };
     let literal = wrapped_literal(l, arg)?;
+    let full = l.u.full_name(qualifier_symbol(l, qual)?);
+    if !SEQ_MODULES.contains(&full.as_str()) {
+        return None;
+    }
     let Tree::SeqLiteral { elems, .. } = *l.tpd.tree(literal) else { return None };
     Some(l.tpd.items(elems).to_vec())
 }
