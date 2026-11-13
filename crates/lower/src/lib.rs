@@ -360,6 +360,11 @@ impl<'a> Lower<'a> {
         phases::same_run::enter_specialized(self, class);
     }
 
+    /// The lazy value of a class whose `$lzyINIT` method is `init`.
+    pub fn lazy_accessor_of(&self, init: SymbolId) -> Option<SymbolId> {
+        self.lazy_members.iter().find(|(_, m)| m.init == init).map(|(&a, _)| a)
+    }
+
     /// Whether `t` was inlined from another source and given the span of the inline call.
     pub fn is_from_other_source(&self, t: TNodeId) -> bool {
         self.own_spans.contains_key(&t)
