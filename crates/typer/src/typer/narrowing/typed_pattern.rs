@@ -10,6 +10,7 @@ use super::super::gadt::{current_bounds, plain_type_ref};
 use super::bounded::{refines_invariantly, without_variant_args};
 use super::constrain::constrain_pattern;
 use super::order::ordered_bound_type;
+use super::pattern_type::constrain_pattern_type;
 use super::vars::narrow;
 use super::{GadtVar, Narrowing};
 use tasty::{SymbolId, Type, TypeId, TypeVars, Universe};
@@ -18,6 +19,11 @@ impl Narrowing {
     /// Narrows the GADT bounds by type pattern `pat` against `sel` where it does not conform to
     /// `sel` otherwise (dotty's `constrainPatternType` in `typedTyped`).
     pub fn by_type_pattern(&self, t: &mut Typer, pat: TypeId, sel: TypeId) {
+        if t.gadt.first_order(t.u, (pat, sel), self.ctx) {
+            t.gadt.register(t.u, self.ctx);
+            constrain_pattern_type(t, pat, sel);
+            return;
+        }
         let mark = t.constraint.mark();
         if constrain_pattern(t, pat, sel) == Ok(true) {
             t.constraint.rollback(mark);

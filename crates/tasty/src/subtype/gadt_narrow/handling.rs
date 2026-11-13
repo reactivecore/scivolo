@@ -10,7 +10,7 @@ use crate::{NOTHING, SymbolId, TypeId, Unification};
 impl Cmp<'_> {
     /// Adds `bound` to registered `p` and to the symbols above it (a lower bound) or below it
     /// (an upper bound); false for a by-name bound (dotty's `addBoundTransitively`).
-    pub(super) fn add_bound_transitively(&mut self, p: SymbolId, bound: TypeId, upper: bool) -> bool {
+    pub fn add_bound_transitively(&mut self, p: SymbolId, bound: TypeId, upper: bool) -> bool {
         if self.has_by_name_operand(bound) {
             return false;
         }
@@ -29,7 +29,7 @@ impl Cmp<'_> {
 
     /// Narrows one bound of registered `p` by `bound`, made an instance where both bounds
     /// become equal; false if the bounds become empty (dotty's `addOneBound`).
-    fn add_one_bound(&mut self, p: SymbolId, bound: TypeId, upper: bool) -> bool {
+    pub fn add_one_bound(&mut self, p: SymbolId, bound: TypeId, upper: bool) -> bool {
         let Some(&crate::GadtEntry { lo, hi, instance: None, .. }) = self.u.gadt().entry(p) else {
             return true;
         };
@@ -91,7 +91,7 @@ impl Cmp<'_> {
 
     /// Orders `p1` below `p2`, unifying them if `p2` is below `p1`, and propagates the bounds
     /// (dotty's `addLess`).
-    pub(super) fn add_less(&mut self, p1: SymbolId, p2: SymbolId) -> bool {
+    pub fn add_less(&mut self, p1: SymbolId, p2: SymbolId) -> bool {
         if self.u.gadt().is_less(p2, p1) {
             return self.unify(p2, p1);
         }

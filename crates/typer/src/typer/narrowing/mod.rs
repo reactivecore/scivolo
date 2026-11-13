@@ -1,9 +1,11 @@
 mod bounded;
 mod constrain;
 mod order;
+mod pattern_type;
 mod tuples;
 mod typed_pattern;
 mod upcast;
+mod upcasted;
 mod vars;
 
 use super::{Pt, Typer};

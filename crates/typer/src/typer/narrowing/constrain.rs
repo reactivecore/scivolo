@@ -77,13 +77,13 @@ fn constrain_operand(t: &mut Typer, pat: TypeId, sel: TypeId) -> Result<bool, &'
 }
 
 /// Lists the bounds of `vars`, both an instance if a variable has one.
-fn var_bounds(constraint: &Constraint, vars: &[VarId]) -> Vec<(TypeId, TypeId)> {
+pub fn var_bounds(constraint: &Constraint, vars: &[VarId]) -> Vec<(TypeId, TypeId)> {
     vars.iter().map(|&v| constraint.instance(v).map_or_else(|| constraint.bounds(v), |t| (t, t))).collect()
 }
 
 /// Tells whether the bounds `c1` lie within the bounds `c2`: always if `c2` is `pre`, never if only
 /// `c1` is (dotty's `subsumes`).
-fn subsumes(
+pub fn subsumes(
     u: &mut Universe,
     c1: &[(TypeId, TypeId)],
     c2: &[(TypeId, TypeId)],

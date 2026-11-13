@@ -86,6 +86,7 @@ mod gadt;
 mod gadt_cases;
 mod gadt_cast;
 mod gadt_full_bounds;
+mod gadt_register;
 mod generic_arrays;
 mod harmonize;
 mod ident_hint;

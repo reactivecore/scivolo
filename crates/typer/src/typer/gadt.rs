@@ -71,6 +71,19 @@ impl Gadt {
         params.into_iter().filter(|&s| self.is_symbol(u, s, ctx)).collect()
     }
 
+    /// Tells whether selector type `sel` has type parameters a case may narrow, and those of
+    /// `sel` and pattern type `pat` all take no type arguments (ADR 0119's subset).
+    pub fn first_order(&self, u: &mut Universe, (pat, sel): (TypeId, TypeId), ctx: Ctx) -> bool {
+        let (mut in_pat, mut in_sel) = (Vec::new(), Vec::new());
+        let ok = self.cases > 0 && self.first_order_params(u, pat, &mut in_pat) && self.first_order_params(u, sel, &mut in_sel);
+        in_sel.retain(|&s| self.is_symbol(u, s, ctx));
+        ok && !in_sel.is_empty()
+            && in_pat.into_iter().chain(in_sel).all(|s| {
+                let info = u.info(s);
+                u.bounds(info).is_some_and(|(_, hi)| u.lambda(hi).is_none())
+            })
+    }
+
     /// Extends `syms` by the narrowable type parameters of pattern type `pat`, of its base type at
     /// class `base`, and those the bounds of each refer to, transitively (dotty's GADT constraint
     /// relating its symbols).

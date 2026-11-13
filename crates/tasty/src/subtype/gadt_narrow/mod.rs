@@ -5,8 +5,8 @@
 
 mod handling;
 
-use super::Cmp;
-use crate::{NOTHING, SymbolId, TypeId};
+use super::{Cmp, NoVars};
+use crate::{NOTHING, Registered, SymbolId, TypeId, Universe};
 
 /// Which bounds of an abstract type a comparison was reached through: a bound found that way is
 /// imprecise and narrows nothing (dotty's `ApproxState`).
@@ -16,6 +16,23 @@ pub struct Approx {
     pub low: bool,
     /// Reached through a lower bound on the right.
     pub high: bool,
+}
+
+impl Universe {
+    /// Registers `syms` at scope nesting `level` and narrows the symbols each is ordered with by
+    /// its bounds; false if that empties a bound (dotty's `GadtState.addToConstraint`).
+    pub fn gadt_register(&mut self, syms: &[Registered], level: u32) -> bool {
+        self.gadt_add(syms, level);
+        let mut no_vars = NoVars;
+        let mut c = Cmp::new(self, &mut no_vars);
+        c.gadt_mode = true;
+        syms.iter().all(|r| {
+            let Some((lo, hi)) = c.u.gadt().bounds(r.sym) else { return true };
+            let (lower, upper) = (c.u.gadt().lower(r.sym).to_vec(), c.u.gadt().upper(r.sym).to_vec());
+            lower.into_iter().all(|p| c.add_one_bound(p, hi, true))
+                && upper.into_iter().all(|p| c.add_one_bound(p, lo, false))
+        })
+    }
 }
 
 impl Cmp<'_> {
@@ -110,6 +127,7 @@ impl Cmp<'_> {
             None => self.add_bound_transitively(s, internal, upper),
         };
         if self.u.gadt().mark() != mark {
+            self.u.gadt_mut().mark_narrowed_since(mark);
             self.u.gadt_mut().set_narrowing();
         }
         result

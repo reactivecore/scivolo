@@ -39,6 +39,8 @@ pub struct Entry {
     pub upper: Vec<SymbolId>,
     /// The scope nesting level the symbol was registered at; `unify` keeps the shallower.
     pub level: u32,
+    /// Whether a comparison changed the entry since the symbol was registered.
+    pub narrowed: bool,
 }
 
 /// One change to undo.
@@ -169,6 +171,23 @@ impl GadtConstraint {
         self.entries.iter().position(|&(e, _)| e == s)
     }
 
+    /// Marks the entries changed since `m` as narrowed.
+    pub fn mark_narrowed_since(&mut self, m: Mark) {
+        let mut changed: Vec<usize> = self.log[m.0..]
+            .iter()
+            .filter_map(|u| match u {
+                Undo::Changed(i, _) => Some(*i),
+                _ => None,
+            })
+            .collect();
+        changed.sort_unstable();
+        changed.dedup();
+        for i in changed {
+            let s = self.entries[i].0;
+            self.modify(s, |e| e.narrowed = true);
+        }
+    }
+
     /// Changes the entry of registered `s` by `f`.
     fn modify(&mut self, s: SymbolId, f: impl FnOnce(&mut Entry)) {
         let Some(mut e) = self.entry(s).cloned() else { return };
@@ -203,14 +222,28 @@ impl Universe {
         self.intern_type(Type::Sym(prefix, s))
     }
 
-    /// Whether any symbol has GADT bounds.
+    /// Whether a comparison narrowed a symbol.
     pub fn has_gadt_bounds(&self) -> bool {
-        !self.gadt().is_empty()
+        self.gadt().entries.iter().any(|(_, e)| e.narrowed)
     }
 
-    /// The GADT bounds of `sym`, if it is registered.
-    pub fn gadt_bounds(&self, sym: SymbolId) -> Option<(TypeId, TypeId)> {
-        self.gadt().bounds(sym)
+    /// Gives the GADT bounds of `sym` if a comparison narrowed it, with the symbols it is
+    /// ordered with (dotty's `fullBounds`).
+    pub fn gadt_bounds(&mut self, sym: SymbolId) -> Option<(TypeId, TypeId)> {
+        let e = self.gadt().entry(sym).filter(|e| e.narrowed)?;
+        if let Some(i) = e.instance {
+            return Some((i, i));
+        }
+        let (mut lo, mut hi) = (e.lo, e.hi);
+        for p in self.gadt().min_lower(sym) {
+            let r = self.gadt_ref(p);
+            lo = self.lub(lo, r);
+        }
+        for p in self.gadt().min_upper(sym) {
+            let r = self.gadt_ref(p);
+            hi = if hi == crate::ANY { r } else { self.glb(hi, r) };
+        }
+        Some((lo, hi))
     }
 
     /// Sets or removes the GADT bounds of `sym` as they are, unordered; the old ones.
@@ -222,7 +255,8 @@ impl Universe {
         let old = self.gadt_bounds(sym);
         match bounds {
             Some((lo, hi)) => {
-                let e = Entry { lo, hi, instance: None, lower: Vec::new(), upper: Vec::new(), level: 0 };
+                let (lower, upper) = (Vec::new(), Vec::new());
+                let e = Entry { lo, hi, instance: None, lower, upper, level: 0, narrowed: true };
                 self.gadt_mut().set_entry(sym, e);
             }
             None => self.gadt_mut().remove(sym),

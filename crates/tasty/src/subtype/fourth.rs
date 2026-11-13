@@ -64,10 +64,10 @@ impl Cmp<'_> {
     /// The GADT bounds of type parameter `t`, plain or seen from `this`, if it has some.
     pub fn gadt_bounds(&mut self, t: TypeId) -> Option<(TypeId, TypeId)> {
         match *self.u.ty(t) {
-            Type::Sym(None, s) => self.u.gadt_bounds(s),
+            Type::Sym(None, s) => self.u.gadt().bounds(s),
             Type::Sym(Some(p), s) => {
                 let c = self.u.this_of(p)?;
-                (self.u.class_symbol(c) == self.u.symbol(s).owner).then(|| self.u.gadt_bounds(s))?
+                (self.u.class_symbol(c) == self.u.symbol(s).owner).then(|| self.u.gadt().bounds(s))?
             }
             _ => None,
         }

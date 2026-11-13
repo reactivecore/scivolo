@@ -18,7 +18,8 @@ impl Universe {
     /// taken as an ordering (dotty's `OrderingConstraint.add` and `init`).
     pub fn gadt_add(&mut self, syms: &[Registered], level: u32) {
         for r in syms {
-            let e = Entry { lo: r.lo, hi: r.hi, instance: None, lower: Vec::new(), upper: Vec::new(), level };
+            let (lower, upper) = (Vec::new(), Vec::new());
+            let e = Entry { lo: r.lo, hi: r.hi, instance: None, lower, upper, level, narrowed: false };
             self.gadt_mut().set_entry(r.sym, e);
         }
         for r in syms {
