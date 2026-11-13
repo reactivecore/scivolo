@@ -39,9 +39,7 @@ impl Expansion<'_, '_> {
             }
             arg_tpe = seq;
         }
-        if let Err(what) = i.check_gadt_arg(arg, skolem.is_some()) {
-            return Err(self.err(what));
-        }
+        let skolem = i.gadt_arg_skolem(arg, skolem);
         let by_name = i.u.by_name(formal).is_some();
         let inline = i.u.symbol(p).flags.has(INLINE) || i.is_inline_param_type(formal);
         let mut widened = i.u.widen(arg_tpe);
@@ -86,6 +84,10 @@ impl Expansion<'_, '_> {
         };
         if let Some(sk) = skolem {
             rhs = i.cast(rhs, sk)?;
+            if let T::TypeApply { args, .. } = *i.tpd.tree(rhs) {
+                let tpt = i.tpd.items(args)[0];
+                i.tpd.get_mut(tpt).span = i.tpd.span(rhs).end_pos();
+            }
         }
         if bottom && inline {
             let at = i.tpd.span(rhs);
