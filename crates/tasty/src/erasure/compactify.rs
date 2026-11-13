@@ -28,3 +28,18 @@ pub fn compactify(s: &str) -> String {
     let md5: String = Md5::digest(s.as_bytes()).iter().map(|b| format!("{b:x}")).collect();
     format!("{prefix}{MARKER}{md5}{MARKER}{suffix}")
 }
+
+#[cfg(test)]
+mod tests {
+    use super::compactify;
+
+    #[test]
+    fn names_longer_than_234_characters_are_hashed() {
+        let a = "a".repeat(234);
+        assert_eq!(compactify(&a), a);
+        let umlauts = "ä".repeat(234);
+        assert_eq!(compactify(&umlauts), umlauts);
+        let hashed = format!("{}$$$$b1cb153b79c2e4af6a8431c265aa82d$$$${}", "a".repeat(58), "a".repeat(58));
+        assert_eq!(compactify(&"a".repeat(235)), hashed);
+    }
+}

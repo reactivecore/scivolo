@@ -93,3 +93,32 @@ impl Universe {
         in_scala2_class && !self.symbol(s).flags.has(INLINE) && !self.is_lifted(s)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{Erased, MatchDegree, ParamSig, Signature, match_degree};
+
+    #[test]
+    fn match_degrees_as_in_dotty() {
+        let int = || ParamSig::Param(Erased::Prim('i'));
+        let method = |params: Vec<ParamSig>, result: Erased| -> Signature { Some((params, result)) };
+        let f_int = method(vec![int()], Erased::Unit);
+        let f_int_object = method(vec![int()], Erased::object());
+        let f_long = method(vec![ParamSig::Param(Erased::Prim('j'))], Erased::Unit);
+        let poly = method(vec![ParamSig::TypeParams(1), int()], Erased::Unit);
+        let nullary = method(vec![], Erased::Unit);
+        let cases = [
+            (&f_int, &f_int, MatchDegree::Full),
+            (&f_int, &f_int_object, MatchDegree::Params),
+            (&f_int, &f_long, MatchDegree::No),
+            (&f_int, &poly, MatchDegree::No),
+            (&nullary, &None, MatchDegree::MethodNotAMethod),
+            (&None, &nullary, MatchDegree::MethodNotAMethod),
+            (&f_int, &None, MatchDegree::No),
+            (&None, &None, MatchDegree::Full),
+        ];
+        for (a, b, expected) in cases {
+            assert_eq!(match_degree(a, b), expected, "{a:?} and {b:?}");
+        }
+    }
+}
