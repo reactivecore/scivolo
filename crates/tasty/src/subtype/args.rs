@@ -18,7 +18,8 @@ impl Cmp<'_> {
         tparams: &[SymbolId],
     ) -> bool {
         let tparams = if tparams.len() == args2.len() { tparams } else { &[] };
-        args1.len() == args2.len()
+        let approx = std::mem::take(&mut self.approx);
+        let result = args1.len() == args2.len()
             && (0..args1.len()).all(|i| {
                 let variance = variances.get(i).copied().unwrap_or(0);
                 let wildcards =
@@ -28,7 +29,9 @@ impl Cmp<'_> {
                     _ => None,
                 };
                 self.sub_arg(args1[i], args2[i], variance, bounds)
-            })
+            });
+        self.approx = approx;
+        result
     }
 
     fn sub_arg(&mut self, x: TypeId, y: TypeId, variance: i8, bounds: Option<(TypeId, TypeId)>) -> bool {

@@ -17,16 +17,6 @@ pub fn plain_type_ref(u: &mut Universe, t: TypeId) -> Option<SymbolId> {
     (u.class_symbol(c) == u.symbol(s).owner).then_some(s)
 }
 
-/// Makes a reference to type `s`, a class's type parameter seen from `this`.
-pub fn gadt_ref(u: &mut Universe, s: SymbolId) -> TypeId {
-    let class = u.symbol(s).owner.filter(|&o| u.symbol(s).kind == Kind::TypeParam && u.is_class(o));
-    let prefix = class.map(|c| {
-        let class = u.intern_type(Type::Sym(None, c));
-        u.intern_type(Type::This(class))
-    });
-    u.intern_type(Type::Sym(prefix, s))
-}
-
 /// Gives the bounds of type `s`: those a case narrowed it to, else its declared ones.
 pub fn current_bounds(u: &mut Universe, s: SymbolId) -> Option<(TypeId, TypeId)> {
     if let Some(b) = u.gadt_bounds(s) {

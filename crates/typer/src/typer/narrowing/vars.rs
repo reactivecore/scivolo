@@ -5,7 +5,7 @@
 //! (dotty's `constrainPatternType` in `GadtConstraintInference` mode, `narrowGADTBounds`).
 
 use super::super::Typer;
-use super::super::gadt::{current_bounds, gadt_ref, plain_type_ref};
+use super::super::gadt::{current_bounds, plain_type_ref};
 use super::super::type_ops::TypeOps;
 use super::constrain::constrain_pattern;
 use super::order::{Narrowed, order};
@@ -107,7 +107,7 @@ impl Narrowing {
                 t.constraint.instantiate(f, ty);
                 narrowed[i].1 = fixed;
             }
-            let sym = gadt_ref(t.u, narrowed[i].0);
+            let sym = t.u.gadt_ref(narrowed[i].0);
             t.constraint.instantiate(p, sym);
         }
         Ok(Some(narrowed))
@@ -132,7 +132,7 @@ pub fn narrow(t: &mut Typer, vars: &[GadtVar]) -> Result<(), &'static str> {
     for &(s, v) in vars {
         let Some(id) = t.u.var(v) else { continue };
         if t.constraint.instance(id).is_none() {
-            let sym = gadt_ref(t.u, s);
+            let sym = t.u.gadt_ref(s);
             t.constraint.instantiate(id, sym);
         }
     }

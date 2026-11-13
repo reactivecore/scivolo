@@ -3,7 +3,7 @@
 //! The bounds a GADT approximation replaces a type by (dotty's `fullUpperBound`,
 //! `fullLowerBound`).
 
-use super::gadt::{current_bounds, gadt_ref, plain_type_ref};
+use super::gadt::{current_bounds, plain_type_ref};
 use super::gadt_cases::Gadt;
 use tasty::{SymbolId, Type, TypeId, Universe};
 
@@ -20,7 +20,7 @@ impl Gadt {
             seen.push(r);
             s = r;
         }
-        let own = gadt_ref(u, s);
+        let own = u.gadt_ref(s);
         let Some((lo, hi)) = current_bounds(u, s) else { return own };
         if variance < 0 {
             return lo;
@@ -30,7 +30,7 @@ impl Gadt {
             .narrowed()
             .into_iter()
             .find(|&n| !seen.contains(&n) && u.gadt_bounds(n).is_some_and(|(l, _)| l == own));
-        let above = above.map(|n| gadt_ref(u, n));
+        let above = above.map(|n| u.gadt_ref(n));
         match above {
             Some(a) if is_top(u, hi) || u.is_subtype(a, hi) => a,
             _ => hi,

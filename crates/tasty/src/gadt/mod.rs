@@ -11,7 +11,7 @@ pub use order::Unification;
 pub use update::Registered;
 
 use crate::subtype::Mark;
-use crate::{SymbolId, TypeId, Universe};
+use crate::{Kind, SymbolId, Type, TypeId, Universe};
 
 /// Holds the symbols a case may narrow with their bounds and ordering (dotty's
 /// `GadtConstraint` over an `OrderingConstraint`, keyed by symbol). Every change is logged so
@@ -51,9 +51,17 @@ enum Undo {
 }
 
 /// A state of the constraint that `redo` restores after a rollback.
+#[derive(Clone)]
 pub struct GadtChanges {
     entries: Vec<(SymbolId, Entry)>,
     narrowed: bool,
+}
+
+impl GadtChanges {
+    /// Gets the entry of `s` in the captured state.
+    pub fn entry(&self, s: SymbolId) -> Option<&Entry> {
+        self.entries.iter().find(|&&(e, _)| e == s).map(|(_, e)| e)
+    }
 }
 
 impl GadtConstraint {
@@ -182,6 +190,17 @@ impl Universe {
             (self.class_symbol(c) == self.symbol(s).owner).then_some(())?;
         }
         self.gadt().contains(s).then_some(s)
+    }
+
+    /// Makes a reference to type `s`, a class's type parameter seen from `this`.
+    pub fn gadt_ref(&mut self, s: SymbolId) -> TypeId {
+        let of_class =
+            self.symbol(s).owner.filter(|&o| self.symbol(s).kind == Kind::TypeParam && self.is_class(o));
+        let prefix = of_class.map(|c| {
+            let class = self.intern_type(Type::Sym(None, c));
+            self.intern_type(Type::This(class))
+        });
+        self.intern_type(Type::Sym(prefix, s))
     }
 
     /// Whether any symbol has GADT bounds.

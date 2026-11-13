@@ -145,8 +145,8 @@ impl Cmp<'_> {
     pub fn third_try_named(&mut self, a: TypeId, b: TypeId, n2: Named) -> bool {
         match n2.meaning {
             Meaning::Abstract(lo, _) => {
-                lo != NOTHING && self.recur(a, lo)
-                    || self.gadt_bounds(b).is_some_and(|(glo, _)| glo != NOTHING && self.recur_frozen(a, glo))
+                lo != NOTHING && self.recur_approx(a, lo, false)
+                    || self.gadt_above(a, b)
                     || self.lifted_right(a, b)
                     || self.fourth_try(a, b)
             }

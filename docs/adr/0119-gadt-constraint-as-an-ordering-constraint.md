@@ -32,6 +32,18 @@ inside the comparer (`narrowGADTBounds`), after ordinary type variables.
   `typedDefDef` (the closure of a polymorphic function value likewise), a pattern-bound type at
   `typedBind`, the binders of `maximizeType` all at once.
 
+- The comparer narrows the store only in GADT mode (`Universe::constrain_gadt_in`, necessary
+  constraints only): `third_try_named` adds a lower bound or an ordering to the right-hand
+  symbol, `fourth_try` an upper bound to the left-hand one, through `addBound`, `addLess`,
+  `unify`, `addBoundTransitively` and `addOneBound` as dotty's `GadtState`. A failed bound
+  rolls the store back; `necessaryEither` keeps the GADT state of the subsumed branch or none,
+  `sufficientEither` leaves it alone, as dotty.
+- A bound reached through another abstract type's bounds narrows nothing (`ApproxState`); the
+  state is reset per type argument, where dotty starts a fresh `isSubType`.
+- `unify` gives the kept symbol both bounds without dotty's `validBoundsFor` and
+  `LevelAvoidMap`: GADT bounds hold no type variables of deeper levels and, the symbol being
+  keyed, no internal references to it. Difference case 2.
+
 ## Consequences
 - The read-back rules of ADRs 0090, 0092, 0096 and 0109 go as the comparer narrows the store;
   each refusal they list is dropped only with a golden typed test of dotty's tree.

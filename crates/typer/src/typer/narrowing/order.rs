@@ -2,7 +2,7 @@
 //   compiler/src/dotty/tools/dotc/core/ConstraintHandling.scala
 //! The ordering between GADT-narrowed type parameters, kept on both sides (dotty's `addLess`).
 
-use super::super::gadt::{current_bounds, gadt_ref, plain_type_ref};
+use super::super::gadt::{current_bounds, plain_type_ref};
 use super::super::gadt_full_bounds::is_top;
 use tasty::{SymbolId, Type, TypeId, Universe};
 
@@ -75,7 +75,7 @@ fn add_bound(u: &mut Universe, narrowed: &mut Vec<Narrowed>, r: SymbolId, s: Sym
     if lo == hi {
         return;
     }
-    let own = gadt_ref(u, s);
+    let own = u.gadt_ref(s);
     let mut parts = Vec::new();
     operands(u, if upper { hi } else { lo }, upper, &mut parts);
     if parts.iter().any(|&p| plain_type_ref(u, p) == Some(s)) {

@@ -14,6 +14,7 @@ mod either;
 mod eta;
 mod first;
 mod fourth;
+mod gadt_narrow;
 mod glb;
 mod hk;
 mod join;
@@ -104,6 +105,23 @@ impl Universe {
         result
     }
 
+    /// Like `is_necessary_subtype_in`, narrowing the GADT bounds of the symbols registered in
+    /// the GADT constraint where the comparison needs it (dotty's comparison in
+    /// `Mode.GadtConstraintInference`); a failed comparison leaves `vars` and the GADT constraint
+    /// as they were.
+    pub fn constrain_gadt_in(&mut self, a: TypeId, b: TypeId, vars: &mut dyn TypeVars) -> bool {
+        let (mark, gadt_mark) = (vars.mark(), self.gadt().mark());
+        let mut c = Cmp::new(self, vars);
+        (c.necessary, c.gadt_mode) = (true, true);
+        let result = c.recur(a, b);
+        drop(c);
+        if !result {
+            vars.rollback(mark);
+            self.gadt_mut().rollback(gadt_mark);
+        }
+        result
+    }
+
     /// Whether `a` and `b` are subtypes of each other under `vars`, unchanged if they are not.
     pub fn is_same_type_in(&mut self, a: TypeId, b: TypeId, vars: &mut dyn TypeVars) -> bool {
         let mark = vars.mark();
@@ -142,6 +160,12 @@ pub struct Cmp<'a> {
     reductions: u32,
     /// The match types being normalized, outermost first.
     normalizing: Vec<TypeId>,
+    /// Whether the comparison narrows the GADT constraint (dotty's `GadtConstraintInference`).
+    gadt_mode: bool,
+    /// Whether the GADT constraint may only be consulted (dotty's `frozenGadt`).
+    frozen_gadt: bool,
+    /// Which bounds of an abstract type the current pair was reached through (dotty's `approx`).
+    approx: gadt_narrow::Approx,
 }
 
 /// How many steps computing atoms and `Nothing`-ness may take in one comparison.
@@ -161,6 +185,9 @@ impl<'a> Cmp<'a> {
             walk: walk::Walk::default(),
             reductions: 0,
             normalizing: Vec::new(),
+            gadt_mode: false,
+            frozen_gadt: false,
+            approx: gadt_narrow::Approx::default(),
         }
     }
 

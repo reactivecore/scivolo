@@ -28,7 +28,7 @@ impl Cmp<'_> {
                         },
                         None => have,
                     };
-                    if self.info_conforms(have, info) {
+                    if self.sub_info(a, have, info) {
                         return true;
                     }
                     if self.u.bounds(have).is_none() {
@@ -65,10 +65,19 @@ impl Cmp<'_> {
         };
         members.into_iter().any(|m| {
             let have = self.u.member_info(site, m);
-            self.info_conforms(have, info)
+            self.sub_info(a, have, info)
                 || self.abstract_member_matches(a, m, have, info)
                 || self.stable_member_matches(a, m, info)
         })
+    }
+
+    /// `info_conforms` for a member of `a`, the GADT constraint frozen if `a` is a singleton
+    /// (dotty's `isSubInfo` in `hasMatchingMember`).
+    fn sub_info(&mut self, a: TypeId, have: TypeId, want: TypeId) -> bool {
+        match self.is_singleton(a) {
+            true => self.in_frozen_gadt(|c| c.info_conforms(have, want)),
+            false => self.info_conforms(have, want),
+        }
     }
 
     /// The intersection of type bounds `x` and `y` (dotty's `TypeBounds.&`).

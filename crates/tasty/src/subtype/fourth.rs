@@ -23,9 +23,7 @@ impl Cmp<'_> {
         match *self.u.ty(a) {
             Type::TypeRef(..) | Type::TermRef(..) | Type::Sym(..) => match self.named(a).map(|n| n.meaning) {
                 Some(Meaning::Abstract(_, hi)) => {
-                    self.recur(hi, b)
-                        || self.gadt_bounds(a).is_some_and(|(_, ghi)| self.recur_frozen(ghi, b))
-                        || self.lifted_left(a, b)
+                    self.recur_approx(hi, b, true) || self.gadt_below(a, b) || self.lifted_left(a, b)
                 }
                 Some(Meaning::Class(c)) if c == self.u.defn().nothing => self.is_value_type(b),
                 Some(Meaning::Class(c)) if c == self.u.defn().null => self.nullable(b),

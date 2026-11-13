@@ -5,7 +5,6 @@
 //! extractor's type arguments (`addBinders`).
 
 use super::Typer;
-use super::gadt::gadt_ref;
 use super::narrowing::GadtVar;
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
@@ -83,7 +82,7 @@ impl Typer<'_> {
             if !and_parts(self.u, hi).contains(&var) {
                 continue;
             }
-            let below = gadt_ref(self.u, g);
+            let below = self.u.gadt_ref(g);
             lo = self.u.lub(lo, below);
         }
         lo
