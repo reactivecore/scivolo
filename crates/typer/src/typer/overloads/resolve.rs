@@ -2,10 +2,10 @@
 //   compiler/src/dotty/tools/dotc/typer/Applications.scala
 //   compiler/src/dotty/tools/dotc/typer/ProtoTypes.scala
 //! Choosing among overloaded alternatives by their arguments (dotty's `resolveOverloaded`,
-//! `compare`, `adaptByResult`).
+//! `compare`).
 
 use super::named::applicable_to_proto;
-use super::{AMBIGUOUS, NO_APPLICABLE, Resolution, UNDECIDED, UNDECIDED_RESULT, Unchosen, applicability};
+use super::{AMBIGUOUS, NO_APPLICABLE, Resolution, UNDECIDED, Unchosen, applicability};
 use crate::ctx::Ctx;
 use crate::typer::type_ops::TypeOps;
 use crate::typer::{Pt, Typer};
@@ -145,39 +145,6 @@ impl Resolution {
             1 => i32::from(wins_a || !wins_b),
             -1 => -i32::from(wins_b || !wins_a),
             _ => i32::from(wins_a && !wins_b) - i32::from(wins_b && !wins_a),
-        })
-    }
-
-    /// Gives `chosen`, or if its result does not conform to the expected result type of
-    /// `proto`, the one alternative of `alts` whose result does, or the one resolution picks
-    /// among them (dotty's `adaptByResult`); `chosen` if its result is not compared with it,
-    /// refused if another's result is not.
-    pub fn adapted_by_result(
-        self,
-        t: &mut Typer,
-        chosen: SymbolId,
-        alts: &[SymbolId],
-        proto: usize,
-    ) -> Result<SymbolId, Unchosen> {
-        let (Pt::Type(pt), ctx) = (t.protos[proto].pt, t.protos[proto].ctx) else { return Ok(chosen) };
-        if t.result_conforms(chosen, self.prefix, pt, (true, ctx)) != Some(false) {
-            return Ok(chosen);
-        }
-        let mut conforming = Vec::new();
-        for &a in alts.iter().filter(|&&a| a != chosen) {
-            match t.result_conforms(a, self.prefix, pt, (true, ctx)) {
-                Some(true) => conforming.push(a),
-                Some(false) => {}
-                None => return Err(UNDECIDED_RESULT.into()),
-            }
-        }
-        Ok(match conforming[..] {
-            [] => chosen,
-            [alt] => alt,
-            _ => match self.resolve_overloaded(t, &conforming, proto) {
-                Ok(alt) => self.adapted_by_result(t, alt, &conforming, proto)?,
-                Err(_) => chosen,
-            },
         })
     }
 }

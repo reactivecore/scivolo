@@ -6,6 +6,7 @@
 mod alternatives;
 mod applicability;
 mod applies;
+mod by_result;
 mod compatible;
 mod errors;
 mod mapped;
