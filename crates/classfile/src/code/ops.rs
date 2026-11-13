@@ -79,6 +79,7 @@ impl Code {
     /// increments.
     pub fn iinc(&mut self, slot: u16, by: i32) -> Option<()> {
         let by = i16::try_from(by).ok()?;
+        self.max_locals = self.max_locals.max(slot.saturating_add(1));
         match (u8::try_from(slot), i8::try_from(by)) {
             (Ok(slot), Ok(by)) => self.op(0x84, &[slot, by as u8], 0),
             _ => {

@@ -53,4 +53,38 @@ mod tests {
         assert!(!decode(&encode(&[0xd800])).1);
         assert!(!decode(&[0xc0]).1);
     }
+
+    #[test]
+    fn units_take_one_two_or_three_bytes() {
+        let cases: [(u16, &[u8]); 8] = [
+            (0x01, &[0x01]),
+            (0x7f, &[0x7f]),
+            (0x00, &[0xc0, 0x80]),
+            (0x80, &[0xc2, 0x80]),
+            (0x7ff, &[0xdf, 0xbf]),
+            (0x800, &[0xe0, 0xa0, 0x80]),
+            (0xd83d, &[0xed, 0xa0, 0xbd]),
+            (0xffff, &[0xef, 0xbf, 0xbf]),
+        ];
+        for (unit, bytes) in cases {
+            assert_eq!(encode(&[unit]), bytes, "{unit:#x}");
+        }
+    }
+
+    #[test]
+    fn every_character_round_trips() {
+        let text: String = (0..=0x10ffff).step_by(7).filter_map(char::from_u32).chain(['\0', '😀']).collect();
+        let units: Vec<u16> = text.encode_utf16().collect();
+        assert_eq!(decode(&encode(&units)), (text, true));
+    }
+
+    #[test]
+    fn malformed_bytes_and_lone_surrogates_are_not_exact() {
+        let cases: [&[u8]; 5] =
+            [&[0], &[0xf0, 0x9f, 0x98, 0x80], &[0xe0, 0xa0], &[0x80], &[0xed, 0xb8, 0x80, 0x61]];
+        for bytes in cases {
+            assert!(!decode(bytes).1, "{bytes:x?}");
+        }
+        assert_eq!(decode(&[0xed, 0xa0, 0xbd, 0x61]), ("\u{fffd}a".to_owned(), false));
+    }
 }
