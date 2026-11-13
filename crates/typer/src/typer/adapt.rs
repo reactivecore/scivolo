@@ -140,7 +140,7 @@ impl Typer<'_> {
         }
         match self.converted(tree, Goal::Conform(pt), ctx) {
             Ok(Some(converted)) => converted,
-            Ok(None) if self.defined_further(tpe, pt) => tree,
+            Ok(None) if self.defined_further(tpe, pt) => self.gadt_adapted_in(tree, pt),
             Ok(None) if let Some(defined) = self.defined_fail_bottom(pt) => {
                 self.adapt(tree, Pt::Type(defined), ctx)
             }
