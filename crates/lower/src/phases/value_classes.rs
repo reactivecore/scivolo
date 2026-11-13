@@ -48,6 +48,9 @@ fn at_receiver(l: &Lower, span: Span, receiver: TNodeId) -> Span {
 /// Makes `t`, a call or selection of a value class method in `owner`, call its extension method.
 fn rewire(l: &mut Lower, t: TNodeId, owner: SymbolId) -> Result<()> {
     let Some(tpe) = l.tpd.get(t).tpe else { return Ok(()) };
+    if !matches!(l.tpd.tree(l.tpd.meth_part(t)), Tree::Select { .. }) {
+        return Ok(());
+    }
     let widened = l.u.widen(tpe);
     if matches!(l.u.ty(widened), Type::Method { .. } | Type::Poly { .. }) {
         return Ok(());

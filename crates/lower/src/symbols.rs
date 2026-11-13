@@ -26,6 +26,15 @@ pub fn is_erased(u: &Universe, s: SymbolId) -> bool {
             && (u.full_name_starts_with(s, "scala.compiletime.") || u.full_name_starts_with(s, "scala.caps."))
 }
 
+/// Whether methods `a` and `b` have the same `Universe::erased_method`, compared in its memo where
+/// both are there.
+pub fn same_erasure(u: &mut Universe, a: SymbolId, b: SymbolId) -> bool {
+    if let (Some(x), Some(y)) = (u.erased_memo(a, false), u.erased_memo(b, false)) {
+        return x == y;
+    }
+    u.erased_method(a) == u.erased_method(b)
+}
+
 /// Whether `tpe` is the type of a single value or an object's class, which `null` does not
 /// conform to (dotty's `isNullableClass`).
 pub fn is_singleton(u: &mut Universe, tpe: tasty::TypeId) -> bool {

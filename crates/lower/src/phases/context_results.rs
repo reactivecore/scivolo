@@ -62,17 +62,11 @@ pub fn transform(l: &mut Lower, root: TNodeId) -> Result<()> {
         super::erased_context_results::rename_direct(l, m, info);
         flattened.push(Flattened { m, clauses, depth });
     }
-    let mut calls = Vec::new();
-    for t in subtrees(l.tpd, root) {
-        if let Some(call) = flat_call(l, t, &flattened) {
-            calls.push(call);
-        }
-    }
+    let calls: Vec<_> = match flattened.is_empty() {
+        true => Vec::new(),
+        false => subtrees(l.tpd, root).into_iter().filter_map(|t| flat_call(l, t, &flattened)).collect(),
+    };
     let mut handled: FxHashSet<TNodeId> = inline_rhss.into_iter().flat_map(|r| subtrees(l.tpd, r)).collect();
-    handled.extend(subtrees(l.tpd, root).into_iter().filter_map(|t| match *l.tpd.tree(t) {
-        Tree::Return { from, .. } => Some(from),
-        _ => None,
-    }));
     for (applies, r) in calls {
         handled.insert(r);
         for a in applies {
@@ -82,6 +76,9 @@ pub fn transform(l: &mut Lower, root: TNodeId) -> Result<()> {
         }
     }
     for t in subtrees(l.tpd, root) {
+        if let Tree::Return { from, .. } = *l.tpd.tree(t) {
+            handled.insert(from);
+        }
         if !matches!(l.tpd.tree(t), Tree::Ident { .. } | Tree::Select { .. }) || handled.contains(&t) {
             continue;
         }
