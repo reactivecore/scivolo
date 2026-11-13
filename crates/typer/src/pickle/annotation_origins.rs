@@ -60,19 +60,27 @@ impl AnnotationOrigins {
     /// where all its branches but those of type `Nothing` give the same tree.
     pub fn of_type_tree(&self, tpd: &Tpd, tpt: TNodeId, annotated: TypeId) -> Option<TNodeId> {
         match *tpd.tree(tpt) {
-            T::TypeTree { inferred: false } => self.derived(tpd, tpt, annotated),
+            T::TypeTree { inferred: false } => self.derived(tpd, tpt, |t, _| t == annotated),
             _ => self.of_tpt(tpd, tpt, annotated, MAX_HOPS),
         }
     }
 
-    /// The one annotated type tree of type `annotated` within the span of type tree `tpt`.
-    fn derived(&self, tpd: &Tpd, tpt: TNodeId, annotated: TypeId) -> Option<TNodeId> {
+    /// The one annotation tree within the span of type tree `tpt` whose annotated type and tree
+    /// `matching` holds of.
+    fn derived(
+        &self,
+        tpd: &Tpd,
+        tpt: TNodeId,
+        matching: impl Fn(TypeId, TNodeId) -> bool,
+    ) -> Option<TNodeId> {
         let span = tpd.span(tpt);
         if !span.exists() || span.start() == span.end() {
             return None;
         }
         let mut annots = (self.annotated_at.iter())
-            .filter(|&&(start, end, t, _)| t == annotated && start >= span.start() && end <= span.end())
+            .filter(|&&(start, end, t, annot)| {
+                start >= span.start() && end <= span.end() && matching(t, annot)
+            })
             .map(|&(.., annot)| annot);
         let first = annots.next()?;
         annots.all(|a| a == first).then_some(first)
@@ -87,7 +95,9 @@ impl AnnotationOrigins {
             T::TypeTree { inferred: true } => {
                 self.of_rhs(tpd, *self.rhs_of.get(&tpt)?, annotated, hops.checked_sub(1)?)
             }
-            T::TypeTree { inferred: false } => self.derived(tpd, tpt, annotated),
+            T::TypeTree { inferred: false } => {
+                self.derived(tpd, tpt, |t, _| t == annotated).or_else(|| tpd.tpt_annotation(tpt))
+            }
             _ => tpd.tpt_annotation(tpt),
         }
     }

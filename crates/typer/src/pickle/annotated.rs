@@ -20,8 +20,7 @@ impl TreePickler<'_> {
         let tree = match self.tpt_annotation(annotated) {
             Some(tree) => Some(tree),
             None => match self.tpd.type_annotation(annotated) {
-                Some(None) => match self.origin_annotation(annotated).inspect(|_| self.keyed_by_place = true)
-                {
+                Some(None) => match self.origin_annotation(annotated) {
                     Some(tree) => Some(tree),
                     None => return Err("an annotated type of several annotation trees"),
                 },
@@ -57,11 +56,14 @@ impl TreePickler<'_> {
     }
 
     /// The annotation tree of `annotated`, part of the type of the type tree pickled, that the
-    /// type tree it derives from or the right-hand side it is inferred from gave.
+    /// type tree it derives from or the right-hand side it is inferred from gave; marks the type
+    /// keyed as told by its place.
     fn origin_annotation(&mut self, annotated: TypeId) -> Option<TNodeId> {
         let tpt = self.type_tree?;
         let origins = self.origins.get_or_insert_with(|| AnnotationOrigins::new(self.tpd, self.root));
-        origins.of_type_tree(self.tpd, tpt, annotated)
+        let tree = origins.of_type_tree(self.tpd, tpt, annotated)?;
+        self.keyed_by_place = true;
+        Some(tree)
     }
 
     /// The annotation tree of type tree `tpt`, if an annotated expression or type gave its type.
