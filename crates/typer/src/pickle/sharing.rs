@@ -29,18 +29,18 @@ impl TreePickler<'_> {
     /// What identifies type `t` as dotty shares types: its bytes without sharing, the `this` of a
     /// package told from the package's reference, definitions and names by identity.
     fn key(&mut self, t: TypeId, rich: bool) -> Result<Vec<u8>, Refusal> {
-        let own_tree = self.tpt_annotation(t).is_some() || self.tpd.type_annotation(t) == Some(None);
+        let own_tree = self.tpt_annotation(t).is_some();
         if let Some(k) = self.keys.get(&t).filter(|_| !own_tree) {
             return Ok(k.clone());
         }
         let (buf, binders) = (std::mem::take(&mut self.buf), self.binders.clone());
-        self.keying = true;
+        (self.keying, self.keyed_by_place) = (true, false);
         let pickled = self.new_type(t, rich, Addr(0));
         self.keying = false;
         let scratch = std::mem::replace(&mut self.buf, buf);
         self.binders = binders;
         pickled?;
-        if !own_tree {
+        if !own_tree && !self.keyed_by_place {
             self.keys.insert(t, scratch.buf.bytes.clone());
         }
         Ok(scratch.buf.bytes)

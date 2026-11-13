@@ -106,6 +106,8 @@ pub struct TreePickler<'a> {
     root: TNodeId,
     /// The definitions of `root`, collected at the first inferred type of several annotation trees.
     origins: Option<annotation_origins::AnnotationOrigins>,
+    /// Whether the type keyed has an annotation tree told by the type tree pickled.
+    keyed_by_place: bool,
 }
 
 /// The TASTy of quote `root`, `holes` its term holes, without positions (dotty's `pickleQuote`).
@@ -174,6 +176,7 @@ fn pickle<'a>(
         type_annots: Vec::new(),
         root,
         origins: None,
+        keyed_by_place: false,
     };
     p.tree(root)?;
     if !p.forward.is_empty() {

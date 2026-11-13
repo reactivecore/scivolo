@@ -5,25 +5,35 @@
 
 use crate::tpd::{TNodeId, Tpd, Tree as T};
 use rustc_hash::FxHashMap;
+use syntax::source::Offset;
 use tasty::{SymbolId, TypeId};
 
 /// The most definitions with inferred types an annotated type is traced back through.
 const MAX_HOPS: usize = 64;
 
-/// The definitions of a tree pickled: the type tree of each, and the right-hand side of each
-/// inferred type tree.
+/// The definitions of a tree pickled: the type tree of each, the right-hand side of each
+/// inferred type tree, and the annotation of each annotated type tree by its span and type.
 pub struct AnnotationOrigins {
     tpts: FxHashMap<SymbolId, TNodeId>,
     rhs_of: FxHashMap<TNodeId, TNodeId>,
+    annotated_at: Vec<(Offset, Offset, TypeId, TNodeId)>,
 }
 
 impl AnnotationOrigins {
-    /// Collects the definitions and pattern variables in `root`.
+    /// Collects the definitions, pattern variables and annotated type trees in `root`.
     pub fn new(tpd: &Tpd, root: TNodeId) -> Self {
-        let mut origins = AnnotationOrigins { tpts: FxHashMap::default(), rhs_of: FxHashMap::default() };
+        let mut origins = AnnotationOrigins {
+            tpts: FxHashMap::default(),
+            rhs_of: FxHashMap::default(),
+            annotated_at: Vec::new(),
+        };
         let mut stack = vec![root];
         while let Some(t) = stack.pop() {
             stack.extend(tpd.children(t));
+            if let (T::Annotated { annot, .. }, Some(tpe)) = (tpd.tree(t), tpd.get(t).tpe) {
+                let span = tpd.span(t);
+                origins.annotated_at.push((span.start(), span.end(), tpe, *annot));
+            }
             let (tpt, rhs) = match *tpd.tree(t) {
                 T::ValDef { tpt, rhs, .. } | T::DefDef { tpt, rhs, .. } => (tpt, rhs),
                 T::Bind { body, .. } => match *tpd.tree(body) {
@@ -42,12 +52,30 @@ impl AnnotationOrigins {
         origins
     }
 
-    /// The annotation tree of `annotated`, the type of inferred type tree `tpt`, where its
-    /// right-hand side ends in a type ascription or a reference to a definition or pattern
-    /// variable of this tree whose type tree gave it; a conditional or match only where all its
-    /// branches but those of type `Nothing` give the same tree.
-    pub fn of_inferred(&self, tpd: &Tpd, tpt: TNodeId, annotated: TypeId) -> Option<TNodeId> {
-        self.of_tpt(tpd, tpt, annotated, MAX_HOPS)
+    /// The annotation tree of `annotated`, a part of the type of type tree `tpt` pickled: of a
+    /// type tree derived from a written one (a parameter accessor's from its parameter's), the one
+    /// annotated type tree of the written one's span with that type; of an inferred type tree of
+    /// type `annotated`, the tree its right-hand side gives where it ends in a type ascription or
+    /// a reference to a definition or pattern variable of this tree, a conditional or match only
+    /// where all its branches but those of type `Nothing` give the same tree.
+    pub fn of_type_tree(&self, tpd: &Tpd, tpt: TNodeId, annotated: TypeId) -> Option<TNodeId> {
+        match *tpd.tree(tpt) {
+            T::TypeTree { inferred: false } => self.derived(tpd, tpt, annotated),
+            _ => self.of_tpt(tpd, tpt, annotated, MAX_HOPS),
+        }
+    }
+
+    /// The one annotated type tree of type `annotated` within the span of type tree `tpt`.
+    fn derived(&self, tpd: &Tpd, tpt: TNodeId, annotated: TypeId) -> Option<TNodeId> {
+        let span = tpd.span(tpt);
+        if !span.exists() || span.start() == span.end() {
+            return None;
+        }
+        let mut annots = (self.annotated_at.iter())
+            .filter(|&&(start, end, t, _)| t == annotated && start >= span.start() && end <= span.end())
+            .map(|&(.., annot)| annot);
+        let first = annots.next()?;
+        annots.all(|a| a == first).then_some(first)
     }
 
     fn of_tpt(&self, tpd: &Tpd, tpt: TNodeId, annotated: TypeId, hops: usize) -> Option<TNodeId> {
@@ -59,6 +87,7 @@ impl AnnotationOrigins {
             T::TypeTree { inferred: true } => {
                 self.of_rhs(tpd, *self.rhs_of.get(&tpt)?, annotated, hops.checked_sub(1)?)
             }
+            T::TypeTree { inferred: false } => self.derived(tpd, tpt, annotated),
             _ => tpd.tpt_annotation(tpt),
         }
     }
