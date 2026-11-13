@@ -15,12 +15,15 @@ trait Variant[+A, -B]
 class Bounded[A <: Comparable[A]]
 
 class Sigs[A] {
+  type Elem = A
+  type U = Unit
   val field: List[A] = Nil
   var count: Int = 0
   def plain(x: Int): String = ""
   def poly[B](b: B): B = b
   def shadow[A](a: A, outer: Sigs[A]): A = a
   def shadowBoth[A, A1](a: A, b: A1, outer: Sigs[A]): A1 = b
+  def shadowAlias[A](a: A, e: Elem): A = a
   def shadowInfer[A](a: A) = field
   def shadowInfer2[A, A1](a: A, b: A1) = (field, b)
   def byName(x: => A): A = x
@@ -31,6 +34,8 @@ class Sigs[A] {
   def meters(ms: List[Meter]): Option[Name] = None
   def intBound[B <: Int](b: B): B = b
   def unitBound[B <: Unit](b: B): B = b
+  def unitAliasBound[B <: U](b: B): B = b
+  def unitAlias(x: List[Int]): U = ()
   def meterBound[B <: Meter](b: B): B = b
   def hk[F[_]](f: F[Int]): F[String] = ???
   def hkBound[F[X] <: List[X]](f: F[A]): F[Int] = ???
@@ -47,6 +52,10 @@ class Sigs[A] {
   def anyRef(x: AnyRef, y: Any): Object = x
 }
 
+class IntBound[T <: Int](val t: T) {
+  def get: T = t
+}
+
 class Wrap[T](val t: List[T]) extends AnyVal {
   def pick[U](u: U): T = t.head
 }
@@ -59,7 +68,8 @@ class Impl extends Tr[String]
 class Sub extends Sigs[String] with HK[List] with Variant[Int, Unit]
 "#;
 
-/// The method signatures of `SOURCE` that dotty 3.9.0 writes: class, method, signature.
+/// The method signatures of `SOURCE` that dotty 3.9.0 writes: class, method, signature; but for
+/// upstream bugs 20 and 21 of `docs/conformance.md`.
 const METHODS: &[(&str, &str, Option<&str>)] = &[
     ("Sigs", "field", Some("()Lscala/collection/immutable/List<TA;>;")),
     ("Sigs", "count", None),
@@ -67,6 +77,7 @@ const METHODS: &[(&str, &str, Option<&str>)] = &[
     ("Sigs", "poly", Some("<B:Ljava/lang/Object;>(TB;)TB;")),
     ("Sigs", "shadow", Some("<A:Ljava/lang/Object;>(TA;Lsigs/Sigs<TA;>;)TA;")),
     ("Sigs", "shadowBoth", Some("<A:Ljava/lang/Object;A1:Ljava/lang/Object;>(TA;TA1;Lsigs/Sigs<TA;>;)TA1;")),
+    ("Sigs", "shadowAlias", Some("<A1:Ljava/lang/Object;>(TA1;TA;)TA1;")),
     ("Sigs", "shadowInfer", Some("<A1:Ljava/lang/Object;>(TA1;)Lscala/collection/immutable/List<TA;>;")),
     (
         "Sigs",
@@ -83,7 +94,9 @@ const METHODS: &[(&str, &str, Option<&str>)] = &[
     ("Sigs", "meter", None),
     ("Sigs", "meters", Some("(Lscala/collection/immutable/List<Lsigs/Meter;>;)Lscala/Option<Lsigs/Name;>;")),
     ("Sigs", "intBound", Some("<B:Ljava/lang/Object;>(I)I")),
-    ("Sigs", "unitBound", Some("<B:Lscala/runtime/BoxedUnit;>(TB;)V")),
+    ("Sigs", "unitBound", Some("<B:Lscala/runtime/BoxedUnit;>(TB;)TB;")),
+    ("Sigs", "unitAliasBound", Some("<B:Lscala/runtime/BoxedUnit;>(TB;)TB;")),
+    ("Sigs", "unitAlias", Some("(Lscala/collection/immutable/List<Ljava/lang/Object;>;)V")),
     ("Sigs", "meterBound", Some("<B:Lsigs/Meter;>(D)D")),
     ("Sigs", "hk", Some("<F:Ljava/lang/Object;>(Ljava/lang/Object;)Ljava/lang/Object;")),
     (
@@ -128,6 +141,8 @@ const METHODS: &[(&str, &str, Option<&str>)] = &[
     ),
     ("Wrap$", "hashCode$extension", Some("<T:Ljava/lang/Object;>(Lscala/collection/immutable/List<TT;>;)I")),
     ("Meter", "v", None),
+    ("IntBound", "<init>", None),
+    ("IntBound", "get", None),
     ("Tr", "get", Some("(TX;)Lscala/collection/immutable/List<TX;>;")),
     ("Tr", "get$", None),
     ("Impl", "get", None),
@@ -140,6 +155,7 @@ const FIELDS: &[(&str, &str, Option<&str>)] = &[
     ("Box", "a", Some("TA;")),
     ("Wrap", "t", Some("Lscala/collection/immutable/List<TT;>;")),
     ("Meter", "v", None),
+    ("IntBound", "t", None),
 ];
 
 /// The class signatures of `SOURCE` that dotty writes.
@@ -159,6 +175,7 @@ const CLASSES: &[(&str, Option<&str>)] = &[
     ("Wrap", Some("<T:Ljava/lang/Object;>Ljava/lang/Object;")),
     ("Wrap$", Some("Ljava/lang/Object;")),
     ("Meter", Some("Ljava/lang/Object;")),
+    ("IntBound", Some("<T:Ljava/lang/Object;>Ljava/lang/Object;")),
     ("Impl", Some("Ljava/lang/Object;Lsigs/Tr<Ljava/lang/String;>;")),
 ];
 

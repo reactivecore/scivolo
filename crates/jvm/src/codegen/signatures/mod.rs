@@ -35,6 +35,8 @@ struct Sig<'u> {
     tops: [SymbolId; 2],
     field: bool,
     constructor: bool,
+    /// Whether the descriptor's result is `V`.
+    void: bool,
     /// The method type parameters in scope: their binder, names and bounds.
     poly: Vec<(Binder, Vec<(String, TypeId)>)>,
     /// The method type parameters renamed, each by its name and its fresh name.
@@ -65,6 +67,7 @@ pub fn member(u: &mut Universe, m: Member, info: TypeId, desc: &str, thrown: &[T
     s.origin = m.origin;
     s.extended = m.extended;
     s.field = !method;
+    s.void = desc.ends_with(")V");
     match *s.u.ty(info) {
         Type::Method { .. } | Type::Poly { .. } => s.jsig(info, true, Boxing::Unbox),
         Type::ByName(_) => s.jsig(info, method, Boxing::Unbox),
@@ -90,7 +93,8 @@ impl<'u> Sig<'u> {
         let constructor = u.is_constructor(sym0);
         let (origin, extended, poly, out) = (sym0, None, Vec::new(), String::new());
         let tops = [top, original_top];
-        Sig { u, sym0, origin, extended, tops, field: false, constructor, poly, renamed: Vec::new(), out }
+        let (field, void, renamed) = (false, false, Vec::new());
+        Sig { u, sym0, origin, extended, tops, field, constructor, void, poly, renamed, out }
     }
 
     fn boxed(&mut self, t: TypeId) {
@@ -110,9 +114,7 @@ impl<'u> Sig<'u> {
     }
 
     fn result(&mut self, t: TypeId) {
-        let bounded = self.bounded(t);
-        let unit = self.class_named(bounded, "scala.Unit");
-        if unit || self.constructor { self.out.push('V') } else { self.jsig(t, false, Boxing::Unbox) }
+        if self.void { self.out.push('V') } else { self.jsig(t, false, Boxing::Unbox) }
     }
 
     fn erased_sig(&mut self, e: &Erased, boxing: Boxing) {

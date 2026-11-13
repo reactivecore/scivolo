@@ -2,25 +2,14 @@
 //   compiler/src/dotty/tools/backend/jvm/GenericSignatures.scala
 //! Whether a member may need a generic signature, and whether one erases to a descriptor.
 
-use tasty::{Kind, Type, TypeId, Universe};
+use tasty::{Kind, PRIMITIVE_VALUE_CLASSES, Type, TypeId, Universe};
 
-/// Whether `t` names more than `Any`, `AnyRef`, `String` and primitive classes (dotty's
-/// `mayNeedSignature`); a by-name parameter is a `Function0`.
+/// Whether `t` names more than `Any`, `AnyRef`, `String` and primitive classes, also as the upper
+/// bound of a type parameter or member (dotty's `mayNeedSignature`); a by-name parameter is a
+/// `Function0`.
 pub fn may_need(u: &mut Universe, t: TypeId) -> bool {
-    const PLAIN: [&str; 12] = [
-        "scala.Any",
-        "java.lang.Object",
-        "java.lang.String",
-        "scala.Unit",
-        "scala.Boolean",
-        "scala.Byte",
-        "scala.Short",
-        "scala.Char",
-        "scala.Int",
-        "scala.Long",
-        "scala.Float",
-        "scala.Double",
-    ];
+    const PLAIN: [&str; 3] = ["scala.Any", "java.lang.Object", "java.lang.String"];
+    let primitive = |u: &Universe, c| PRIMITIVE_VALUE_CLASSES.contains(&u.full_name(c).as_str());
     let t = u.dealias(t);
     let class = match *u.ty(t) {
         Type::ByName(r) => return may_need(u, r),
@@ -35,8 +24,11 @@ pub fn may_need(u: &mut Universe, t: TypeId) -> bool {
         Type::TypeRef(..) => u.resolve_ref(t),
         _ => None,
     };
-    let class = class.filter(|&c| u.symbol(c).kind == Kind::Class);
-    class.is_none_or(|c| !PLAIN.contains(&u.full_name(c).as_str()))
+    let class = class.and_then(|s| match u.symbol(s).kind {
+        Kind::Class => Some(s),
+        _ => u.class_symbol(t).filter(|&c| primitive(u, c)),
+    });
+    class.is_none_or(|c| !PLAIN.contains(&u.full_name(c).as_str()) && !primitive(u, c))
 }
 
 /// Whether method or field signature `sig` erases to descriptor `desc`: a type variable of the
