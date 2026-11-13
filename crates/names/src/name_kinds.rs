@@ -215,3 +215,45 @@ pub fn trait_super_accessor(name: &str) -> String {
 pub fn lambda_class(top: &str, n: u32) -> String {
     format!("{top}$$Lambda${n}")
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn names_are_spelled_as_dotty_spells_them() {
+        let dotty = [
+            (expanded("p$C", "x"), "p$C$$x"),
+            (outer_accessor("C"), "C$$$outer"),
+            (setter("x"), "x_="),
+            (trait_setter("p$T", "x"), "p$T$_setter_$x_="),
+            (super_accessor("m", ""), "super$m"),
+            (super_accessor("m", "Q"), "m$super$Q"),
+            (default_getter("f", 2), "f$default$2"),
+            (default_getter(DEFAULT_GETTER_INIT, 1), "$lessinit$greater$default$1"),
+            (specialized("apply", "II"), "apply$mcII$sp"),
+            (super_arg("C", 1), "C$superArg$1"),
+            (super_arg_base("C"), "C$superArg"),
+            (ext_meth("m"), "m$extension"),
+            (lazy_local("x"), "x$lzy"),
+            (synthetic_param(1), "x$1"),
+            (lambda_class("p.C", 2), "p.C$$Lambda$2"),
+        ];
+        for (ours, expected) in dotty {
+            assert_eq!(ours, expected);
+        }
+    }
+
+    #[test]
+    fn generated_names_are_recognized_again() {
+        for (name, mix) in [("m", ""), ("m", "Q"), ("+", "")] {
+            assert_eq!(decompose_super(&super_accessor(name, mix)), Some((name, mix)));
+        }
+        assert_eq!(decompose_super("m"), None);
+        assert!(is_specialized(&specialized("apply", "II"), "apply"));
+        assert!(!is_specialized("applyII", "apply"));
+        assert!(!is_specialized(&specialized("apply", "I"), "map"));
+        assert!(is_outer(nme::OUTER) && is_outer(&outer_accessor("C")));
+        assert!(!is_outer("outer") && !is_outer("C$outer"));
+    }
+}

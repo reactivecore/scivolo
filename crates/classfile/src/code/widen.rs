@@ -74,3 +74,16 @@ fn aligned(at: usize) -> usize {
 fn inverse(opcode: u8) -> u8 {
     if opcode < GOTO { ((opcode + 1) ^ 1) - 1 } else { opcode ^ 1 }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::inverse;
+
+    #[test]
+    fn conditional_jumps_invert_in_pairs() {
+        let pairs = [(0x99, 0x9a), (0x9b, 0x9c), (0x9d, 0x9e), (0x9f, 0xa0), (0xa1, 0xa2), (0xa3, 0xa4)];
+        for (a, b) in pairs.into_iter().chain([(0xa5, 0xa6), (0xc6, 0xc7)]) {
+            assert_eq!((inverse(a), inverse(b)), (b, a), "{a:#x}");
+        }
+    }
+}

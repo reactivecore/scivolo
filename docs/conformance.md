@@ -201,6 +201,19 @@ The VM fixes javalib bugs in its library overlay (`overlay/src`, ADR 0009).
     - It adds the parameters of one `ContextFunctionN` result to every method's signature, whether
       erasure flattened none (`h(I)Lscala/Function1;` signed `(ILjava/lang/String;)I`) or two.
     - Fix: follow `ContextResultCount`. JVM: as dotty.
+20. **A shadowed class type parameter named through an alias keeps its name** (dotty 3.9.0,
+    `compiler/src/dotty/tools/backend/jvm/GenericSignatures.scala:582`, `collectUsedTypeParams`).
+    - `class Sigs[A] { type Elem = A; def m[A](a: A, e: Elem): A = a }`: `foreachPart` does not
+      dealias `Elem`, so the method's `A` is not renamed, and `e`, signed after dealiasing, names
+      the method's `A`: `<A:Ljava/lang/Object;>(TA;TA;)TA;`.
+    - Fix: dealias the parts. JVM: `<A1:Ljava/lang/Object;>(TA1;TA;)TA1;`.
+21. **A generic signature's `void` result disagrees with the descriptor** (dotty 3.9.0,
+    `compiler/src/dotty/tools/backend/jvm/GenericSignatures.scala:189`, `methodResultSig`).
+    - It writes `V` when the result's `typeSymbol` is `Unit`, which follows method type parameter
+      bounds but not aliases: `def f[B <: Unit](b: B): B` (descriptor result `BoxedUnit`) is signed
+      `…V`, `type U = Unit; def g(x: List[Int]): U` (descriptor result `V`) `…BoxedUnit;`.
+    - A Java caller compiled against either links the signature's erasure: `NoSuchMethodError`.
+    - Fix: `V` exactly when the descriptor's result is `V`. JVM: does so.
 
 ## M4: dotty `tests/run`
 

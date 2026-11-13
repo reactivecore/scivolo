@@ -85,3 +85,57 @@ pub fn method_descriptor(u: &mut Universe, m: SymbolId) -> String {
     let params: String = params.iter().map(descriptor).collect();
     method_type(&params, &descriptor(&result))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn class(name: &str) -> Erased {
+        Erased::Class(name.into())
+    }
+
+    fn array(e: Erased) -> Erased {
+        Erased::Array(Box::new(e))
+    }
+
+    #[test]
+    fn descriptors_per_erased_shape() {
+        let meter = Erased::Value("units.Meter".into(), Box::new(Erased::Prim('d')));
+        let table = [
+            (Erased::Prim('z'), "Z", None, Some("java/lang/Boolean")),
+            (Erased::Prim('c'), "C", None, Some("java/lang/Character")),
+            (Erased::Prim('b'), "B", None, Some("java/lang/Byte")),
+            (Erased::Prim('s'), "S", None, Some("java/lang/Short")),
+            (Erased::Prim('i'), "I", None, Some("java/lang/Integer")),
+            (Erased::Prim('j'), "J", None, Some("java/lang/Long")),
+            (Erased::Prim('f'), "F", None, Some("java/lang/Float")),
+            (Erased::Prim('d'), "D", None, Some("java/lang/Double")),
+            (Erased::Unit, "V", None, Some("java/lang/Void")),
+            (Erased::Nothing, "Lscala/runtime/Nothing$;", Some("scala/runtime/Nothing$"), None),
+            (Erased::Null, "Lscala/runtime/Null$;", Some("scala/runtime/Null$"), None),
+            (class("scala.Any"), "Ljava/lang/Object;", Some("java/lang/Object"), None),
+            (class("scala.AnyRef"), "Ljava/lang/Object;", Some("java/lang/Object"), None),
+            (class("java.lang._String"), "Ljava/lang/String;", Some("java/lang/String"), None),
+            (class("scala.Predef$"), "Lscala/Predef$;", Some("scala/Predef$"), None),
+            (class("a.Outer$Inner"), "La/Outer$Inner;", Some("a/Outer$Inner"), None),
+            (meter, "Lunits/Meter;", Some("units/Meter"), None),
+            (array(Erased::Prim('i')), "[I", Some("[I"), None),
+            (array(array(class("scala.Any"))), "[[Ljava/lang/Object;", Some("[[Ljava/lang/Object;"), None),
+            (array(class("java.lang._String")), "[Ljava/lang/String;", Some("[Ljava/lang/String;"), None),
+        ];
+        for (e, desc, class_name, boxed) in table {
+            assert_eq!(descriptor(&e), desc, "{e:?}");
+            if let Some(class_name) = class_name {
+                assert_eq!(class_internal(&e), class_name, "{e:?}");
+            }
+            assert_eq!(primitive_box(&e), boxed, "{e:?}");
+        }
+    }
+
+    #[test]
+    fn receivers_come_first() {
+        assert_eq!(with_receiver("p/T", "(IJ)V"), "(Lp/T;IJ)V");
+        assert_eq!(with_receiver("p/T", "()Ljava/lang/String;"), "(Lp/T;)Ljava/lang/String;");
+        assert_eq!(method_type("[ILjava/lang/Object;", "Z"), "([ILjava/lang/Object;)Z");
+    }
+}

@@ -66,3 +66,56 @@ pub fn live_ranges(handlers: &[[usize; 4]], dead: &[(usize, usize)]) -> Vec<[u16
     }
     out
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{length, live_ranges, targets};
+
+    fn ints(values: &[i32]) -> Vec<u8> {
+        values.iter().flat_map(|v| v.to_be_bytes()).collect()
+    }
+
+    #[test]
+    fn switches_span_their_padding_and_jump_tables() {
+        let table = [&[0x1a, 0xaa, 0, 0][..], &ints(&[30, 5, 6, 40, 50])].concat();
+        assert_eq!((length(&table, 1), targets(&table, 1)), (23, vec![31, 41, 51]));
+        let lookup = [&[0, 0, 0, 0xab][..], &ints(&[27, 2, -1, 25, 10, 26])].concat();
+        assert_eq!((length(&lookup, 3), targets(&lookup, 3)), (25, vec![30, 28, 29]));
+        let empty = [&[0xab, 0, 0, 0][..], &ints(&[8, 0])].concat();
+        assert_eq!((length(&empty, 0), targets(&empty, 0)), (12, vec![8]));
+    }
+
+    #[test]
+    fn instructions_have_their_lengths_and_targets() {
+        let cases: [(&[u8], usize, usize, &[usize]); 11] = [
+            (&[0x60], 0, 1, &[]),
+            (&[0x10, 1], 0, 2, &[]),
+            (&[0xbc, 10], 0, 2, &[]),
+            (&[0x11, 1, 0], 0, 3, &[]),
+            (&[0x84, 1, 1], 0, 3, &[]),
+            (&[0xb9, 0, 1, 2, 0], 0, 5, &[]),
+            (&[0xc4, 0x15, 1, 0], 0, 4, &[]),
+            (&[0xc4, 0x84, 1, 0, 0, 1], 0, 6, &[]),
+            (&[0, 0, 0xa7, 0xff, 0xfe], 2, 3, &[0]),
+            (&[0xc7, 0, 6], 0, 3, &[6]),
+            (&[0, 0xc8, 0xff, 0xff, 0xff, 0xff], 1, 5, &[0]),
+        ];
+        for (code, at, len, to) in cases {
+            assert_eq!((length(code, at), &targets(code, at)[..]), (len, to), "{code:x?}");
+        }
+    }
+
+    #[test]
+    fn dead_code_leaves_the_protected_ranges() {
+        let cases = [
+            (vec![], vec![[0, 20, 30, 7]]),
+            (vec![(5, 10)], vec![[0, 5, 30, 7], [10, 20, 30, 7]]),
+            (vec![(0, 5), (15, 25)], vec![[5, 15, 30, 7]]),
+            (vec![(0, 20)], vec![]),
+            (vec![(20, 30)], vec![[0, 20, 30, 7]]),
+        ];
+        for (dead, expected) in cases {
+            assert_eq!(live_ranges(&[[0, 20, 30, 7]], &dead), expected, "{dead:?}");
+        }
+    }
+}

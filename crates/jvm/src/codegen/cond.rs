@@ -187,3 +187,117 @@ pub fn kind(e: &Erased) -> Kind {
         _ => Kind::Reference,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use classfile::{IFNE, IFNONNULL, NOP, Pool};
+
+    const IFLT: u8 = 0x9b;
+    const IFGE: u8 = 0x9c;
+    const IFGT: u8 = 0x9d;
+    const IFLE: u8 = 0x9e;
+    const IF_ICMPLT: u8 = 0xa1;
+    const IF_ICMPGE: u8 = 0xa2;
+    const IF_ACMPNE: u8 = 0xa6;
+    const FCMPG: u8 = 0x96;
+    const DCMPG: u8 = 0x98;
+
+    /// Where the code after a conditional jump goes.
+    #[derive(Clone, Copy)]
+    enum Fall {
+        Success,
+        Failure,
+        Neither,
+    }
+
+    /// The bytes `emit` writes on a stack of `depth` slots, given the labels success, failure and
+    /// the one `fall` names; failure is placed right after them, success one `nop` later.
+    fn jumps(depth: i32, fall: Fall, emit: impl FnOnce(&mut Body, Label, Label, Label)) -> Vec<u8> {
+        let mut pool = Pool::default();
+        let mut b = Body::new(&mut pool, None, 0);
+        b.code.set_stack(depth);
+        let (success, failure) = (b.code.new_label(), b.code.new_label());
+        let fall = match fall {
+            Fall::Success => success,
+            Fall::Failure => failure,
+            Fall::Neither => b.code.new_label(),
+        };
+        emit(&mut b, success, failure, fall);
+        let n = b.code.bytes.len();
+        b.code.place(failure);
+        b.code.insn(NOP);
+        b.code.place(success);
+        b.code.bytes.truncate(n);
+        b.code.bytes
+    }
+
+    /// The bytes of comparing two values of kind `kind` by `test`.
+    fn compare(kind: Kind, test: Test, fall: Fall) -> Vec<u8> {
+        jumps(2 * kind.slots(), fall, |b, s, f, fall| jump_compare(b, kind, test, s, f, fall, false))
+    }
+
+    #[test]
+    fn tests_of_names_and_their_negations() {
+        let table = [
+            ("==", Test::Eq, Test::Ne),
+            ("eq", Test::Eq, Test::Ne),
+            ("!=", Test::Ne, Test::Eq),
+            ("ne", Test::Ne, Test::Eq),
+            ("<", Test::Lt, Test::Ge),
+            (">=", Test::Ge, Test::Lt),
+            (">", Test::Gt, Test::Le),
+            ("<=", Test::Le, Test::Gt),
+        ];
+        for (name, test, negated) in table {
+            assert!(Test::of(name) == Some(test), "{name}");
+            assert!(test.negate() == negated && negated.negate() == test, "{name}");
+        }
+        assert!(Test::of("+").is_none() && Test::of("equals").is_none());
+    }
+
+    #[test]
+    fn jumps_on_zero_and_null() {
+        let zero =
+            |reference, test, fall| jumps(1, fall, |b, s, f, fall| jump_zero(b, reference, test, s, f, fall));
+        assert_eq!(zero(false, Test::Eq, Fall::Failure), [IFEQ, 0, 4]);
+        assert_eq!(zero(false, Test::Eq, Fall::Success), [IFNE, 0, 3]);
+        assert_eq!(zero(false, Test::Lt, Fall::Neither), [IFLT, 0, 7, GOTO, 0, 3]);
+        assert_eq!(zero(true, Test::Eq, Fall::Failure), [IFNULL, 0, 4]);
+        assert_eq!(zero(true, Test::Ne, Fall::Failure), [IFNONNULL, 0, 4]);
+        assert_eq!(zero(true, Test::Eq, Fall::Success), [IFNONNULL, 0, 3]);
+    }
+
+    #[test]
+    fn comparisons_per_kind_and_fall_through() {
+        assert_eq!(compare(Kind::Int, Test::Lt, Fall::Failure), [IF_ICMPLT, 0, 4]);
+        assert_eq!(compare(Kind::Int, Test::Lt, Fall::Success), [IF_ICMPGE, 0, 3]);
+        assert_eq!(compare(Kind::Reference, Test::Ne, Fall::Failure), [IF_ACMPNE, 0, 4]);
+        assert_eq!(compare(Kind::Long, Test::Gt, Fall::Failure), [LCMP, IFGT, 0, 4]);
+        assert_eq!(compare(Kind::Long, Test::Eq, Fall::Neither), [LCMP, IFEQ, 0, 7, GOTO, 0, 3]);
+    }
+
+    #[test]
+    fn float_comparisons_are_false_on_nan() {
+        assert_eq!(compare(Kind::Float, Test::Lt, Fall::Failure), [FCMPG, IFLT, 0, 4]);
+        assert_eq!(compare(Kind::Float, Test::Lt, Fall::Success), [FCMPG, IFGE, 0, 3]);
+        assert_eq!(compare(Kind::Float, Test::Ge, Fall::Success), [FCMPL, IFLT, 0, 3]);
+        assert_eq!(compare(Kind::Double, Test::Gt, Fall::Failure), [DCMPL, IFGT, 0, 4]);
+        assert_eq!(compare(Kind::Double, Test::Gt, Fall::Success), [DCMPL, IFLE, 0, 3]);
+        assert_eq!(compare(Kind::Double, Test::Le, Fall::Neither), [DCMPG, IFLE, 0, 7, GOTO, 0, 3]);
+    }
+
+    #[test]
+    fn operation_kinds_of_erased_types() {
+        for (c, k) in
+            [('z', Kind::Int), ('c', Kind::Int), ('b', Kind::Int), ('s', Kind::Int), ('i', Kind::Int)]
+        {
+            assert_eq!(kind(&Erased::Prim(c)), k);
+        }
+        assert_eq!(kind(&Erased::Prim('j')), Kind::Long);
+        assert_eq!(kind(&Erased::Prim('f')), Kind::Float);
+        assert_eq!(kind(&Erased::Prim('d')), Kind::Double);
+        assert_eq!(kind(&Erased::Class("java.lang.Integer".into())), Kind::Reference);
+        assert_eq!(kind(&Erased::Array(Box::new(Erased::Prim('i')))), Kind::Reference);
+    }
+}
