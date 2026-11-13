@@ -1,13 +1,13 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/backend/jvm/GenericSignatures.scala
-//! Applied higher-kinded method type parameters (dotty's `resolveAppliedType`), and erasure with
-//! the method type parameters in scope bounded.
+//! Type parameters in a signature: by name, applied higher-kinded method type parameters (dotty's
+//! `resolveAppliedType`), and erasure with the method type parameters in scope bounded.
 
 use super::{Boxing, Sig};
-use tasty::{Binder, Erased, TypeId};
+use tasty::{Binder, Erased, Kind, SymbolId, Type, TypeId};
 
 /// What an applied method type parameter stands for in a signature.
-pub enum Applied {
+enum Applied {
     /// Its bound, a type lambda, applied to the arguments.
     Resolved(TypeId),
     /// The parameter itself, its bound being no type lambda.
@@ -17,8 +17,28 @@ pub enum Applied {
 }
 
 impl Sig<'_> {
+    /// Appends `t`, `tycon[args]`, if `tycon` is a method type parameter in scope: its bound
+    /// applied if that is a reference, else by name or erased; whether it did.
+    pub fn applied_param_ref(&mut self, t: TypeId, tycon: TypeId, args: &[TypeId], boxing: Boxing) -> bool {
+        match self.applied_param(tycon, args) {
+            Some(Applied::Resolved(r)) => {
+                let r = self.u.dealias(r);
+                match *self.u.ty(r) {
+                    Type::Sym(..) | Type::TypeRef(..) | Type::Applied(..) | Type::Param(..) => {
+                        self.jsig(r, false, boxing)
+                    }
+                    _ => self.erased(t, boxing),
+                }
+            }
+            Some(Applied::Param(name)) => self.out.push_str(&format!("T{name};")),
+            Some(Applied::Erased) => self.erased(t, boxing),
+            None => return false,
+        }
+        true
+    }
+
     /// `tycon[args]`, if `tycon` is a method type parameter in scope.
-    pub fn applied_param(&mut self, tycon: TypeId, args: &[TypeId]) -> Option<Applied> {
+    fn applied_param(&mut self, tycon: TypeId, args: &[TypeId]) -> Option<Applied> {
         let (b, i) = self.u.param_ref(tycon)?;
         let (name, bounds) = self.poly_param(b, i)?;
         let hi = self.u.bounds(bounds).map_or(bounds, |(_, hi)| hi);
@@ -31,6 +51,35 @@ impl Sig<'_> {
             None
         });
         Some(if recursive { Applied::Erased } else { Applied::Resolved(t) })
+    }
+
+    /// The name and bounds of method type parameter `i` of `binder`, if in scope.
+    pub fn poly_param(&self, binder: Binder, i: u32) -> Option<(String, TypeId)> {
+        let (_, params) = self.poly.iter().find(|p| p.0 == binder)?;
+        params.get(i as usize).cloned()
+    }
+
+    /// The type parameter `t` refers to, if it appears in the signature by name.
+    pub fn type_param(&mut self, t: TypeId) -> Option<SymbolId> {
+        let s = match *self.u.ty(t) {
+            Type::Sym(_, s) => s,
+            Type::TypeRef(..) => self.u.resolve_ref(t)?,
+            _ => return None,
+        };
+        let owner = self.u.symbol(s).owner?;
+        if self.u.symbol(s).kind != Kind::TypeParam
+            || self.u.symbol(owner).kind.is_type() && !self.u.is_class(owner)
+        {
+            return None;
+        }
+        let mut o = Some(s);
+        while let Some(x) = o {
+            if self.tops.contains(&x) || x == self.sym0 || x == self.origin || Some(x) == self.extended {
+                return Some(s);
+            }
+            o = self.u.symbol(x).owner;
+        }
+        None
     }
 
     /// Appends the erasure of `t`, the method type parameters in scope replaced by their bounds.

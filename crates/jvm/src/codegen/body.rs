@@ -13,7 +13,8 @@ pub enum Dest {
     Fall,
     Jump(Label),
     Return,
-    Throw,
+    /// Thrown; whether the thrown expression is of type `Nothing`.
+    Throw(bool),
 }
 
 /// A value on the stack: that of a tree, or one of a descriptor.
@@ -47,8 +48,8 @@ pub struct Body<'p> {
     /// The values known on the stack, bottom first: the depth each starts at, its slots and what
     /// it is (dotty's `stack`).
     pub operands: Vec<(i32, i32, Operand)>,
-    /// The function of the call whose `Nothing$` value the method returns as it is.
-    pub returned_phantom: Option<TNodeId>,
+    /// The function of the call whose `Nothing$` value is thrown or returned as it is.
+    pub sent_phantom: Option<TNodeId>,
 }
 
 impl<'p> Body<'p> {
@@ -68,7 +69,7 @@ impl<'p> Body<'p> {
             early_return: None,
             emit_cleanup: false,
             operands: Vec::new(),
-            returned_phantom: None,
+            sent_phantom: None,
         }
     }
 

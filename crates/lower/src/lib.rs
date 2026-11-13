@@ -354,12 +354,6 @@ impl<'a> Lower<'a> {
         self.varargs_forwarders.contains(&m)
     }
 
-    /// Enters the specialized `apply` methods of `class` if it is `scala.FunctionN` with them
-    /// (dotty's `SpecializeApplyMethods.transformInfo`).
-    pub fn enter_specialized_applies(&mut self, class: SymbolId) {
-        phases::same_run::enter_specialized(self, class);
-    }
-
     /// Whether the unit is compiled with `-Yexplicit-nulls`.
     pub fn explicit_nulls(&self) -> bool {
         self.explicit_nulls

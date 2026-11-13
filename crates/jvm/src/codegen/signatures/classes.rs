@@ -4,7 +4,7 @@
 //! `minimizeParents`, `polyParamSig`, `boundsSig`, `classSymbol`).
 
 use super::Sig;
-use tasty::{Erased, SymbolId, Type, TypeId, Universe};
+use tasty::{Erased, Kind, SymbolId, Type, TypeId, Universe};
 
 /// The full name of class `Null`.
 pub const NULL: &str = "scala.Null";
@@ -90,6 +90,22 @@ impl Sig<'_> {
             j if j == t => None,
             j => self.class_of(j, depth),
         }
+    }
+
+    /// Whether `t` refers to the class of full name `name`.
+    pub fn class_named(&mut self, t: TypeId, name: &str) -> bool {
+        self.class_ref(t).is_some_and(|c| self.u.full_name(c) == name)
+    }
+
+    /// The class `t` refers to after dealiasing, none for a type parameter or member.
+    pub fn class_ref(&mut self, t: TypeId) -> Option<SymbolId> {
+        let t = self.u.dealias(t);
+        let s = match *self.u.ty(t) {
+            Type::Sym(_, s) => Some(s),
+            Type::TypeRef(..) => self.u.resolve_ref(t),
+            _ => None,
+        };
+        s.filter(|&s| self.u.symbol(s).kind == Kind::Class)
     }
 
     /// The erasure of the first of intersection `parts` in dotty's `erasedGlb`.

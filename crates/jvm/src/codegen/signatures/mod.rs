@@ -8,6 +8,7 @@ mod erased;
 mod methods;
 mod needed;
 mod refs;
+mod unit_nulls;
 mod values;
 
 pub use classes::class;
@@ -177,28 +178,5 @@ impl<'u> Sig<'u> {
             Some(w) => self.jsig(w, top, boxing),
             None => self.erased(t, boxing),
         }
-    }
-
-    /// The type parameter `t` refers to, if it appears in the signature by name.
-    fn type_param(&mut self, t: TypeId) -> Option<SymbolId> {
-        let s = match *self.u.ty(t) {
-            Type::Sym(_, s) => s,
-            Type::TypeRef(..) => self.u.resolve_ref(t)?,
-            _ => return None,
-        };
-        let owner = self.u.symbol(s).owner?;
-        if self.u.symbol(s).kind != Kind::TypeParam
-            || self.u.symbol(owner).kind.is_type() && !self.u.is_class(owner)
-        {
-            return None;
-        }
-        let mut o = Some(s);
-        while let Some(x) = o {
-            if self.tops.contains(&x) || x == self.sym0 || x == self.origin || Some(x) == self.extended {
-                return Some(s);
-            }
-            o = self.u.symbol(x).owner;
-        }
-        None
     }
 }

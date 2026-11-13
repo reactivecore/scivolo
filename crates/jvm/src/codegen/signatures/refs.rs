@@ -2,10 +2,9 @@
 //   compiler/src/dotty/tools/backend/jvm/GenericSignatures.scala
 //! Signatures of class references and arrays (dotty's `classSig`, `arraySig`).
 
-use super::applied::Applied;
 use super::{Boxing, Sig};
 use crate::codegen::descriptors::{internal, primitive_box};
-use tasty::{Binder, Erased, Kind, ParamList, SymbolId, Type, TypeId};
+use tasty::{Erased, Kind, ParamList, SymbolId, Type, TypeId};
 
 impl Sig<'_> {
     /// A class, type parameter or type member reference, applied or not.
@@ -14,19 +13,8 @@ impl Sig<'_> {
             return self.param_ref(p, boxing);
         }
         let (tycon, args) = self.u.applied(t).map_or((t, Vec::new()), |(c, a)| (c, a.to_vec()));
-        match self.applied_param(tycon, &args) {
-            Some(Applied::Resolved(r)) => {
-                let r = self.u.dealias(r);
-                return match *self.u.ty(r) {
-                    Type::Sym(..) | Type::TypeRef(..) | Type::Applied(..) | Type::Param(..) => {
-                        self.jsig(r, false, boxing)
-                    }
-                    _ => self.erased(t, boxing),
-                };
-            }
-            Some(Applied::Param(name)) => return self.out.push_str(&format!("T{name};")),
-            Some(Applied::Erased) => return self.erased(t, boxing),
-            None => {}
+        if self.applied_param_ref(t, tycon, &args, boxing) {
+            return;
         }
         if let Some(p) = self.type_param(tycon).filter(|_| !args.is_empty()) {
             let name = tasty::encode(&self.u.symbol(p).name);
@@ -182,28 +170,6 @@ impl Sig<'_> {
                 self.erased_sig(&e, Boxing::Box);
             }
         }
-    }
-
-    /// Whether `t` refers to the class of full name `name`.
-    pub fn class_named(&mut self, t: TypeId, name: &str) -> bool {
-        self.class_ref(t).is_some_and(|c| self.u.full_name(c) == name)
-    }
-
-    /// The class `t` refers to after dealiasing, none for a type parameter or member.
-    pub fn class_ref(&mut self, t: TypeId) -> Option<SymbolId> {
-        let t = self.u.dealias(t);
-        let s = match *self.u.ty(t) {
-            Type::Sym(_, s) => Some(s),
-            Type::TypeRef(..) => self.u.resolve_ref(t),
-            _ => None,
-        };
-        s.filter(|&s| self.u.symbol(s).kind == Kind::Class)
-    }
-
-    /// The name and bounds of method type parameter `i` of `binder`, if in scope.
-    pub fn poly_param(&self, binder: Binder, i: u32) -> Option<(String, TypeId)> {
-        let (_, params) = self.poly.iter().find(|p| p.0 == binder)?;
-        params.get(i as usize).cloned()
     }
 
     fn array(&mut self, elem: TypeId) {

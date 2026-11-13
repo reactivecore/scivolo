@@ -7,7 +7,16 @@ use super::mixin::function_arity;
 use crate::definitions::specialized_applies;
 use crate::{Lower, Result, unsupported};
 use names::nme;
+use tasty::SymbolId;
 use typer::tpd::{TNodeId, Tree};
+
+impl Lower<'_> {
+    /// Enters the specialized `apply` methods of `class` if it is `scala.FunctionN` with them
+    /// (dotty's `SpecializeApplyMethods.transformInfo`).
+    pub fn enter_specialized_applies(&mut self, class: SymbolId) {
+        super::same_run::enter_specialized(self, class);
+    }
+}
 
 /// Adds the specialized `apply` methods to class definition `td` if it is `Function0`,
 /// `Function1` or `Function2`.

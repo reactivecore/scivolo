@@ -93,7 +93,7 @@ impl Gen<'_, '_> {
             self.add_forwarders(&mut cf, companion, Some(sym));
         }
         let original_top = self.original_top(sym);
-        let signature = super::signatures::class(self.l.u, sym, original_top);
+        let signature = self.class_signature(sym, original_top);
         cf.signature(&signature);
         if self.is_deprecated(sym) {
             cf.deprecated();

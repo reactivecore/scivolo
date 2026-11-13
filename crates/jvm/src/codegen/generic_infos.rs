@@ -9,7 +9,7 @@ use super::descriptors::internal;
 use super::signatures::Member;
 use names::name_kinds;
 use tasty::tags::{FIELDaccessor, PRIVATE};
-use tasty::{Kind, NullMode, SymbolId, TypeId};
+use tasty::{Kind, SymbolId, TypeId};
 
 /// A forwarder to a default method of a Java interface.
 #[derive(Clone, Copy)]
@@ -52,22 +52,6 @@ impl Gen<'_, '_> {
             true => Some(sig),
             false => self.erased_signature(sym, desc, false),
         }
-    }
-
-    /// Builds the generic signature of `m` of type `info`, descriptor `desc` and thrown exception
-    /// types `thrown` as `signatures::member`, comparing types with the unit's explicit nulls.
-    pub fn member_signature(
-        &mut self,
-        m: Member,
-        info: TypeId,
-        desc: &str,
-        thrown: &[TypeId],
-    ) -> Option<String> {
-        let mode = NullMode { explicit: self.l.explicit_nulls(), ..self.l.u.null_mode() };
-        let outer = self.l.u.set_null_mode(mode);
-        let sig = super::signatures::member(self.l.u, m, info, desc, thrown);
-        self.l.u.set_null_mode(outer);
-        sig
     }
 
     /// Determines the type parameters of the classes enclosing `sym`, outermost first, each by

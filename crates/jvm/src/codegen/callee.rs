@@ -58,7 +58,8 @@ impl Gen<'_, '_> {
         if self.is_throw(t)
             && let &[e] = self.l.tpd.items(args)
         {
-            self.expr_to(b, e, 1, super::body::Dest::Throw)?;
+            let nothing = self.desc_of(e) == NOTHING;
+            self.expr_to(b, e, 1, super::body::Dest::Throw(nothing))?;
             return Ok(0);
         }
         if let Some(slots) = self.hash(b, t)? {
