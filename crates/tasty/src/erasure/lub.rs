@@ -24,18 +24,42 @@ impl Universe {
         if let (Erased::Class(na), Erased::Class(nb)) = (&ea, &eb)
             && ea != eb
         {
-            let (Some(ca), Some(cb)) = (self.lub_class(a, na), self.lub_class(b, nb)) else {
-                return object();
-            };
-            return match self.common_base(ca, cb) {
-                Some(base) => {
-                    let base = self.intern_type(Type::Sym(None, base));
-                    self.erase(base)
-                }
-                None => object(),
-            };
+            let (ca, cb) = (self.lub_class(a, na), self.lub_class(b, nb));
+            return self.erased_common_base(ca, cb);
         }
-        lub(ea, eb)
+        self.erased_lub(ea, eb)
+    }
+
+    /// The erasure of the `common_base` of `a` and `b`, else `Object`.
+    fn erased_common_base(&mut self, a: Option<SymbolId>, b: Option<SymbolId>) -> Erased {
+        match a.zip(b).and_then(|(a, b)| self.common_base(a, b)) {
+            Some(base) => {
+                let base = self.intern_type(Type::Sym(None, base));
+                self.erase(base)
+            }
+            None => object(),
+        }
+    }
+
+    /// dotty's `erasedLub` of erased types `a` and `b`.
+    fn erased_lub(&mut self, a: Erased, b: Erased) -> Erased {
+        match (a, b) {
+            (Erased::Nothing, x) | (x, Erased::Nothing) => x,
+            (Erased::Null, x) | (x, Erased::Null) if is_reference(&x) => x,
+            (x, y) if x == y => x,
+            (Erased::Array(x), Erased::Array(y)) => match (*x, *y) {
+                (Erased::Prim(_), _) | (_, Erased::Prim(_)) => object(),
+                (x, y) => Erased::Array(Box::new(self.erased_lub(x, y))),
+            },
+            (Erased::Class(x), Erased::Class(y)) => {
+                let [x, y] = [x, y].map(|n| {
+                    let r = self.class_ref(&n);
+                    self.class_symbol(r)
+                });
+                self.erased_common_base(x, y)
+            }
+            _ => object(),
+        }
     }
 
     /// The class of side `t` of a union, erased to class `name`: of the side `glb_side` picks of an
@@ -95,15 +119,32 @@ fn is_reference(e: &Erased) -> bool {
     matches!(e, Erased::Class(_) | Erased::Array(_) | Erased::Null | Erased::Nothing)
 }
 
-fn lub(a: Erased, b: Erased) -> Erased {
-    match (a, b) {
-        (Erased::Nothing, x) | (x, Erased::Nothing) => x,
-        (Erased::Null, x) | (x, Erased::Null) if is_reference(&x) => x,
-        (x, y) if x == y => x,
-        (Erased::Array(x), Erased::Array(y)) => match (*x, *y) {
-            (Erased::Prim(_), _) | (_, Erased::Prim(_)) => object(),
-            (x, y) => Erased::Array(Box::new(lub(x, y))),
-        },
-        _ => object(),
+#[cfg(test)]
+mod tests {
+    use super::{Erased, object};
+
+    #[test]
+    fn erased_lub_of_bottoms_and_arrays() {
+        let mut u = crate::Universe::empty();
+        let mut lub = |a, b| u.erased_lub(a, b);
+        let array = |e: Erased| Erased::Array(Box::new(e));
+        let string = Erased::string;
+        let cases = [
+            (Erased::Nothing, Erased::Prim('i'), Erased::Prim('i')),
+            (Erased::Null, string(), string()),
+            (Erased::Null, Erased::Prim('i'), object()),
+            (Erased::Null, array(Erased::Prim('i')), array(Erased::Prim('i'))),
+            (Erased::Prim('i'), Erased::Prim('i'), Erased::Prim('i')),
+            (Erased::Prim('i'), Erased::Prim('j'), object()),
+            (array(Erased::Prim('i')), array(Erased::Prim('i')), array(Erased::Prim('i'))),
+            (array(Erased::Prim('i')), array(Erased::Prim('j')), object()),
+            (array(Erased::Prim('i')), array(string()), object()),
+            (array(array(string())), array(array(string())), array(array(string()))),
+            (array(string()), string(), object()),
+        ];
+        for (a, b, expected) in cases {
+            assert_eq!(lub(a.clone(), b.clone()), expected, "{a:?} | {b:?}");
+            assert_eq!(lub(b.clone(), a.clone()), expected, "{b:?} | {a:?}");
+        }
     }
 }
