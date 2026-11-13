@@ -293,6 +293,18 @@ fn quotes_with_definitions_pickle_to_their_bytes() {
     all_repickled(&mut u, owner, &quotes, true);
 }
 
+/// A quote whose types refer to a class file's nested class through the `this` of its object
+/// class (`shapes.Box.Shape.square`'s result), pickled to the same trees: dotty shares the object
+/// class's reference inside the `this`, we do not.
+#[test]
+fn quotes_with_nested_java_classes_pickle_to_their_trees() {
+    let Some(mut u) = universe(&["tests/pickle/probe.jar", "tests/pickle/shapes.jar"]) else { return };
+    let shapes = library_jars(Path::new("")).len() + 1;
+    u.use_java_classfiles(&[shapes]).unwrap();
+    let owner = module_class(&mut u, "probe", "Probe$");
+    all_repickled(&mut u, owner, &["probe-nested"], false);
+}
+
 /// Quotes defining classes, read in the method that made them: pickled to the same trees, the
 /// classes of their parents shared apart as in `quotes_with_package_prefixes_pickle_to_their_trees`.
 #[test]

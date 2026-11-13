@@ -34,3 +34,5 @@ object Probe:
   def arrow(x: Expr[Int])(using Quotes): Expr[(Int, Int)] = '{ new Predef.ArrowAssoc($x).->(2) }
   def selves(x: Expr[Int])(using Quotes): Expr[Int] =
     '{ class D(var n: Int) { self => def me: D = self; def it = D.this }; new D($x).me.it.n }
+  def nested(x: Expr[Double])(using Quotes): Expr[Double] =
+    '{ val s = shapes.Box.Shape.square($x); s.area() }
