@@ -152,3 +152,59 @@ impl TreePickler<'_> {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::sig_type_name;
+    use tasty::tags::OBJECT;
+    use tasty::write::Name;
+    use tasty::{Flags, Kind, Symbol, SymbolId, Universe};
+
+    fn define(u: &mut Universe, name: &str, kind: Kind, owner: SymbolId) -> SymbolId {
+        let flags = Flags::default();
+        let (target, tree, decls) = (None, None, Vec::new());
+        u.define(Symbol {
+            name: name.into(),
+            kind,
+            owner: Some(owner),
+            flags,
+            target,
+            is_extern: false,
+            derived: false,
+            decls,
+            tree,
+        })
+    }
+
+    fn qualified(prefix: Name, last: &str) -> Name {
+        Name::Qualified(Box::new(prefix), Box::new(Name::utf8(last)))
+    }
+
+    #[test]
+    fn class_names_in_signatures_as_dotty_s_sig_names() {
+        let mut u = Universe::empty();
+        let p = u.enter_package("p");
+        let outer = define(&mut u, "Outer", Kind::Class, p);
+        define(&mut u, "Inner", Kind::Class, outer);
+        define(&mut u, "C", Kind::Class, p);
+        let o = define(&mut u, "O$", Kind::Class, p);
+        u.set_flags(o, Flags::default().with(OBJECT));
+        define(&mut u, "I", Kind::Class, o);
+        let p_name = || Name::utf8("p");
+        let o_name = || Name::ObjectClass(Box::new(qualified(p_name(), "O")));
+        let dotty = [
+            ("p.C", qualified(p_name(), "C")),
+            ("p.C[]", qualified(p_name(), "C[]")),
+            ("p.C[][]", qualified(p_name(), "C[][]")),
+            ("p.O$", o_name()),
+            ("p.Outer.Inner", qualified(qualified(p_name(), "Outer"), "Inner")),
+            ("p.O$.I", qualified(o_name(), "I")),
+            ("p.O$I", qualified(o_name(), "I")),
+            ("a.b$.C", qualified(Name::ObjectClass(Box::new(qualified(Name::utf8("a"), "b"))), "C")),
+        ];
+        for (full, expected) in dotty {
+            assert_eq!(sig_type_name(&mut u, full), Ok(expected), "{full}");
+        }
+        assert!(sig_type_name(&mut u, "p.Missing$").is_err());
+    }
+}

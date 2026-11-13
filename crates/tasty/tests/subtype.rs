@@ -2,140 +2,10 @@
 //! `fixtures/subtype-types.txt`, decided by a bounds check, with the definitions of
 //! `fixtures/subtype/Prelude.scala`.
 
-use std::path::Path;
-use tasty::{ANY, Binder, FileId, Flags, Kind, NOTHING, Symbol, SymbolId, Type, TypeId, Universe};
+mod support;
 
-fn universe() -> Option<Universe> {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let fetched = [
-        "scala-library-3.9.0.jar",
-        "nativelib_native0.5_3-0.5.12.jar",
-        "clib_native0.5_3-0.5.12.jar",
-        "posixlib_native0.5_3-0.5.12.jar",
-    ]
-    .map(|j| root.join("ref/libs").join(j));
-    if let Some(missing) = fetched.iter().find(|j| !j.exists()) {
-        assert!(std::env::var_os("CI").is_none(), "{} missing: run `just fetch-libs`", missing.display());
-        return None;
-    }
-    let mut jars = fetched.to_vec();
-    jars.push(root.join("libs/javalib-tasty-0.5.12.jar"));
-    jars.push(root.join("crates/tasty/tests/fixtures/subtype-prelude.jar"));
-    Some(Universe::open(&jars).unwrap())
-}
-
-/// Parses the fixtures' types: qualified names, `[…]` arguments, `?` wildcards with bounds,
-/// `p.type` singletons, integer and string literals, and `|`/`&` between them.
-struct Parser<'a> {
-    s: &'a str,
-}
-
-impl Parser<'_> {
-    fn eat(&mut self, token: &str) -> bool {
-        let found = self.s.starts_with(token);
-        if found {
-            self.s = &self.s[token.len()..];
-        }
-        found
-    }
-
-    fn infix(&mut self, u: &mut Universe) -> TypeId {
-        let mut t = self.simple(u);
-        loop {
-            if self.eat(" | ") {
-                let r = self.simple(u);
-                t = u.intern_type(Type::Or(t, r, false));
-            } else if self.eat(" & ") {
-                let r = self.simple(u);
-                t = u.intern_type(Type::And(t, r));
-            } else {
-                return t;
-            }
-        }
-    }
-
-    fn simple(&mut self, u: &mut Universe) -> TypeId {
-        if self.eat("?") {
-            let (mut lo, mut hi) = (NOTHING, ANY);
-            if self.eat(" <: ") {
-                hi = self.simple(u);
-            } else if self.eat(" >: ") {
-                lo = self.simple(u);
-            }
-            return u.intern_type(Type::Bounds(lo, hi));
-        }
-        if let Some(rest) = self.s.strip_prefix('"') {
-            let (text, rest) = rest.split_once('"').unwrap();
-            self.s = rest;
-            return u.str_type(text);
-        }
-        let end = self.s.find(['[', ',', ']', ' ']).unwrap_or(self.s.len());
-        let (path, rest) = self.s.split_at(end);
-        self.s = rest;
-        if let Ok(n) = path.parse::<i64>() {
-            return u.intern_type(Type::Constant(tasty::tags::INTconst, n));
-        }
-        let tycon = match path.strip_suffix(".type") {
-            Some(term) => {
-                let (prefix, name) = term.rsplit_once('.').unwrap();
-                let prefix = path_prefix(u, prefix);
-                let name = u.intern_name(name);
-                u.intern_type(Type::TermRef(prefix, name))
-            }
-            None => named_type(u, path),
-        };
-        if !self.eat("[") {
-            return tycon;
-        }
-        let mut args = vec![self.infix(u)];
-        while self.eat(", ") {
-            args.push(self.infix(u));
-        }
-        assert!(self.eat("]"), "`]` expected at {}", self.s);
-        u.intern_applied(tycon, &args)
-    }
-}
-
-/// The type named by qualified name `path`: a class or type alias of a package, a reference by
-/// name if the universe lacks it; a type member of a value's path.
-fn named_type(u: &mut Universe, path: &str) -> TypeId {
-    let (prefix, name) = path.rsplit_once('.').unwrap();
-    let Some(pkg) = u.package(prefix) else {
-        let prefix = path_prefix(u, prefix);
-        let name = u.intern_name(name);
-        return u.intern_type(Type::TypeRef(prefix, name));
-    };
-    let found = u
-        .decl(pkg, name)
-        .unwrap()
-        .into_iter()
-        .find(|&s| matches!(u.symbol(s).kind, Kind::Class | Kind::Type));
-    match found {
-        Some(s) => u.intern_type(Type::Sym(None, s)),
-        None => u.class_ref(path),
-    }
-}
-
-/// The path `path`: its longest package prefix, then values selected from it.
-fn path_prefix(u: &mut Universe, path: &str) -> TypeId {
-    let segments: Vec<&str> = path.split('.').collect();
-    let packages =
-        (0..=segments.len()).rev().find(|&i| u.package(&segments[..i].join(".")).is_some()).unwrap();
-    let pkg = u.package(&segments[..packages].join(".")).unwrap();
-    let mut t = u.intern_type(Type::Package(pkg));
-    for term in &segments[packages..] {
-        let term = u.intern_name(term);
-        t = u.intern_type(Type::TermRef(t, term));
-    }
-    t
-}
-
-fn parse(u: &mut Universe, s: &str) -> TypeId {
-    let mut p = Parser { s };
-    let t = p.infix(u);
-    assert!(p.s.is_empty(), "unparsed rest `{}` of `{s}`", p.s);
-    t
-}
+use support::{define, named_type, parse, path_prefix, universe};
+use tasty::{ANY, Binder, FileId, Flags, Kind, NOTHING, Type, TypeId, Universe};
 
 #[test]
 fn subtyping_matches_dotc() {
@@ -320,24 +190,6 @@ fn balancing_keeps_a_union_of_the_other_softness_whole() {
     let soft = u.lub(soft, three);
     let balanced = u.union(soft, four, true);
     assert_eq!(shape(&u, balanced), "((1|2)|(3|4))");
-}
-
-fn define(u: &mut Universe, name: &str, kind: Kind, owner: SymbolId, info: TypeId) -> SymbolId {
-    let flags = Flags::default();
-    let (target, tree, decls) = (None, None, Vec::new());
-    let s = u.define(Symbol {
-        name: name.into(),
-        kind,
-        owner: Some(owner),
-        flags,
-        target,
-        is_extern: false,
-        derived: false,
-        decls,
-        tree,
-    });
-    u.set_info(s, info);
-    s
 }
 
 #[test]
@@ -538,4 +390,110 @@ fn lub_and_glb_are_least_and_greatest_among_the_fixture_types() {
     }
     let shown: Vec<&String> = wrong.iter().take(40).collect();
     assert!(wrong.is_empty(), "{} failures:\n{shown:#?}", wrong.len());
+}
+
+fn same_type(u: &mut Universe, a: TypeId, b: TypeId) -> bool {
+    u.is_subtype(a, b) && u.is_subtype(b, a)
+}
+
+#[test]
+fn joins_of_unions_as_dotty_s_or_dominator() {
+    let Some(mut u) = universe() else { return };
+    let dotty = [
+        ("scala.Some[scala.Int] | scala.None.type", "scala.Option[scala.Int]"),
+        ("oracle.Dog | oracle.Animal", "oracle.Animal"),
+        ("oracle.Cov[scala.Int] | oracle.Cov[java.lang.String]", "oracle.Cov[scala.Int | java.lang.String]"),
+        (
+            "oracle.Contra[scala.Int] | oracle.Contra[java.lang.String]",
+            "oracle.Contra[scala.Int & java.lang.String]",
+        ),
+        ("1 | 2", "scala.Int"),
+        ("\"a\" | \"b\"", "java.lang.String"),
+        ("scala.Null | java.lang.String", "java.lang.String"),
+        ("oracle.a.type | oracle.b.type", "oracle.Box"),
+        ("oracle.Box", "oracle.Box"),
+    ];
+    for (union, expected) in dotty {
+        let (t, e) = (parse(&mut u, union), parse(&mut u, expected));
+        let joined = u.join(t).unwrap_or_else(|| panic!("{union} has no join"));
+        assert!(same_type(&mut u, joined, e), "{union}: {}", u.show(joined));
+    }
+    let (inv_int, inv_string) =
+        (parse(&mut u, "oracle.Inv[scala.Int]"), parse(&mut u, "oracle.Inv[java.lang.String]"));
+    let union = u.intern_type(Type::Or(inv_int, inv_string, false));
+    let joined = u.join(union).unwrap();
+    let Some((_, &[arg])) = u.applied(joined) else { panic!("{}", u.show(joined)) };
+    let Type::Bounds(lo, hi) = *u.types().get(arg) else { panic!("{}", u.show(joined)) };
+    let (glb, lub) =
+        (parse(&mut u, "scala.Int & java.lang.String"), parse(&mut u, "scala.Int | java.lang.String"));
+    assert!(same_type(&mut u, lo, glb) && same_type(&mut u, hi, lub), "{}", u.show(joined));
+}
+
+#[test]
+fn joins_widen_class_type_parameters_through_their_prefix_arguments() {
+    let Some(mut u) = universe() else { return };
+    let (option_int, int, one) =
+        (parse(&mut u, "scala.Option[scala.Int]"), parse(&mut u, "scala.Int"), parse(&mut u, "1"));
+    let option = u.class_symbol(option_int).unwrap();
+    let a = u.type_params(option)[0];
+    let x = u.fresh_skolem(option_int);
+    let x_a = u.intern_type(Type::Sym(Some(x), a));
+    let union = u.intern_type(Type::Or(x_a, one, false));
+    let joined = u.join(union).unwrap();
+    assert!(same_type(&mut u, joined, int), "{}", u.show(joined));
+}
+
+#[test]
+fn glbs_merge_arguments_by_variance() {
+    let Some(mut u) = universe() else { return };
+    let dotty = [
+        ("oracle.Dog", "oracle.Animal", "oracle.Dog"),
+        ("1", "2", "scala.Nothing"),
+        ("1 | 2", "scala.Int", "1 | 2"),
+        ("oracle.Cov[scala.Int]", "oracle.Cov[java.lang.String]", "oracle.Cov[scala.Int & java.lang.String]"),
+        (
+            "oracle.Contra[scala.Int]",
+            "oracle.Contra[java.lang.String]",
+            "oracle.Contra[scala.Int | java.lang.String]",
+        ),
+        ("oracle.Inv[? <: oracle.Animal]", "oracle.Inv[? <: oracle.Dog]", "oracle.Inv[? <: oracle.Dog]"),
+    ];
+    for (a, b, expected) in dotty {
+        let [ta, tb, te] = [a, b, expected].map(|t| parse(&mut u, t));
+        let glb = u.glb(ta, tb);
+        assert!(same_type(&mut u, glb, te), "{a} & {b}: {}", u.show(glb));
+    }
+    let (inv_int, inv_string) =
+        (parse(&mut u, "oracle.Inv[scala.Int]"), parse(&mut u, "oracle.Inv[java.lang.String]"));
+    let glb = u.glb(inv_int, inv_string);
+    assert_eq!(*u.types().get(glb), Type::And(inv_int, inv_string));
+}
+
+#[test]
+fn gadt_bounds_take_part_in_subtyping() {
+    let Some(mut u) = universe() else { return };
+    let root = u.root();
+    let unbounded = u.intern_type(Type::Bounds(NOTHING, ANY));
+    let t = define(&mut u, "T", Kind::TypeParam, root, unbounded);
+    let t_ref = u.intern_type(Type::Sym(None, t));
+    let [int, string, null] = ["scala.Int", "java.lang.String", "scala.Null"].map(|s| parse(&mut u, s));
+    let or_null = |u: &mut Universe, x| u.intern_type(Type::Or(x, null, false));
+    let (t_or_null, int_or_null) = (or_null(&mut u, t_ref), or_null(&mut u, int));
+    let checks = |u: &mut Universe| {
+        [
+            u.is_subtype(t_ref, int),
+            u.is_subtype(int, t_ref),
+            u.is_subtype(t_or_null, int_or_null),
+            u.is_subtype(int, t_or_null),
+            u.is_subtype(string, t_ref),
+        ]
+    };
+    assert_eq!(checks(&mut u), [false; 5]);
+    assert_eq!(u.set_gadt_bounds(t, Some((int, int))), None);
+    assert_eq!(checks(&mut u), [true, true, true, true, false]);
+    assert_eq!(u.set_gadt_bounds(t, Some((NOTHING, int))), Some((int, int)));
+    assert_eq!(checks(&mut u), [true, false, true, false, false]);
+    u.set_gadt_bounds(t, None);
+    assert!(!u.has_gadt_bounds());
+    assert_eq!(checks(&mut u), [false; 5]);
 }

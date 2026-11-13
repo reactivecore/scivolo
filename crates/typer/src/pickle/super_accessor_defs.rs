@@ -147,3 +147,48 @@ impl TreePickler<'_> {
         Ok(result)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::accessor_info;
+    use tasty::{ANY, Binder, FileId, Flags, Kind, NOTHING, Symbol, SymbolId, Type, Universe};
+
+    fn define(u: &mut Universe, name: &str, kind: Kind, owner: SymbolId) -> SymbolId {
+        let flags = Flags::default();
+        let (target, tree, decls) = (None, None, Vec::new());
+        u.define(Symbol {
+            name: name.into(),
+            kind,
+            owner: Some(owner),
+            flags,
+            target,
+            is_extern: false,
+            derived: false,
+            decls,
+            tree,
+        })
+    }
+
+    #[test]
+    fn accessor_infos_refer_to_their_own_type_parameters() {
+        let mut u = Universe::empty();
+        let root = u.root();
+        let c = define(&mut u, "C", Kind::Class, root);
+        let m = define(&mut u, "m", Kind::Def, c);
+        let (t, other) = (define(&mut u, "T", Kind::TypeParam, m), define(&mut u, "T", Kind::TypeParam, c));
+        let [t, other] = [t, other].map(|s| u.intern_type(Type::Sym(None, s)));
+        let (types, terms) = (Binder(FileId(u32::MAX), 0), Binder(FileId(u32::MAX), 1));
+        let bounds = u.intern_type(Type::Bounds(NOTHING, ANY));
+        let (t_name, x_name) = (u.intern_name("T"), u.intern_name("x"));
+        let poly = |u: &mut Universe, param, result| {
+            let method = u.intern_method(terms, &[(x_name, param)], result, false, false);
+            u.intern_poly(types, &[(t_name, bounds)], method)
+        };
+        let own = u.intern_type(Type::Param(types, 0));
+        let selected = poly(&mut u, t, other);
+        let expected = poly(&mut u, own, other);
+        assert_eq!(accessor_info(&mut u, m, selected), expected);
+        let plain = u.intern_method(terms, &[(x_name, t)], t, false, false);
+        assert_eq!(accessor_info(&mut u, m, plain), plain);
+    }
+}

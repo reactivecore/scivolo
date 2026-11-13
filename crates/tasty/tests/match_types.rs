@@ -1,5 +1,8 @@
+mod support;
+
 use std::path::Path;
-use tasty::{Kind, Type, TypeId, Universe};
+use support::{parse, parse_in, universe};
+use tasty::{ANY, Flags, Kind, NOTHING, Symbol, Type, TypeId, Universe};
 
 fn stdlib() -> Option<Universe> {
     let jar = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../ref/libs/scala-library-3.9.0.jar");
@@ -134,4 +137,136 @@ fn library_match_types_keep_scrutinee_and_cases() {
     let Some(lambda) = u.lambda(u.types_of(cases)[0]) else { panic!("{}", u.show(head)) };
     assert_eq!(lambda.params.len(), 2);
     assert!(matches!(u.types().get(lambda.result), Type::MatchCase(..)));
+}
+
+/// A case of a match type: its captures, pattern and body.
+type Case<'a> = (&'a [&'a str], &'a str, &'a str);
+
+const OTHERWISE: Case = (&[], "scala.Any", "\"other\"");
+
+/// The case `[captures] =>> pat => body`, its captures unbounded.
+fn case(u: &mut Universe, (captures, pat, body): Case) -> TypeId {
+    let binder = u.fresh_binder();
+    let (pat, body) = (parse_in(u, pat, binder, captures), parse_in(u, body, binder, captures));
+    let case = u.intern_type(Type::MatchCase(pat, body));
+    if captures.is_empty() {
+        return case;
+    }
+    let unbounded = u.intern_type(Type::Bounds(NOTHING, ANY));
+    let params: Vec<_> = captures.iter().map(|c| (u.intern_name(c), unbounded)).collect();
+    u.intern_lambda(binder, &params, case)
+}
+
+/// Checks that `scrutinee match { cases }` reduces to `expected`, or is stuck for `None`.
+fn check_reduction(u: &mut Universe, scrutinee: &str, cases: &[Case], expected: Option<&str>) {
+    let s = parse(u, scrutinee);
+    let cases: Vec<TypeId> = cases.iter().map(|&c| case(u, c)).collect();
+    let m = u.intern_match(ANY, s, &cases);
+    let shown = u.show(m);
+    let reduced = u.try_normalize(m);
+    match (reduced, expected) {
+        (Some(r), Some(e)) => {
+            let e = parse(u, e);
+            assert!(u.is_subtype(r, e) && u.is_subtype(e, r), "{shown}: {}", u.show(r));
+        }
+        (None, None) => {}
+        (r, _) => panic!("{shown}: {:?} instead of {expected:?}", r.map(|r| u.show(r))),
+    }
+}
+
+#[test]
+fn cases_are_skipped_only_when_provably_disjoint() {
+    let Some(mut u) = universe() else { return };
+    let test = |p: &'static str, b| (&[] as &[&str], p, b);
+    let dotty: [(&str, &[Case], Option<&str>); 17] = [
+        ("scala.Int", &[test("java.lang.String", "1"), test("scala.Int", "2")], Some("2")),
+        ("java.lang.String", &[test("scala.Int", "1"), test("java.lang.String", "2")], Some("2")),
+        ("oracle.Dog", &[test("oracle.Animal", "1")], Some("1")),
+        ("oracle.Animal", &[test("oracle.Dog", "1"), OTHERWISE], None),
+        ("oracle.Box", &[test("oracle.Outer", "1"), OTHERWISE], Some("\"other\"")),
+        ("oracle.Box", &[test("oracle.Animal", "1"), OTHERWISE], None),
+        ("oracle.O.type", &[test("oracle.Animal", "1"), OTHERWISE], Some("\"other\"")),
+        ("oracle.O.type", &[test("oracle.Box", "1"), OTHERWISE], Some("1")),
+        ("1", &[test("2", "\"a\""), test("1", "\"b\"")], Some("\"b\"")),
+        ("1", &[test("scala.Int", "\"a\"")], Some("\"a\"")),
+        ("scala.Option[scala.Int]", &[test("scala.Some[scala.Int]", "1"), OTHERWISE], None),
+        ("scala.Some[scala.Int]", &[test("scala.None.type", "1"), OTHERWISE], Some("\"other\"")),
+        ("scala.Int | java.lang.String", &[test("scala.Boolean", "1"), OTHERWISE], Some("\"other\"")),
+        ("scala.Int | java.lang.String", &[test("scala.Int", "1"), OTHERWISE], None),
+        ("oracle.Inv[scala.Int]", &[test("oracle.Inv[java.lang.String]", "1"), OTHERWISE], Some("\"other\"")),
+        ("oracle.Cov[scala.Int]", &[test("oracle.Cov[java.lang.String]", "1"), OTHERWISE], None),
+        ("scala.Some[scala.Int]", &[test("scala.Some[java.lang.String]", "1"), OTHERWISE], Some("\"other\"")),
+    ];
+    for (scrutinee, cases, expected) in dotty {
+        check_reduction(&mut u, scrutinee, cases, expected);
+    }
+}
+
+#[test]
+fn captures_take_the_scrutinee_arguments() {
+    let Some(mut u) = universe() else { return };
+    let s = "scala.compiletime.ops.int.S[n]";
+    let dotty: [(&str, &[Case], Option<&str>); 10] = [
+        ("scala.Option[scala.Int]", &[(&["X"], "scala.Option[X]", "X")], Some("scala.Int")),
+        ("scala.Some[java.lang.String]", &[(&["X"], "scala.Option[X]", "X")], Some("java.lang.String")),
+        (
+            "scala.collection.immutable.List[scala.Int]",
+            &[(&["X"], "scala.collection.immutable.Seq[X]", "X")],
+            Some("scala.Int"),
+        ),
+        ("oracle.Inv[scala.Int]", &[(&["X"], "oracle.Inv[X]", "X")], Some("scala.Int")),
+        (
+            "scala.Tuple2[scala.Int, java.lang.String]",
+            &[(&["A", "B"], "scala.Tuple2[A, B]", "B")],
+            Some("java.lang.String"),
+        ),
+        (
+            "scala.Option[scala.Int]",
+            &[(&["X"], "scala.collection.immutable.List[X]", "X"), OTHERWISE],
+            Some("\"other\""),
+        ),
+        ("oracle.Animal", &[(&["X"], "oracle.Inv[X]", "X"), OTHERWISE], None),
+        ("3", &[(&["n"], s, "n")], Some("2")),
+        ("0", &[(&["n"], s, "n"), OTHERWISE], None),
+        ("0", &[(&[], "0", "\"zero\""), (&["n"], s, "n")], Some("\"zero\"")),
+    ];
+    for (scrutinee, cases, expected) in dotty {
+        check_reduction(&mut u, scrutinee, cases, expected);
+    }
+}
+
+#[test]
+fn tail_recursive_match_types_reduce_deeper_than_nested_reductions() {
+    let Some(mut u) = universe() else { return };
+    let root = u.root();
+    let down = u.define(Symbol {
+        name: "Down".into(),
+        kind: Kind::Type,
+        owner: Some(root),
+        flags: Flags::default(),
+        target: None,
+        is_extern: false,
+        derived: false,
+        decls: Vec::new(),
+        tree: None,
+    });
+    let down_ref = u.intern_type(Type::Sym(None, down));
+    let binder = u.fresh_binder();
+    let n = u.intern_type(Type::Param(binder, 0));
+    let zero = case(&mut u, (&[], "0", "\"done\""));
+    let step_binder = u.fresh_binder();
+    let pred = u.intern_type(Type::Param(step_binder, 0));
+    let s = parse_in(&mut u, "scala.compiletime.ops.int.S[n]", step_binder, &["n"]);
+    let recursion = u.intern_applied(down_ref, &[pred]);
+    let step = u.intern_type(Type::MatchCase(s, recursion));
+    let unbounded = u.intern_type(Type::Bounds(NOTHING, ANY));
+    let n_name = u.intern_name("n");
+    let step = u.intern_lambda(step_binder, &[(n_name, unbounded)], step);
+    let body = u.intern_match(ANY, n, &[zero, step]);
+    let info = u.intern_lambda(binder, &[(n_name, unbounded)], body);
+    u.set_info(down, info);
+    let hundred = int(&mut u, 100);
+    let t = u.intern_applied(down_ref, &[hundred]);
+    let done = u.str_type("done");
+    assert_eq!(u.try_normalize(t), Some(done), "{}", u.show(t));
 }

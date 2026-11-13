@@ -181,7 +181,25 @@ mod tests {
     fn mangles_like_scala_native() {
         assert_eq!(ident("map"), "3map");
         assert_eq!(ident("1st"), "3-1st");
-        assert_eq!(mangle(&Erased::Class("scala.Option".into())), "L12scala.Option");
-        assert_eq!(mangle(&Erased::Array(Box::new(Erased::Prim('i')))), "LAi_");
+        assert_eq!(ident("-x"), "2--x");
+        assert_eq!(ident("ü"), "1ü");
+        assert_eq!(ident("𝔸"), "2𝔸");
+        let array = |e: Erased| Erased::Array(Box::new(e));
+        let cases = [
+            (Erased::Prim('z'), "z"),
+            (Erased::Prim('j'), "j"),
+            (Erased::Prim('w'), "w"),
+            (Erased::Prim('R'), "R_"),
+            (Erased::Unit, "u"),
+            (Erased::Nothing, "n"),
+            (Erased::Null, "l"),
+            (Erased::Class("scala.Option".into()), "L12scala.Option"),
+            (array(Erased::Prim('i')), "LAi_"),
+            (array(array(Erased::string())), "LALAL16java.lang.String__"),
+            (Erased::Value("scala.runtime.RichInt".into(), Box::new(Erased::Prim('i'))), "i"),
+        ];
+        for (e, expected) in cases {
+            assert_eq!(mangle(&e), expected, "{e:?}");
+        }
     }
 }

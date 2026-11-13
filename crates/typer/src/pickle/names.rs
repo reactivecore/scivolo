@@ -154,3 +154,98 @@ impl TreePickler<'_> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        derived_name, expanded_prefix_name, local_name, package_name, param_name, qualified, sym_name, utf8,
+    };
+    use tasty::tags::OBJECT;
+    use tasty::write::Name;
+    use tasty::{Flags, Kind, Symbol, SymbolId, Universe};
+
+    fn define(u: &mut Universe, name: &str, kind: Kind, owner: SymbolId) -> SymbolId {
+        let flags = Flags::default();
+        let (target, tree, decls) = (None, None, Vec::new());
+        u.define(Symbol {
+            name: name.into(),
+            kind,
+            owner: Some(owner),
+            flags,
+            target,
+            is_extern: false,
+            derived: false,
+            decls,
+            tree,
+        })
+    }
+
+    fn unique(under: &str, sep: &str, num: u32) -> Name {
+        Name::Unique { under: utf8(under), sep: sep.into(), num }
+    }
+
+    #[test]
+    fn derived_names_as_dotty_s_name_kinds() {
+        let dotty = [
+            ("f$default$2", Some(Name::DefaultGetter(utf8("f"), 1))),
+            ("x$1", Some(unique("x", "$", 1))),
+            ("evidence$1", Some(unique("", "evidence$", 1))),
+            ("contextual$2", Some(unique("", "contextual$", 2))),
+            ("x$proxy3", Some(unique("x", "$proxy", 3))),
+            ("x$given1", Some(unique("x", "$given", 1))),
+            ("ev$4", Some(unique("", "ev$", 4))),
+            ("_$5", Some(unique("", "_$", 5))),
+            ("$1$", Some(unique("", "$", 1))),
+            ("x$1$2", Some(unique("x$1", "$", 2))),
+            (
+                "a$b$3$4",
+                Some(Name::Unique { under: Box::new(unique("a$b", "$", 3)), sep: "$".into(), num: 4 }),
+            ),
+            ("plain", None),
+            ("x$01", None),
+            ("x1", None),
+        ];
+        for (name, expected) in dotty {
+            assert_eq!(derived_name(name), expected, "{name}");
+        }
+        assert_eq!(param_name("_$1"), unique("", "_$", 1));
+        assert_eq!(param_name("_$x"), Name::utf8("_$x"));
+        assert_eq!(param_name("x$1"), Name::utf8("x$1"));
+    }
+
+    #[test]
+    fn names_of_packages_objects_and_locals() {
+        let mut u = Universe::empty();
+        let root = u.root();
+        let p = define(&mut u, "p", Kind::Package, root);
+        let q = define(&mut u, "q", Kind::Package, p);
+        let qualified_pq = Name::Qualified(utf8("p"), utf8("q"));
+        assert_eq!(package_name(&u, q), qualified_pq);
+        assert_eq!(package_name(&u, root), Name::utf8("<empty>"));
+        assert_eq!(qualified("p.q"), qualified_pq);
+
+        let c = define(&mut u, "C", Kind::Class, q);
+        let o = define(&mut u, "O$", Kind::Class, q);
+        u.set_flags(o, Flags::default().with(OBJECT));
+        let plain = define(&mut u, "D$", Kind::Class, q);
+        assert_eq!(sym_name(&u, o), Name::ObjectClass(utf8("O")));
+        assert_eq!(sym_name(&u, plain), Name::utf8("D$"));
+
+        let m = define(&mut u, "m", Kind::Def, c);
+        let local = define(&mut u, "L", Kind::Class, m);
+        let in_object = define(&mut u, "I", Kind::Class, o);
+        let prefixed = |outer: Name, last: &str| Name::ExpandPrefix(Box::new(outer), utf8(last));
+        let c_name = prefixed(Name::ExpandPrefix(utf8("p"), utf8("q")), "C");
+        assert_eq!(expanded_prefix_name(&u, c), c_name);
+        assert_eq!(expanded_prefix_name(&u, local), prefixed(c_name, "_$L"));
+        let o_name = prefixed(Name::ExpandPrefix(utf8("p"), utf8("q")), "O");
+        assert_eq!(expanded_prefix_name(&u, in_object), prefixed(o_name, "I"));
+
+        let getter = define(&mut u, "m$default$1", Kind::Def, c);
+        let synthetic = define(&mut u, "x$1", Kind::Param, m);
+        let fresh = define(&mut u, "x$1", Kind::Val, m);
+        assert_eq!(local_name(&u, getter), Name::DefaultGetter(utf8("m"), 0));
+        assert_eq!(local_name(&u, synthetic), Name::utf8("x$1"));
+        assert_eq!(local_name(&u, fresh), unique("x", "$", 1));
+    }
+}
