@@ -109,21 +109,6 @@ impl Typer<'_> {
         self.widen_inferred(inst, bound, widen)
     }
 
-    /// Replaces in `t` each type member of an instantiated variable that a refinement of the
-    /// variable's instance aliases by the alias (dotty's `simplify` of a selection on an
-    /// instantiated `TypeVar`, `derivedSelect` with `lookupRefined`).
-    fn with_refined_var_members(&mut self, t: TypeId) -> TypeId {
-        let c = &self.constraint;
-        self.u.map_type(t, &mut |u, part| {
-            let Some((Some(pre), s)) = u.sym_ref(part) else { return None };
-            let inst = zonked(u, c, c.instance(u.var(pre)?)?, false);
-            if !matches!(u.ty(inst), Type::Skolem(..) | Type::Refined(..)) {
-                return None;
-            }
-            u.refinement_info(inst, s).and_then(|i| u.type_alias(i))
-        })
-    }
-
     /// Instantiates type variable `v` to its instance type, from its lower bound if `from_below`
     /// else its upper bound (dotty's `TypeVar.instantiate`). Refuses an instance that contains `v`,
     /// a union or intersection of type constructors (`List | Option`), a singleton below another
