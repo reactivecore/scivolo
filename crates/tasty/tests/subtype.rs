@@ -473,6 +473,19 @@ fn joins_widen_match_type_aliases_one_step_to_their_match_type() {
     assert!(same_type(&mut u, joined, m_t), "{}", u.show(joined));
 }
 
+/// `M[T] <: N[T]` for match types on `T` whose cases' bodies conform (`MatchCase[Pat, +Body]`).
+#[test]
+fn match_types_compare_their_cases_covariantly_in_the_body() {
+    let Some(mut u) = universe() else { return };
+    let (root, unbounded) = (u.root(), u.intern_type(Type::Bounds(NOTHING, ANY)));
+    let t = define(&mut u, "T", Kind::TypeParam, root, unbounded);
+    let t = u.intern_type(Type::Sym(None, t));
+    let (m, n) = (match_alias(&mut u, "M", "oracle.Dog"), match_alias(&mut u, "N", "oracle.Animal"));
+    let (m_t, n_t) = (u.intern_applied(m, &[t]), u.intern_applied(n, &[t]));
+    assert!(u.is_subtype(m_t, n_t));
+    assert!(!u.is_subtype(n_t, m_t));
+}
+
 #[test]
 fn glbs_merge_arguments_by_variance() {
     let Some(mut u) = universe() else { return };

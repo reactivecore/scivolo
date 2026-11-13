@@ -294,8 +294,9 @@ fn quotes_with_definitions_pickle_to_their_bytes() {
 }
 
 /// A quote whose types refer to a class file's nested class through the `this` of its object
-/// class (`shapes.Box.Shape.square`'s result), pickled to the same trees: dotty shares the object
-/// class's reference inside the `this`, we do not.
+/// class (`shapes.Box.Shape.square`'s result), pickled to the same trees: TASTy's `TERMREFpkg`
+/// stands for both a package's `this` and its reference, so the reread `shapes.Box$` of `s`'s
+/// type is shared apart from the one in the `this`.
 #[test]
 fn quotes_with_nested_java_classes_pickle_to_their_trees() {
     let Some(mut u) = universe(&["tests/pickle/probe.jar", "tests/pickle/shapes.jar"]) else { return };
