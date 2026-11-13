@@ -123,3 +123,19 @@ pub fn int_like(value: &Constant) -> Option<i32> {
         _ => return None,
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::int_like;
+    use syntax::ast::constant::Constant;
+
+    #[test]
+    fn int_sized_literals() {
+        assert_eq!(int_like(&Constant::Int(i32::MIN)), Some(i32::MIN));
+        assert_eq!(int_like(&Constant::Char(0xffff)), Some(65535));
+        assert_eq!(int_like(&Constant::Short(-2)), Some(-2));
+        assert_eq!(int_like(&Constant::Byte(-128)), Some(-128));
+        assert_eq!(int_like(&Constant::Long(1)), None);
+        assert_eq!(int_like(&Constant::Boolean(true)), None);
+    }
+}

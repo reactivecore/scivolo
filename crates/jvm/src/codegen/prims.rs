@@ -198,3 +198,41 @@ pub fn convert(b: &mut Body, from: Kind, to: Kind) {
     };
     b.code.insn(narrow);
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use classfile::{D2F, D2I, D2L, F2D, F2I, F2L, I2D, I2F, I2L, L2D, L2F, L2I, Pool};
+
+    /// The bytes of converting a value of kind `from` to `to`.
+    fn converted(from: Kind, to: Kind) -> Vec<u8> {
+        let mut pool = Pool::default();
+        let mut b = Body::new(&mut pool, None, 0);
+        b.code.set_stack(from.slots());
+        convert(&mut b, from, to);
+        assert_eq!(b.code.stack(), to.slots(), "{from:?} to {to:?}");
+        b.code.bytes
+    }
+
+    #[test]
+    fn conversions_between_all_primitive_kinds() {
+        use Kind::{Byte, Char, Double, Float, Int, Long, Short};
+        let kinds = [Byte, Short, Char, Int, Long, Float, Double];
+        let expected: [[&[u8]; 7]; 7] = [
+            [&[], &[], &[I2C], &[], &[I2L], &[I2F], &[I2D]],
+            [&[I2B], &[], &[I2C], &[], &[I2L], &[I2F], &[I2D]],
+            [&[I2B], &[I2S], &[], &[], &[I2L], &[I2F], &[I2D]],
+            [&[I2B], &[I2S], &[I2C], &[], &[I2L], &[I2F], &[I2D]],
+            [&[L2I, I2B], &[L2I, I2S], &[L2I, I2C], &[L2I], &[], &[L2F], &[L2D]],
+            [&[F2I, I2B], &[F2I, I2S], &[F2I, I2C], &[F2I], &[F2L], &[], &[F2D]],
+            [&[D2I, I2B], &[D2I, I2S], &[D2I, I2C], &[D2I], &[D2L], &[D2F], &[]],
+        ];
+        for (from, row) in kinds.into_iter().zip(expected) {
+            for (to, bytes) in kinds.into_iter().zip(row) {
+                assert_eq!(converted(from, to), bytes, "{from:?} to {to:?}");
+            }
+        }
+        assert!(converted(Kind::Boolean, Int).is_empty());
+        assert!(converted(Kind::Reference, Int).is_empty() && converted(Int, Kind::Reference).is_empty());
+    }
+}
