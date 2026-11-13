@@ -119,6 +119,35 @@ fn typed_expressions_read_back_equal() {
     }
 }
 
+#[test]
+fn types_pickled_again_are_shared() {
+    let Some(mut u) = universe(&[]) else { return };
+    let text = "object T { val a = scala.collection.immutable.List[Long](1L, 2L) ++ List[Long](3L) }";
+    let (mut tpd, names, rhss) = typed_rhss(&mut u, text, &["a"]);
+    let bindings = tpd.list(&[]);
+    let root = tpd.node(
+        Tree::Inlined { call: None, bindings, expansion: rhss[0] },
+        Span::NONE,
+        tpd.get(rhss[0]).tpe,
+        None,
+    );
+    let bytes = pickle_quote((&mut u, &tpd, &names), root, &[]).unwrap();
+    let t = Tasty::parse(&bytes).unwrap();
+    let ast = Ast::parse(t.section("ASTs").unwrap().bytes).unwrap();
+    let named = |name: &str| t.names.iter().find(|&(r, _)| t.names.show(r) == name).unwrap().0;
+    let (long, repeated) = (named("Long"), named("<repeated>"));
+    let refs_to = |r: tasty::NameRef| {
+        ast.nodes().filter(|(_, n)| n.tag == tasty::tags::TYPEREF && n.a == r.0 as i64).count()
+    };
+    assert_eq!((refs_to(long), refs_to(repeated)), (1, 1), "{}", shown_ast(&bytes));
+    let shared: Vec<_> = ast.nodes().filter(|(_, n)| n.tag == tasty::tags::SHAREDtype).collect();
+    assert!(shared.len() >= 3, "{}", shown_ast(&bytes));
+    for (_, n) in shared {
+        let target = ast.at(n.a as u32).expect("a node at the shared address");
+        assert!(!matches!(ast.tag(target), tasty::tags::SHAREDtype | tasty::tags::SHAREDterm));
+    }
+}
+
 /// The right-hand side of `val a` in unit `text`, quoted, pickled with positions and read back.
 fn positioned_read_back(text: &str) -> Result<Span, String> {
     let mut u = universe(&[]).ok_or("no library")?;
