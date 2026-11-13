@@ -7,6 +7,9 @@
 use super::Constraint;
 use tasty::{Kind, SymbolId, Type, TypeId, TypeVars, Universe, VarId};
 
+/// How many variables deep `refers_to_local` looks through bounds for local symbols.
+pub const LOCAL_REF_DEPTH: u32 = 4;
+
 /// Where a variable was made: the first symbol defined after it, and the nesting of the scope it
 /// was made in (dotty's `nestingLevel`).
 #[derive(Clone, Copy, PartialEq)]
@@ -41,7 +44,8 @@ impl Constraint {
         vars.into_iter().all(|x| {
             let e = self.vars[x.0 as usize];
             e.instance.is_some()
-                || !(self.refers_to_local(u, e.lo, at, 4) || self.refers_to_local(u, e.hi, at, 4))
+                || !(self.refers_to_local(u, e.lo, at, LOCAL_REF_DEPTH)
+                    || self.refers_to_local(u, e.hi, at, LOCAL_REF_DEPTH))
                 || self.unified_at(u, x, at).is_some()
         })
     }
