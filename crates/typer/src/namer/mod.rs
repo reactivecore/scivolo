@@ -11,6 +11,7 @@ mod checks;
 mod complete;
 mod def_names;
 mod defaults;
+mod deprecated_names;
 mod double_definitions;
 mod erased;
 mod export_annotations;

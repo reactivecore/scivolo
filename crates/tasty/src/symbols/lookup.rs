@@ -108,7 +108,8 @@ impl Universe {
             {
                 return self.decl(owner, &jdk);
             }
-            if self.jdk.is_some() {
+            let constructor = self.name(name) == names::nme::CONSTRUCTOR;
+            if self.jdk.is_some() && !(constructor && self.enter_jdk_annotation(owner)) {
                 self.jdk_view(owner, name);
             }
             return Ok(self.named(owner, name).to_vec());

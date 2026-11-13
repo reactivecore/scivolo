@@ -8,11 +8,11 @@ use tasty::SymbolId;
 
 impl Typer<'_> {
     /// Names the arguments of annotation `annot` of class `class` if `class` is a Java annotation
-    /// class (dotty's `Checking.checkNamedArgumentForJavaAnnotation`): `@SuppressWarnings(xs)`
-    /// becomes `@SuppressWarnings(value = xs)` where the class has a member `value`; reports
-    /// every other positional argument, as in `@A(1, 2)`.
+    /// class, a class file's or the JDK's (dotty's `Checking.checkNamedArgumentForJavaAnnotation`):
+    /// `@SuppressWarnings(xs)` becomes `@SuppressWarnings(value = xs)` where the class has a
+    /// member `value`; reports every other positional argument, as in `@A(1, 2)`.
     pub fn check_java_annotation_args(&mut self, annot: NodeId, class: SymbolId) {
-        if !self.u.is_java_defined(class) {
+        if !self.u.is_java_defined(class) && !self.u.enter_jdk_annotation(class) {
             return;
         }
         let Tree::Apply { fun, args } = *self.ast.tree(annot) else { return };
