@@ -66,9 +66,9 @@ inside the comparer (`narrowGADTBounds`), after ordinary type variables.
   as dotty's `compareAppliedType1/2`: constructors equal by their GADT bounds or ordering, the
   arguments compared with the GADT constraint frozen unless one constructor is a class and the
   bound used made the other equal to it (`tyconIsInjective`); else through the GADT bounds of
-  the constructor, frozen (`byGadtBounds`). The read-back path of ADRs 0090–0109 is gone; a
-  pattern outside a case (a pattern definition) narrows nothing, as no symbol is registered
-  there, and keeps its refusals.
+  the constructor, frozen (`byGadtBounds`). The read-back path of ADRs 0090–0109 is gone; an
+  extractor pattern outside a case that would need GADT mode is refused (pattern definitions
+  are cases after desugaring).
 - While the GADT constraint is inferred, a type variable whose bounds become the same type
   constructor is instantiated to it, as dotty's `tryReplace`; outside, it stays a variable.
 - `compareAppliedType2` compares with a tuple class applied by its nested pairs first, ending in

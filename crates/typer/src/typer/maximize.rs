@@ -18,15 +18,14 @@ impl Typer<'_> {
     /// above, a contravariant one from below, unless it occurs in the bounds of the GADT
     /// constraint's symbols; else from above if its bounds coincide or its upper bound is a final
     /// class, else to a fresh pattern-bound type of its bounds; those types, named after the type
-    /// parameters of extractor `unapp`. With `level`, the GADT constraint has the variables
-    /// replaced by those types, which are then registered in it at that level all at once
-    /// (dotty's `maximizeType`).
+    /// parameters of extractor `unapp`. The GADT constraint has the variables replaced by those
+    /// types, which are then registered in it at `level` all at once (dotty's `maximizeType`).
     pub fn maximize_type(
         &mut self,
         t: TypeId,
         vars: usize,
         unapp: TNodeId,
-        level: Option<u32>,
+        level: u32,
         ctx: Ctx,
     ) -> Result<Vec<SymbolId>, &'static str> {
         let t = self.zonk(t);
@@ -73,11 +72,9 @@ impl Typer<'_> {
             let (lo, hi) = self.u.bounds(info).unwrap_or((lo, hi));
             registered.push(Registered { sym, lo, hi });
         }
-        if let Some(level) = level {
-            self.zonk_gadt_constraint();
-            if !registered.is_empty() {
-                self.u.gadt_register(&registered, level);
-            }
+        self.zonk_gadt_constraint();
+        if !registered.is_empty() {
+            self.u.gadt_register(&registered, level);
         }
         Ok(registered.into_iter().map(|r| r.sym).collect())
     }

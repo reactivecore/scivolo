@@ -71,8 +71,12 @@ impl Narrowing {
         };
         t.constraint.rollback(mark);
         if !ok {
-            if t.gadt.cases > 0 {
-                self.by_bound_types(t, (tpe, sel), &syms);
+            match t.gadt.cases {
+                0 => {
+                    let span = t.tpd.span(tpt);
+                    t.unsupported_at(span, "type pattern binding types narrowed outside a case");
+                }
+                _ => self.by_bound_types(t, (tpe, sel), &syms),
             }
             return tpe;
         }

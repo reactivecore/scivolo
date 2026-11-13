@@ -104,7 +104,7 @@ impl Typer<'_> {
                 let tpt = self.type_tree(pt, span.end_pos(), true);
                 return self.tpd.node(T::Typed { expr: tree, tpt }, span.to_synthetic(), Some(pt), None);
             }
-            return self.gadt_adapted_in(tree, pt);
+            return self.gadt_adapted_in(tree, pt, ctx.owner);
         }
         if let Some(converted) = self.converted_constant(tree, pt) {
             return self.adapt(converted, Pt::Type(pt), ctx);

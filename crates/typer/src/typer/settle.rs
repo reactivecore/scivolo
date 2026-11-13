@@ -120,8 +120,7 @@ impl Typer<'_> {
     }
 }
 
-/// Whether type parameter `s` is a class's and takes type arguments, which dotty's GADT
-/// constraint holds and ours leaves out.
+/// Whether type parameter `s` is a class's and takes type arguments.
 fn is_class_hk_param(u: &mut tasty::Universe, s: SymbolId) -> bool {
     let of_class = u.symbol(s).owner.is_some_and(|o| u.is_class(o));
     let info = u.info(s);
