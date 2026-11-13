@@ -103,9 +103,7 @@ fn inherits(l: &mut Lower, class: SymbolId, w: &Wanted, seen: &mut FxHashSet<Sym
     }
     let parents: Vec<SymbolId> = l.u.parents(class).into_iter().filter_map(|p| l.u.class_symbol(p)).collect();
     let parents = erased_classes(l, parents);
-    parents
-        .into_iter()
-        .any(|p| erased_linearization(l, p).contains(&owner) && inherits(l, p, w, seen))
+    parents.into_iter().any(|p| erased_linearization(l, p).contains(&owner) && inherits(l, p, w, seen))
 }
 
 /// A method looked up in the bases of a class: its name and erased signature, and the class's
