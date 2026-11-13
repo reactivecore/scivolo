@@ -8,21 +8,27 @@ use crate::types::TypeId;
 
 impl Cmp<'_> {
     /// Whether type constructor `t1` is below `t2` by the GADT bounds of either or their
-    /// ordering in the GADT constraint, and if so whether the bound used makes it equal to a
-    /// type (dotty's `byGadtBounds` and `byGadtOrdering` in `isMatchingApply`).
+    /// ordering in the GADT constraint, and if so whether the symbol whose bound was used is made
+    /// equal to a type (dotty's `byGadtBounds` and `byGadtOrdering` in `isMatchingApply`).
     pub fn same_by_gadt(&mut self, t1: TypeId, t2: TypeId) -> Option<bool> {
-        if let Some((lo, hi)) = self.gadt_bounds(t1)
+        if let Some((_, hi)) = self.gadt_bounds(t1)
             && self.recur_frozen(hi, t2)
         {
-            return Some(lo == hi);
+            return Some(self.gadt_instantiated(t1));
         }
-        if let Some((lo, hi)) = self.gadt_bounds(t2)
+        if let Some((lo, _)) = self.gadt_bounds(t2)
             && self.recur_frozen(t1, lo)
         {
-            return Some(lo == hi);
+            return Some(self.gadt_instantiated(t2));
         }
         let (p1, p2) = (self.u.gadt_param(t1)?, self.u.gadt_param(t2)?);
         self.u.gadt().is_less(p1, p2).then_some(false)
+    }
+
+    /// Whether `t` refers to a registered symbol made equal to a type.
+    fn gadt_instantiated(&mut self, t: TypeId) -> bool {
+        let Some(p) = self.u.gadt_param(t) else { return false };
+        self.u.gadt().entry(p).is_some_and(|e| e.instance.is_some())
     }
 
     /// `a <: tycon[args]`, `b`, through the GADT bounds of abstract `tycon`, the GADT constraint

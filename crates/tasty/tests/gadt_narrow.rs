@@ -381,27 +381,45 @@ fn applications_of_gadt_symbols_compare_their_arguments_frozen_unless_injective(
     let option = parse(&mut u, "scala.Option");
     let root = u.root();
     let hk = u.intern_type(Type::Bounds(NOTHING, any_lambda));
-    // (F's GADT bounds, G's, comparison, holds, A's GADT bounds after) from dotty's
-    // `isMatchingApply` (`tyconIsInjective`), `compareAppliedType1/2` and `byGadtBounds`.
-    type Bounds = Option<(TypeId, TypeId)>;
+    /// A type constructor's state in the GADT constraint.
+    #[derive(Clone, Copy)]
+    enum Tycon {
+        Free,
+        Bounded(TypeId, TypeId),
+        /// Made equal to a type (dotty's `TypeAlias` GADT bounds).
+        Equal(TypeId),
+    }
+    use Tycon::*;
+    // (F, G, comparison, holds, A's GADT bounds after) from dotty's `isMatchingApply`
+    // (`tyconIsInjective`), `compareAppliedType1/2` and `byGadtBounds`.
     type Expected = (&'static str, &'static str);
-    let rows: &[(Bounds, Bounds, &str, bool, Expected)] = &[
-        (Some((option, option)), None, "F[A] <: scala.Option[scala.Int]", true, ("", "scala.Int")),
-        (Some((NOTHING, option)), None, "F[A] <: scala.Option[scala.Int]", false, ("", "")),
-        (None, Some((option, option)), "scala.Option[scala.Int] <: G[A]", true, ("scala.Int", "scala.Int")),
-        (None, Some((option, any_lambda)), "scala.Option[scala.Int] <: G[A]", false, ("", "")),
-        (Some((NOTHING, option)), None, "F[A] <: scala.Option[A]", true, ("", "")),
-        (None, Some((option, any_lambda)), "scala.Option[A] <: G[A]", true, ("", "")),
+    let rows: &[(Tycon, Tycon, &str, bool, Expected)] = &[
+        (Equal(option), Free, "F[A] <: scala.Option[scala.Int]", true, ("", "scala.Int")),
+        (Bounded(option, option), Free, "F[A] <: scala.Option[scala.Int]", false, ("", "")),
+        (Bounded(NOTHING, option), Free, "F[A] <: scala.Option[scala.Int]", false, ("", "")),
+        (Free, Equal(option), "scala.Option[scala.Int] <: G[A]", true, ("scala.Int", "scala.Int")),
+        (Free, Bounded(option, option), "scala.Option[scala.Int] <: G[A]", false, ("", "")),
+        (Free, Bounded(option, any_lambda), "scala.Option[scala.Int] <: G[A]", false, ("", "")),
+        (Bounded(NOTHING, option), Free, "F[A] <: scala.Option[A]", true, ("", "")),
+        (Free, Bounded(option, any_lambda), "scala.Option[A] <: G[A]", true, ("", "")),
     ];
-    for &(f_bounds, g_bounds, cmp, holds, (a_lo, a_hi)) in rows {
+    for &(f_state, g_state, cmp, holds, (a_lo, a_hi)) in rows {
         u.gadt_mut().rollback(Mark(0));
         let [f, g] = ["F", "G"].map(|n| define(&mut u, n, Kind::TypeParam, root, hk));
         let mut registered = Vec::new();
-        for (s, bounds) in [(f, f_bounds), (g, g_bounds)] {
-            let (lo, hi) = bounds.unwrap_or((NOTHING, any_lambda));
+        for (s, state) in [(f, f_state), (g, g_state)] {
+            let (lo, hi) = match state {
+                Bounded(lo, hi) => (lo, hi),
+                Free | Equal(_) => (NOTHING, any_lambda),
+            };
             registered.push(Registered { sym: s, lo, hi });
         }
         u.gadt_add(&registered, 0);
+        for (s, state) in [(f, f_state), (g, g_state)] {
+            if let Equal(t) = state {
+                u.gadt_replace(s, t);
+            }
+        }
         let scope = Scope::new(&mut u, &[param("A", 0)]);
         let locals: Vec<(&str, TypeId)> = [("F", f), ("G", g), ("A", scope.sym("A"))]
             .map(|(n, s)| (n, u.intern_type(Type::Sym(None, s))))
