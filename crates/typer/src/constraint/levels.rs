@@ -155,3 +155,57 @@ impl Constraint {
         false
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tasty::{ANY, NOTHING, Symbol};
+
+    fn define(u: &mut Universe, name: &str, kind: Kind, owner: Option<SymbolId>) -> SymbolId {
+        u.define(Symbol {
+            name: name.into(),
+            kind,
+            owner,
+            flags: Default::default(),
+            target: None,
+            is_extern: false,
+            derived: false,
+            decls: Vec::new(),
+            tree: None,
+        })
+    }
+
+    /// The lower bound a variable bounded below by a value of type `a`, defined after `here`,
+    /// gets once leveled to `here`.
+    fn leveled_lower_bound(info_of_a: Type) -> (Universe, Type) {
+        let (mut c, mut u) = (Constraint::default(), Universe::empty());
+        let m = define(&mut u, "m", Kind::Def, None);
+        let a = define(&mut u, "a", Kind::Type, Some(m));
+        let info = u.intern_type(info_of_a);
+        u.set_info(a, info);
+        let here = c.here(&u);
+        let ok = define(&mut u, "ok", Kind::Val, Some(m));
+        let a_ref = u.intern_type(Type::Sym(None, a));
+        u.set_info(ok, a_ref);
+        let t = c.fresh(&mut u);
+        let x = u.var(t).expect("a variable");
+        let ok_ref = u.intern_type(Type::Sym(None, ok));
+        c.set(x, ok_ref, ANY);
+        assert!(c.leveled(&mut u, t, here));
+        let kept = c.vars[x.0 as usize].instance.and_then(|i| u.var(i)).expect("a kept variable");
+        let lo = *u.ty(c.vars[kept.0 as usize].lo);
+        (u, lo)
+    }
+
+    #[test]
+    fn a_local_value_in_a_bound_is_avoided_through_its_dealiased_type() {
+        let (u, lo) = leveled_lower_bound(Type::Alias(ANY));
+        assert_eq!(lo, *u.ty(ANY));
+    }
+
+    #[test]
+    fn a_type_defined_before_the_level_stays_in_the_bound() {
+        let (u, lo) = leveled_lower_bound(Type::Bounds(NOTHING, ANY));
+        assert!(matches!(lo, Type::Sym(None, a) if u.symbol(a).name == "a"));
+    }
+}
