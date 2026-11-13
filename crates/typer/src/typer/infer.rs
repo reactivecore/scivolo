@@ -93,11 +93,12 @@ impl TypeOps<'_> {
 }
 
 impl Typer<'_> {
-    /// `v`'s lower bound widened below `v`, which may constrain `v`, or its upper bound (dotty's
-    /// `instanceType`).
+    /// `v`'s lower bound widened below `v`, which may constrain `v`, or its upper bound, simplified
+    /// after instantiating the type variables of its match aliases (dotty's `instanceType`).
     pub fn instance_type(&mut self, v: VarId, from_below: bool) -> Result<TypeId, &'static str> {
         let (lo, hi) = self.constraint.bounds(v);
         let inst = if from_below { self.zonk(lo) } else { self.zonk(hi) };
+        let inst = self.with_match_alias_vars_defined(inst);
         let inst = self.simplified_inferred(inst);
         if !from_below {
             return Ok(inst);

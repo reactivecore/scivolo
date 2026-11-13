@@ -81,13 +81,14 @@ impl Resolution {
 
         t.untuple_unless_unary(proto, &methods)?;
         let n = t.protos[proto].args.len();
-        let (fitting, applies) = by_size(t, methods, n)?;
+        let (fitting, applies) = by_size(t, methods.clone(), n)?;
         let chosen = match fitting.as_slice() {
             [s] => *s,
             [] if applies.is_empty() => return Err(NO_SIZE.into()),
             [] => return Err(RESULT_APPLY.into()),
             _ => self.resolve_overloaded(t, &fitting, proto)?,
         };
+        let chosen = self.adapted_by_result(t, chosen, &methods, proto)?;
         if !applies.is_empty() && !self.wins_over_applies(t, chosen, &applies, proto) {
             return Err(RESULT_APPLY.into());
         }

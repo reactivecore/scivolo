@@ -84,10 +84,23 @@ impl Cmp<'_> {
                 self.normalizing.pop();
                 let refused = self.u.reductions_exhausted;
                 self.u.reductions_exhausted |= exhausted;
-                normal.filter(|_| !refused)
+                normal.filter(|&r| !refused && !self.is_match_over_open_var(r))
             }
             _ => self.fold_compiletime(n),
         }
+    }
+
+    /// Whether `t` is a match type that refers to an uninstantiated type variable.
+    fn is_match_over_open_var(&mut self, t: TypeId) -> bool {
+        if !matches!(self.u.ty(t), Type::Match { .. }) {
+            return false;
+        }
+        let mut open = false;
+        self.u.map_type(t, &mut |u, part| {
+            open |= u.var(part).is_some_and(|v| self.vars.instance(v).is_none());
+            None
+        });
+        open
     }
 
     /// The match type or `scala.compiletime.ops` application `t` stands for, through
