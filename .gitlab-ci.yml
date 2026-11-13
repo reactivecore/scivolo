@@ -70,7 +70,7 @@ build-image:
   if: $CI_PIPELINE_SOURCE == "schedule"
   when: never
 
-# Pushes target/ on main only; merge requests pull it.
+# Pushes its caches on main only; merge requests pull them.
 test:linux:
   image: ${CI_IMAGE}
   stage: test
@@ -79,10 +79,10 @@ test:linux:
     - *not_scheduled
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
       variables:
-        TARGET_CACHE_POLICY: pull-push
+        CACHE_POLICY: pull-push
     - when: on_success
       variables:
-        TARGET_CACHE_POLICY: pull
+        CACHE_POLICY: pull
   needs:
     - job: build-image
       artifacts: true
@@ -91,15 +91,18 @@ test:linux:
   cache:
     - key: scivolo-cargo-linux
       paths: *cargo_cache_paths
+      policy: $CACHE_POLICY
     - key:
         prefix: scivolo-target-linux
         files: [Cargo.lock, ci/Dockerfile]
       paths: [target]
-      policy: $TARGET_CACHE_POLICY
+      policy: $CACHE_POLICY
     - key: scivolo-libs-linux
       paths: *libs_cache_paths
+      policy: $CACHE_POLICY
     - key: scivolo-coursier-linux
       paths: [.cache/coursier]
+      policy: $CACHE_POLICY
   script:
     - rustc --version && cargo --version && just --version && clang --version && cs version
     - cargo nextest --version && nproc
@@ -265,9 +268,6 @@ test:macos:
       paths: *cargo_cache_paths
     - key: scivolo-libs-macos
       paths: *libs_cache_paths
-    # cargo-nextest from scripts/nextest.sh.
-    - key: scivolo-tools-macos
-      paths: [tmp/tools]
   script:
     - rustc --version && cargo --version && just --version && clang --version
     - just ci

@@ -737,10 +737,15 @@ lint *args:
 lint-msrv:
     rustup run 1.97.0 cargo clippy --workspace --all-targets -- -D warnings
 
-# Run the whole test suite, the test binaries in parallel, then the doctests.
+# Run the whole test suite: by cargo-nextest when installed (test binaries in parallel, then the
+# doctests), else by `cargo test`.
 test *args:
-    scripts/nextest.sh run --workspace --no-tests=pass {{ locked }} {{ args }}
-    cargo test --workspace --doc {{ locked }}
+    if cargo nextest --version >/dev/null 2>&1; then \
+        cargo nextest run --workspace --no-tests=pass {{ locked }} {{ args }} && \
+        cargo test --workspace --doc {{ locked }}; \
+    else \
+        cargo test --workspace {{ locked }} {{ args }}; \
+    fi
 
 # Open a merge request of the current branch into `target`, described by tmp/mr.md.
 mr-create title target="main" *flags:

@@ -108,7 +108,8 @@ export PATH="$PWD/scivolo-<version>-<target>/bin:$PATH"
 ### Build from source
 
 Needs Rust 1.97+, `just`, a C compiler; optional: Coursier (`--dep`), scala-cli (fallback
-frontend), a JDK 17+ (`scivolo-jvm`).
+frontend), a JDK 17+ (`scivolo-jvm`), cargo-nextest (`cargo install cargo-nextest --locked`;
+`just test` runs the test binaries in parallel with it).
 
 ```sh
 just fetch-libs                 # once: Scala Native's library jars into ref/libs

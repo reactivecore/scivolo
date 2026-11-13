@@ -20,8 +20,7 @@ RUN curl --proto '=https' --tlsv1.2 -sSfL \
     rm /tmp/just.tar.gz && \
     just --version
 
-# cargo-nextest runs the test binaries of `just test` in parallel; scripts/nextest.sh names the
-# same version.
+# cargo-nextest runs the test binaries of `just test` in parallel.
 ARG NEXTEST_VERSION=0.9.150
 ARG NEXTEST_SHA256=84f0f9ba75d0b6fa117bc418d49747ba78e20e4583057f6fa628f1b17c17234d
 RUN curl --proto '=https' --tlsv1.2 -sSfL \
