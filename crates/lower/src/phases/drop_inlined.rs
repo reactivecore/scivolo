@@ -66,6 +66,9 @@ fn reposition(l: &mut Lower, t: TNodeId, at: Span) {
         l.own_spans.insert(t, span);
     }
     if span.is_in_other_source() || other_file {
+        if matches!(l.tpd.tree(t), Tree::ValDef { .. }) {
+            l.foreign_vals.insert(t, span);
+        }
         l.tpd.get_mut(t).span = at.as_inlined_call();
     }
 }
@@ -77,11 +80,15 @@ pub fn own_span(l: &Lower, t: TNodeId) -> Span {
 }
 
 /// Makes the spans of inline calls given to trees from another source plain spans, as erasure
-/// leaves them.
+/// leaves them; notes the value definitions later phases made there.
 pub fn unmark_calls(l: &mut Lower) {
     for i in 0..l.tpd.len() {
-        let node = l.tpd.get_mut(TNodeId::new(i));
-        node.span = node.span.without_inlined_call();
+        let t = TNodeId::new(i);
+        let span = l.tpd.span(t);
+        if span.is_inlined_call() && matches!(l.tpd.tree(t), Tree::ValDef { .. }) {
+            l.foreign_vals.entry(t).or_insert(Span::NONE);
+        }
+        l.tpd.get_mut(t).span = span.without_inlined_call();
     }
     for span in l.inlined_spans.values_mut() {
         *span = span.without_inlined_call();

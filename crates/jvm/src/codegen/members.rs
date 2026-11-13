@@ -167,10 +167,23 @@ impl Gen<'_, '_> {
         }
     }
 
-    /// The source line of `t`, if it has a position.
+    /// The source line of `t`, if it has a position: of a value definition inlined from another
+    /// source, the line of the call's file at its offset there, or 0 if unknown.
     pub fn line_of(&self, t: TNodeId) -> Option<u16> {
         let span = self.l.tpd.span(t);
-        span.exists().then(|| self.line_at(span.point()))
+        if !span.exists() {
+            return None;
+        }
+        let Some(own) = self.l.foreign_val_span(t) else {
+            return Some(self.line_at(span.point()));
+        };
+        let at = match own.exists() {
+            true if own.is_in_other_source() => own.in_own_source().point(),
+            true => self.l.sources.locate(own.point()).1,
+            false => return Some(0),
+        };
+        let (call_file, _) = self.l.sources.locate(span.point());
+        Some(u16::try_from(call_file.offset_to_line(at) + 1).unwrap_or(u16::MAX))
     }
 
     /// The source line of unit offset `offset`.
