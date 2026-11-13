@@ -2,7 +2,7 @@
 //   compiler/src/dotty/tools/dotc/typer/Applications.scala
 //   compiler/src/dotty/tools/dotc/typer/ProtoTypes.scala
 //! Choosing among overloaded alternatives by their arguments (dotty's `resolveOverloaded`,
-//! `compare`, `adaptByResult`).
+//! `compare`).
 
 use super::named::applicable_to_proto;
 use super::{AMBIGUOUS, NO_APPLICABLE, Resolution, UNDECIDED, Unchosen, applicability};
@@ -15,7 +15,8 @@ impl Resolution {
     /// Chooses the alternative of `alts` that the arguments of `proto` select: of those they
     /// apply to without implicit conversions, else of those they apply to with them, the most
     /// specific one; a tie is broken by the next argument clause, by the alternatives without
-    /// default arguments, then by the expected result type, else the application is ambiguous.
+    /// default arguments, then by the expected result type, else the application is ambiguous
+    /// (dotty's `resolveOverloaded1`).
     pub fn resolve_overloaded(
         self,
         t: &mut Typer,
@@ -40,7 +41,7 @@ impl Resolution {
         }
 
         match tied {
-            false => Ok(self.adapted_by_result(t, best, alts, proto)),
+            false => Ok(best),
             true => self.break_tie(t, alts, applicable, proto),
         }
     }
@@ -145,26 +146,6 @@ impl Resolution {
             -1 => -i32::from(wins_b || !wins_a),
             _ => i32::from(wins_a && !wins_b) - i32::from(wins_b && !wins_a),
         })
-    }
-
-    /// Gives `chosen`, or if its result does not conform to the expected result type of
-    /// `proto`, the one alternative of `alts` whose result does, or the one resolution picks
-    /// among them (dotty's `adaptByResult`).
-    fn adapted_by_result(self, t: &mut Typer, chosen: SymbolId, alts: &[SymbolId], proto: usize) -> SymbolId {
-        let (Pt::Type(pt), ctx) = (t.protos[proto].pt, t.protos[proto].ctx) else { return chosen };
-        if t.result_conforms(chosen, self.prefix, pt, (true, ctx)) != Some(false) {
-            return chosen;
-        }
-        let conforming: Vec<SymbolId> = alts
-            .iter()
-            .copied()
-            .filter(|&a| a != chosen && t.result_conforms(a, self.prefix, pt, (true, ctx)) == Some(true))
-            .collect();
-        match conforming[..] {
-            [] => chosen,
-            [alt] => alt,
-            _ => self.resolve_overloaded(t, &conforming, proto).unwrap_or(chosen),
-        }
     }
 }
 
