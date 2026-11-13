@@ -87,7 +87,7 @@ impl Typer<'_> {
     /// type variables constrained by the comparison without them first.
     pub fn gadt_adapted(&mut self, tree: TNodeId, pt: TypeId, ctx: Ctx) -> TNodeId {
         let tpe = self.tpd.tpe(tree);
-        match self.gadt.narrowing() && !self.conforms_without_gadt(tpe, pt) && self.conforms(tpe, pt) {
+        match self.gadt.narrowing(self.u) && !self.conforms_without_gadt(tpe, pt) && self.conforms(tpe, pt) {
             true => self.gadt_cast(tree, pt, ctx),
             false => tree,
         }
@@ -117,7 +117,7 @@ impl Typer<'_> {
     /// so that `b.value` selects on `IntBox` where `b: Box[T]` and `T = Int` (dotty's `tryGadt` in
     /// `typedSelect`).
     pub fn gadt_healed(&mut self, qual: TNodeId, ctx: Ctx) -> Option<TNodeId> {
-        if !self.gadt.narrowing() {
+        if !self.gadt.narrowing(self.u) {
             return None;
         }
         let widened = self.tpd.tpe(qual);

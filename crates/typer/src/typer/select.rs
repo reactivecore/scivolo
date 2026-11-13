@@ -108,7 +108,7 @@ impl Typer<'_> {
                 return self.extension_select(id, qual, name, pt, ctx);
             }
             match self.viewed(qual, Goal::of_select(&text, pt), ctx) {
-                Ok(None) if !healed && self.gadt.narrowing() => {
+                Ok(None) if !healed && self.gadt.narrowing(self.u) => {
                     (qual, healed) = (self.gadt_healed(qual, ctx).unwrap_or(qual), true);
                     continue;
                 }

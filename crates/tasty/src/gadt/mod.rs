@@ -51,7 +51,7 @@ enum Undo {
 }
 
 /// A state of the constraint that `redo` restores after a rollback.
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct GadtChanges {
     entries: Vec<(SymbolId, Entry)>,
     narrowed: bool,

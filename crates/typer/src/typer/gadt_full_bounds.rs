@@ -26,10 +26,9 @@ impl Gadt {
             return lo;
         }
         let hi = self.without_bound_above(u, own, hi);
-        let above = self
-            .narrowed()
-            .into_iter()
-            .find(|&n| !seen.contains(&n) && u.gadt_bounds(n).is_some_and(|(l, _)| l == own));
+        let narrowed: Vec<_> = u.gadt().symbols().collect();
+        let above =
+            narrowed.into_iter().find(|&n| !seen.contains(&n) && u.gadt_bounds(n).is_some_and(|(l, _)| l == own));
         let above = above.map(|n| u.gadt_ref(n));
         match above {
             Some(a) if is_top(u, hi) || u.is_subtype(a, hi) => a,
