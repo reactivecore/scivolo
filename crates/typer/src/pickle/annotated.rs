@@ -13,12 +13,18 @@ use tasty::tags::{ANNOTATEDtpt, ANNOTATEDtype, APPLY, NEW, REFINEDtpt, SELECTin}
 impl TreePickler<'_> {
     /// Type `annotated`, `parent` annotated with class type `annot`: with the annotation tree an
     /// annotated expression of the file gave it, else `new annot()`; told from the others by its
-    /// tree when keyed. Refuses a type several annotated expressions gave, outside their type trees.
+    /// tree when keyed. Refuses a type several annotated expressions of the file gave, outside
+    /// their type trees.
     pub fn annotated(&mut self, annotated: TypeId, parent: TypeId, annot: TypeId) -> Result<(), Refusal> {
         let tree = match self.tpt_annotation(annotated) {
             Some(tree) => Some(tree),
             None => match self.tpd.type_annotation(annotated) {
-                Some(None) => return Err("an annotated type of several annotation trees"),
+                Some(None) => {
+                    match self.file.and_then(|f| self.tpd.type_annotation_within(annotated, f.span)) {
+                        Some(tree) => Some(tree),
+                        None => return Err("an annotated type of several annotation trees"),
+                    }
+                }
                 given => given.flatten(),
             },
         };

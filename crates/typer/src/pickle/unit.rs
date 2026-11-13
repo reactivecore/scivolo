@@ -11,6 +11,7 @@ use super::{QuoteSource, Refusal, TreePickler, pickle};
 use crate::defn::type_ref;
 use crate::tpd::{List, TNodeId, Tpd, Tree as T};
 use rustc_hash::FxHashMap;
+use syntax::ast::Span;
 use syntax::names::Names;
 use tasty::tags::{IDENTtpt, INLINED};
 use tasty::{Kind, SymbolId, Universe};
@@ -40,6 +41,8 @@ pub struct File<'a> {
     pub annotations: &'a FxHashMap<SymbolId, Vec<TNodeId>>,
     /// The top-level class pickled (dotty's `rootCls`).
     pub root_class: SymbolId,
+    /// The span of the source file's package clause.
+    pub span: Span,
 }
 
 /// The TASTy of the top-level classes of package clause `root` of `source`, but of the
@@ -62,7 +65,7 @@ pub fn pickle_file(
     let mut out = Vec::new();
     for class in classes {
         let Some(sliced) = slice(u, tpd, root, class) else { continue };
-        let file = File { attributes, annotations, root_class: class };
+        let file = File { attributes, annotations, root_class: class, span: tpd.span(root) };
         let (tasty, super_accessors) = pickle((u, &*tpd, names), sliced, &[], Some(source), Some(&file))?;
         let parsed = tasty::Tasty::parse(&tasty).ok();
         let trees = parsed.as_ref().and_then(|t| tasty::Ast::parse(t.section("ASTs")?.bytes).ok());
