@@ -22,7 +22,15 @@ impl Typer<'_> {
             return self.unsupported(id, "cyclic import");
         };
         let expr = *expr;
-        if let Err(what) = self.check_selectors(i) {
+        let scala2 = self.u.scala2_lookups();
+        if let Type::Package(p) = *self.u.ty(self.tpd.tpe(expr)) {
+            self.u.look_up_scala2_package_object(p);
+        }
+        let checked = self.check_selectors(i);
+        if let Some(refused) = self.scala2_refusal(id, scala2) {
+            return refused;
+        }
+        if let Err(what) = checked {
             return self.unsupported(id, what);
         }
         let bounds: Vec<Option<TNodeId>> = match &self.imports[i] {
