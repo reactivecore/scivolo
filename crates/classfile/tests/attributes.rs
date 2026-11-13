@@ -34,13 +34,13 @@ fn class_attributes_end_with_bootstrap_methods_and_then_custom_ones() {
     let [h0, h1] = cf.pool.handle(&boot).to_be_bytes();
     let tail = [
         &[0, 4][..],
-        &name(&cf, "SourceFile"),
-        &[0, 0, 0, 2],
-        &name(&cf, "C.scala"),
         &name(&cf, "InnerClasses"),
         &[0, 0, 0, 18, 0, 2, d0, d1, c0, c1],
         &name(&cf, "D"),
         &[0, 8, a0, a1, 0, 0, 0, 0, 0, 0],
+        &name(&cf, "SourceFile"),
+        &[0, 0, 0, 2],
+        &name(&cf, "C.scala"),
         &name(&cf, "BootstrapMethods"),
         &[0, 0, 0, 6, 0, 1, h0, h1, 0, 0],
         &name(&cf, "TASTY"),
