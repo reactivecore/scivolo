@@ -160,17 +160,34 @@ impl Gen<'_, '_> {
         transient | if annotated("scala.volatile") { classfile::ACC_VOLATILE } else { 0 }
     }
 
-    /// Marks the code from here as of the source line of `t` (dotty's `lineNumber`).
+    /// Marks the code from here as of the source line of `t` (dotty's `lineNumber`); a value
+    /// definition inlined from another file at an unknown offset there gets a new mark.
     pub fn line(&mut self, b: &mut Body, t: TNodeId) {
-        if let Some(line) = self.line_of(t) {
-            b.code.line(line);
+        match self.line_of(t) {
+            Some(0) => b.code.new_line(self.line_at(self.l.tpd.span(t).point())),
+            Some(line) => b.code.line(line),
+            None => {}
         }
     }
 
-    /// The source line of `t`, if it has a position.
+    /// The source line of `t`, if it has a position: of a value definition inlined from another
+    /// file, the line of the call's file at its offset there, or 0 if unknown.
     pub fn line_of(&self, t: TNodeId) -> Option<u16> {
         let span = self.l.tpd.span(t);
-        span.exists().then(|| self.line_at(span.point()))
+        if !span.exists() {
+            return None;
+        }
+        let foreign = self.l.foreign_span(t).filter(|_| matches!(self.l.tpd.tree(t), Tree::ValDef { .. }));
+        let Some(own) = foreign else {
+            return Some(self.line_at(span.point()));
+        };
+        let at = match own.exists() {
+            true if own.is_in_other_source() => own.in_own_source().point(),
+            true => self.l.sources.locate(own.point()).1,
+            false => return Some(0),
+        };
+        let (call_file, _) = self.l.sources.locate(span.point());
+        Some(u16::try_from(call_file.offset_to_line(at) + 1).unwrap_or(u16::MAX))
     }
 
     /// The source line of unit offset `offset`.

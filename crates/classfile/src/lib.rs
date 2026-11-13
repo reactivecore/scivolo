@@ -66,7 +66,8 @@ pub struct ClassFile {
     interfaces: Vec<u16>,
     fields: Vec<Member>,
     methods: Vec<Member>,
-    attributes: Vec<Attribute>,
+    /// The attributes, each after its rank in ASM's order.
+    attributes: Vec<(usize, Attribute)>,
     /// The attributes the JVM does not define, written last.
     custom: Vec<Attribute>,
     /// Why the class file cannot hold a method added.

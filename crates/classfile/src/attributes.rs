@@ -127,7 +127,21 @@ impl ClassFile {
     }
 
     fn attribute(&mut self, name: &str, bytes: Vec<u8>) {
+        let rank =
+            CLASS_ATTRIBUTE_ORDER.iter().position(|&o| o == name).unwrap_or(CLASS_ATTRIBUTE_ORDER.len());
+        let at = self.attributes.partition_point(|&(r, _)| r <= rank);
         let name = self.pool.utf8(name);
-        self.attributes.push(Attribute { name, bytes });
+        self.attributes.insert(at, (rank, Attribute { name, bytes }));
     }
 }
+
+/// The order of class attributes in ASM's `ClassWriter.toByteArray`.
+const CLASS_ATTRIBUTE_ORDER: [&str; 7] = [
+    "InnerClasses",
+    "EnclosingMethod",
+    "Signature",
+    "SourceFile",
+    "Deprecated",
+    "RuntimeVisibleAnnotations",
+    "RuntimeInvisibleAnnotations",
+];

@@ -18,5 +18,6 @@ object Units {
     println(new Record(2).n)
     println(io.Top.name)
     println(units.Labels.top)
+    println(units.Words.kind(args.length + 3))
   }
 }
