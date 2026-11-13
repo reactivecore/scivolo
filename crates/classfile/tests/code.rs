@@ -230,3 +230,21 @@ fn set_stack_starts_a_label_after_code_that_does_not_fall_through() {
     code.set_stack(1);
     assert_eq!(code.max_stack, 3);
 }
+
+#[test]
+fn line_marks_keep_the_last_line_at_an_offset_and_drop_marks_past_the_code() {
+    let mut code = Code::new(0);
+    assert_eq!(code.line_table(), None);
+    code.line(3);
+    code.insn(NOP);
+    code.line(3);
+    code.line(4);
+    code.line(5);
+    code.insn(NOP);
+    code.line(6);
+    assert_eq!(code.line_offsets().collect::<Vec<_>>(), [0, 1, 2]);
+    assert_eq!(code.line_table(), Some(vec![0, 2, 0, 0, 0, 3, 0, 1, 0, 5]));
+    let mut end_only = Code::new(0);
+    end_only.line(1);
+    assert_eq!(end_only.line_table(), None);
+}
