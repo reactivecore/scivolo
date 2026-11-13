@@ -44,7 +44,7 @@ impl ViewSearch<'_> {
         param = t.u.by_name(param).unwrap_or(param);
         let arg_tpe = t.tpd.tpe(tree);
         let arg = if t.conforms(arg_tpe, param) {
-            t.gadt_adapted(tree, param, ctx)
+            t.gadt_adapted(tree, param)
         } else if let Some(c) = t.captured_wildcards(arg_tpe).filter(|&c| t.conforms(c, param)) {
             t.cast_to_captured(tree, c)?
         } else if widen && t.types().widens_to(arg_tpe, param) {

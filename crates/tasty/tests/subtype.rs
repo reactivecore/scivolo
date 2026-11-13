@@ -5,7 +5,9 @@
 mod support;
 
 use support::{define, named_type, parse, path_prefix, universe};
-use tasty::{ANY, Binder, FileId, Flags, Kind, NOTHING, Type, TypeId, Universe};
+use tasty::{
+    ANY, Binder, FileId, Flags, Kind, NOTHING, NoVars, Registered, SymbolId, Type, TypeId, Universe,
+};
 
 #[test]
 fn subtyping_matches_dotc() {
@@ -539,4 +541,112 @@ fn gadt_bounds_take_part_in_subtyping() {
     u.set_gadt_bounds(t, None);
     assert!(!u.has_gadt_bounds());
     assert_eq!(checks(&mut u), [false; 5]);
+}
+
+/// Defines unbounded type parameters `names`, registers each in the GADT constraint at the
+/// level given with it, and returns references to them.
+fn gadt_symbols<const N: usize>(u: &mut Universe, names: [(&str, u32); N]) -> [(SymbolId, TypeId); N] {
+    let root = u.root();
+    let unbounded = u.intern_type(Type::Bounds(NOTHING, ANY));
+    names.map(|(name, level)| {
+        let s = define(u, name, Kind::TypeParam, root, unbounded);
+        u.gadt_add(&[Registered { sym: s, lo: NOTHING, hi: ANY }], level);
+        (s, u.intern_type(Type::Sym(None, s)))
+    })
+}
+
+#[test]
+fn gadt_comparisons_narrow_registered_symbols() {
+    let Some(mut u) = universe() else { return };
+    let [(t, t_ref)] = gadt_symbols(&mut u, [("T", 0)]);
+    let [int, string] = ["scala.Int", "java.lang.String"].map(|s| parse(&mut u, s));
+
+    assert!(!u.is_subtype(t_ref, int), "a comparison outside GADT mode narrows nothing");
+    assert_eq!(u.gadt().bounds(t), Some((NOTHING, ANY)));
+    assert_eq!(u.gadt_bounds(t), None, "registered, not narrowed");
+    assert!(!u.gadt().is_narrowing());
+
+    assert!(u.constrain_gadt_in(t_ref, int, &mut NoVars));
+    assert_eq!(u.gadt_bounds(t), Some((NOTHING, int)));
+    assert!(u.gadt().is_narrowing());
+
+    let mark = u.gadt().mark();
+    assert!(!u.constrain_gadt_in(string, t_ref, &mut NoVars), "String is no Int");
+    assert_eq!(u.gadt().mark(), mark, "a failed bound leaves the constraint as it was");
+
+    assert!(u.constrain_gadt_in(int, t_ref, &mut NoVars));
+    assert_eq!(u.gadt().entry(t).and_then(|e| e.instance), Some(int), "equal bounds replace");
+    assert!(u.is_subtype(t_ref, int) && u.is_subtype(int, t_ref));
+}
+
+#[test]
+fn gadt_symbols_ordered_both_ways_unify_keeping_the_shallower() {
+    let Some(mut u) = universe() else { return };
+    for (deeper_first, kept) in [(false, 0), (true, 1)] {
+        let levels = if deeper_first { [1, 0] } else { [0, 1] };
+        let [(a, a_ref), (b, b_ref)] = gadt_symbols(&mut u, [("A", levels[0]), ("B", levels[1])]);
+        assert!(u.constrain_gadt_in(a_ref, b_ref, &mut NoVars));
+        assert!(u.gadt().is_less(a, b));
+        assert!(u.constrain_gadt_in(b_ref, a_ref, &mut NoVars));
+        let ((kept, kept_ref), removed) = if kept == 0 { ((a, a_ref), b) } else { ((b, b_ref), a) };
+        assert_eq!(u.gadt().entry(removed).and_then(|e| e.instance), Some(kept_ref));
+        assert!(u.gadt().entry(kept).is_some_and(|e| e.instance.is_none() && e.lower.is_empty()));
+        u.gadt_mut().rollback(tasty::Mark(0));
+    }
+}
+
+#[test]
+fn gadt_applications_of_type_constructors_narrow_only_through_injective_ones() {
+    let Some(mut u) = universe() else { return };
+    let binder = u.fresh_binder();
+    let x = u.intern_name("X");
+    let any_lambda = u.intern_lambda(binder, &[(x, ANY)], ANY);
+    let hk = u.intern_type(Type::Bounds(NOTHING, any_lambda));
+    let root = u.root();
+    let [f, g] = ["F", "G"].map(|n| define(&mut u, n, Kind::TypeParam, root, hk));
+    u.gadt_add(
+        &[
+            Registered { sym: f, lo: NOTHING, hi: any_lambda },
+            Registered { sym: g, lo: NOTHING, hi: any_lambda },
+        ],
+        0,
+    );
+    let [(a, a_ref)] = gadt_symbols(&mut u, [("A", 0)]);
+    let [f_ref, g_ref] = [f, g].map(|s| u.intern_type(Type::Sym(None, s)));
+    let [int, list] = ["scala.Int", "scala.collection.immutable.List"].map(|s| parse(&mut u, s));
+    let (f_a, g_int) = (u.intern_applied(f_ref, &[a_ref]), u.intern_applied(g_ref, &[int]));
+
+    assert!(u.constrain_gadt_in(f_ref, g_ref, &mut NoVars));
+    assert!(u.gadt().is_less(f, g));
+    assert!(!u.constrain_gadt_in(f_a, g_int, &mut NoVars), "F < G: arguments compared frozen");
+    assert_eq!(u.gadt_bounds(a), None);
+    u.gadt_mut().rollback(tasty::Mark(0));
+
+    let option = parse(&mut u, "scala.Option");
+    u.gadt_add(&[Registered { sym: f, lo: option, hi: option }], 0);
+    u.gadt_add(&[Registered { sym: g, lo: option, hi: any_lambda }], 0);
+    let [(a, a_ref)] = gadt_symbols(&mut u, [("A", 0)]);
+    let f_a = u.intern_applied(f_ref, &[a_ref]);
+    assert!(!u.constrain_gadt_in(f_a, g_int, &mut NoVars), "F = Option, G >: Option: G may be [t] =>> Any");
+    assert_eq!(u.gadt_bounds(a), None);
+
+    let (list_a, list_int) = (u.intern_applied(list, &[a_ref]), u.intern_applied(list, &[int]));
+    assert!(u.constrain_gadt_in(list_a, list_int, &mut NoVars), "a class is injective");
+    assert_eq!(u.gadt_bounds(a), Some((NOTHING, int)));
+}
+
+#[test]
+fn gadt_narrowing_in_either_branch_keeps_the_weaker_or_none() {
+    let Some(mut u) = universe() else { return };
+    let [(t, t_ref)] = gadt_symbols(&mut u, [("T", 0)]);
+    let [int, string, matchable] =
+        ["scala.Int", "java.lang.String", "scala.Matchable"].map(|s| parse(&mut u, s));
+    let int_or_string = u.intern_type(Type::Or(int, string, false));
+    let int_or_matchable = u.intern_type(Type::Or(int, matchable, false));
+
+    assert!(u.constrain_gadt_in(t_ref, int_or_string, &mut NoVars));
+    assert_eq!(u.gadt().bounds(t), Some((NOTHING, ANY)), "neither branch's bound is necessary");
+
+    assert!(u.constrain_gadt_in(t_ref, int_or_matchable, &mut NoVars));
+    assert_eq!(u.gadt_bounds(t), Some((NOTHING, matchable)), "the weaker bound is kept");
 }

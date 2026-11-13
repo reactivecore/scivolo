@@ -178,7 +178,7 @@ impl Constraint {
             });
             let open = open && (u.applied(lo).is_none() || u.underlying_match(lo).is_none());
             let tycon = matches!(u.sym_of(lo), Some(s) if !u.type_params(s).is_empty());
-            if !cyclic && !open && !tycon {
+            if !cyclic && !open && (!tycon || u.gadt().inferring) {
                 self.instantiate(v, lo);
                 return true;
             }
@@ -267,6 +267,8 @@ impl TypeVars for Constraint {
             e.hi
         } else if u.is_subtype(hi, e.hi) {
             hi
+        } else if u.gadt().inferring {
+            u.glb_in(e.hi, hi, self)
         } else {
             u.glb(e.hi, hi)
         };

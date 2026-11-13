@@ -5,6 +5,7 @@
 
 use nir::{Caches, Pool, Reader, show};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use syntax::source::SourceFile;
 use tasty::Universe;
 
@@ -37,9 +38,25 @@ fn programs_lower_as_scala_native_compiles_them() {
         return;
     }
     let programs = std::fs::read_to_string(root().join("tests/programs/lowered.txt")).unwrap();
-    for program in programs.lines().filter(|p| !p.is_empty()) {
-        lowers_as_scala_native(&jars, &root().join("tests/programs").join(program), program);
-    }
+    let programs: Vec<&str> = programs.lines().filter(|p| !p.is_empty()).collect();
+    in_parallel(&programs, |program| {
+        lowers_as_scala_native(&jars, &root().join("tests/programs").join(program), program)
+    });
+}
+
+/// Runs `check` on each of `items`, on as many threads as there are cores.
+fn in_parallel<T: Sync>(items: &[T], check: impl Fn(&T) + Sync) {
+    let next = AtomicUsize::new(0);
+    let threads = std::thread::available_parallelism().map_or(1, |n| n.get()).min(items.len());
+    std::thread::scope(|s| {
+        for _ in 0..threads {
+            s.spawn(|| {
+                while let Some(item) = items.get(next.fetch_add(1, Ordering::Relaxed)) {
+                    check(item);
+                }
+            });
+        }
+    });
 }
 
 #[test]

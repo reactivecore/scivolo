@@ -18,7 +18,8 @@ impl Cmp<'_> {
         tparams: &[SymbolId],
     ) -> bool {
         let tparams = if tparams.len() == args2.len() { tparams } else { &[] };
-        args1.len() == args2.len()
+        let approx = std::mem::take(&mut self.approx);
+        let result = args1.len() == args2.len()
             && (0..args1.len()).all(|i| {
                 let variance = variances.get(i).copied().unwrap_or(0);
                 let wildcards =
@@ -28,7 +29,9 @@ impl Cmp<'_> {
                     _ => None,
                 };
                 self.sub_arg(args1[i], args2[i], variance, bounds)
-            })
+            });
+        self.approx = approx;
+        result
     }
 
     fn sub_arg(&mut self, x: TypeId, y: TypeId, variance: i8, bounds: Option<(TypeId, TypeId)>) -> bool {
@@ -46,9 +49,21 @@ impl Cmp<'_> {
             (None, None) => match variance {
                 1 => self.recur(x, y),
                 -1 => self.recur(y, x),
-                _ => self.recur(y, x) && self.recur(x, y),
+                _ => self.instantiated(x) == self.instantiated(y) || self.recur(y, x) && self.recur(x, y),
             },
         }
+    }
+
+    /// Replaces in `t` each instantiated type variable by its instance.
+    fn instantiated(&mut self, t: TypeId) -> TypeId {
+        let vars = &*self.vars;
+        self.u.map_type(t, &mut |u, part| {
+            let mut inst = vars.instance(u.var(part)?)?;
+            while let Some(next) = u.var(inst).and_then(|w| vars.instance(w)) {
+                inst = next;
+            }
+            Some(inst)
+        })
     }
 
     /// The bounds of type parameter `p` with the parameters `tparams` replaced by `args`

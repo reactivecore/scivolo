@@ -88,10 +88,11 @@ impl Typer<'_> {
         let names: Vec<NameId> = params.iter().map(|&(n, _)| n).collect();
         let result = self.without_false_deps(result, binder, meth);
         let dependent = self.mentions_clause_params(result, (binder, &names), meth);
-        let approx = match dependent {
-            true => self.result_type_approx(result, (binder, &params), meth, pt),
-            false => Some(result),
+        let (approx, approx_vars) = match dependent {
+            true => self.result_type_approx(result, (binder, &params), meth, pt).unzip(),
+            false => (Some(result), None),
         };
+        let approx_vars = approx_vars.unwrap_or_default();
         if let Some(approx) = approx
             && let Err(what) = self.constrain_applied_result(meth, approx, pt)
         {
@@ -179,9 +180,13 @@ impl Typer<'_> {
         }
         let result = match dependent {
             true => self.dependent_result(result, (binder, &params), meth, &typed_args).filter(|_| plain),
-            false => Some(result),
+            false => Some((result, Vec::new())),
         };
-        let Some(result) = result else { return self.unsupported(id, "dependent result type") };
+        let Some((result, singletons)) = result else { return self.unsupported(id, "dependent result type") };
+        let arg_types: Vec<TypeId> = typed_args.iter().map(|&a| self.tpd.tpe(a)).collect();
+        if let Err(what) = self.constrain_approx_vars(&approx_vars, (&singletons, &arg_types)) {
+            return self.unsupported(id, what);
+        }
         let erroneous = typed_args.iter().any(|&a| {
             let tpe = self.zonk(self.tpd.tpe(a));
             *self.u.ty(tpe) == Type::Error

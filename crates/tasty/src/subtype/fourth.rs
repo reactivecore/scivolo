@@ -23,9 +23,7 @@ impl Cmp<'_> {
         match *self.u.ty(a) {
             Type::TypeRef(..) | Type::TermRef(..) | Type::Sym(..) => match self.named(a).map(|n| n.meaning) {
                 Some(Meaning::Abstract(_, hi)) => {
-                    self.recur(hi, b)
-                        || self.gadt_bounds(a).is_some_and(|(_, ghi)| self.recur_frozen(ghi, b))
-                        || self.lifted_left(a, b)
+                    self.recur_approx(hi, b, true) || self.gadt_below(a, b) || self.lifted_left(a, b)
                 }
                 Some(Meaning::Class(c)) if c == self.u.defn().nothing => self.is_value_type(b),
                 Some(Meaning::Class(c)) if c == self.u.defn().null => self.nullable(b),
@@ -66,10 +64,10 @@ impl Cmp<'_> {
     /// The GADT bounds of type parameter `t`, plain or seen from `this`, if it has some.
     pub fn gadt_bounds(&mut self, t: TypeId) -> Option<(TypeId, TypeId)> {
         match *self.u.ty(t) {
-            Type::Sym(None, s) => self.u.gadt_bounds(s),
+            Type::Sym(None, s) => self.u.gadt().bounds(s),
             Type::Sym(Some(p), s) => {
                 let c = self.u.this_of(p)?;
-                (self.u.class_symbol(c) == self.u.symbol(s).owner).then(|| self.u.gadt_bounds(s))?
+                (self.u.class_symbol(c) == self.u.symbol(s).owner).then(|| self.u.gadt().bounds(s))?
             }
             _ => None,
         }
@@ -146,12 +144,12 @@ impl Cmp<'_> {
             return true;
         }
         if let Some(underlying) = self.singleton_underlying(a)
-            && self.recur(underlying, b)
+            && self.recur_approx(underlying, b, true)
         {
             return true;
         }
         let widened = self.u.widen(a);
-        widened != a && self.recur(widened, b)
+        widened != a && self.recur_approx(widened, b, true)
     }
 
     /// The declared type of term reference `t` if it is a singleton other than `t`.

@@ -25,7 +25,7 @@ impl Typer<'_> {
         proto: usize,
         ctx: Ctx,
     ) -> Result<TNodeId, TNodeId> {
-        if let Some(healed) = self.gadt_healed(f, ctx)
+        if let Some(healed) = self.gadt_healed(f)
             && let Ok(applied) = self.with_apply(healed, Pt::Fun(proto), ctx)
         {
             return Ok(applied);

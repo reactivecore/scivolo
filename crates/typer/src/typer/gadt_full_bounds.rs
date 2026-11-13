@@ -1,79 +1,27 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/core/GadtConstraint.scala
-//! The bounds a GADT approximation replaces a type by (dotty's `fullUpperBound`,
-//! `fullLowerBound`).
+//   compiler/src/dotty/tools/dotc/core/ConstraintHandling.scala
+//! The bound a GADT approximation replaces a symbol by (dotty's `approximation`).
 
-use super::gadt::{current_bounds, gadt_ref, plain_type_ref};
 use super::gadt_cases::Gadt;
 use tasty::{SymbolId, Type, TypeId, Universe};
 
 impl Gadt {
-    /// Gives the upper bound for `variance` 1, the lower bound for -1 of `s` or the last parameter
-    /// it was made one with, transitively; for the upper bound, a GADT-narrowed type outside
-    /// those whose lower bound is that parameter if it conforms to that bound.
-    pub fn bound(&self, u: &mut Universe, mut s: SymbolId, variance: i8) -> TypeId {
-        let mut seen = vec![s];
-        while let Some((lo, hi)) = u.gadt_bounds(s)
-            && lo == hi
-            && let Some(r) = plain_type_ref(u, hi).filter(|r| !seen.contains(r))
-        {
-            seen.push(r);
-            s = r;
-        }
-        let own = gadt_ref(u, s);
-        let Some((lo, hi)) = current_bounds(u, s) else { return own };
-        if variance < 0 {
-            return lo;
-        }
-        let hi = self.without_bound_above(u, own, hi);
-        let above = self
-            .narrowed()
-            .into_iter()
-            .find(|&n| !seen.contains(&n) && u.gadt_bounds(n).is_some_and(|(l, _)| l == own));
-        let above = above.map(|n| gadt_ref(u, n));
-        match above {
-            Some(a) if is_top(u, hi) || u.is_subtype(a, hi) => a,
-            _ => hi,
-        }
-    }
-
-    /// Replaces in upper bound `hi` of `own` each pattern-bound type whose lower bound `own`
-    /// conforms to by the part of its upper bound that is no GADT-constrained type, as dotty's
-    /// constraint propagates it.
-    fn without_bound_above(&self, u: &mut Universe, own: TypeId, hi: TypeId) -> TypeId {
-        match *u.ty(hi) {
-            Type::And(a, b) => {
-                let (a, b) = (self.without_bound_above(u, own, a), self.without_bound_above(u, own, b));
-                u.glb(a, b)
-            }
-            _ => match plain_type_ref(u, hi).filter(|p| self.bound.contains(p)) {
-                Some(p) => match current_bounds(u, p) {
-                    Some((lo, up)) if u.is_subtype(own, lo) => self.without_gadt_params(u, up),
-                    _ => hi,
-                },
-                None => hi,
-            },
-        }
-    }
-
-    /// Drops the GADT-constrained types from `t` and from the operands of an intersection `t`,
-    /// giving `Any` if none is left.
-    fn without_gadt_params(&self, u: &mut Universe, t: TypeId) -> TypeId {
-        match *u.ty(t) {
-            Type::And(a, b) => {
-                let (a, b) = (self.without_gadt_params(u, a), self.without_gadt_params(u, b));
-                u.glb(a, b)
-            }
-            Type::Var(_) => tasty::ANY,
-            _ => match plain_type_ref(u, t) {
-                Some(r) if self.bound.contains(&r) || u.gadt_bounds(r).is_some() => tasty::ANY,
-                _ => t,
-            },
-        }
+    /// Gives the type symbol `s` of the GADT constraint was made equal to, else its full lower
+    /// bound for `variance` -1 or where its upper bound refers to it, else its full upper bound
+    /// (dotty's `approximation`); `s` itself if it is not in the constraint.
+    pub fn bound(&self, u: &mut Universe, s: SymbolId, variance: i8) -> TypeId {
+        let Some((lo, hi)) = u.gadt_full_bounds(s) else { return u.gadt_ref(s) };
+        let entry_hi = u.gadt().bounds(s).map_or(hi, |(_, h)| h);
+        if variance < 0 || refers_at_top(u, entry_hi, s) { lo } else { hi }
     }
 }
 
-/// Tells whether `t` is `Any` or a type lambda of result `Any`.
-pub fn is_top(u: &mut Universe, t: TypeId) -> bool {
-    u.lambda(t).map_or(t, |l| l.result) == tasty::ANY
+/// Tells whether `t` or an operand of its unions and intersections refers to `s`, where the GADT
+/// constraint holds its references to registered symbols.
+fn refers_at_top(u: &mut Universe, t: TypeId, s: SymbolId) -> bool {
+    match *u.ty(t) {
+        Type::And(a, b) | Type::Or(a, b, _) => refers_at_top(u, a, s) || refers_at_top(u, b, s),
+        _ => u.sym_ref(t).is_some_and(|(_, r)| r == s),
+    }
 }

@@ -8,7 +8,7 @@
 use super::{Pt, Typer};
 use crate::ctx::{Ctx, Mode};
 use crate::tpd::{TNodeId, Tree as T};
-use tasty::{Kind, Type, TypeId};
+use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
     /// The type of `tree` typed in `ctx` with its instantiated type variables replaced, and
@@ -99,20 +99,32 @@ impl Typer<'_> {
     }
 
     /// Whether `t` is a match type whose scrutinee refers to a type parameter a case being typed
-    /// narrowed or to a type its pattern binds (dotty's `MatchType.thatReducesUsingGadt`).
+    /// narrowed or to a class's higher-kinded one while a case is typed, or to a type its
+    /// pattern binds that is not in the GADT constraint (dotty's `MatchType.thatReducesUsingGadt`,
+    /// whose footprint has no pattern-bound types).
     fn reduces_using_gadt(&mut self, t: TypeId) -> bool {
         let Some(m) = self.u.underlying_match(t) else { return false };
         let Type::Match { scrutinee, .. } = *self.u.ty(m) else { return false };
-        let bound = &self.gadt.bound;
+        let (bound, in_case) = (&self.gadt.bound, self.gadt.cases > 0);
         let mut found = false;
         self.u.map_type(scrutinee, &mut |u, part| {
             found |= u.sym_of(part).is_some_and(|s| {
-                bound.contains(&s) || u.symbol(s).kind == Kind::TypeParam && u.gadt_bounds(s).is_some()
+                let param = u.symbol(s).kind == Kind::TypeParam;
+                bound.contains(&s) && !u.gadt().contains(s)
+                    || param && u.gadt_bounds(s).is_some()
+                    || param && in_case && is_class_hk_param(u, s)
             });
             None
         });
         found
     }
+}
+
+/// Whether type parameter `s` is a class's and takes type arguments.
+fn is_class_hk_param(u: &mut tasty::Universe, s: SymbolId) -> bool {
+    let of_class = u.symbol(s).owner.is_some_and(|o| u.is_class(o));
+    let info = u.info(s);
+    of_class && u.bounds(info).is_some_and(|(_, hi)| u.lambda(hi).is_some())
 }
 
 /// Whether `t` contains a match type.

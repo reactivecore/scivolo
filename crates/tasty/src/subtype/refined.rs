@@ -28,7 +28,7 @@ impl Cmp<'_> {
                         },
                         None => have,
                     };
-                    if self.info_conforms(have, info) {
+                    if self.sub_info(a, have, info) {
                         return true;
                     }
                     if self.u.bounds(have).is_none() {
@@ -65,10 +65,19 @@ impl Cmp<'_> {
         };
         members.into_iter().any(|m| {
             let have = self.u.member_info(site, m);
-            self.info_conforms(have, info)
+            self.sub_info(a, have, info)
                 || self.abstract_member_matches(a, m, have, info)
                 || self.stable_member_matches(a, m, info)
         })
+    }
+
+    /// `info_conforms` for a member of `a`, the GADT constraint frozen if `a` is a singleton
+    /// (dotty's `isSubInfo` in `hasMatchingMember`).
+    fn sub_info(&mut self, a: TypeId, have: TypeId, want: TypeId) -> bool {
+        match self.is_singleton(a) {
+            true => self.in_frozen_gadt(|c| c.info_conforms(have, want)),
+            false => self.info_conforms(have, want),
+        }
     }
 
     /// The intersection of type bounds `x` and `y` (dotty's `TypeBounds.&`).
@@ -87,7 +96,7 @@ impl Cmp<'_> {
             return false;
         }
         let selected = self.u.intern_type(Type::Sym(Some(a), m));
-        self.recur(selected, want)
+        self.recur_fresh(selected, want)
     }
 
     /// Whether abstract type member `m` of path `a`, selected on `a`, lies within the bounds
@@ -104,7 +113,7 @@ impl Cmp<'_> {
         }
         let a = self.u.by_name(a).unwrap_or(a);
         let selected = self.u.intern_type(Type::Sym(Some(a), m));
-        self.recur(lo2, selected) && self.recur(selected, hi2)
+        self.recur_fresh(lo2, selected) && self.recur_fresh(selected, hi2)
     }
 
     /// Whether member info `have` conforms to refinement info `want`: type bounds within
@@ -118,17 +127,17 @@ impl Cmp<'_> {
         match *self.u.ty(want) {
             Type::Bounds(..) | Type::Alias(_) => {
                 let ((lo1, hi1), (lo2, hi2)) = (bounds(self, have), bounds(self, want));
-                self.recur(lo2, lo1) && self.recur(hi1, hi2)
+                self.recur_fresh(lo2, lo1) && self.recur_fresh(hi1, hi2)
             }
-            Type::Method { .. } | Type::Poly { .. } => self.recur(have, want),
+            Type::Method { .. } | Type::Poly { .. } => self.recur_fresh(have, want),
             Type::ByName(want) => self.info_conforms(have, want),
             _ => match *self.u.ty(have) {
                 Type::Method { params, result, .. } if self.u.params_of(params).is_empty() => {
-                    self.recur(result, want)
+                    self.recur_fresh(result, want)
                 }
-                Type::ByName(result) => self.recur(result, want),
+                Type::ByName(result) => self.recur_fresh(result, want),
                 Type::Method { .. } | Type::Poly { .. } => false,
-                _ => self.recur(have, want),
+                _ => self.recur_fresh(have, want),
             },
         }
     }

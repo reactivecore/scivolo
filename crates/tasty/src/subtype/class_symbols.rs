@@ -3,10 +3,38 @@
 
 use super::Cmp;
 use crate::types::{Type, TypeId};
-use crate::{Kind, SymbolId};
+use crate::{Kind, SymbolId, Universe};
 
 /// How many aliases, bounds and instances `class_symbols` follows one inside another.
 const MAX_DEPTH: u32 = 64;
+
+impl Universe {
+    /// Finds the least class `t` is below (dotty's `classSymbol`): of an intersection the part's
+    /// class deriving from the other's, of a union its join's.
+    pub fn least_class(&mut self, t: TypeId) -> Option<SymbolId> {
+        self.least_class_within(t, MAX_DEPTH)
+    }
+
+    fn least_class_within(&mut self, t: TypeId, depth: u32) -> Option<SymbolId> {
+        let depth = depth.checked_sub(1)?;
+        let t = self.dealias(t);
+        match *self.ty(t) {
+            Type::And(a, b) => {
+                let (a, b) = (self.least_class_within(a, depth)?, self.least_class_within(b, depth)?);
+                if self.derives_from(a, b) { Some(a) } else { self.derives_from(b, a).then_some(b) }
+            }
+            Type::Or(..) => self.join(t).filter(|&j| j != t).and_then(|j| self.least_class_within(j, depth)),
+            _ => match self.sym_of(t) {
+                Some(s) if matches!(self.symbol(s).kind, Kind::Type | Kind::TypeParam) => {
+                    let info = self.info(s);
+                    let hi = self.bounds(info).map_or(info, |(_, hi)| hi);
+                    self.least_class_within(hi, depth)
+                }
+                _ => self.class_symbol(t),
+            },
+        }
+    }
+}
 
 impl Cmp<'_> {
     /// The least set of classes `t` is below (dotty's `classSymbols`).

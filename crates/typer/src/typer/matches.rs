@@ -123,10 +123,14 @@ impl Typer<'_> {
             return self.unsupported(id, "case");
         };
         let level = self.levels.push(Some(ctx.level), Level::Scope(Vec::new()));
-        self.gadt.case_level(level);
+        self.gadt.case_level(self.u, level);
         let cctx = Ctx { level, mode: ctx.mode.without(Mode::INLINE_CASE), ..ctx };
         let first = self.gadt.bound.len();
         let pat = self.typed(pat, Pt::Type(selector), cctx.with_mode(ctx.mode.with(Mode::PATTERN)));
+        if self.u.gadt().is_inexact() {
+            return self
+                .unsupported(id, "GADT parameter inside a union or intersection bound made equal to a type");
+        }
         self.gadt.index_binds(self.u, first);
         self.check_duplicate_binds(pat, &mut Vec::new());
         let body_pt = case.map(|c| self.dependent_case_body_pt(pat, c));

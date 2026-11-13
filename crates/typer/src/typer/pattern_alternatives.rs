@@ -14,7 +14,7 @@ impl Typer<'_> {
     /// `necessaryGadtConstraint`), refused where they narrow differently.
     pub fn typed_alternative(&mut self, id: NodeId, trees: List, pt: Pt, ctx: Ctx) -> TNodeId {
         let ids = self.ast.items(trees).to_vec();
-        let mark = self.gadt.narrowed().len();
+        let mark = self.u.gadt().mark();
         let mut narrowings = Vec::new();
         let mut typed = Vec::new();
         for &t in &ids {
@@ -25,10 +25,8 @@ impl Typer<'_> {
             return self.unsupported(id, "different GADT bounds from pattern alternatives");
         }
 
-        for (s, bounds) in narrowings.pop().into_iter().flatten() {
-            if let Some(bounds) = bounds {
-                self.gadt.narrow(self.u, s, bounds);
-            }
+        if let Some(changes) = narrowings.pop().flatten() {
+            self.u.gadt_mut().redo(changes);
         }
         if typed.iter().any(|&t| self.binds_variable(t)) {
             return self.unsupported(id, "variable in an alternative");

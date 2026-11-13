@@ -5,6 +5,7 @@
 mod cursor;
 mod erasure;
 mod file;
+mod gadt;
 mod library;
 mod names;
 mod positions;
@@ -18,6 +19,7 @@ mod view;
 pub mod write;
 
 pub use erasure::{Erased, PRIMITIVE_VALUE_CLASSES};
+pub use gadt::{Entry as GadtEntry, GadtChanges, GadtConstraint, Registered, Unification};
 pub use positions::{TastySpan, decode_positions, line_sizes};
 pub use subtype::{Changes, Mark, NoVars, NullMode, TypeVars};
 pub use symbols::{

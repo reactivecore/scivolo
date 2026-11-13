@@ -1,6 +1,6 @@
 # ADR 0096 — GADT: related parameters, tuple pairs, pattern-bound infos
 
-Status: accepted · Date: 2026-11-08 · Amends: ADR 0090, ADR 0092
+Status: accepted, amended by ADR 0119 · Date: 2026-11-08 · Amends: ADR 0090, ADR 0092
 
 ## Context
 ADR 0092 left these GADT shapes refused: bounds between parameters not propagated, a tuple

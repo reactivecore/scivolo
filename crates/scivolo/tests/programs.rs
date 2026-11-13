@@ -4,6 +4,11 @@
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::Mutex;
+use std::sync::atomic::{AtomicUsize, Ordering};
+
+/// What `scivolo` reports when the Scala Native libraries are missing.
+const MISSING_LIBRARIES: &str = "or the Coursier cache";
 
 fn command(cp: &[&Path], main: &str, snapshot: Option<&Path>) -> Command {
     let mut command = Command::new(env!("CARGO_BIN_EXE_scivolo"));
@@ -31,25 +36,49 @@ fn root() -> PathBuf {
 }
 
 fn run_all(snapshot: Option<&Path>) {
-    let mut failures = Vec::new();
-    for entry in std::fs::read_dir(root()).unwrap() {
-        let dir = entry.unwrap().path();
-        if !dir.is_dir() {
-            continue;
+    let dirs: Vec<PathBuf> =
+        std::fs::read_dir(root()).unwrap().map(|e| e.unwrap().path()).filter(|d| d.is_dir()).collect();
+    let failures = Mutex::new(Vec::new());
+    in_parallel(&dirs, |dir| {
+        if let Some(failure) = failure(dir, snapshot) {
+            failures.lock().unwrap().push(failure);
         }
-        let name = dir.file_name().unwrap().to_str().unwrap().to_owned();
-        let expected = std::fs::read_to_string(dir.join(format!("{name}.check"))).unwrap();
-        match run(&dir, &name, snapshot) {
-            Err(e) if e.contains("or the Coursier cache") && std::env::var_os("CI").is_none() => {
-                eprintln!("skipped: Scala Native libraries are not in the Coursier cache");
-                return;
-            }
-            Ok(out) if out == expected => {}
-            Ok(out) => failures.push(format!("{name}: expected\n{expected}\ngot\n{out}")),
-            Err(e) => failures.push(format!("{name}: {e}")),
-        }
-    }
+    });
+
+    let mut failures = failures.into_inner().unwrap();
+    failures.sort();
     assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
+
+/// Runs the program in `dir`; returns how its output differs from its `.check`, if it does.
+/// Outside CI, skips the program when the Scala Native libraries are missing.
+fn failure(dir: &Path, snapshot: Option<&Path>) -> Option<String> {
+    let name = dir.file_name().unwrap().to_str().unwrap();
+    let expected = std::fs::read_to_string(dir.join(format!("{name}.check"))).unwrap();
+    match run(dir, name, snapshot) {
+        Ok(out) if out == expected => None,
+        Ok(out) => Some(format!("{name}: expected\n{expected}\ngot\n{out}")),
+        Err(e) if e.contains(MISSING_LIBRARIES) && std::env::var_os("CI").is_none() => {
+            eprintln!("{name} skipped: Scala Native libraries are not in the Coursier cache");
+            None
+        }
+        Err(e) => Some(format!("{name}: {e}")),
+    }
+}
+
+/// Runs `check` on each of `items`, on as many threads as there are cores.
+fn in_parallel<T: Sync>(items: &[T], check: impl Fn(&T) + Sync) {
+    let next = AtomicUsize::new(0);
+    let threads = std::thread::available_parallelism().map_or(1, |n| n.get()).min(items.len());
+    std::thread::scope(|s| {
+        for _ in 0..threads {
+            s.spawn(|| {
+                while let Some(item) = items.get(next.fetch_add(1, Ordering::Relaxed)) {
+                    check(item);
+                }
+            });
+        }
+    });
 }
 
 #[test]
@@ -62,7 +91,7 @@ fn programs_from_a_snapshot() {
     let file = Path::new(env!("CARGO_TARGET_TMPDIR")).join("programs-snapshot.bin");
     let _ = std::fs::remove_file(&file);
     let hello = root().join("hello");
-    if run(&hello, "hello", Some(&file)).is_err_and(|e| e.contains("or the Coursier cache")) {
+    if run(&hello, "hello", Some(&file)).is_err_and(|e| e.contains(MISSING_LIBRARIES)) {
         return;
     }
     let traced = |cp: &[&Path]| {
@@ -92,7 +121,7 @@ fn corrupt_cache_snapshot_is_replaced() {
         command.env_remove("SCIVOLO_NO_SNAPSHOT").env("SCIVOLO_CACHE", &cache).env("SCIVOLO_TRACE", "1");
         String::from_utf8_lossy(&command.output().unwrap().stderr).into_owned()
     };
-    if traced().contains("or the Coursier cache") {
+    if traced().contains(MISSING_LIBRARIES) {
         return;
     }
     let mut files = std::fs::read_dir(&cache).unwrap().map(|e| e.unwrap().path());

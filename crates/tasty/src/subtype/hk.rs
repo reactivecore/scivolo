@@ -171,7 +171,8 @@ impl Cmp<'_> {
         remaining.map(|(n, b)| (n, self.u.subst(b, binder, &names, body_args))).collect()
     }
 
-    /// `(A, B, …)` for tuple class `c` applied to `args` as `A *: B *: … *: EmptyTuple`.
+    /// `(A, B, …)` for tuple class `c` applied to `args` as `A *: B *: … *: EmptyTuple.type`
+    /// (dotty's `toNestedPairs`).
     pub fn nested_pairs(&mut self, c: SymbolId, args: &[TypeId]) -> Option<TypeId> {
         if !self.u.symbol(c).name.starts_with("Tuple") {
             return None;
@@ -186,7 +187,7 @@ impl Cmp<'_> {
             let decl = s.u.decl(scala, name).ok()?;
             decl.into_iter().find(|&d| s.u.symbol(d).kind == kind)
         };
-        let (pair, empty) = (found(self, "*:", Kind::Class)?, found(self, "EmptyTuple", Kind::Type)?);
+        let (pair, empty) = (found(self, "*:", Kind::Class)?, found(self, "EmptyTuple", Kind::Val)?);
         let (pair, mut t) =
             (self.u.intern_type(Type::Sym(None, pair)), self.u.intern_type(Type::Sym(None, empty)));
         for &arg in args.iter().rev() {

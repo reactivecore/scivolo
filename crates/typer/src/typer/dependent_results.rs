@@ -7,7 +7,8 @@
 
 use super::Typer;
 use super::dependent_params::{
-    applied_result, has_false_dependency, mentions_clause_params, mentions_params, mentions_params_except,
+    applied_result, clause_param, has_false_dependency, mentions_clause_params, mentions_params,
+    mentions_params_except, singleton_args, substituted,
 };
 use crate::tpd::TNodeId;
 use tasty::{Binder, Kind, NameId, SymbolId, Type, TypeId, TypeVars};
@@ -133,14 +134,15 @@ impl Typer<'_> {
     }
 
     /// Result `t` of a method of parameters `params` applied to the typed arguments `args`, if
-    /// there is one argument per parameter and `t` has no false dependency on them.
+    /// there is one argument per parameter and `t` has no false dependency on them, with what it
+    /// substituted for the parameters (`singleton_args`).
     pub fn dependent_result(
         &mut self,
         t: TypeId,
         (binder, params): (Binder, &[(NameId, TypeId)]),
         method: Option<SymbolId>,
         args: &[TNodeId],
-    ) -> Option<TypeId> {
+    ) -> Option<(TypeId, Vec<TypeId>)> {
         let types: Vec<TypeId> = args.iter().map(|&a| self.tpd.tpe(a)).collect();
         let names: Vec<NameId> = params.iter().map(|&(n, _)| n).collect();
         let formals: Vec<TypeId> = params.iter().map(|&(_, p)| self.zonked_upper(p)).collect();
@@ -154,9 +156,11 @@ impl Typer<'_> {
                 self.complete(c);
             }
         }
-        let result = applied_result(self.u, t, (binder, &names), method, &types);
+        let singletons = singleton_args(self.u, t, (binder, &names), method, &types);
+        let param = |u: &tasty::Universe, part: TypeId| clause_param(u, part, (binder, &names), method);
+        let result = substituted(self.u, t, &param, &singletons);
         self.complete_type_members(result);
-        Some(result)
+        Some((result, singletons))
     }
 
     /// `t` zonked, an uninstantiated type variable as its upper bound, a type member a

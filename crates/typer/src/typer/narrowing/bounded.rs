@@ -8,6 +8,7 @@ use super::super::type_ops::TypeOps;
 use super::super::{Pt, Typer};
 use super::Narrowing;
 use super::constrain::constrain_pattern;
+use super::pattern_type::constrain_pattern_type;
 use crate::tpd::TNodeId;
 use tasty::{SymbolId, Type, TypeId, TypeVars};
 
@@ -70,9 +71,12 @@ impl Narrowing {
         };
         t.constraint.rollback(mark);
         if !ok {
-            if let Err(what) = self.by_binding_pattern(t, (tpe, sel), &syms) {
-                let span = t.tpd.span(tpt);
-                t.unsupported_at(span, what);
+            match t.gadt.cases {
+                0 => {
+                    let span = t.tpd.span(tpt);
+                    t.unsupported_at(span, "type pattern binding types narrowed outside a case");
+                }
+                _ => self.by_bound_types(t, (tpe, sel), &syms),
             }
             return tpe;
         }
@@ -89,6 +93,18 @@ impl Narrowing {
             t.known_pattern_types.insert(s);
         }
         tpe
+    }
+
+    /// Narrows the GADT constraint by pattern type `pat` binding types `syms` against `sel`,
+    /// those registered in it first (dotty's `typedBind` with `newPatternBoundSymbol`, then
+    /// `constrainPatternType` in `typedTyped`); the bound types it narrows count as known.
+    fn by_bound_types(&self, t: &mut Typer, (pat, sel): (TypeId, TypeId), syms: &[SymbolId]) {
+        let level = t.gadt.register(t.u, self.ctx);
+        t.gadt.register_bound(t.u, syms, level);
+        constrain_pattern_type(t, pat, sel);
+        t.gadt.bind(syms);
+        let registered: Vec<SymbolId> = syms.iter().copied().filter(|&s| t.u.gadt().contains(s)).collect();
+        t.known_pattern_types.extend(registered);
     }
 }
 
