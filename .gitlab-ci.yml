@@ -82,7 +82,7 @@ test:linux:
         TARGET_CACHE_POLICY: pull-push
     - when: on_success
       variables:
-        TARGET_CACHE_POLICY: pull-push
+        TARGET_CACHE_POLICY: pull
   needs:
     - job: build-image
       artifacts: true
