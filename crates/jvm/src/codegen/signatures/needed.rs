@@ -148,4 +148,20 @@ mod tests {
         assert!(!erases_to("(TCC;TCC;)Z", "(Ljava/lang/Object;Ljava/lang/Object;)Z", &scope));
         assert!(erases_to("(TCC;)Z", "(Lscala/collection/Iterable;)Z", &scope));
     }
+
+    #[test]
+    fn erases_thrown_types_arrays_and_primitives() {
+        let object = [("T".to_owned(), "Ljava/lang/Object;".to_owned())];
+        assert!(erases_to("(TT;)V^Ljava/io/IOException;", "(Ljava/lang/Object;)V", &object));
+        assert!(erases_to("([TT;)[I", "(Ljava/lang/Object;)[I", &object));
+        assert!(erases_to("<U:Ljava/lang/Number;>([TU;)V", "([Ljava/lang/Number;)V", &[]));
+        assert!(erases_to(
+            "([Lscala/collection/immutable/List<TT;>;)V",
+            "([Lscala/collection/immutable/List;)V",
+            &[]
+        ));
+        assert!(!erases_to("(I)I", "(Ljava/lang/Object;)I", &[]));
+        assert!(!erases_to("()V", "(I)V", &[]));
+        assert!(erases_to("TT;", "Ljava/lang/Object;", &object));
+    }
 }
