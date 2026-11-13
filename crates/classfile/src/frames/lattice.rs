@@ -146,3 +146,68 @@ fn lub_class(x: &str, y: &str, lub: &mut Lub) -> Result<String, String> {
         _ => Ok(OBJECT.into()),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{Frame, VType};
+
+    fn obj(name: &str) -> VType {
+        VType::Object(name.into())
+    }
+
+    /// Merges a frame of `from` locals into one of `into` locals; the result and whether it changed.
+    fn merged(into: &[VType], from: &[VType]) -> Result<(Vec<VType>, bool), String> {
+        let mut f = Frame { locals: into.to_vec(), stack: Vec::new() };
+        let from = Frame { locals: from.to_vec(), stack: Vec::new() };
+        let changed = f.merge(&from, &mut |_, _| Some("a/Base".into()))?;
+        Ok((f.locals, changed))
+    }
+
+    #[test]
+    fn locals_merge_to_their_least_upper_bound() {
+        use VType::*;
+        let cases = [
+            (vec![Int, Null], vec![Int, obj("a/A")], vec![Int, obj("a/A")]),
+            (vec![obj("a/A")], vec![Null], vec![obj("a/A")]),
+            (vec![obj("a/A")], vec![obj("a/B")], vec![obj("a/Base")]),
+            (vec![obj("a/A")], vec![obj("java/lang/Object")], vec![obj("java/lang/Object")]),
+            (vec![obj("[La/A;")], vec![obj("[La/B;")], vec![obj("[La/Base;")]),
+            (vec![obj("[[La/A;")], vec![obj("[[La/B;")], vec![obj("[[La/Base;")]),
+            (vec![obj("[[I")], vec![obj("[[J")], vec![obj("[Ljava/lang/Object;")]),
+            (vec![obj("[I")], vec![obj("[J")], vec![obj("java/lang/Object")]),
+            (vec![obj("[I")], vec![obj("a/A")], vec![obj("java/lang/Object")]),
+            (vec![obj("[La/A;")], vec![obj("[I")], vec![obj("java/lang/Object")]),
+            (vec![Int, Float], vec![Float, Float], vec![Top, Float]),
+            (vec![Long, Top, Int], vec![Int, Int, Int], vec![Top, Top, Int]),
+            (vec![Uninit(3)], vec![obj("a/A")], vec![Top]),
+        ];
+        for (into, from, expected) in cases {
+            let changed = expected != into;
+            assert_eq!(merged(&into, &from), Ok((expected, changed)), "{into:?} and {from:?}");
+        }
+    }
+
+    #[test]
+    fn stacks_merge_only_at_the_same_height_and_kinds() {
+        let lub = &mut |_: &str, _: &str| None;
+        let frame = |stack: Vec<VType>| Frame { locals: Vec::new(), stack };
+        let mut f = frame(vec![VType::Null]);
+        assert_eq!(f.merge(&frame(vec![obj("a/A")]), lub), Ok(true));
+        assert_eq!(f.stack, [obj("a/A")]);
+        assert!(f.merge(&frame(Vec::new()), lub).unwrap_err().contains("stack heights differ"));
+        assert!(f.merge(&frame(vec![VType::Int]), lub).unwrap_err().contains("stack types"));
+        let unknown = f.merge(&frame(vec![obj("a/B")]), lub).unwrap_err();
+        assert!(unknown.contains("no common superclass of a/A and a/B"));
+    }
+
+    #[test]
+    fn initial_frames_hold_this_and_the_parameters() {
+        use VType::*;
+        let f = Frame::initial("a/C", true, "m", "(JZ[ILa/D;)V", 7);
+        assert_eq!(f.locals, [Long, Top, Int, obj("[I"), obj("a/D"), Top, Top]);
+        assert_eq!(Frame::initial("a/C", false, "<init>", "(D)V", 0).locals, [UninitThis, Double, Top]);
+        let object = Frame::initial("java/lang/Object", false, "<init>", "()V", 1);
+        assert_eq!(object.locals, [obj("java/lang/Object")]);
+        assert_eq!(Frame::initial("a/C", false, "m", "()V", 1).locals, [obj("a/C")]);
+    }
+}

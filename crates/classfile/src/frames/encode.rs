@@ -93,3 +93,47 @@ pub fn stack_map_table(frames: &[(usize, Frame)], initial: &Frame, pool: &mut Po
     }
     out
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{Frame, VType, stack_map_table};
+    use crate::Pool;
+    use VType::*;
+
+    fn frame(locals: &[VType], stack: &[VType]) -> Frame {
+        Frame { locals: locals.to_vec(), stack: stack.to_vec() }
+    }
+
+    #[test]
+    fn frames_take_their_shortest_kind() {
+        let mut pool = Pool::default();
+        let frames = [
+            (5, frame(&[Int, Top], &[])),
+            (6, frame(&[Int], &[Object("a/A".into())])),
+            (100, frame(&[Int, Long, Top, Top], &[])),
+            (101, frame(&[Int, Top, Top], &[])),
+            (200, frame(&[Int], &[])),
+            (300, frame(&[Int], &[Long, Top])),
+            (301, frame(&[Float, Null, Top], &[Int])),
+            (302, frame(&[], &[])),
+            (303, frame(&[Int, Double, Top, UninitThis, Uninit(9)], &[])),
+            (304, frame(&[Int, Double, Top, UninitThis, Uninit(9)], &[])),
+        ];
+        let table = stack_map_table(&frames, &frame(&[Int, Top], &[]), &mut pool);
+        let [a0, a1] = pool.class("a/A").to_be_bytes();
+        let expected = [
+            &[0, 10][..],
+            &[5],
+            &[64, 7, a0, a1],
+            &[252, 0, 93, 4],
+            &[250, 0, 0],
+            &[251, 0, 98],
+            &[247, 0, 99, 4],
+            &[255, 0, 0, 0, 2, 2, 5, 0, 1, 1],
+            &[249, 0, 0],
+            &[255, 0, 0, 0, 4, 1, 3, 6, 8, 0, 9, 0, 0],
+            &[0],
+        ];
+        assert_eq!(table, expected.concat());
+    }
+}
