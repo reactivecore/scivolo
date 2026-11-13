@@ -42,7 +42,7 @@ impl Sig<'_> {
             return self.value_class(t, c, value);
         }
         let plain = self.u.intern_type(Type::Sym(None, c));
-        let erased = self.u.erase(plain);
+        let erased = self.u.erase_boxed(plain);
         let own = internal(&self.u.binary_name(c));
         match erased {
             Erased::Prim(_) | Erased::Unit | Erased::Nothing | Erased::Null => {
