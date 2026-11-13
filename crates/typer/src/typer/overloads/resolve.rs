@@ -150,7 +150,8 @@ impl Resolution {
 
     /// Gives `chosen`, or if its result does not conform to the expected result type of
     /// `proto`, the one alternative of `alts` whose result does, or the one resolution picks
-    /// among them (dotty's `adaptByResult`); refused where a result is not compared with it.
+    /// among them (dotty's `adaptByResult`); `chosen` if its result is not compared with it,
+    /// refused if another's result is not.
     pub fn adapted_by_result(
         self,
         t: &mut Typer,
@@ -159,10 +160,8 @@ impl Resolution {
         proto: usize,
     ) -> Result<SymbolId, Unchosen> {
         let (Pt::Type(pt), ctx) = (t.protos[proto].pt, t.protos[proto].ctx) else { return Ok(chosen) };
-        match t.result_conforms(chosen, self.prefix, pt, (true, ctx)) {
-            Some(false) => {}
-            Some(true) => return Ok(chosen),
-            None => return Err(UNDECIDED_RESULT.into()),
+        if t.result_conforms(chosen, self.prefix, pt, (true, ctx)) != Some(false) {
+            return Ok(chosen);
         }
         let mut conforming = Vec::new();
         for &a in alts.iter().filter(|&&a| a != chosen) {
