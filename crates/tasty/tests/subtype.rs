@@ -443,6 +443,49 @@ fn joins_widen_class_type_parameters_through_their_prefix_arguments() {
     assert!(same_type(&mut u, joined, int), "{}", u.show(joined));
 }
 
+/// Defines `type name[X] = X match { case scala.Int => body }` in the root package.
+fn match_alias(u: &mut Universe, name: &str, body: &str) -> TypeId {
+    let binder = u.fresh_binder();
+    let (int, body) = (parse(u, "scala.Int"), parse(u, body));
+    let case = u.intern_type(Type::MatchCase(int, body));
+    let x = u.intern_type(Type::Param(binder, 0));
+    let matched = u.intern_match(ANY, x, &[case]);
+    let unbounded = u.intern_type(Type::Bounds(NOTHING, ANY));
+    let params = [(u.intern_name("X"), unbounded)];
+    let lambda = u.intern_lambda(binder, &params, matched);
+    let alias = u.intern_type(Type::Alias(lambda));
+    let root = u.root();
+    let s = define(u, name, Kind::Type, root, alias);
+    u.intern_type(Type::Sym(None, s))
+}
+
+/// `M[T] | N[T]` for `M` and `N` aliases of one match type joins to it, not to its bound `Any`.
+#[test]
+fn joins_widen_match_type_aliases_one_step_to_their_match_type() {
+    let Some(mut u) = universe() else { return };
+    let (root, unbounded) = (u.root(), u.intern_type(Type::Bounds(NOTHING, ANY)));
+    let t = define(&mut u, "T", Kind::TypeParam, root, unbounded);
+    let t = u.intern_type(Type::Sym(None, t));
+    let (m, n) = (match_alias(&mut u, "M", "oracle.Dog"), match_alias(&mut u, "N", "oracle.Dog"));
+    let (m_t, n_t) = (u.intern_applied(m, &[t]), u.intern_applied(n, &[t]));
+    let union = u.intern_type(Type::Or(m_t, n_t, false));
+    let joined = u.join(union).unwrap();
+    assert!(same_type(&mut u, joined, m_t), "{}", u.show(joined));
+}
+
+/// `M[T] <: N[T]` for match types on `T` whose cases' bodies conform (`MatchCase[Pat, +Body]`).
+#[test]
+fn match_types_compare_their_cases_covariantly_in_the_body() {
+    let Some(mut u) = universe() else { return };
+    let (root, unbounded) = (u.root(), u.intern_type(Type::Bounds(NOTHING, ANY)));
+    let t = define(&mut u, "T", Kind::TypeParam, root, unbounded);
+    let t = u.intern_type(Type::Sym(None, t));
+    let (m, n) = (match_alias(&mut u, "M", "oracle.Dog"), match_alias(&mut u, "N", "oracle.Animal"));
+    let (m_t, n_t) = (u.intern_applied(m, &[t]), u.intern_applied(n, &[t]));
+    assert!(u.is_subtype(m_t, n_t));
+    assert!(!u.is_subtype(n_t, m_t));
+}
+
 #[test]
 fn glbs_merge_arguments_by_variance() {
     let Some(mut u) = universe() else { return };

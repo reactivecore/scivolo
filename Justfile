@@ -637,14 +637,18 @@ macro-fixture:
     rm -f tests/macros/lib/macros.jar
     (cd tmp/macro-fixture/out && zip -q -X -r {{ justfile_directory() }}/tests/macros/lib/macros.jar . -i '*/' '*.nir' '*.tasty' '*.class')
 
-# Compile tests/pickle/Probe.scala with Scala Native: its TASTy into tests/pickle/probe.jar, the
-# quote of each method into tests/pickle/probe-<method>.tasty.
+# Compile tests/pickle/Probe.scala with Scala Native against the classes of
+# tests/jvm/javajar/shapes (javac, into tests/pickle/shapes.jar): its TASTy into
+# tests/pickle/probe.jar, the quote of each method into tests/pickle/probe-<method>.tasty.
 pickle-fixture:
     #!/usr/bin/env bash
     set -euo pipefail
     rm -rf tmp/pickle-fixture
+    javac --release 17 -d tmp/pickle-fixture/java tests/jvm/javajar/shapes/Box.java
+    rm -f tests/pickle/shapes.jar
+    (cd tmp/pickle-fixture/java && zip -q -X -r {{ justfile_directory() }}/tests/pickle/shapes.jar .)
     scala-cli --power compile --quiet --native --native-version 0.5.12 --scala 3.9.0 --server=false \
-        --scalac-option -sourceroot --scalac-option {{ justfile_directory() }} \
+        --scalac-option -sourceroot --scalac-option {{ justfile_directory() }} --jar tests/pickle/shapes.jar \
         --workspace tmp/pickle-fixture/ws -d tmp/pickle-fixture/out tests/pickle/Probe.scala
     rm -f tests/pickle/probe.jar tests/pickle/probe-*.tasty
     (cd tmp/pickle-fixture/out && zip -q -X -r {{ justfile_directory() }}/tests/pickle/probe.jar . -i '*/' '*.tasty')

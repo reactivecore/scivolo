@@ -80,12 +80,12 @@ impl TreePickler<'_> {
     }
 
     /// Prefix `p` of static member `s` of a Java class, the class's `this` as the `this` of its
-    /// companion object's class unless `s` is a nested class of a class file's class.
+    /// companion object's class.
     fn java_statics_ref(&mut self, p: TypeId, s: SymbolId) -> Prefix {
         let Some(class) = self.u.this_of(p) else { return Prefix::Type(p) };
         let Some(c) = self.u.class_symbol(class) else { return Prefix::Type(p) };
         let java_static = self.u.symbol(s).flags.has(STATIC) && !self.u.is_module_class(c);
-        if !java_static || self.u.is_class(s) && self.u.is_java_defined(c) {
+        if !java_static {
             return Prefix::Type(p);
         }
         let module_class = self.u.companion_module(c).and_then(|m| self.u.module_class(m));

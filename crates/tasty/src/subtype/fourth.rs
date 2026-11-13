@@ -9,12 +9,16 @@ use crate::tags::OBJECT;
 use crate::types::{Type, TypeId, TypeList};
 use crate::{Kind, SymbolId};
 
+/// The variances of `scala.runtime.MatchCase[Pat, +Body]`'s parameters.
+const MATCH_CASE_VARIANCES: [i8; 2] = [0, 1];
+
 impl Cmp<'_> {
     /// Decides `a <: b` by the shape of `a` once the earlier tries failed (dotty's `fourthTry`):
     /// - an abstract type through its upper bound or its GADT bound from a pattern match;
     /// - `Nothing` below every value type, `Null` below every nullable one;
     /// - singletons (`x.type`, `this`, literals) through their underlying type;
-    /// - applied types, match types, refinements, intersections and type lambdas by their parts.
+    /// - applied types, match types and their cases, refinements, intersections and type lambdas
+    ///   by their parts.
     pub fn fourth_try(&mut self, a: TypeId, b: TypeId) -> bool {
         match *self.u.ty(a) {
             Type::TypeRef(..) | Type::TermRef(..) | Type::Sym(..) => match self.named(a).map(|n| n.meaning) {
@@ -40,6 +44,12 @@ impl Cmp<'_> {
             Type::Match { bound, scrutinee, cases } => {
                 self.recur(bound, b) || self.match_below(scrutinee, cases, b)
             }
+            Type::MatchCase(pat, body) => match *self.u.ty(b) {
+                Type::MatchCase(other_pat, other_body) => {
+                    self.sub_args(&[pat, body], &[other_pat, other_body], &MATCH_CASE_VARIANCES, &[])
+                }
+                _ => false,
+            },
             Type::Refined(parent, ..)
             | Type::Rec(_, parent)
             | Type::Annotated(parent, _)
