@@ -21,7 +21,12 @@ struct Branch {
 impl crate::Universe {
     /// Whether GADT state `strong` subsumes `weak` on the symbols `pre`, `None` standing for the
     /// state both started from (dotty's `subsumes` on GADT constraints).
-    pub fn gadt_subsumes(&mut self, strong: Option<&GadtChanges>, weak: Option<&GadtChanges>, pre: &[SymbolId]) -> bool {
+    pub fn gadt_subsumes(
+        &mut self,
+        strong: Option<&GadtChanges>,
+        weak: Option<&GadtChanges>,
+        pre: &[SymbolId],
+    ) -> bool {
         Cmp::new(self, &mut super::NoVars).gadt_subsumes(strong, weak, pre)
     }
 }

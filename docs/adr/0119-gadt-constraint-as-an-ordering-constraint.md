@@ -28,9 +28,21 @@ inside the comparer (`narrowGADTBounds`), after ordinary type variables.
   entries and the order of files cannot change a result. Typing files in parallel needs a store
   per thread: it then moves to the per-file comparison context (the `TypeVars` handle the
   comparer already receives); only `Cmp` and the typer's `Gadt` reach it.
-- Registration follows dotty: the enclosing classes' parameters and then the method's at
-  `typedDefDef` (the closure of a polymorphic function value likewise), a pattern-bound type at
-  `typedBind`, the binders of `maximizeType` all at once.
+- Registration follows dotty's order: per enclosing method from the outermost, the parameters
+  of the classes between it and the next enclosing method, then those of a polymorphic function
+  value it is the body of, then its own, at its nesting depth (`typedDefDef`); a pattern-bound
+  type at `typedBind`; the binders of `maximizeType` all at once. It happens when a case first
+  constrains a pattern, not at the definition: before that no comparison narrows and an
+  unnarrowed entry gives no bound the declared one does not. Difference case 2.
+- The mode is a flag of the store (dotty's `Mode.GadtConstraintInference`), so the checks the
+  ordinary constraint runs while it is narrowed also narrow, as dotty's `addOneBound` in that
+  mode does; `Universe::is_subtype`, used for `lub`/`glb`-like simplifications, never narrows.
+- The typer reads `Universe::gadt_bounds`: the full bounds of a narrowed symbol (dotty's
+  `fullBounds`, the ordered symbols joined in), the instance of one made equal to another type;
+  the comparer reads the bounds of every registered symbol.
+- Patterns whose selector or pattern type has a narrowable higher-kinded parameter, and typed
+  patterns that bind types, keep the earlier read-back path and its refusals until their
+  steps port `compareAppliedType2`'s GADT cases and `indexPattern`.
 
 - The comparer narrows the store only in GADT mode (`Universe::constrain_gadt_in`, necessary
   constraints only): `third_try_named` adds a lower bound or an ordering to the right-hand

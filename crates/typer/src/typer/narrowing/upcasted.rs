@@ -46,7 +46,13 @@ fn super_type_upcast(t: &mut Typer, pat: TypeId, scrut: TypeId) -> bool {
     let ty = *t.u.ty(scrut);
     let upcast = match ty {
         Type::Annotated(inner, _) => Some(inner),
-        Type::Sym(..) | Type::TypeRef(..) | Type::TermRef(..) | Type::This(_) | Type::Constant(..) | Type::Str(_) | Type::Skolem(..)
+        Type::Sym(..)
+        | Type::TypeRef(..)
+        | Type::TermRef(..)
+        | Type::This(_)
+        | Type::Constant(..)
+        | Type::Str(_)
+        | Type::Skolem(..)
             if t.is_singleton(scrut) =>
         {
             Some(t.u.widen(scrut))

@@ -5,6 +5,7 @@
 //! constraint among them (dotty's `constrainPatternType` in `Mode.GadtConstraintInference`).
 
 use super::super::Typer;
+use super::either::either;
 use tasty::{SymbolId, Type, TypeId, TypeVars};
 
 /// Constrains type variables and narrows the GADT constraint by what pattern type `pat`
@@ -14,7 +15,9 @@ use tasty::{SymbolId, Type, TypeId, TypeVars};
 pub fn constrain_pattern_type(t: &mut Typer, pat: TypeId, scrut: TypeId) -> bool {
     let scrut = dealias_drop_non_module_refs(t, scrut);
     match *t.u.ty(scrut) {
-        Type::Or(a, b, _) => return either(t, |t| constrain_pattern_type(t, pat, a), |t| constrain_pattern_type(t, pat, b)),
+        Type::Or(a, b, _) => {
+            return either(t, |t| constrain_pattern_type(t, pat, a), |t| constrain_pattern_type(t, pat, b));
+        }
         Type::And(a, b) => return constrain_pattern_type(t, pat, a) && constrain_pattern_type(t, pat, b),
         Type::Refined(..) | Type::Rec(..) => {
             let stripped = strip_refinement(t, scrut);
@@ -24,7 +27,9 @@ pub fn constrain_pattern_type(t: &mut Typer, pat: TypeId, scrut: TypeId) -> bool
     }
     let pat = dealias_drop_non_module_refs(t, pat);
     match *t.u.ty(pat) {
-        Type::Or(a, b, _) => either(t, |t| constrain_pattern_type(t, a, scrut), |t| constrain_pattern_type(t, b, scrut)),
+        Type::Or(a, b, _) => {
+            either(t, |t| constrain_pattern_type(t, a, scrut), |t| constrain_pattern_type(t, b, scrut))
+        }
         Type::And(a, b) => constrain_pattern_type(t, a, scrut) && constrain_pattern_type(t, b, scrut),
         Type::Refined(..) | Type::Rec(..) => {
             let stripped = strip_refinement(t, pat);
@@ -32,7 +37,8 @@ pub fn constrain_pattern_type(t: &mut Typer, pat: TypeId, scrut: TypeId) -> bool
         }
         _ => {
             try_constrain_simple(t, pat, scrut)
-                || classes_may_be_compatible(t, pat, scrut) && super::upcasted::constrain_upcasted(t, pat, scrut)
+                || classes_may_be_compatible(t, pat, scrut)
+                    && super::upcasted::constrain_upcasted(t, pat, scrut)
         }
     }
 }
@@ -92,7 +98,9 @@ pub fn try_constrain_simple(t: &mut Typer, pat: TypeId, scrut: TypeId) -> bool {
 fn constrain_simple(t: &mut Typer, pat: TypeId, scrut: TypeId, (p, s): (SymbolId, SymbolId)) -> bool {
     let base = if t.u.derives_from(p, s) { s } else { p };
     let (Some(pt), Some(tp)) = (t.u.base_type(pat, base), t.u.base_type(scrut, base)) else { return false };
-    let (Some((_, args_p)), Some((_, args_s))) = (t.u.applied(pt).map(|(c, a)| (c, a.to_vec())), t.u.applied(tp).map(|(c, a)| (c, a.to_vec()))) else {
+    let (Some((_, args_p)), Some((_, args_s))) =
+        (t.u.applied(pt).map(|(c, a)| (c, a.to_vec())), t.u.applied(tp).map(|(c, a)| (c, a.to_vec())))
+    else {
         return false;
     };
     let invariant = refinement_is_invariant(t, pat);
@@ -134,57 +142,4 @@ fn refinement_is_invariant(t: &mut Typer, pat: TypeId) -> bool {
         return false;
     }
     class_of(t, pat).is_some_and(|c| t.u.symbol(c).is_final() || t.u.symbol(c).is_case())
-}
-
-/// Whether `first` holds, or else `second`; when both do, the constraints and GADT constraint
-/// of the one the other subsumes, else those before both (dotty's `necessaryEither`).
-fn either(t: &mut Typer, first: impl FnOnce(&mut Typer) -> bool, second: impl FnOnce(&mut Typer) -> bool) -> bool {
-    let (mark, gadt_mark) = (t.constraint.mark(), t.u.gadt().mark());
-    if !first(t) {
-        return second(t);
-    }
-    let (left, left_gadt) = (t.constraint.changes_since(mark), t.u.gadt().changes_since(gadt_mark));
-    let left_bounds = super::constrain::var_bounds(&t.constraint, &left.vars);
-    t.constraint.rollback(mark);
-    t.u.gadt_mut().rollback(gadt_mark);
-    let pre: Vec<SymbolId> = t.u.gadt().symbols().collect();
-    if !second(t) {
-        t.constraint.rollback(mark);
-        t.u.gadt_mut().rollback(gadt_mark);
-        t.constraint.redo(left);
-        if let Some(g) = left_gadt {
-            t.u.gadt_mut().redo(g);
-        }
-        return true;
-    }
-    let right = t.constraint.changes_since(mark);
-    let right_gadt = t.u.gadt().changes_since(gadt_mark);
-    let mut vars = left.vars.clone();
-    vars.extend(right.vars.iter().filter(|v| !left.vars.contains(v)));
-    let right_bounds = super::constrain::var_bounds(&t.constraint, &vars);
-    t.constraint.rollback(mark);
-    t.u.gadt_mut().rollback(gadt_mark);
-    let pre_bounds = super::constrain::var_bounds(&t.constraint, &vars);
-    let left_bounds: Vec<(TypeId, TypeId)> = vars
-        .iter()
-        .zip(&pre_bounds)
-        .map(|(v, &pre)| left.vars.iter().position(|w| w == v).map_or(pre, |i| left_bounds[i]))
-        .collect();
-    let keep_right = super::constrain::subsumes(t.u, &left_bounds, &right_bounds, &pre_bounds)
-        && t.u.gadt_subsumes(left_gadt.as_ref(), right_gadt.as_ref(), &pre);
-    let keep_left = !keep_right
-        && super::constrain::subsumes(t.u, &right_bounds, &left_bounds, &pre_bounds)
-        && t.u.gadt_subsumes(right_gadt.as_ref(), left_gadt.as_ref(), &pre);
-    if keep_right {
-        t.constraint.redo(right);
-        if let Some(g) = right_gadt {
-            t.u.gadt_mut().redo(g);
-        }
-    } else if keep_left {
-        t.constraint.redo(left);
-        if let Some(g) = left_gadt {
-            t.u.gadt_mut().redo(g);
-        }
-    }
-    true
 }

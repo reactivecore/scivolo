@@ -76,12 +76,14 @@ impl Gadt {
     pub fn first_order(&self, u: &mut Universe, (pat, sel): (TypeId, TypeId), ctx: Ctx) -> bool {
         let (mut in_pat, mut in_sel) = (Vec::new(), Vec::new());
         let pat = u.map_type(pat, &mut |u, x| u.var(x).map(|_| tasty::ANY));
-        let ok = self.cases > 0 && self.first_order_params(u, pat, &mut in_pat) && self.first_order_params(u, sel, &mut in_sel);
+        let ok = self.cases > 0
+            && self.first_order_params(u, pat, &mut in_pat)
+            && self.first_order_params(u, sel, &mut in_sel);
         in_sel.retain(|&s| self.is_symbol(u, s, ctx));
         ok && in_pat.into_iter().chain(in_sel).all(|s| {
-                let info = u.info(s);
-                u.bounds(info).is_some_and(|(_, hi)| u.lambda(hi).is_none())
-            })
+            let info = u.info(s);
+            u.bounds(info).is_some_and(|(_, hi)| u.lambda(hi).is_none())
+        })
     }
 
     /// Extends `syms` by the narrowable type parameters of pattern type `pat`, of its base type at

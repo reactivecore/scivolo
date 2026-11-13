@@ -1,5 +1,6 @@
 mod bounded;
 mod constrain;
+mod either;
 mod order;
 mod pattern_type;
 mod tuples;
