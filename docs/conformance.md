@@ -216,13 +216,15 @@ The VM fixes javalib bugs in its library overlay (`overlay/src`, ADR 0009).
     - Fix: `V` exactly when the descriptor's result is `V`. JVM: does so.
 22. **A pattern-bound type constructor applied keeps its bounds as supertype** (dotty 3.9.0,
     `compiler/src/dotty/tools/dotc/core/Types.scala:4742`, `AppliedType.superType`).
-    - `case ap: Ap[e, a, b]` where `Ap[E[_, _], A, B] extends L[E, E[A, B]]`: the pattern's GADT
-      inference computes the cached supertype of `e[a, b]` as `Any` (`e <: [_, _] =>> Any`);
-      `indexPattern` then makes `e` an alias of `Exp`, but the cache is valid for the whole
-      period.
-    - `val z: e[a, b] = 42` compiles (`Int <: Any`, the cached supertype); a value of type
-      `e[a, b]` conforms to `Exp[a, b]` only through a cast that `gadt-TypeSafeLambda` shows
-      (`c.first.$asInstanceOf$[Arr[s_prod[s_env, x], s_env]]`).
+    - `def t1[Exp[_, _], T](x: L[Exp, T]): T = x match { case ap: Ap[e, a, b] => … }` where
+      `Ap[E[_, _], A, B] extends L[E, E[A, B]]`: the pattern's GADT inference computes the cached
+      supertype of `e[a, b]` as `Any` (`e <: [_, _] =>> Any`); `indexPattern` then makes `e` an
+      alias of `Exp`, but the cache is valid for the whole period.
+    - `val z: e[a, b] = 42; z` compiles (`Int <: Any`, the cached supertype), and
+      `t1[Function1, Int => String](Ap())(3)` throws `ClassCastException`; `e[b, a]`, not cached,
+      is refused.
+    - `val f: Exp[a, b] = ap.x` (`ap.x: e[a, b]`) gets a GADT cast to `ap.x & Exp[a, b]`, as
+      `c.first` in `gadt-TypeSafeLambda`; erasure drops it.
     - Fix: mark the supertype of an application of a pattern-bound type provisional. Frontend:
       the supertype from the current info: refuses `z`, no cast.
 
