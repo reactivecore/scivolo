@@ -146,6 +146,22 @@ fn full_bounds_leave_out_a_pattern_bound_type_ordered_by_its_own_bound() {
 }
 
 #[test]
+fn replace_dealiases_an_applied_alias_constructor_at_the_top_level() {
+    let (mut u, [a, g], x) = setup(["A", "G"]);
+    let root = u.root();
+    let g_ref = type_ref(&mut u, g);
+    let alias = u.intern_type(Type::Alias(g_ref));
+    let f = define(&mut u, "F", Kind::Type, root, alias);
+    let f_ref = type_ref(&mut u, f);
+    let f_x = u.intern_applied(f_ref, &[x]);
+    let f_f_x = u.intern_applied(f_ref, &[f_x]);
+    u.gadt_add(&unbounded(&[a]), 0);
+    u.gadt_replace(a, f_f_x);
+    let g_f_x = u.intern_applied(g_ref, &[f_x]);
+    assert_eq!(u.gadt().bounds(a), Some((g_f_x, g_f_x)), "F[F[X]] is G[F[X]]");
+}
+
+#[test]
 fn replace_substitutes_only_entries_that_are_the_symbol() {
     let (mut u, [a, b, c, d], x) = setup(["A", "B", "C", "D"]);
     let a_ref = type_ref(&mut u, a);

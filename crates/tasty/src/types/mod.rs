@@ -25,6 +25,7 @@ pub use parts::Binding;
 pub use show_source::{Highlight, escape};
 use type_lists::ListTable;
 pub use type_lists::{ParamList, TypeList};
+pub use widen::MAX_STEPS;
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub struct TypeId(pub u32);

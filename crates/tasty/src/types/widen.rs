@@ -11,7 +11,7 @@ use crate::tags::{
 use crate::{Kind, SymbolId, Universe};
 
 /// How many steps `widen` and `dealias` take at most.
-const MAX_STEPS: u32 = 64;
+pub const MAX_STEPS: u32 = 64;
 
 impl Universe {
     /// `t` with singleton types, constants, `this` and by-name types replaced by their

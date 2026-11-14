@@ -3,6 +3,7 @@
 //! Registering symbols in the GADT constraint and changing their entries.
 
 use super::{Entry, Unification};
+use crate::types::MAX_STEPS;
 use crate::types::Type;
 use crate::{ANY, NOTHING, SymbolId, TypeId, Universe};
 
@@ -84,7 +85,7 @@ impl Universe {
     /// Makes registered `s` equal to `t`, drops it from the ordering and replaces it in the
     /// entries that are `s` (dotty's `OrderingConstraint.replace`).
     pub fn gadt_replace(&mut self, s: SymbolId, t: TypeId) {
-        let t = self.dealias(t);
+        let t = self.replacement(t);
         if !self.gadt().contains(s) || self.gadt_param(t) == Some(s) {
             return;
         }
@@ -109,6 +110,36 @@ impl Universe {
             let (lo, hi) = (sub(self, e.lo), sub(self, e.hi));
             self.gadt_mut().modify(o, |e| (e.lo, e.hi, e.instance) = (lo, hi, instance));
         }
+    }
+
+    /// Dealiases `t`, the type a constrained parameter is made equal to, keeping its annotations,
+    /// as `e[r, r_]` becomes `Exp[r, r_]` for `e` an alias of `Exp` (dotty's `dealiasKeepAnnots`
+    /// in `OrderingConstraint.replace`).
+    pub fn replacement(&mut self, mut t: TypeId) -> TypeId {
+        for _ in 0..MAX_STEPS {
+            if let Type::Annotated(parent, annot) = *self.ty(t) {
+                let parent = self.replacement(parent);
+                return self.intern_type(Type::Annotated(parent, annot));
+            }
+            match self.dealias_step(t) {
+                next if next == t || self.is_match_body(next) => return t,
+                next => t = next,
+            }
+        }
+        t
+    }
+
+    /// Whether `t` is a match type or a type lambda over one applied, the right-hand side of a
+    /// match alias that dotty's `dealias` does not follow.
+    fn is_match_body(&self, t: TypeId) -> bool {
+        let t = match *self.ty(t) {
+            Type::Applied(tycon, _) => match *self.ty(tycon) {
+                Type::Lambda { result, .. } => result,
+                _ => return false,
+            },
+            _ => t,
+        };
+        matches!(self.ty(t), Type::Match { .. })
     }
 
     /// Maps the bounds and instance of every entry by `f`, as a type variable replaced by the

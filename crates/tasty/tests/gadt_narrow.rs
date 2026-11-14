@@ -373,6 +373,26 @@ fn approx_state_is_fresh_at_prefixes_and_refinement_members() {
 }
 
 #[test]
+fn an_alias_of_a_type_constructor_applied_is_the_constructor_applied() {
+    let Some(mut u) = universe() else { return };
+    let binder = u.fresh_binder();
+    let x = u.intern_name("X");
+    let any_lambda = u.intern_lambda(binder, &[(x, ANY)], ANY);
+    let root = u.root();
+    let hk = u.intern_type(Type::Bounds(NOTHING, any_lambda));
+    let p = define(&mut u, "P", Kind::TypeParam, root, hk);
+    let p_ref = u.intern_type(Type::Sym(None, p));
+    let alias = u.intern_type(Type::Alias(p_ref));
+    let e = define(&mut u, "E", Kind::Type, root, alias);
+    let locals = [("P", p_ref), ("E", u.intern_type(Type::Sym(None, e)))];
+    let [e_int, p_int, p_str] =
+        ["E[scala.Int]", "P[scala.Int]", "P[java.lang.String]"].map(|t| parse_with(&mut u, t, &locals));
+    assert!(u.is_subtype(e_int, p_int), "E[Int] <: P[Int]");
+    assert!(u.is_subtype(p_int, e_int), "P[Int] <: E[Int]");
+    assert!(!u.is_subtype(e_int, p_str), "E[Int] <: P[String]");
+}
+
+#[test]
 fn applications_of_gadt_symbols_compare_their_arguments_frozen_unless_injective() {
     let Some(mut u) = universe() else { return };
     let binder = u.fresh_binder();

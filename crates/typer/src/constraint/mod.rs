@@ -165,9 +165,9 @@ impl Constraint {
 
     /// Sets the bounds of `v` to `lo` and `hi` if `checked <: hi` holds then, `checked` being
     /// the part of `lo` to check, added to variable `hi` as its lower bound undealiased if it
-    /// has no variables (dotty's `addLess`); instantiates `v` to equal bounds that do not contain
-    /// `v`, are not a bare type constructor and have no uninstantiated variables unless they are
-    /// an applied match alias (dotty's `addOneBound` and its `tryReplace`).
+    /// has no variables (dotty's `addLess`); instantiates `v` to equal bounds, dealiased, that do
+    /// not contain `v`, are not a bare type constructor and have no uninstantiated variables
+    /// unless they are an applied match alias (dotty's `addOneBound` and its `tryReplace`).
     fn narrow(&mut self, u: &mut Universe, v: VarId, lo: TypeId, hi: TypeId, checked: TypeId) -> bool {
         if lo == hi {
             let (mut cyclic, mut open) = (false, false);
@@ -179,6 +179,7 @@ impl Constraint {
             let open = open && (u.applied(lo).is_none() || u.underlying_match(lo).is_none());
             let tycon = matches!(u.sym_of(lo), Some(s) if !u.type_params(s).is_empty());
             if !cyclic && !open && (!tycon || u.gadt().inferring) {
+                let lo = u.replacement(lo);
                 self.instantiate(v, lo);
                 return true;
             }

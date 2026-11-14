@@ -33,14 +33,12 @@ impl Cmp<'_> {
                 }
             },
             Type::TypeRef(..) | Type::Sym(..) => match self.named(tycon).map(|n| n.meaning) {
+                _ if self.gadt_applied_below(a, b, tycon, args) => true,
                 Some(Meaning::Alias(alias)) => match self.expanded(tycon, alias, args) {
                     Some(expanded) if expanded != b => self.recur(a, expanded),
                     _ => self.fourth_try(a, b),
                 },
                 Some(Meaning::Abstract(lo, hi)) => {
-                    if self.gadt_applied_below(a, b, tycon, args) {
-                        return true;
-                    }
                     let lower = self.apply(lo, args);
                     match lo == hi {
                         true => self.recur(a, lower),
@@ -135,8 +133,10 @@ impl Cmp<'_> {
             }
             Type::TypeRef(..) | Type::Sym(..) => match self.named(tycon).map(|n| n.meaning) {
                 Some(Meaning::Alias(alias)) => match self.expanded(tycon, alias, args) {
-                    Some(expanded) if expanded != a => self.recur(expanded, b),
-                    _ => false,
+                    Some(expanded) if expanded != a => {
+                        self.recur(expanded, b) || self.gadt_applied_above(b, tycon, args)
+                    }
+                    _ => self.gadt_applied_above(b, tycon, args),
                 },
                 Some(Meaning::Abstract(_, hi)) => {
                     let upper = self.apply(hi, args);
@@ -168,10 +168,10 @@ impl Cmp<'_> {
         }
     }
 
-    /// `tycon[args]` for alias `tycon` of `alias`, a refinement's type lambda if not a symbol's.
+    /// `tycon[args]` for alias `tycon` of `alias`: a type lambda's body, `alias[args]` for an
+    /// alias of a type constructor (dotty's `superTypeNormalized`, `applyIfParameterized`).
     fn expanded(&mut self, tycon: TypeId, alias: TypeId, args: &[TypeId]) -> Option<TypeId> {
-        let lambda = self.u.lambda(alias).is_some();
-        self.u.expand(tycon, args).or_else(|| lambda.then(|| self.apply(alias, args)))
+        self.u.expand(tycon, args).or_else(|| (!args.is_empty()).then(|| self.apply(alias, args)))
     }
 
     /// `t` applied to `args`: a type lambda's body, `t` itself if it takes no arguments.

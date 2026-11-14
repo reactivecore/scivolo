@@ -214,6 +214,17 @@ The VM fixes javalib bugs in its library overlay (`overlay/src`, ADR 0009).
       `…V`, `type U = Unit; def g(x: List[Int]): U` (descriptor result `V`) `…BoxedUnit;`.
     - A Java caller compiled against either links the signature's erasure: `NoSuchMethodError`.
     - Fix: `V` exactly when the descriptor's result is `V`. JVM: does so.
+22. **A pattern-bound type constructor applied keeps its bounds as supertype** (dotty 3.9.0,
+    `compiler/src/dotty/tools/dotc/core/Types.scala:4742`, `AppliedType.superType`).
+    - `case ap: Ap[e, a, b]` where `Ap[E[_, _], A, B] extends L[E, E[A, B]]`: the pattern's GADT
+      inference computes the cached supertype of `e[a, b]` as `Any` (`e <: [_, _] =>> Any`);
+      `indexPattern` then makes `e` an alias of `Exp`, but the cache is valid for the whole
+      period.
+    - `val z: e[a, b] = 42` compiles (`Int <: Any`, the cached supertype); a value of type
+      `e[a, b]` conforms to `Exp[a, b]` only through a cast that `gadt-TypeSafeLambda` shows
+      (`c.first.$asInstanceOf$[Arr[s_prod[s_env, x], s_env]]`).
+    - Fix: mark the supertype of an application of a pattern-bound type provisional. Frontend:
+      the supertype from the current info: refuses `z`, no cast.
 
 ## M4: dotty `tests/run`
 
