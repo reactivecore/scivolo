@@ -12,8 +12,13 @@ impl TypeOps<'_> {
     /// the lubs and glbs of their parts, dealiases type projections on classes (dotty's
     /// `TypeOps.simplify` of a term's type).
     pub fn simplified(&mut self, t: TypeId) -> TypeId {
-        simplify(self.u, t, false)
+        simplified(self.u, t)
     }
+}
+
+/// Simplifies `t` as `TypeOps::simplified` does.
+pub fn simplified(u: &mut tasty::Universe, t: TypeId) -> TypeId {
+    simplify(u, t, false)
 }
 
 impl Typer<'_> {

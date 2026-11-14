@@ -16,7 +16,6 @@ mod copy;
 mod copy_classes;
 mod erased;
 mod expand;
-mod gadt_args;
 mod host;
 mod implicit_args;
 mod inline_call;
