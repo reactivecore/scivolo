@@ -12,7 +12,7 @@ just vm-profile cpu                # call and instruction counts; `just script-p
 python3 scripts/profile.py cpu     # native profile (macOS `sample`)
 ```
 
-## Where it stands (2026-11-03, M4 Pro, release, minima)
+## Where it stands (M4 Pro, release, minima)
 
 | Program | scivolo | Scala Native binary | notes |
 |---|---:|---:|---|

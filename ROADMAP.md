@@ -11,7 +11,7 @@ The architectural decision is [ADR 0001](docs/adr/0001-nir-shaped-execution-ir.m
 data flow is in the README's "How it works". `README.md` summarizes the goals and the
 progress: update it with this file.
 
-## Phase 0 — research and spikes (done, 2026-09-24)
+## Phase 0 — research and spikes (done)
 
 - [x] Baseline latency (`spikes/00-baseline`): scala-cli is far from the goal; Scala Native
       binaries start fast but take seconds to build.

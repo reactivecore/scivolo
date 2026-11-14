@@ -19,7 +19,7 @@ through the externs in `crates/vm/src/natives/junit.rs`, because Scala Native's 
 lookup needs metadata that its linker generates. Tests run from the root of `ref/scala-native`,
 where their resource files are.
 
-## Results (2026-09-29, macOS arm64 and Linux x86-64 in CI)
+## Results (macOS arm64 and Linux x86-64 in CI)
 
 | Group | Passed | Failed | Skipped |
 |---|---:|---:|---:|
@@ -233,7 +233,7 @@ The VM fixes javalib bugs in its library overlay (`overlay/src`, ADR 0009).
 - **Parser** (`just syntax-report`): tokens match dotty on all 5,893 files, trees and
   desugaring on 5,891.
 - **Symbols from TASTy:** 99.8% of the library's signatures match Scala Native's mangled names.
-- **Typer** (`just typer-report`, 2026-11-14): each file typed by dotty's oracle and ours,
+- **Typer** (`just typer-report`): each file typed by dotty's oracle and ours,
   compared node by node; `neg` counts files whose errors match.
 
 | Outcome | tests/programs | tests/pos | tests/neg |
@@ -263,7 +263,7 @@ counts as failing in Scala Native too when the native binary fails the same way 
 stdout, or does not link for a missing definition. A run with a filter updates only its tests'
 rows.
 
-Results (2026-09-29):
+Results:
 
 | Outcome | Tests |
 |---|---:|
@@ -292,7 +292,7 @@ compiled by Scala Native (`dotty-report`) are counted apart; refusals are groupe
 the typer or the lowering gives. The programs `tests/programs/lowered.txt` lists run as
 `scivolo FILE.scala` with `SCIVOLO_FRONTEND=strict` (`crates/scivolo/tests/lowered.rs`).
 
-Results (2026-11-14):
+Results:
 
 | Outcome | Tests |
 |---|---:|
@@ -316,7 +316,7 @@ Results (2026-11-14):
   unresolved name `AnyNamedTuple`, `typeChecks` of a non-constant string. `Runtime.totalMemory`,
   `maxMemory` and `freeMemory`, which Scala Native's javalib lacks and the overlay adds (ADR
   0008), are typed through `libs/jdk-stubs/JdkMemberDeclarations.scala`.
-- **`tests/run-macros`** (`just dotty-lower-report "" run-macros`, 2026-11-14): 308 of 321
+- **`tests/run-macros`** (`just dotty-lower-report "" run-macros`): 308 of 321
   pass; the typer refuses 5 (`-Xread-docs` (2), the unresolved name `SuppressWarnings`, a member
   not found, a source version other than 3.7 to 3.9), 8 are skipped.
 - **`-source future`:** typed as 3.9 with the parser's new-syntax rules; the typer refuses
@@ -354,7 +354,7 @@ for a macro call also for Scala Native, whose NIR the macro runs from in the VM 
 Skipped as in the VM's report, but for APIs Scala Native's javalib lacks. Failures are grouped by
 the refusal or the first exception line.
 
-Results (2026-11-12):
+Results:
 
 | Outcome | tests/run | tests/run-macros |
 |---|---:|---:|
@@ -385,7 +385,7 @@ Results (2026-11-12):
 `just programs-jvm` compiles each of `tests/programs` with `scivolo-jvm`, runs it on
 `java -Xverify:all` and compares its stdout and stderr, in one stream, with its `.check` (Scala
 Native's output).
-Results (2026-11-12):
+Results:
 
 | Outcome | Programs |
 |---|---:|
@@ -414,7 +414,7 @@ sources jar is compiled alone by `scivolo-jvm --scalalib` and its class files co
 javap text, code and attributes apart, with dotty 3.9.0's from one run over the whole sources jar
 with the library build's options without `-opt`. The published jar is no oracle: its build adds
 the optimizer (1883 of its 3134 classes dotty also writes differ in code from dotty's) and takes
-139 classes and 2.13's specialized ones from Scala 2.13. Results (2026-11-12):
+139 classes and 2.13's specialized ones from Scala 2.13. Results:
 
 | Outcome | Files | Classes |
 |---|---:|---:|
@@ -435,7 +435,7 @@ the optimizer (1883 of its 3134 classes dotty also writes differ in code from do
 scala-cli's build of the whole module and, for the files that differ, with scala-cli's build of
 that file alone. 1,777 of the 1,786 NIR files are the same as scala-cli's; 3 differ only in var
 order; upickle's own 35 have no scala-cli oracle, as Scala 3.9 reports cyclic references in
-`Api.scala`. Differences from both (2026-11-04):
+`Api.scala`. Differences from both:
 
 - **Quote type sharing** (fastparse `MacroInlineImpls$`, `MacroRepImpls$`, upickle-implicits
   `macros$package$`; case 1): a quote string writes a type it wrote before as a `SHAREDtype`
@@ -484,7 +484,7 @@ javalib lacks.
 
 ## Native executables
 
-`just aot-src-all` (2026-11-11): 308 of 318 test programs build from source with `scivolo-aot`
+`just aot-src-all`: 308 of 318 test programs build from source with `scivolo-aot`
 and pass.
 
 ## M5: scala/scala `test/junit`
@@ -500,7 +500,7 @@ plugin, minus the files Scala Native's denylist for 2.13.18 excludes. Files that
 with Scala 3 are dropped until the rest does; `AssertUtil` gets one Scala 3 fix. Each test
 class runs in its own VM, 900 s at most.
 
-Results (2026-09-28): of 104 files, 92 compile; all 867 tests in their 112 classes pass.
+Results: of 104 files, 92 compile; all 867 tests in their 112 classes pass.
 
 - **Not compiling with Scala 3 (12 files):** ambiguous givens (`BuildFromTest`,
   `DecoratorsTest`), missing `ClassTag`s, `==` between unrelated types, and overloads that

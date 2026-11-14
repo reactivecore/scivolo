@@ -46,7 +46,7 @@ Simplified from [ROADMAP.md](ROADMAP.md), which holds the targets and their stat
 
 ## Progress
 
-Headline numbers (macOS arm64, M4 Pro); every suite, date and gap is in
+Headline numbers (macOS arm64, M4 Pro); every suite and gap is in
 [docs/conformance.md](docs/conformance.md), speed in [docs/performance.md](docs/performance.md).
 
 - **VM:** 11,336 of Scala Native's 11,360 unit tests pass (NIR compiled by Scala Native).
