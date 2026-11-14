@@ -141,12 +141,14 @@ impl FreshNames {
         self.next_in(0, names, prefix)
     }
 
-    /// Makes `prefix` followed by the next number for it in the unit's `file`th file.
+    /// Makes `prefix`, each `<` and `>` replaced by `$`, followed by the next number for it in the
+    /// unit's `file`th file (dotty's `UniqueNameKind.mkString` with `str.sanitize`).
     pub fn next_in(&mut self, file: usize, names: &mut Names, prefix: &str) -> Name {
         if self.files.len() <= file {
             self.files.resize_with(file + 1, Default::default);
         }
-        let n = self.files[file].entry(prefix.to_owned()).or_insert(0);
+        let prefix = prefix.replace(['<', '>'], "$");
+        let n = self.files[file].entry(prefix.clone()).or_insert(0);
         *n += 1;
         names.intern(&format!("{prefix}{n}"))
     }
