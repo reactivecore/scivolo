@@ -163,6 +163,19 @@ impl FreshNames {
         self.files = c.0;
     }
 
+    /// Raises each counter of the prefixed fresh names to at least its value in `c`.
+    pub fn raise_counters(&mut self, c: FreshCounters) {
+        if self.files.len() < c.0.len() {
+            self.files.resize_with(c.0.len(), Default::default);
+        }
+        for (file, counters) in self.files.iter_mut().zip(c.0) {
+            for (prefix, n) in counters {
+                let own = file.entry(prefix).or_insert(0);
+                *own = (*own).max(n);
+            }
+        }
+    }
+
     /// Makes the next `$N$` (dotty's `UniqueName`).
     pub fn unique(&mut self, names: &mut Names) -> Name {
         self.unique_count += 1;

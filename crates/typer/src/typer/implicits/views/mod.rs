@@ -188,7 +188,7 @@ impl<'a> ViewSearch<'a> {
                 t.fresh.reset_counters(before);
             }
             let converted = self.try_conversion(t, winner, widen);
-            t.fresh.reset_counters(after);
+            t.fresh.raise_counters(after);
             return Ok(Some(Viewed::Converted(converted?)));
         }
         Ok(None)

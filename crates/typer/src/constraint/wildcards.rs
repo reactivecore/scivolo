@@ -6,7 +6,7 @@ use super::{At, Constraint};
 use tasty::{ANY, NOTHING, Type, TypeId, Universe};
 
 impl Constraint {
-    /// Bound `t` with each wildcard replaced by a fresh variable made `at`, bounded by the
+    /// Replaces each wildcard of bound `t` by a fresh variable made `at`, bounded by the
     /// wildcard's bounds without wildcards in turn.
     pub fn without_wildcards(&mut self, u: &mut Universe, t: TypeId, at: At) -> TypeId {
         if !has_wildcard(u, t) {
