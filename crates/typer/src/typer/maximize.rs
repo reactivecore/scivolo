@@ -11,7 +11,7 @@ use rustc_hash::FxHashMap;
 use syntax::ast::TName;
 use syntax::ast::flags::CASE;
 use tasty::tags::FINAL;
-use tasty::{Kind, NameId, Registered, SymbolId, Type, TypeId, TypeVars, VarId};
+use tasty::{Kind, NameId, Registered, SymbolId, Type, TypeId, TypeVars, Universe, VarId};
 
 impl Typer<'_> {
     /// Instantiates the type variables from id `vars` on that occur in `t`: a covariant one from
@@ -38,7 +38,7 @@ impl Typer<'_> {
             gadt_bounds.extend([self.zonk(lo), self.zonk(hi)]);
         }
         let mut bound = Vec::new();
-        for v in self.variance_order(t, &variances) {
+        for v in variance_order(self.u, t, &variances) {
             let variance = variances[&v.0];
             if self.constraint.instance(v).is_some() {
                 continue;
@@ -77,26 +77,6 @@ impl Typer<'_> {
             self.u.gadt_register(&registered, level);
         }
         Ok(registered.into_iter().map(|r| r.sym).collect())
-    }
-
-    /// Orders the type variables of `variances` as dotty's variance map holds them: by their
-    /// first occurrence in `t`, then the others, which bounds brought in, by id.
-    fn variance_order(&mut self, t: TypeId, variances: &FxHashMap<u32, i8>) -> Vec<VarId> {
-        let mut order = Vec::new();
-        self.u.map_type(t, &mut |u, part| {
-            if let Some(v) = u.var(part)
-                && variances.contains_key(&v.0)
-                && !order.contains(&v)
-            {
-                order.push(v);
-            }
-            None
-        });
-        let mut rest: Vec<VarId> =
-            variances.keys().map(|&k| VarId(k)).filter(|v| !order.contains(v)).collect();
-        rest.sort_by_key(|v| v.0);
-        order.extend(rest);
-        order
     }
 
     /// Replaces the instantiated type variables in the GADT constraint by their instances.
@@ -144,5 +124,43 @@ impl Typer<'_> {
         }
         let args = self.tpd.list(&args);
         self.tpd.get_mut(unapp).tree = T::TypeApply { fun, args };
+    }
+}
+
+/// Orders the type variables of `variances` as dotty's variance map holds them: by their first
+/// occurrence in `t`, then the others, which bounds brought in, by id.
+fn variance_order(u: &mut Universe, t: TypeId, variances: &FxHashMap<u32, i8>) -> Vec<VarId> {
+    let mut order = Vec::new();
+    u.map_type(t, &mut |u, part| {
+        if let Some(v) = u.var(part)
+            && variances.contains_key(&v.0)
+            && !order.contains(&v)
+        {
+            order.push(v);
+        }
+        None
+    });
+    let mut rest: Vec<VarId> = variances.keys().map(|&k| VarId(k)).filter(|v| !order.contains(v)).collect();
+    rest.sort_by_key(|v| v.0);
+    order.extend(rest);
+    order
+}
+
+#[cfg(test)]
+mod tests {
+    use super::variance_order;
+    use rustc_hash::FxHashMap;
+    use tasty::{Type, Universe, VarId};
+
+    #[test]
+    fn variables_are_maximized_by_first_occurrence_then_by_id() {
+        let mut u = Universe::empty();
+        let [v1, v2, v4] = [1, 2, 4].map(|i| u.intern_type(Type::Var(VarId(i))));
+        let and = u.intern_type(Type::And(v2, v1));
+        let t = u.intern_type(Type::Or(and, v2, false));
+        let t = u.intern_type(Type::Or(t, v4, false));
+        let variances: FxHashMap<u32, i8> = [(3, 1), (0, 0), (1, -1), (2, 1)].into_iter().collect();
+        let order = variance_order(&mut u, t, &variances);
+        assert_eq!(order, [VarId(2), VarId(1), VarId(0), VarId(3)], "V4 has no variance");
     }
 }
