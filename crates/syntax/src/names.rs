@@ -131,6 +131,10 @@ pub struct FreshNames {
     pub uniques: crate::desugar::uniques::Uniques,
 }
 
+/// The counters of the prefixed fresh names of a unit at one point.
+#[derive(Clone)]
+pub struct FreshCounters(Vec<rustc_hash::FxHashMap<String, u32>>);
+
 impl FreshNames {
     /// Makes `prefix` followed by the next number for it in the unit's first file: `_$1`.
     pub fn next(&mut self, names: &mut Names, prefix: &str) -> Name {
@@ -145,6 +149,16 @@ impl FreshNames {
         let n = self.files[file].entry(prefix.to_owned()).or_insert(0);
         *n += 1;
         names.intern(&format!("{prefix}{n}"))
+    }
+
+    /// Copies the counters of the prefixed fresh names.
+    pub fn counters(&self) -> FreshCounters {
+        FreshCounters(self.files.clone())
+    }
+
+    /// Resets the counters of the prefixed fresh names to `c`.
+    pub fn reset_counters(&mut self, c: FreshCounters) {
+        self.files = c.0;
     }
 
     /// Makes the next `$N$` (dotty's `UniqueName`).

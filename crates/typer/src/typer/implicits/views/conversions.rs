@@ -36,7 +36,7 @@ impl ViewSearch<'_> {
         let (fun, from) = (candidate_ref(t, c, span.start_pos(), ctx)?, t.constraint.count());
         let mut fun = t.with_type_vars(fun)?;
         if kind == ViewKind::Value {
-            fun = t.viewing(c, |t| self.conversion_apply(t, fun))?;
+            fun = t.viewing(c, |t| self.conversion_apply(t, fun, from))?;
         }
         let fun_tpe = t.tpd.tpe(fun);
         let info = t.method_info(fun_tpe).unwrap_or(fun_tpe);
@@ -91,9 +91,15 @@ impl ViewSearch<'_> {
     }
 
     /// Applies conversion value `fun` to its implicit arguments and selects its `apply`, its type
-    /// first constrained to take the tree to the goal (dotty's `typedImplicit` adapting it to
-    /// `Conversion[from, pt]`).
-    fn conversion_apply(&self, t: &mut Typer<'_>, fun: TNodeId) -> Result<TNodeId, &'static str> {
+    /// first constrained to take the tree to the goal and the type variables of id `from` or later
+    /// interpolated against `Conversion[A, pt]`, `A` the tree's type (dotty's `typedImplicit`
+    /// adapting it to that type).
+    fn conversion_apply(
+        &self,
+        t: &mut Typer<'_>,
+        fun: TNodeId,
+        from: usize,
+    ) -> Result<TNodeId, &'static str> {
         let tpe = t.tpd.tpe(fun);
         let info = t.method_info(tpe).unwrap_or(tpe);
         let mut value = t.strip_implicit(info);
@@ -111,6 +117,10 @@ impl ViewSearch<'_> {
         }
         let at = t.tpd.span(self.tree).start_pos();
         let fun = t.with_implicit_args(fun, (at, at), self.ctx, 1)?;
+        let conversion = t.u.class_ref(CONVERSION);
+        let adapted_to = t.u.intern_applied(conversion, &[t.tpd.tpe(self.tree), to]);
+        t.interpolate(fun, Pt::Type(adapted_to), from)?;
+        t.settle_type(fun, self.ctx);
         let fun = t.inlined_transparent(fun, Pt::Any, self.ctx).unwrap_or(fun);
         let fun = match self.goal {
             Goal::Conform(pt) => self.gadt_cast_conversion(t, fun, value, pt),

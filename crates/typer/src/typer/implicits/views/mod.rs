@@ -139,10 +139,17 @@ impl<'a> ViewSearch<'a> {
                     (scope.implicits, scope.containers)
                 }
             };
-            let mut found = fitting(t, &group, |t, c| self.try_conversion(t, c, false))?;
+            let mut names = Vec::new();
+            let mut found = fitting(t, &group, |t, c| {
+                names.push((c, false, t.fresh.counters()));
+                self.try_conversion(t, c, false)
+            })?;
             let mut widened = Vec::new();
             if constant {
-                widened = fitting(t, &group, |t, c| self.try_conversion(t, c, true))?;
+                widened = fitting(t, &group, |t, c| {
+                    names.push((c, true, t.fresh.counters()));
+                    self.try_conversion(t, c, true)
+                })?;
                 widened.retain(|c| !found.contains(c));
             }
             if let Goal::Call(name, proto) = goal
@@ -175,8 +182,14 @@ impl<'a> ViewSearch<'a> {
             if found.contains(&winner) && !beats_widened(t, winner, &widened) {
                 return Err(ambiguous);
             }
-            let converted = self.try_conversion(t, winner, widened.contains(&winner))?;
-            return Ok(Some(Viewed::Converted(converted)));
+            let widen = widened.contains(&winner);
+            let after = t.fresh.counters();
+            if let Some((_, _, before)) = names.into_iter().find(|&(c, w, _)| c == winner && w == widen) {
+                t.fresh.reset_counters(before);
+            }
+            let converted = self.try_conversion(t, winner, widen);
+            t.fresh.reset_counters(after);
+            return Ok(Some(Viewed::Converted(converted?)));
         }
         Ok(None)
     }
