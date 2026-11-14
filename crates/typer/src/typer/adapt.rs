@@ -87,6 +87,7 @@ impl Typer<'_> {
             });
         }
         if let Some(inlined) = self.inlined_transparent(tree, pt, ctx) {
+            self.settle_adapted(inlined, pt, ctx);
             return self.adapt(inlined, pt, ctx);
         }
         self.record_inline_call(tree, ctx);
@@ -104,7 +105,7 @@ impl Typer<'_> {
                 let tpt = self.type_tree(pt, span.end_pos(), true);
                 return self.tpd.node(T::Typed { expr: tree, tpt }, span.to_synthetic(), Some(pt), None);
             }
-            return self.gadt_adapted_in(tree, pt, ctx.owner);
+            return self.gadt_adapted_in(tree, pt);
         }
         if let Some(converted) = self.converted_constant(tree, pt) {
             return self.adapt(converted, Pt::Type(pt), ctx);
