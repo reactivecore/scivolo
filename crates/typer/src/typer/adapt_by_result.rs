@@ -126,8 +126,8 @@ impl Typer<'_> {
     /// `t` as a value compared with `pt` (dotty's `normalize`): type parameters made type
     /// variables, implicit clauses stripped, a by-name type's result, a method as a function
     /// type, a context function's result unless `t` itself is one and not `follow` (`followIFT`);
-    /// `None` where outside the subset (dependent methods). The parameters of `meth`'s implicit clauses that
-    /// the result refers to are approximated by their types (dotty's `resultTypeApprox`).
+    /// `None` where outside the subset (dependent methods). The parameters of `meth`'s implicit
+    /// clauses are approximated by wildcards (`wildcard_result`).
     pub fn proto_normalized(
         &mut self,
         (t, meth): (TypeId, Option<SymbolId>),
@@ -143,18 +143,8 @@ impl Typer<'_> {
                 let result = self.instantiate_poly(result, binder, &names, &vars, None);
                 self.proto_normalized((result, meth), pt, true, depth)
             }
-            Type::Method { binder, params, result, implicit: true, .. } => {
-                let params = self.u.params_of(params);
-                let names: Vec<NameId> = params.iter().map(|&(n, _)| n).collect();
-                let infos: Vec<TypeId> = params.iter().map(|&(_, p)| p).collect();
-                let result = self.u.subst(result, binder, &names, &infos);
-                let result = self.u.map_type(result, &mut |u, t| match *u.ty(t) {
-                    Type::Sym(None, s) if u.symbol(s).kind == tasty::Kind::Param && meth.is_some() => {
-                        let own = u.symbol(s).owner == meth;
-                        names.iter().position(|n| own && u.name(*n) == u.symbol(s).name).map(|i| infos[i])
-                    }
-                    _ => None,
-                });
+            Type::Method { implicit: true, .. } => {
+                let result = self.wildcard_result(t, meth)?;
                 self.proto_normalized((result, meth), pt, true, depth)
             }
             Type::Method { binder, params, result, .. } => {
