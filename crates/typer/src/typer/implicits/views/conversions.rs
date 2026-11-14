@@ -10,6 +10,9 @@ use super::{Goal, ViewSearch};
 use crate::tpd::TNodeId;
 use tasty::{Binding, Type, TypeId};
 
+/// The class of given conversions.
+const CONVERSION: &str = "scala.Conversion";
+
 impl ViewSearch<'_> {
     /// Applies conversion `c` to the tree with `c`'s implicit arguments if the result fits the
     /// goal, as `1` becomes `intToBig(1)`: a constant tree widened to the parameter type first if
@@ -103,12 +106,32 @@ impl ViewSearch<'_> {
         };
         let function = t.function_class(1).ok_or("Function1")?;
         let expected = t.u.intern_applied(function, &[t.tpd.tpe(self.tree), to]);
-        if !t.conforms(value, expected) {
+        if !t.conforms(value, expected) && !t.defined_further(value, expected) {
             return Err("conversion of another type");
         }
         let at = t.tpd.span(self.tree).start_pos();
         let fun = t.with_implicit_args(fun, (at, at), self.ctx, 1)?;
         let fun = t.inlined_transparent(fun, Pt::Any, self.ctx).unwrap_or(fun);
+        let fun = match self.goal {
+            Goal::Conform(pt) => self.gadt_cast_conversion(t, fun, value, pt),
+            Goal::Member(_) | Goal::Call(..) | Goal::Typed(..) => fun,
+        };
         t.with_apply(fun, Pt::Any, self.ctx)
+    }
+
+    /// Conversion value `fun` of type `value` cast to `Conversion[from, pt]` if it is one only by
+    /// GADT bounds; a goal other than a type is a prototype, never a cast's target (dotty's
+    /// `tryConversion` adapting a given `Conversion` to `pt`, and `insertGadtCast`).
+    fn gadt_cast_conversion(&self, t: &mut Typer<'_>, fun: TNodeId, value: TypeId, pt: TypeId) -> TNodeId {
+        let conversion = t.u.class_ref(CONVERSION);
+        let derives = match (t.u.class_symbol(value), t.u.class_symbol(conversion)) {
+            (Some(c), Some(conv)) => t.u.derives_from(c, conv),
+            _ => false,
+        };
+        if !derives {
+            return fun;
+        }
+        let target = t.u.intern_applied(conversion, &[t.tpd.tpe(self.tree), pt]);
+        t.gadt_adapted(fun, target)
     }
 }

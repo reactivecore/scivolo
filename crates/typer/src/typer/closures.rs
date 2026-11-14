@@ -114,8 +114,10 @@ impl Typer<'_> {
         };
         let body_pt = expected_result.map_or(Pt::Any, Pt::Type);
         let body = self.typed(body, body_pt, bctx);
+        let lambda_result = poly.is_some() || dependent_pt.is_some();
         let result = match expected_result {
-            Some(r) => r,
+            Some(r) if !lambda_result || self.is_fully_defined(r) => r,
+            Some(_) => self.tpd.tpe(body),
             None => {
                 let t = self.tpd.tpe(body);
                 let t = self.fully_defined(t).unwrap_or(t);
