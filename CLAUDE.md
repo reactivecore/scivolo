@@ -1,7 +1,7 @@
 # scala_interpreter — project rules
 
 Research project: a fast Scala 3 (3.9) interpreter for scripting, in Rust.
-Research lives in `docs/research/`, throwaway experiments in `spikes/`, the
+Research goes as a comment on its GitLab issue, throwaway experiments in `spikes/`, the
 plan in `ROADMAP.md`. The four goals, in order of precedence when they
 conflict: robustness > extensibility (the code can be extended easily) >
 conciseness > performance. All four matter; performance comes last in a
@@ -19,6 +19,32 @@ Behave as dotty and Scala Native do. A difference is accepted only when:
 3. dotty has a bug, listed in `docs/conformance.md` (Upstream bugs to report).
 
 The MR names each such difference and which case it is.
+
+The main goal is the same meaning as dotty: runtime behaviour, casts and erasure, soundness.
+Equal typed trees are the evidence for it, not the goal. A difference that changes meaning is
+never case 1 or 2, and a refusal is better than a wrong result.
+
+## Research methods
+
+To find out how dotty does something, use these sources rather than guessing:
+
+1. **Sources**: `ref/scala3` (3.9.0); find the method whose decision gives dotty's output.
+2. **Dotty internals at runtime**: when reading leaves it open, trace dotty. First its flags
+   (`-Xprint:PHASE`, `-Ydebug`), then debug printing: copy the dotty files to change into
+   `tmp/dotty-debug/src`, switch printers in `config/Printers.scala` (`gadts`, `constr`,
+   `inlining`, `implicits`, `typr`) to `default` or add `println`s, and compile them with
+   scala-cli against the published `scala3-compiler` jar, whose classes they shadow
+   (`ref/scala3` has no sbt build). Write which call chain decides, with excerpts, on the issue.
+3. **Development history**: the PR that added the test or method, its issue, review
+   discussion and follow-up issues (`api.github.com/repos/scala/scala3/...` via WebFetch).
+   They tell what was intended and whether the behaviour is known to be buggy.
+4. **Papers**: the papers behind a feature (e.g. GADTs: SCALA 2019 and 2021, OOPSLA 2022
+   "A case for DOT") give its model and the sound answer.
+
+A dotty bug (case 3) needs evidence: a program dotty accepts that fails at runtime, or a
+contradiction with the spec or a paper, or an upstream report. Unusual output alone is not a
+bug; copy it. Check claimed equivalence by running: our VM against the JVM, `just nir-cmp`,
+`just jvm-check`.
 
 ## Build / test / lint
 
