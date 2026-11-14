@@ -235,6 +235,7 @@ mod widening;
 mod wild_approx;
 mod wildcard_aliases;
 mod wildcard_members;
+mod wildcard_result;
 mod zonk_trees;
 
 use crate::ctx::{Ctx, LevelId, Levels};

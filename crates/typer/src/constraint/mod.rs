@@ -11,6 +11,7 @@ mod direction;
 mod lambda_params;
 mod levels;
 mod unify;
+mod wildcards;
 
 use attempt::Fate;
 use levels::At;
@@ -216,6 +217,7 @@ impl TypeVars for Constraint {
         }
         let lo = lambda_params::avoid_lambda_params(u, lo, true).filter(|&t| self.kind_compatible(u, v, t));
         let Some(lo) = lo else { return false };
+        let lo = self.without_wildcards(u, lo, e.at);
         let lo = match self.avoided(u, lo, e.at, 1) {
             Some(avoided) => avoided,
             None => {
@@ -256,6 +258,7 @@ impl TypeVars for Constraint {
         }
         let hi = lambda_params::avoid_lambda_params(u, hi, false).filter(|&t| self.kind_compatible(u, v, t));
         let Some(hi) = hi else { return false };
+        let hi = self.without_wildcards(u, hi, e.at);
         if let Some(w) = u.var(hi)
             && self.unifiable(v, w)
             && self.unify(u, v, w)
