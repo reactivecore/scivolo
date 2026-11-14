@@ -75,11 +75,12 @@ impl Inlining<'_> {
 
     /// The skolem of argument `arg` of a clause, of which `retyped` tells whether a type changes
     /// when the type variables of its inferred type arguments are instantiated: none if it defines
-    /// a class, or if the call is expanded while typing (a transparent one), `arg` has inferred
-    /// type arguments and the clause is not `retyped`, as in `summon[Option[Int]](using Option(1))`,
-    /// where dotty's `inlineCall` rebuilds the argument and keeps the skolems keyed by the old one.
-    /// Otherwise refused while typing if `arg` has inferred types elsewhere than in type
-    /// arguments, a synthetic ascription or an inline expansion.
+    /// a class, or if the call is expanded while typing (a transparent one) and not inside another
+    /// expansion, `arg` has inferred type arguments and the clause is not `retyped`, as in
+    /// `summon[Option[Int]](using Option(1))`, where dotty's `inlineCall` rebuilds the argument and
+    /// keeps the skolems keyed by the old one. Otherwise refused in such a call if `arg` has
+    /// inferred types elsewhere than in type arguments, a synthetic ascription or an inline
+    /// expansion.
     pub fn arg_skolem(
         &self,
         arg: TNodeId,
@@ -104,7 +105,7 @@ impl Inlining<'_> {
                 stack.extend(children);
             }
         }
-        if !self.transparent_only {
+        if !self.transparent_only || self.depth > 1 {
             Ok(Some(skolem))
         } else if rebuilt && !retyped {
             Ok(None)
