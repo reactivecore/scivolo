@@ -12,7 +12,7 @@ just vm-profile cpu                # call and instruction counts; `just script-p
 python3 scripts/profile.py cpu     # native profile (macOS `sample`)
 ```
 
-## Where it stands (2026-11-03, M4 Pro, release, minima)
+## Where it stands (M4 Pro, release, minima)
 
 | Program | scivolo | Scala Native binary | notes |
 |---|---:|---:|---|
@@ -21,6 +21,11 @@ python3 scripts/profile.py cpu     # native profile (macOS `sample`)
 | fib 30 | 48 ms | 7 ms | 2.7M calls; the recursion is inlined one level |
 | loops 100 | 2.8 s | 0.8 s | 10⁷-iteration sum and Collatz up to 10⁶, ≈130M loop iterations |
 | cpu | 0.26 s | 22 ms | fib 30 and a sort through a boxed comparator chain |
+
+From the heap snapshot (ADR 0034): hello 7.5 ms, moderate 16.6 ms. Editing and then running
+`moderate.scala` through the own frontend takes 48 ms (`just bench-edit`). Reference points:
+scala-cli with warm Bloop 290–520 ms (1–2 s without it), python3 startup 18 ms, CPython on
+`cpu.scala` 113 ms.
 
 What makes it fast: lowered code with per-site caches, fused instructions, frame-less getters
 and forwarders, tier-up with devirtualization, guarded speculation and inlining (ADR 0006),

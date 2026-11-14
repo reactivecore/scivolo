@@ -5,25 +5,23 @@ edit** (stretch goal: 20 ms, which is python3's startup). Coverage should
 equal the Scala Native subset and be proven with the suites Scala Native
 passes. Precompiled libraries must be usable. A JVM bytecode backend shares the frontend.
 
-Evidence for every number below is in `docs/research/` and `spikes/*/README.md`.
+Measured results are in [docs/conformance.md](docs/conformance.md) (suites) and
+[docs/performance.md](docs/performance.md) (speed); spike results in `spikes/*/README.md`.
 The architectural decision is [ADR 0001](docs/adr/0001-nir-shaped-execution-ir.md); the
 data flow is in the README's "How it works". `README.md` summarizes the goals and the
 progress: update it with this file.
 
-## Phase 0 — research and spikes (done, 2026-09-24)
+## Phase 0 — research and spikes (done)
 
-- [x] Baseline latency (`spikes/00-baseline`). scala-cli with warm Bloop takes
-      290–520 ms, 1–2 s without it. Scala Native binaries start in 4 ms but
-      take 3.4–5.6 s to build.
-- [x] TASTy reader in Rust (`spikes/01`): 941/941 stdlib files decode in
-      12.7 ms; header, names and section index alone take 2.3 ms.
+- [x] Baseline latency (`spikes/00-baseline`): scala-cli is far from the goal; Scala Native
+      binaries start fast but take seconds to build.
+- [x] TASTy reader in Rust (`spikes/01`): the whole stdlib decodes, fast enough to read lazily.
 - [x] Parser evaluation (`spikes/02`): tree-sitter-scala misparses some input
       silently. Port dotty's parser instead.
-- [x] Native dotc via scalino (`spikes/03`): source to TASTy takes 60–198 ms
-      and macros mostly work. Too slow for the primary path; not used.
-- [x] NIR reader in Rust (`spikes/04`): 9,677 library files decode. On
-      `moderate.scala` the output matches Scala Native's own printer byte for
-      byte.
+- [x] Native dotc via scalino (`spikes/03`): macros mostly work, but too slow for the primary
+      path; not used.
+- [x] NIR reader in Rust (`spikes/04`): all library files decode; output matches Scala
+      Native's own printer byte for byte.
 - [~] Minimal TASTy evaluator (`spikes/05`): superseded by ADR 0001, but
       documents what TASTy lacks for execution.
 
@@ -39,12 +37,12 @@ frames. Results per suite: [docs/conformance.md](docs/conformance.md).
 |---|---|---|
 | M1 | hello, `moderate.scala`, `cpu.scala` | pass |
 | M2 | SN `unit-tests/shared` language tests | pass |
-| M3 | SN unit tests | 11,336 pass, 3 fail, 21 skip |
+| M3 | SN unit tests | pass but for the gaps in docs/conformance.md |
 | M4 | dotty `tests/run`, compiled by Scala Native | fail only where Scala Native fails |
-| M5 | scala/scala `test/junit` | all 867 tests of the files that compile with Scala 3 |
+| M5 | scala/scala `test/junit` | pass for the files that compile with Scala 3 |
 
-Exit criteria (met): M2 passes, M3 above 80%, a cached hello ≤ 20 ms (9.3 ms), `cpu.scala`
-within 3× of CPython (0.26 s against 113 ms), on the M4 Pro reference machine.
+Exit criteria (met): M2 passes, M3 above 80%, a cached hello ≤ 20 ms, `cpu.scala`
+within 3× of CPython, on the M4 Pro reference machine.
 
 Open: OS threads (a concurrency-safe heap, caches and callback table).
 
@@ -55,31 +53,25 @@ Done: the library image (ADR 0005), per-site caches, fused instructions, tier-up
 inlining (ADR 0006).
 
 - **Heap snapshot** (done, #9, ADR 0034): the initialized runtime's heap, written after a
-  training run and restored at start, also for the REPL; hello 7.5 ms, moderate 16.6 ms
-  (minima). Next: decoded definitions and lowered code in the snapshot.
+  training run and restored at start, also for the REPL. Next: decoded definitions and lowered code in the snapshot.
 - **Precise roots.** Typed slot maps would make frame scanning precise (ADR 0004); MMTk stays
   the alternative collector.
 - **Optional JIT.** A Cranelift baseline tier for hot methods.
 
 ## Phase 3 — own Rust frontend: no JVM, no compile step
 
-Exit criterion (met): editing and then running `moderate.scala` takes 48 ms with no
+Exit criterion (met): editing and then running `moderate.scala` takes ≤ 50 ms with no
 JVM (`just bench-edit`). Measured by dotty's `tests/run` through typer, lowering and VM
-(`just dotty-lower-report`, 2026-11-12): 1,497 of 1,711 pass; 8 stop at the typer, 1 at the
-lowering, 32 fail in
-the VM.
+(`just dotty-lower-report`, docs/conformance.md).
 
 1. **Parser** (`crates/syntax`): ports of dotty's `Scanners`, `Parsers`, `Desugar` and
-   `DesugarEnums`. Tokens match dotty on all 5,893 files, trees and desugaring on 5,891
-   (`just syntax-report`). Open: `-Wconf`.
+   `DesugarEnums` (`just syntax-report`). Open: `-Wconf`.
 2. **Symbols from TASTy** (`crates/tasty`, [research 08](docs/research/08-tasty-symbols.md)):
    lazily loaded symbols and types of the standard library and javalib, subtyping, erasure,
-   bridges; 99.8% of the library's signatures match Scala Native's mangled names.
+   bridges.
 3. **Typer for the scripting subset** (`crates/typer`): inference, overloads, implicits and
-   givens, extension methods, unions, inlining (ADR 0020), match types, mirrors and `derives`.
-   `just typer-report` (2026-11-08): tests/pos 2,361 typed as dotty, 186 differ (16 only in
-   warnings), 478 refused. Unsupported
-   input is refused, never compiled silently wrong.
+   givens, extension methods, unions, inlining (ADR 0020), match types, mirrors and `derives`
+   (`just typer-report`). Unsupported input is refused, never compiled silently wrong.
 4. **Lowering** (`crates/lower`): dotty's phases from FirstTransform to Constructors and
    nscplugin's NIR generation; every lowered test program matches Scala Native's NIR byte for
    byte (`tests/programs/lowered.txt`, `just nir-cmp`).
@@ -95,14 +87,12 @@ typer's trees. Macro libraries compile from source, their quotes pickled to TAST
 ([research 43](docs/research/43-pickle-quotes.md)). Typed-hole quote patterns and a
 `quotes.reflect` subset work; the rest of `Quotes` is refused by name. Macro annotations expand
 in the inlining (ADR 0039). Circe 0.14.10's `derives Codec.AsObject` and the com-lihaoyi
-libraries work. dotty's `tests/run-macros`: 308 of 321 pass
-(`just dotty-lower-report "" run-macros`).
+libraries work (`just dotty-lower-report "" run-macros`).
 
 ## Phase 5 — precompiled code and wider reach
 
 - **Native executables** (done, #113, [ADR 0028](docs/adr/0028-native-executables-via-cranelift.md)):
-  `scivolo-aot` builds sources or NIR into single-threaded executables with Cranelift; 308 of 318
-  test programs from source (2026-11-11) (`just aot-src-all`).
+  `scivolo-aot` builds sources or NIR into single-threaded executables with Cranelift (`just aot-src-all`).
 - **Third-party libraries** (done): `--dep` loads `_native0.5_3` jars as NIR plus TASTy, fetched
   by Coursier.
 - **AOT for libraries.** Compile hot stdlib NIR ahead of time, callable from interpreted code.
@@ -125,39 +115,24 @@ libraries work. dotty's `tests/run-macros`: 308 of 321 pass
 
 Compatibility first, in order of the tests it unblocks; startup comes last and must not get
 slower meanwhile:
-1. **Typer groups** ([research 37](docs/research/37-refusals-after-1023.md)): the 8 typer
-   refusals in `tests/run` (see [docs/conformance.md](docs/conformance.md)) and the 478 in
-   `tests/pos`; implicit candidates with undetermined type variables (#123).
-2. **Macros** (#40, [research 26](docs/research/26-macros-next.md)): the 13 failing
+1. **Typer groups** ([research 37](docs/research/37-refusals-after-1023.md)): the typer
+   refusals in `tests/run` and `tests/pos` (docs/conformance.md); implicit candidates with
+   undetermined type variables (#123).
+2. **Macros** (#40, [research 26](docs/research/26-macros-next.md)): the failing
    `tests/run-macros`.
 3. **com-lihaoyi toolkit** (#216, [research 31](docs/research/31-lihaoyi-macros.md)): `just
    lib-source NAME` compiles every file of fansi 0.5.1, geny 1.1.1, sourcecode 0.4.4, pprint
    0.9.6, fastparse 3.1.1, mainargs 0.7.8, upickle 4.4.3 (with upickle-core, upickle-implicits,
-   ujson and upack) and os-lib 0.11.9-M8; 1,777 of 1,786 NIR files are the same as scala-cli's
-   (3 differ only in var order; upickle's own 35 have no scala-cli oracle, as Scala 3.9 reports
-   cyclic references in `Api.scala`); 2 differ also from scala-cli compiling the file alone
-   (docs/conformance.md). Their `tests/aot` programs pass on our NIR.
+   ujson and upack) and os-lib 0.11.9-M8, NIR compared with scala-cli's (docs/conformance.md).
+   Their `tests/aot` programs pass on our NIR.
 4. **Lowering and inlining gaps** ([research 42](docs/research/42-lowering-leftovers-after-1029.md)):
-   done but for one lowering refusal in `tests/run` (`Parser`).
+   done.
 5. **Scala Native's library through the own frontend** (#168,
    [research 36](docs/research/36-compiling-the-native-stdlib.md), ADR 0042, 0043, 0046): `just
    lib-compile MODULE` lowers each file and compares its NIR with Scala Native's 3.9.0 build of
    it (`just lib-oracle`), reporting files that differ only in the order of var slots (Scala
-   Native takes them from a hash set) as `var-order`. Windows is out of scope.
-
-   | Module | Files lowered | NIR same | var-order | differ |
-   |---|---:|---:|---:|---:|
-   | javalib | 601 of 601 | 3,413 | 82 | 1 |
-   | nativelib | 103 of 103 | 707 | 9 | 3 |
-   | auxlib | 15 of 15 | 80 | | 5 |
-   | clib | 21 of 21 | 114 | | 1 |
-   | posixlib | 67 of 67 | 270 | | |
-   | windowslib | 34 | 130 | | |
-   | scalalib | 649 of 649 | 4,379 | 17 | 13 |
-
-   scalalib is compared with `just lib-oracle`'s build of it. clib, posixlib and scalalib pass Scala Native's unit tests on our jars (`just lib-jar-report`).
-   `unsafe/package{,$}` in nativelib differ only as a joint compilation with
-   `UnsafePackageCompat` does. Open: the rest of scalalib.
+   Native takes them from a hash set) as `var-order`; results in docs/conformance.md. Windows
+   is out of scope. Open: the rest of scalalib.
 6. **Startup** (#9): decoded definitions and lowered code in the heap snapshot.
 
 Process notes: each batch is reviewed by a subagent before its MR; `just snapshot-diff programs
