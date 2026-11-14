@@ -79,6 +79,7 @@ fn needs_refinement(t: &mut Typer, c: SymbolId, d: SymbolId, parent: TypeId, sel
     }
     if is_type {
         let own = type_info(t.u, d);
+        t.complete(inherited[0]);
         let theirs = t.u.member_info(parent, inherited[0]);
         let Some((lo, hi)) = t.u.bounds(theirs) else { return false };
         let (own_lo, own_hi) = match *t.u.ty(own) {

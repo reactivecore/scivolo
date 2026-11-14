@@ -7,14 +7,7 @@
 use super::type_ops::TypeOps;
 use super::{Typer, Widen};
 use crate::constraint::Constraint;
-use crate::symbols::SCRIPT_BINDERS;
 use tasty::{NOTHING, Type, TypeId, TypeVars, Universe, VarId};
-
-/// Whether `t` is a type lambda the script made (bound by a `fresh_binder` of the typer or of
-/// the universe).
-fn is_script_lambda(u: &Universe, t: TypeId) -> bool {
-    u.lambda(t).is_some_and(|l| l.binder.0 == SCRIPT_BINDERS || l.binder.0 == Universe::FRESH_BINDERS)
-}
 
 /// `t` with the type variables that have instances in `constraint` replaced by them once, a
 /// skolem keeping its identity; with `keep`, a variable applied to arguments whose instance is a
@@ -117,8 +110,8 @@ impl Typer<'_> {
 
     /// Instantiates type variable `v` to its instance type, from its lower bound if `from_below`
     /// else its upper bound (dotty's `TypeVar.instantiate`). Refuses an instance that contains `v`,
-    /// a union or intersection of type constructors (`List | Option`), a singleton below another
-    /// type variable, and a higher-kinded variable of the script fixed to its upper bound.
+    /// a union or intersection of type constructors (`List | Option`) and a singleton below another
+    /// type variable.
     pub fn instantiate_var(&mut self, v: VarId, from_below: bool) -> Result<(), &'static str> {
         self.instantiate_var_as(v, from_below, false)
     }
@@ -148,10 +141,6 @@ impl Typer<'_> {
             && (self.type_arity(a) > 0 || self.type_arity(b) > 0)
         {
             return Err("type variable instantiated to an intersection or union of type constructors");
-        }
-        let script_hk = is_script_lambda(self.u, hi);
-        if script_hk && !from_below && self.type_arity(inst) > 0 {
-            return Err("higher-kinded type variable instantiated to its upper bound");
         }
         self.constraint.instantiate(v, inst);
         Ok(())

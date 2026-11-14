@@ -131,20 +131,49 @@ pub struct FreshNames {
     pub uniques: crate::desugar::uniques::Uniques,
 }
 
+/// The counters of the prefixed fresh names of a unit at one point.
+#[derive(Clone)]
+pub struct FreshCounters(Vec<rustc_hash::FxHashMap<String, u32>>);
+
 impl FreshNames {
     /// Makes `prefix` followed by the next number for it in the unit's first file: `_$1`.
     pub fn next(&mut self, names: &mut Names, prefix: &str) -> Name {
         self.next_in(0, names, prefix)
     }
 
-    /// Makes `prefix` followed by the next number for it in the unit's `file`th file.
+    /// Makes `prefix`, each `<` and `>` replaced by `$`, followed by the next number for it in the
+    /// unit's `file`th file (dotty's `UniqueNameKind.mkString` with `str.sanitize`).
     pub fn next_in(&mut self, file: usize, names: &mut Names, prefix: &str) -> Name {
         if self.files.len() <= file {
             self.files.resize_with(file + 1, Default::default);
         }
-        let n = self.files[file].entry(prefix.to_owned()).or_insert(0);
+        let prefix = prefix.replace(['<', '>'], "$");
+        let n = self.files[file].entry(prefix.clone()).or_insert(0);
         *n += 1;
         names.intern(&format!("{prefix}{n}"))
+    }
+
+    /// Copies the counters of the prefixed fresh names.
+    pub fn counters(&self) -> FreshCounters {
+        FreshCounters(self.files.clone())
+    }
+
+    /// Resets the counters of the prefixed fresh names to `c`.
+    pub fn reset_counters(&mut self, c: FreshCounters) {
+        self.files = c.0;
+    }
+
+    /// Raises each counter of the prefixed fresh names to at least its value in `c`.
+    pub fn raise_counters(&mut self, c: FreshCounters) {
+        if self.files.len() < c.0.len() {
+            self.files.resize_with(c.0.len(), Default::default);
+        }
+        for (file, counters) in self.files.iter_mut().zip(c.0) {
+            for (prefix, n) in counters {
+                let own = file.entry(prefix).or_insert(0);
+                *own = (*own).max(n);
+            }
+        }
     }
 
     /// Makes the next `$N$` (dotty's `UniqueName`).

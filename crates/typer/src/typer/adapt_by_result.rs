@@ -46,8 +46,8 @@ impl Typer<'_> {
 
     /// Constrains the result type `result` of an application of `meth` to conform to `pt`
     /// (dotty's `constrainResult`), only necessary constraints kept: normalized against a fully
-    /// defined `pt`, not at all against `Unit`, else a value result after the implicit clauses
-    /// that refers to none of their parameters.
+    /// defined `pt`, not at all against `Unit`, else a value result after the implicit clauses,
+    /// approximated by wildcards where it refers to their parameters.
     pub fn constrain_applied_result(
         &mut self,
         meth: Option<SymbolId>,
@@ -66,10 +66,15 @@ impl Typer<'_> {
         let follow = !self.is_context_function_type(p);
         let value = match defined {
             true => self.proto_normalized((result, meth), p, follow, 8),
-            false => Some(stripped)
-                .filter(|&r| !matches!(self.u.ty(r), Type::Method { .. } | Type::Poly { .. }))
-                .filter(|&r| !self.refers_to_implicit_params(result, r, meth))
-                .map(|r| if follow { self.context_result(r) } else { r }),
+            false => {
+                let value = match self.refers_to_implicit_params(result, stripped, meth) {
+                    true => self.wildcard_result(result, meth).map(|approx| self.zonk(approx)),
+                    false => Some(stripped),
+                };
+                value
+                    .filter(|&r| !matches!(self.u.ty(r), Type::Method { .. } | Type::Poly { .. }))
+                    .map(|r| if follow { self.context_result(r) } else { r })
+            }
         };
         if let Some(value) = value {
             self.u.is_necessary_subtype_in(value, p, &mut self.constraint);
@@ -78,8 +83,8 @@ impl Typer<'_> {
     }
 
     /// Refuses implicit method type `result` of `meth` under a `pt` with type variables whose
-    /// result selects a type member only a refinement has, or holds a type lambda over the
-    /// implicit parameters (dotty constrains by their approximation).
+    /// result selects a type member only a refinement has, or a higher-kinded member of an
+    /// implicit parameter unapplied (no wildcard approximation).
     pub fn refinement_result(
         &mut self,
         (result, meth): (TypeId, Option<SymbolId>),
@@ -90,9 +95,9 @@ impl Typer<'_> {
         if stripped == result || self.is_fully_defined(p) {
             return Ok(());
         }
-        if self.lambda_of_implicit_params(result, stripped, meth) {
+        if self.wildcard_result(result, meth).is_none() {
             return Err(
-                "implicit method result with a type lambda over its implicit parameters under type variables",
+                "implicit method result with a higher-kinded member of an implicit parameter unapplied",
             );
         }
 
@@ -118,30 +123,11 @@ impl Typer<'_> {
         false
     }
 
-    /// Whether `stripped` holds a type lambda that refers to a parameter of the leading implicit
-    /// clauses of `t` (`Bar[fn.R]` for a higher-kinded member `R` of `using fn: Fn`).
-    fn lambda_of_implicit_params(&mut self, mut t: TypeId, stripped: TypeId, meth: Option<SymbolId>) -> bool {
-        let mut lambdas = Vec::new();
-        self.u.map_type(stripped, &mut |u, part| {
-            if matches!(u.ty(part), Type::Lambda { .. }) {
-                lambdas.push(part);
-            }
-            None
-        });
-        while let Type::Method { binder, result, implicit: true, .. } = *self.u.ty(t) {
-            if lambdas.iter().any(|&l| self.mentions_params(l, binder, meth)) {
-                return true;
-            }
-            t = result;
-        }
-        false
-    }
-
     /// `t` as a value compared with `pt` (dotty's `normalize`): type parameters made type
     /// variables, implicit clauses stripped, a by-name type's result, a method as a function
     /// type, a context function's result unless `t` itself is one and not `follow` (`followIFT`);
-    /// `None` where outside the subset (dependent methods). The parameters of `meth`'s implicit clauses that
-    /// the result refers to are approximated by their types (dotty's `resultTypeApprox`).
+    /// `None` where outside the subset (dependent methods). The parameters of `meth`'s implicit
+    /// clauses are approximated by wildcards (`wildcard_result`).
     pub fn proto_normalized(
         &mut self,
         (t, meth): (TypeId, Option<SymbolId>),
@@ -157,18 +143,8 @@ impl Typer<'_> {
                 let result = self.instantiate_poly(result, binder, &names, &vars, None);
                 self.proto_normalized((result, meth), pt, true, depth)
             }
-            Type::Method { binder, params, result, implicit: true, .. } => {
-                let params = self.u.params_of(params);
-                let names: Vec<NameId> = params.iter().map(|&(n, _)| n).collect();
-                let infos: Vec<TypeId> = params.iter().map(|&(_, p)| p).collect();
-                let result = self.u.subst(result, binder, &names, &infos);
-                let result = self.u.map_type(result, &mut |u, t| match *u.ty(t) {
-                    Type::Sym(None, s) if u.symbol(s).kind == tasty::Kind::Param && meth.is_some() => {
-                        let own = u.symbol(s).owner == meth;
-                        names.iter().position(|n| own && u.name(*n) == u.symbol(s).name).map(|i| infos[i])
-                    }
-                    _ => None,
-                });
+            Type::Method { implicit: true, .. } => {
+                let result = self.wildcard_result(t, meth)?;
                 self.proto_normalized((result, meth), pt, true, depth)
             }
             Type::Method { binder, params, result, .. } => {

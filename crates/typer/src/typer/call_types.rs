@@ -24,9 +24,6 @@ impl Typer<'_> {
                 }
                 T::TypeApply { fun, args } => {
                     for a in self.tpd.items(args).to_vec() {
-                        if self.has_two_sided_var(self.tpd.tpe(a)) {
-                            return Err("type argument of a transparent call bounded from both sides");
-                        }
                         let tpe = self.fully_defined(self.tpd.tpe(a))?;
                         self.tpd.get_mut(a).tpe = Some(tpe);
                     }
@@ -42,25 +39,6 @@ impl Typer<'_> {
             self.define_tree(a, true)?;
         }
         self.define_tree(call, false)
-    }
-
-    /// Whether type `t` has a type variable without instance with a lower bound and another
-    /// upper bound, the lower one other than a reference to a term (an implicit argument).
-    fn has_two_sided_var(&mut self, t: TypeId) -> bool {
-        let t = self.zonk(t);
-        let mut vars = Vec::new();
-        self.u.map_type(t, &mut |u, part| {
-            if let Some(v) = u.var(part) {
-                vars.push(v);
-            }
-            None
-        });
-        vars.into_iter().any(|v| {
-            let (lo, hi) = self.constraint.bounds(v);
-            let (lo, hi) = (self.zonk(lo), self.zonk(hi));
-            let term_ref = self.u.sym_of(lo).is_some_and(|s| self.u.symbol(s).kind.is_term());
-            lo != tasty::NOTHING && lo != hi && !self.is_exactly_any(hi) && !term_ref
-        })
     }
 
     /// Whether a type in `t` has a type variable without instance whose bound is or widens to a
