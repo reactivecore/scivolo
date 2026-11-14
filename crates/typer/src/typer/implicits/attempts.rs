@@ -13,6 +13,11 @@ use crate::tpd::TNodeId;
 use syntax::ast::Span;
 use tasty::TypeId;
 
+/// The refusal of a candidate whose attempt met a construct outside the subset.
+pub const CANDIDATE_OUTSIDE: &str = "implicit candidate outside the subset";
+/// The refusal of a nested search that met a construct outside the subset.
+pub const NESTED_OUTSIDE: &str = "nested implicit search outside the subset";
+
 /// What trying the best candidate of a group first gave.
 pub enum BestFirst {
     Found(TNodeId),
@@ -33,7 +38,7 @@ impl Typer<'_> {
     ) -> Result<bool, &'static str> {
         let (result, clean, linked) = self.speculatively(|t| t.implicit_arg(pt, at, ctx, depth));
         match result {
-            _ if !clean => Err("nested implicit search outside the subset"),
+            _ if !clean => Err(NESTED_OUTSIDE),
             _ if linked => Err(STALE),
             Ok(_) => Ok(true),
             Err(what) if is_misfit(what) => Ok(false),
@@ -50,9 +55,18 @@ impl Typer<'_> {
         let clean = self.unsupported == unsupported;
         let linked = self.history.changed(&dictionary);
         self.constraint.abandon(before);
-        self.unsupported = unsupported;
+        self.restore_unsupported(unsupported);
         self.history.restore(dictionary);
         (result, clean, linked)
+    }
+
+    /// Restores the recorded fallback to `before`, keeping one recorded since as the undone one.
+    pub fn restore_unsupported(&mut self, before: Option<(Span, String)>) {
+        if self.unsupported != before
+            && let Some((_, what)) = std::mem::replace(&mut self.unsupported, before)
+        {
+            self.undone_unsupported = Some(what);
+        }
     }
 }
 
@@ -70,7 +84,7 @@ pub fn fitting<'a>(
         complete_candidate(t, c)?;
         let (result, clean, linked) = t.speculatively(|t| attempt(t, c));
         if !clean {
-            return Err("implicit candidate outside the subset");
+            return Err(CANDIDATE_OUTSIDE);
         }
         match result {
             Ok(_) => {
@@ -117,7 +131,7 @@ impl ImplicitSearch {
         let clean = t.unsupported == unsupported;
         let linked = t.history.changed(&dictionary);
         let outcome = match result {
-            _ if !clean => Err("implicit candidate outside the subset"),
+            _ if !clean => Err(CANDIDATE_OUTSIDE),
             Ok(tree) if !linked || group.len() == 1 => return Ok(BestFirst::Found(tree)),
             Ok(_) => Ok(BestFirst::Skipped),
             Err(what) if is_misfit(what) && linked => Err(STALE),
@@ -125,7 +139,7 @@ impl ImplicitSearch {
             Err(what) => Err(what),
         };
         t.constraint.abandon(before);
-        t.unsupported = unsupported;
+        t.restore_unsupported(unsupported);
         t.history.restore(dictionary);
         outcome
     }
@@ -146,7 +160,7 @@ impl ImplicitSearch {
             let clean = t.unsupported == unsupported;
             let linked = t.history.changed(&dictionary);
             let outcome = match result {
-                _ if !clean => Err("implicit candidate outside the subset"),
+                _ if !clean => Err(CANDIDATE_OUTSIDE),
                 Ok(_) if nested_failure && has_unbounded_var(&mut t.types(), self.pt) => {
                     Err("implicit candidate rejected by a search with type variables")
                 }
@@ -159,7 +173,7 @@ impl ImplicitSearch {
                 Err(what) => Err(what),
             };
             t.constraint.abandon(before);
-            t.unsupported = unsupported;
+            t.restore_unsupported(unsupported);
             t.history.restore(dictionary);
             outcome?;
         }

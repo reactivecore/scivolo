@@ -1,6 +1,7 @@
 //! Constructs outside the subset and type errors, each with an error tree in its place.
 
 use super::Typer;
+use super::implicits::{CANDIDATE_OUTSIDE, NESTED_OUTSIDE};
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{NodeId, Span, TName};
 use syntax::diag::{Message, rewrite_notice};
@@ -30,6 +31,8 @@ impl Typer<'_> {
         self.error_tree(span)
     }
 
+    /// Records that the construct at `span` is outside the subset, an implicit attempt's refusal
+    /// with the construct that attempt met.
     pub fn unsupported_at(&mut self, span: Span, what: &str) {
         self.probe_unsupported();
         self.reports += 1;
@@ -38,7 +41,13 @@ impl Typer<'_> {
             *first = Some(first.map_or(at, |f| f.min(at)));
         }
         if self.unsupported.is_none() {
-            self.unsupported = Some((span, what.to_owned()));
+            let what = match self.undone_unsupported.take() {
+                Some(inner) if what == CANDIDATE_OUTSIDE || what == NESTED_OUTSIDE => {
+                    format!("{what}: {inner}")
+                }
+                _ => what.to_owned(),
+            };
+            self.unsupported = Some((span, what));
         }
     }
 
