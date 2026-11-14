@@ -31,7 +31,7 @@ impl Cmp<'_> {
         self.u.gadt().entry(p).is_some_and(|e| e.instance.is_some())
     }
 
-    /// `a <: tycon[args]`, `b`, through the GADT bounds of abstract `tycon`, the GADT constraint
+    /// `a <: tycon[args]`, `b`, through the GADT bounds of `tycon`, the GADT constraint
     /// frozen (dotty's `byGadtBounds` in `compareAppliedType2`).
     pub fn gadt_applied_below(&mut self, a: TypeId, b: TypeId, tycon: TypeId, args: &[TypeId]) -> bool {
         let Some((lo, hi)) = self.gadt_bounds(tycon) else { return false };
@@ -42,7 +42,7 @@ impl Cmp<'_> {
         })
     }
 
-    /// `tycon[args] <: b` through the GADT upper bound of abstract `tycon`, the GADT constraint
+    /// `tycon[args] <: b` through the GADT upper bound of `tycon`, the GADT constraint
     /// frozen (dotty's `byGadtBounds` in `compareAppliedType1`).
     pub fn gadt_applied_above(&mut self, b: TypeId, tycon: TypeId, args: &[TypeId]) -> bool {
         let Some((_, hi)) = self.gadt_bounds(tycon) else { return false };

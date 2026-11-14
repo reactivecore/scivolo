@@ -332,6 +332,15 @@ fn match_types_reduce_in_conformance() {
 }
 
 #[test]
+fn a_pattern_bound_constructor_applied_is_not_any() {
+    let Some(mut u) = universe() else { return };
+    let text = "object H { sealed trait L[E[_, _], R]; case class Ap[E[_, _], A, B]() extends L[E, E[A, B]]
+        def t[Exp[_, _], T](x: L[Exp, T]): T = x match { case ap: Ap[e, a, b] => val z: e[a, b] = 42; z } }";
+    let typed = type_unit(&mut u, &mut Units::default(), "h.scala", text);
+    assert_eq!(typed, Err("unsupported adaptation".into()), "conformance.md, upstream bug 22");
+}
+
+#[test]
 fn implicit_results_referring_to_their_parameters_leave_open_types() {
     let Some(mut u) = universe() else { return };
     let text = "trait Fo { type T }; object Fo { implicit val f: Fo { type T = Int } = new Fo { type T = Int } }

@@ -331,6 +331,8 @@ pub struct Typer<'a> {
     pub mapped_alts: FxHashMap<SymbolId, (SymbolId, usize)>,
     /// The first construct outside the subset, and where.
     pub unsupported: Option<(Span, String)>,
+    /// The first construct outside the subset of the latest implicit attempt undone for it.
+    pub undone_unsupported: Option<String>,
     /// The code of `typeChecks` being typed, and the number of diagnostics at its first construct
     /// outside the subset.
     pub checked_code: Option<(NodeId, Option<usize>)>,
@@ -462,6 +464,7 @@ impl<'a> Typer<'a> {
             mapped_targs: None,
             mapped_alts: FxHashMap::default(),
             unsupported: None,
+            undone_unsupported: None,
             checked_code: None,
             expansion_errors: Vec::new(),
             reports: 0,

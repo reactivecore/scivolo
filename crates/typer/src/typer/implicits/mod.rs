@@ -27,6 +27,7 @@ mod unsettled;
 mod using_args;
 mod views;
 
+pub use attempts::{CANDIDATE_OUTSIDE, NESTED_OUTSIDE};
 pub use history::History;
 pub use search::is_misfit;
 pub use views::{Goal, QualifierView, Viewed};
