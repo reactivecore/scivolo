@@ -65,9 +65,8 @@ inlining (ADR 0006).
 
 Exit criterion (met): editing and then running `moderate.scala` takes 48 ms with no
 JVM (`just bench-edit`). Measured by dotty's `tests/run` through typer, lowering and VM
-(`just dotty-lower-report`, 2026-11-12): 1,497 of 1,711 pass; 8 stop at the typer, 1 at the
-lowering, 32 fail in
-the VM.
+(`just dotty-lower-report`, 2026-11-14): 1,496 of 1,711 pass; 10 stop at the typer, 32 fail
+in the VM.
 
 1. **Parser** (`crates/syntax`): ports of dotty's `Scanners`, `Parsers`, `Desugar` and
    `DesugarEnums`. Tokens match dotty on all 5,893 files, trees and desugaring on 5,891
@@ -77,8 +76,8 @@ the VM.
    bridges; 99.8% of the library's signatures match Scala Native's mangled names.
 3. **Typer for the scripting subset** (`crates/typer`): inference, overloads, implicits and
    givens, extension methods, unions, inlining (ADR 0020), match types, mirrors and `derives`.
-   `just typer-report` (2026-11-08): tests/pos 2,361 typed as dotty, 186 differ (16 only in
-   warnings), 478 refused. Unsupported
+   `just typer-report` (2026-11-14): tests/pos 2,491 typed as dotty, 122 differ (9 only in
+   warnings), 412 refused. Unsupported
    input is refused, never compiled silently wrong.
 4. **Lowering** (`crates/lower`): dotty's phases from FirstTransform to Constructors and
    nscplugin's NIR generation; every lowered test program matches Scala Native's NIR byte for
