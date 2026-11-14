@@ -73,13 +73,22 @@ impl Inlining<'_> {
         Ok(self.tpd.node(T::TypeApply { fun, args }, span, Some(to), None))
     }
 
-    /// The skolem of argument `arg`: none if it applies a method to inferred type arguments and
-    /// then to more arguments or defines a class, refused if it has inferred types elsewhere than
-    /// in a synthetic ascription or in an inline expansion.
-    pub fn arg_skolem(&self, arg: TNodeId, skolem: Option<TypeId>) -> Result<Option<TypeId>, Unsupported> {
+    /// The skolem of argument `arg` of a clause, of which `retyped` tells whether a type changes
+    /// when the type variables of its inferred type arguments are instantiated: none if it defines
+    /// a class, or if the call is expanded while typing (a transparent one) and not inside another
+    /// expansion, `arg` has inferred type arguments and the clause is not `retyped`, as in
+    /// `summon[Option[Int]](using Option(1))`, where dotty's `inlineCall` rebuilds the argument and
+    /// keeps the skolems keyed by the old one. Otherwise refused in such a call if `arg` has
+    /// inferred types elsewhere than in type arguments, a synthetic ascription or an inline
+    /// expansion.
+    pub fn arg_skolem(
+        &self,
+        arg: TNodeId,
+        skolem: Option<TypeId>,
+        retyped: bool,
+    ) -> Result<Option<TypeId>, Unsupported> {
         let Some(skolem) = skolem.filter(|_| !self.defines_class(arg)) else { return Ok(None) };
-        let is_inferred = |c: &TNodeId| matches!(self.tpd.tree(*c), T::TypeTree { inferred: true });
-        let (mut dropped, mut other) = (false, false);
+        let (mut rebuilt, mut other) = (false, false);
         let mut stack = vec![arg];
         while let Some(t) = stack.pop() {
             let children = self.tpd.children(t);
@@ -89,21 +98,47 @@ impl Inlining<'_> {
             if let T::TypeApply { args, .. } = *self.tpd.tree(t) {
                 let targs = self.tpd.items(args);
                 stack.extend(children.into_iter().filter(|c| !targs.contains(c)));
-                dropped |= targs.iter().any(is_inferred)
-                    && matches!(self.u.ty(self.tpd.tpe(t)), Type::Method { .. });
+                rebuilt |= targs.iter().any(|&a| self.is_inferred(a));
             } else {
                 let avoided = matches!(self.tpd.tree(t), T::Typed { .. }) && self.tpd.span(t).is_synthetic();
-                other |= !avoided && children.iter().any(is_inferred);
+                other |= !avoided && children.iter().any(|&c| self.is_inferred(c));
                 stack.extend(children);
             }
         }
-        if dropped {
+        if !self.transparent_only || self.depth > 1 {
+            Ok(Some(skolem))
+        } else if rebuilt && !retyped {
             Ok(None)
         } else if other {
             Err((self.tpd.span(arg), "skolemized inline argument with an inferred type"))
         } else {
             Ok(Some(skolem))
         }
+    }
+
+    /// Whether the type of clause `fun(args)` changes when the type variables of its inferred
+    /// type arguments are instantiated (dotty's `TypedTreeCopier.Apply` retyping it).
+    pub fn clause_retyped(&self, fun: TNodeId, args: &[TNodeId]) -> bool {
+        self.holds_type_vars(fun) || args.iter().any(|&a| self.holds_type_vars(a))
+    }
+
+    /// Whether the type of `t` holds the type variables of inferred type arguments: that of a
+    /// type application to them, and of a method part of one, which dotty does not simplify.
+    fn holds_type_vars(&self, t: TNodeId) -> bool {
+        let unapplied = matches!(self.u.ty(self.tpd.tpe(t)), Type::Method { .. } | Type::Poly { .. });
+        match *self.tpd.tree(t) {
+            T::TypeApply { fun, args } => {
+                self.tpd.items(args).iter().any(|&a| self.is_inferred(a))
+                    || unapplied && self.holds_type_vars(fun)
+            }
+            T::Apply { fun, .. } => unapplied && self.holds_type_vars(fun),
+            T::Select { qualifier, .. } => self.holds_type_vars(qualifier),
+            _ => false,
+        }
+    }
+
+    fn is_inferred(&self, t: TNodeId) -> bool {
+        matches!(self.tpd.tree(t), T::TypeTree { inferred: true })
     }
 
     /// `expansion` cast to `tpe` if `tpe` refers to a skolem the type of one of `bindings` is.
@@ -130,8 +165,18 @@ impl Inlining<'_> {
             return Ok(expansion);
         }
         let span: Span = self.tpd.span(expansion);
-        let cast = self.cast(expansion, tpe)?;
+        let cast = self.skolem_cast(expansion, tpe)?;
         self.tpd.get_mut(cast).span = span;
+        Ok(cast)
+    }
+
+    /// `expr.$asInstanceOf$[to]` with the type tree at the end of `expr`.
+    pub fn skolem_cast(&mut self, expr: TNodeId, to: TypeId) -> Result<TNodeId, Unsupported> {
+        let cast = self.cast(expr, to)?;
+        if let T::TypeApply { args, .. } = *self.tpd.tree(cast) {
+            let tpt = self.tpd.items(args)[0];
+            self.tpd.get_mut(tpt).span = self.tpd.span(tpt).end_pos();
+        }
         Ok(cast)
     }
 }
