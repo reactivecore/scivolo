@@ -164,6 +164,7 @@ impl<'i, 'a> Expansion<'i, 'a> {
             .map(|&p| self.i.tpd.sym(p).ok_or(self.err("parameter")))
             .collect::<Result<Vec<_>, _>>()?;
         let tpes: Vec<TypeId> = args.iter().map(|&a| self.i.tpd.tpe(a)).collect();
+        let retyped = self.i.clause_retyped(fun, &args);
         let applied = self.i.tpd.tpe(apply);
         let skolems = match call_skolems(self.i.u, (result, applied), (binder, &syms), &tpes) {
             Some(s) => s,
@@ -187,7 +188,7 @@ impl<'i, 'a> Expansion<'i, 'a> {
                 }
                 None => arg,
             };
-            let skolem = self.i.arg_skolem(arg, skolem)?;
+            let skolem = self.i.arg_skolem(arg, skolem, retyped)?;
             let tpe = self.i.tpd.tpe(arg);
             let bound = if self.i.is_singleton_path(tpe) && self.i.pure().is_idempotent_path(arg) {
                 tpe

@@ -6,15 +6,6 @@ use names::nme;
 use tasty::Type;
 
 impl Inlining<'_> {
-    /// Refuses argument `arg` if it is cast by GADT bounds and the call's type refers to it by a
-    /// skolem (`skolem`).
-    pub fn check_gadt_arg(&mut self, arg: TNodeId, skolem: bool) -> Result<(), &'static str> {
-        match skolem && self.u.has_gadt_bounds() && matches!(self.tpd.tree(arg), T::TypeApply { .. }) {
-            true => Err("inline argument cast by GADT bounds referred to by a skolem"),
-            false => Ok(()),
-        }
-    }
-
     /// Refuses `t` if it casts a singleton by GADT bounds, as `x.asInstanceOf[x.type & Int & T]`
     /// in the body of `inline def f[T](x: T): T` with `T = Int`, whose type in an expansion dotty
     /// simplifies.
