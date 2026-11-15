@@ -433,6 +433,10 @@ fn a_refused_file_refuses_the_unit() {
 
 #[test]
 fn a_cast_signature_polymorphic_call_is_refused() {
+    if Command::new("java").arg("-version").output().is_err() {
+        eprintln!("no java on the PATH: skipped");
+        return;
+    }
     let code = "object R { def f = java.lang.invoke.MethodHandles.identity(classOf[String]).invoke(\"a\").asInstanceOf[String] }";
     refuses("refusedpolymorphic", code, "cast of a signature polymorphic call");
 }
