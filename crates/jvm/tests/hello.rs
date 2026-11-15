@@ -247,6 +247,10 @@ fn a_definition_the_tasty_pickler_lacks_is_refused() {
     let code = "import scala.annotation.unchecked.uncheckedVariance as uV\n\
                 class C[+A](val m: Map[A @uV, A @uV])";
     refuses("refusedaccessor", code, "an annotated type of several annotation trees");
+    let code = "class ann(x: String) extends scala.annotation.StaticAnnotation\n\
+                class Box[A](val v: (A, Int @ann(\"a\")))\n\
+                object M { def b: Box[Int @ann(\"b\")] = ???; val r = b.v }";
+    refuses("refusedtraced", code, "traced to one of several annotation trees with arguments");
 }
 
 /// Writes `files`, each a name and its code, into tmp/jvm-test/`name`.
