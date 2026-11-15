@@ -4,8 +4,8 @@ Status: accepted · Date: 2026-11-15
 
 ## Context
 Under `--leave-out-refused` (ADR 0116) a unit of several files is typed again after each round
-of refusals, the refused files blanked. A round costs a whole typing: scalalib's 600 files take
-five, the compiler's (#241) more. dotty's `Run.compileUnits` runs each phase over all units and
+of refusals, the refused files blanked. A round costs a typing of the files not left out, and
+scalalib and the compiler (#241) take several. dotty's `Run.compileUnits` runs each phase over all units and
 reports the errors of every unit before it stops; it never retypes. Leaving the refused files
 out after typing, without retyping (!818), lost the super accessors and mixin members that the
 lowering of a refused file adds for the classes of other files.
@@ -30,8 +30,10 @@ lowering of a refused file adds for the classes of other files.
 
 ## Consequences
 - A unit takes one typing more than the depth of its chains of refusals: a file refused only
-  because a file it needs was left out is found one round after that file. scalalib's rounds
-  are all such chains; they shrink as refusals are fixed, not by this ADR.
+  because a file it needs was left out is found one round after that file. Most rounds of
+  scalalib and the compiler are such chains; they shrink as refusals are fixed. Predicting the
+  dependents in the round of the refused file would refuse files that type against another
+  definition once it is left out (the library jar's, with `--scalalib`).
 - A file with type errors is refused in the round its errors appear, with the unsupported
   constructs of the others: a file typed after a refused one may be refused for its error
   trees and left out with it (as in ADR 0116).
