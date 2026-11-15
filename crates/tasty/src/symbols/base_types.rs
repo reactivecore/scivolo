@@ -93,7 +93,8 @@ impl Universe {
                 (true, Some(p)) => {
                     let path = self.is_value_path(p);
                     let refined = if path { self.refinement_info(p, s) } else { None };
-                    if let Some(refined) = refined.or_else(|| self.arg_for_param(p, s)) {
+                    let refined = refined.or_else(|| self.arg_for_param(p, s));
+                    if let Some(refined) = refined.or_else(|| self.overriding_bounds(p, s)) {
                         return self.base_type_within(refined, base, depth);
                     }
                     let info = self.info(s);

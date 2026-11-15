@@ -81,6 +81,29 @@ impl Universe {
     /// The alias or class by which the class of term `prefix`'s type as seen from its own prefix,
     /// or of `prefix` a `this`, overrides abstract type member `s`, seen from `prefix`.
     pub fn overriding_alias(&mut self, prefix: TypeId, s: SymbolId) -> Option<TypeId> {
+        let (m, owner) = self.overrider(prefix, s)?;
+        if self.symbol(m).kind == Kind::Class {
+            return Some(self.intern_type(Type::Sym(Some(prefix), m)));
+        }
+        let alias = self.alias_of(m)?;
+        Some(self.as_seen_from(alias, prefix, owner))
+    }
+
+    /// The bounds of the abstract type by which the class of `prefix`, as `overriding_alias`
+    /// finds it, overrides abstract type member `s`, seen from `prefix`: `Lambda` as the upper
+    /// bound of `binder`'s type `BT` in `class ParamRef extends BoundType { type BT <: Lambda }`.
+    pub fn overriding_bounds(&mut self, prefix: TypeId, s: SymbolId) -> Option<TypeId> {
+        let (m, owner) = self.overrider(prefix, s)?;
+        let info = self.info(m);
+        if self.symbol(m).kind != Kind::Type || !matches!(self.ty(info), Type::Bounds(..)) {
+            return None;
+        }
+        Some(self.as_seen_from(info, prefix, owner))
+    }
+
+    /// The type member or class overriding abstract type member `s` in the class of `prefix`'s
+    /// type, and its owner.
+    fn overrider(&mut self, prefix: TypeId, s: SymbolId) -> Option<(SymbolId, SymbolId)> {
         if self.symbol(s).kind != Kind::Type {
             return None;
         }
@@ -98,12 +121,8 @@ impl Universe {
         let name = self.symbol(s).name.clone();
         let found = self
             .member_where(cls, &name, |u, m| m != s && matches!(u.symbol(m).kind, Kind::Type | Kind::Class));
-        let (&m, owner) = (found.first()?, self.symbol(found[0]).owner?);
-        if self.symbol(m).kind == Kind::Class {
-            return Some(self.intern_type(Type::Sym(Some(prefix), m)));
-        }
-        let alias = self.alias_of(m)?;
-        Some(self.as_seen_from(alias, prefix, owner))
+        let m = *found.first()?;
+        Some((m, self.symbol(m).owner?))
     }
 
     /// `t` without its refinements, and whether one of them refines a term member.

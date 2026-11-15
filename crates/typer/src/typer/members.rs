@@ -80,6 +80,7 @@ impl Typer<'_> {
                             .or_else(|| super::seen_from::class_param_arg(self.u, t))
                             .or_else(|| self.u.opaque_underlying(s, prefix))
                             .or_else(|| prefix.and_then(|p| self.u.overriding_alias(p, s)))
+                            .or_else(|| prefix.and_then(|p| self.u.overriding_bounds(p, s)))
                             .unwrap_or_else(|| self.u.info(s)),
                     };
                     let info = self.u.by_name(info).unwrap_or(info);
