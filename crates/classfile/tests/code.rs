@@ -1,4 +1,6 @@
-use classfile::{ATHROW, Code, FieldOp, GOTO, IFEQ, Invoke, NOP, Pool};
+use classfile::{
+    ACC_PUBLIC, ACC_STATIC, ATHROW, ClassFile, Code, FieldOp, GOTO, ICONST_0, IFEQ, Invoke, NOP, Pool,
+};
 
 /// The bytes `emit` appends to a fresh code of `params` slots whose stack holds `stack` slots.
 fn emitted(params: u16, stack: i32, emit: impl FnOnce(&mut Code, &mut Pool)) -> Vec<u8> {
@@ -230,6 +232,64 @@ fn set_stack_starts_a_label_after_code_that_does_not_fall_through() {
     assert_eq!((code.live(), code.stack(), code.max_stack), (true, 3, 3));
     code.set_stack(1);
     assert_eq!(code.max_stack, 3);
+}
+
+#[test]
+fn a_jump_to_a_label_never_placed_is_refused_before_an_ldc_moves() {
+    let mut cf = ClassFile::new(ACC_PUBLIC, "a/C", "java/lang/Object", &[]);
+    for i in 0..300 {
+        cf.pool.utf8(&format!("s{i}"));
+    }
+    let far = cf.pool.string(&"far".encode_utf16().collect::<Vec<u16>>());
+    let mut code = Code::new(0);
+    let never = code.new_label();
+    code.jump(GOTO, never);
+    code.ldc(far);
+    code.ret("V");
+    cf.method(ACC_STATIC, "m", "()V", Some(code));
+    let e = cf.bytes(&mut |_, _| None).expect_err("a jump to a label never placed");
+    assert!(e.contains("never placed"), "{e}");
+}
+
+#[test]
+fn remapped_ldc_takes_the_form_of_its_new_index_and_moves_the_jumps() {
+    let mut code = Code::new(0);
+    let end = code.new_label();
+    code.jump(GOTO, end);
+    code.ldc(300);
+    code.pop();
+    code.place(end);
+    code.ldc(2);
+    code.ret("V");
+    code.remap(&mut |i| if i == 300 { 7 } else { 400 });
+    assert_eq!(code.bytes, [0xa7, 0, 6, 0x12, 7, 0x57, 0x13, 1, 144, 0xb1]);
+    assert_eq!(code.offset(end), Some(6));
+}
+
+#[test]
+fn locals_of_a_block_end_with_it_in_the_order_of_their_definitions() {
+    let mut code = Code::new(1);
+    let start = code.mark();
+    code.open_block();
+    code.insn(ICONST_0);
+    code.store("I", 1);
+    code.block_local("a", "I", 1);
+    code.open_block();
+    code.insn(ICONST_0);
+    code.store("I", 2);
+    code.block_local("b", "I", 2);
+    code.close_block();
+    code.insn(NOP);
+    code.close_block();
+    code.ret("V");
+    let end = code.mark();
+    code.local_var("this", "La/C;", (start, end), 0);
+    let mut pool = Pool::default();
+    let names = code.local_var_names(&mut pool);
+    let [[b, i], [a, _], [this, c]] = names[..] else { panic!("three locals") };
+    let table: [u16; 16] = [3, 4, 0, b, i, 2, 2, 3, a, i, 1, 0, 6, this, c, 0];
+    let table: Vec<u8> = table.iter().flat_map(|x| x.to_be_bytes()).collect();
+    assert_eq!(code.local_var_table(&names), Some(table));
 }
 
 #[test]

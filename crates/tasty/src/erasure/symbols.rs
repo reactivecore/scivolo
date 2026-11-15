@@ -38,21 +38,19 @@ impl Universe {
     pub fn erase_symbol(&mut self, s: SymbolId) -> Erased {
         match self.symbol(s).kind {
             Kind::Class => {
-                let named =
-                    self.full_name_starts_with(s, "scala.") || self.has_full_name(s, crate::defn::OBJECT);
-                if named && let Some(e) = special(&self.full_name(s)) {
+                if let Some(e) = self.erased_class_memo(s) {
+                    debug_assert_eq!(e, self.erase_class(s).0, "remembered erasure of {}", self.full_name(s));
                     return e;
                 }
-                match self.underlying(s) {
-                    Some(value) => {
-                        let info = self.info(value);
-                        self.erase(info)
-                    }
-                    None => Erased::Class(self.binary_name(s)),
+                let generation = self.generation();
+                let (e, value_class) = self.erase_class(s);
+                if !value_class {
+                    self.remember_erased_class(s, generation, &e);
                 }
+                e
             }
             Kind::Val if self.symbol(s).flags.has(MODULE) => match self.module_class(s) {
-                Some(c) => Erased::Class(self.binary_name(c)),
+                Some(c) => Erased::Class(self.erased_class_name(c)),
                 None => object(),
             },
             Kind::Type | Kind::TypeParam | Kind::Val | Kind::Param => {
@@ -68,6 +66,21 @@ impl Universe {
                 }
             }
             _ => object(),
+        }
+    }
+
+    /// The erasure of a reference to class `s`, and whether it is a value class.
+    fn erase_class(&mut self, s: SymbolId) -> (Erased, bool) {
+        let named = self.full_name_starts_with(s, "scala.") || self.has_full_name(s, crate::defn::OBJECT);
+        if named && let Some(e) = special(&self.full_name(s)) {
+            return (e, false);
+        }
+        match self.underlying(s) {
+            Some(value) => {
+                let info = self.info(value);
+                (self.erase(info), true)
+            }
+            None => (Erased::Class(self.erased_class_name(s)), false),
         }
     }
 }

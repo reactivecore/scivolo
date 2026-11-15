@@ -29,21 +29,30 @@ impl Gen<'_, '_> {
         let (trait_name, name) = (self.class_name(owner), method_name(self.l.u, m));
         let (descs, result) = classfile::split_method(desc);
         let mut code = Code::new(1);
+        let start = code.mark();
         if let Some(line) = line {
             code.line(line);
         }
         code.load("L", 0);
-        for p in descs {
+        let mut slots = Vec::new();
+        for p in &descs {
             let slot = code.max_locals;
             code.max_locals += classfile::value_slots(p) as u16;
             code.load(p, slot);
+            slots.push(slot);
         }
         code.invoke_in(Invoke::Special, true, &mut cf.pool, (&trait_name, &name, desc));
         code.ret(result);
+        let end = code.mark();
+        code.local_var(names::nme::SELF, &format!("L{trait_name};"), (start, end), 0);
+        for ((&p, d), slot) in params.iter().zip(&descs).zip(slots) {
+            let name = tasty::encode(&self.l.u.symbol(p).name.clone());
+            code.local_var(&name, d, (start, end), slot);
+        }
         let static_desc = with_receiver(&trait_name, desc);
         let flags = (flags & !classfile::ACC_ABSTRACT) | ACC_STATIC;
         let static_name = name_kinds::trait_super_accessor(&name);
-        cf.method(flags, &static_name, &static_desc, Some(code), &mut |a, b| self.jvm_lub(a, b));
+        cf.method(flags, &static_name, &static_desc, Some(code));
         self.method_attributes(cf, (m, false), &static_desc, params, (true, true));
     }
 

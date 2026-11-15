@@ -1,11 +1,13 @@
 //! The constant pool, each entry added once.
 
 mod dynamic;
+mod import;
 mod write;
 
 pub use dynamic::{
     Constant, Handle, REF_INVOKE_INTERFACE, REF_INVOKE_SPECIAL, REF_INVOKE_STATIC, REF_INVOKE_VIRTUAL,
 };
+pub use import::Import;
 
 use rustc_hash::FxHashMap;
 

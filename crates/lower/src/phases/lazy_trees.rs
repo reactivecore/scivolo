@@ -20,9 +20,10 @@ pub fn unit(l: &mut Lower) -> TypeId {
     constant_type_of(l.u, &Constant::Unit)
 }
 
-/// A local value `name` of `owner` of type `info`, a variable if `mutable`.
+/// A synthetic local value `name` of `owner` of type `info`, a variable if `mutable`.
 pub fn local(l: &mut Lower, owner: SymbolId, name: &str, info: TypeId, mutable: bool) -> SymbolId {
-    let flags = if mutable { Flags::default().with(MUTABLE) } else { Flags::default() };
+    let flags = Flags::default().with(SYNTHETIC);
+    let flags = if mutable { flags.with(MUTABLE) } else { flags };
     let s = l.u.define(symbol(name, Kind::Val, owner, flags));
     l.u.set_info(s, info);
     s

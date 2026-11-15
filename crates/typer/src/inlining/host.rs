@@ -8,7 +8,7 @@ use crate::tpd::{TNodeId, Tpd, Tree as T};
 use syntax::ast::Span;
 use syntax::diag::Level;
 use syntax::names::{FreshNames, Names};
-use tasty::{Kind, SymbolId, Type, TypeId, Universe};
+use tasty::{Kind, SymbolId, TypeId, Universe};
 
 const ABORTED: &str = "Macro expansion was aborted by the macro without any errors reported. Macros should issue \
                        errors to end-users when aborting a macro expansion with StopMacroExpansion.";
@@ -77,6 +77,28 @@ pub trait Host {
 }
 
 impl Inlining<'_> {
+    /// Sets the context of outermost call `call` and the implicits around it: the call's own, or
+    /// that of the typer's `Inlined` tree around it with the scopes of the implicits that tree
+    /// defines.
+    pub fn enter_outermost_call(&mut self, call: TNodeId) {
+        self.outer_implicits.clear();
+        self.outer_scopes.clear();
+        if self.transparent_only {
+            return;
+        }
+        self.ctx = self.host.call_ctx(call);
+        let Some((ctx, around)) = self.typer_ctx.filter(|_| self.ctx.is_none()) else { return };
+        self.ctx = Some(ctx);
+        match super::implicit_scopes_at(self.tpd, self.u, (around, call)) {
+            Some(scopes) => self.outer_scopes = scopes.into_iter().map(Scope::Implicits).collect(),
+            None => {
+                let mut implicits = Vec::new();
+                self.implicit_defs(around, &mut implicits);
+                self.outer_implicits = implicits;
+            }
+        }
+    }
+
     /// An implicit argument of type `pt` at `at` in the context of the outermost call; `Ok(None)`
     /// if there is none. Refused where implicits the expansion defines may take part.
     pub fn summon(&mut self, pt: TypeId, at: Span) -> Result<Option<TNodeId>, Unsupported> {
@@ -98,42 +120,18 @@ impl Inlining<'_> {
         if self.local_implicits || fits_outer {
             return Err((at, "implicit search in an inline body with local implicits"));
         }
-        let fitting: Vec<SymbolId> = (self.case_givens.clone().into_iter())
-            .filter(|&g| {
-                if ignored.contains(&g) {
-                    return false;
-                }
-                let info = self.u.info(g);
-                self.u.is_subtype(info, pt)
-            })
-            .collect();
-        let mut blocks = self.block_defs();
-        blocks.retain(|b| !self.case_givens.contains(b));
-        match fitting[..] {
-            [] => {}
-            [_] if self.may_fit(&blocks, pt) => {
-                return Err((
-                    at,
-                    "implicit search fitting a given of a summonFrom case and a block implicit",
-                ));
-            }
-            [g] => {
-                let (name, tpe) = (self.term_name(g), self.u.intern_type(Type::Sym(None, g)));
-                return Ok(Some(self.tpd.node(T::Ident { name }, at.to_synthetic(), Some(tpe), Some(g))));
-            }
-            _ => return Err((at, "implicit search fitting several givens of summonFrom cases")),
-        }
         let mut ctx = ctx;
         if let Some(owner) = defined.first().and_then(|&d| self.u.symbol(d).owner) {
             ctx = ctx.with_owner(owner);
         }
         let defined = (!defined.is_empty()).then(|| Scope::Implicits(defined.to_vec()));
-        for scope in self.scopes.clone().into_iter().chain(defined) {
+        let scopes = self.outer_scopes.iter().chain(&self.scopes).cloned().collect::<Vec<_>>();
+        for scope in scopes.into_iter().chain(defined) {
             ctx = self.within_scope(ctx, scope);
         }
         let lent = (&mut *self.u, &mut *self.tpd, &mut *self.names, &mut *self.fresh);
         let found = self.host.summon(lent, (pt, ignored), at, ctx).map_err(|what| (at, what))?;
-        let locals = [&self.outer_implicits[..], &self.case_givens[..]].concat();
+        let locals = self.outer_implicits.clone();
         match found {
             _ if locals.is_empty() => Ok(found),
             Some(f) if self.unshadowed_ref(f, &locals) => Ok(found),

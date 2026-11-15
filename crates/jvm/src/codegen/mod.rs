@@ -18,6 +18,7 @@ mod descriptors;
 mod deserialize;
 mod equality;
 mod generic_infos;
+mod inline_info;
 mod java_annotations;
 mod jdk_statics;
 mod labeled;

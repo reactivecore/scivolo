@@ -30,19 +30,36 @@ pub enum ElementValue {
     Array(Vec<ElementValue>),
 }
 
-/// Encodes the bytes of an annotations attribute of `annotations`, adding to `descriptors` the
-/// `Utf8` entries of the descriptors they name.
-pub fn encode(pool: &mut Pool, annotations: &[AnnotationValue], descriptors: &mut Vec<u16>) -> Vec<u8> {
-    let mut e = Encoder { pool, out: (annotations.len() as u16).to_be_bytes().to_vec(), descriptors };
+impl AnnotationValue {
+    /// Adds to `out` the descriptors of the annotation's type and of the types its elements name.
+    pub fn descriptors(&self, out: &mut Vec<String>) {
+        out.push(self.descriptor.clone());
+        self.elements.iter().for_each(|(_, v)| v.descriptors(out));
+    }
+}
+
+impl ElementValue {
+    fn descriptors(&self, out: &mut Vec<String>) {
+        match self {
+            ElementValue::Enum(d, _) | ElementValue::Class(d) => out.push(d.clone()),
+            ElementValue::Annotation(a) => a.descriptors(out),
+            ElementValue::Array(values) => values.iter().for_each(|v| v.descriptors(out)),
+            _ => {}
+        }
+    }
+}
+
+/// Encodes the bytes of an annotations attribute of `annotations`, adding its entries to `pool`.
+pub fn encode(pool: &mut Pool, annotations: &[AnnotationValue]) -> Vec<u8> {
+    let mut e = Encoder { pool, out: (annotations.len() as u16).to_be_bytes().to_vec() };
     annotations.iter().for_each(|a| e.annotation(a));
     e.out
 }
 
-/// The bytes of an annotations attribute being encoded and the descriptors they name.
+/// The bytes of an annotations attribute being encoded.
 struct Encoder<'a> {
     pool: &'a mut Pool,
     out: Vec<u8>,
-    descriptors: &'a mut Vec<u16>,
 }
 
 impl Encoder<'_> {
@@ -50,14 +67,8 @@ impl Encoder<'_> {
         self.out.extend(v.to_be_bytes());
     }
 
-    fn descriptor(&mut self, d: &str) -> u16 {
-        let i = self.pool.utf8(d);
-        self.descriptors.push(i);
-        i
-    }
-
     fn annotation(&mut self, a: &AnnotationValue) {
-        let descriptor = self.descriptor(&a.descriptor);
+        let descriptor = self.pool.utf8(&a.descriptor);
         self.u2(descriptor);
         self.u2(a.elements.len() as u16);
         for (name, value) in &a.elements {
@@ -79,10 +90,10 @@ impl Encoder<'_> {
             ElementValue::Float(f) => (b'F', pool.float(*f)),
             ElementValue::Double(d) => (b'D', pool.double(*d)),
             ElementValue::String(s) => (b's', pool.utf8(s)),
-            ElementValue::Class(d) => (b'c', self.descriptor(d)),
+            ElementValue::Class(d) => (b'c', pool.utf8(d)),
             ElementValue::Enum(descriptor, name) => {
                 self.out.push(b'e');
-                let descriptor = self.descriptor(descriptor);
+                let descriptor = self.pool.utf8(descriptor);
                 self.u2(descriptor);
                 let name = self.pool.utf8(name);
                 self.u2(name);

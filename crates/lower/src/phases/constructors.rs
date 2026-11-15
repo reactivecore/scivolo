@@ -117,16 +117,23 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
         return unsupported(span, "a class without a superclass");
     };
     let full_name = l.u.full_name(class);
+    let primitive = tasty::PRIMITIVE_VALUE_CLASSES.contains(&full_name.as_str());
+    let jvm_primitive = primitive && l.backend == crate::Backend::Jvm;
     if full_name == "scala.AnyVal" {
         stats.push(object_init_call(l, class, Span::at(span.point()))?);
-    } else if !tasty::PRIMITIVE_VALUE_CLASSES.contains(&full_name.as_str()) {
+    } else if jvm_primitive {
+        stats.push(object_init_call(l, class, Span::NONE)?);
+    } else if !primitive {
         stats.push(super_call(l, class, first)?);
     }
     stats.extend(eager.into_iter().chain(inits));
     let dropped_outer = matches!(outer, Some((None, _))).then_some(template_span);
     let spans = stats.iter().map(|&s| l.tpd.span(s)).chain(dropped_outer);
     let block_span = spans.filter(|s| s.exists()).reduce(|a, b| a.union(b));
-    let block_span = block_span.map_or(l.tpd.span(constr), |s| s.with_point(s.start()));
+    let block_span = match jvm_primitive {
+        true => Span::NONE,
+        false => block_span.map_or(l.tpd.span(constr), |s| s.with_point(s.start())),
+    };
     let at = block_span.start_pos();
     if let Some((_, param)) = outer {
         let test_at = if null_test_at > 0 { Span::at(template_span.end()) } else { at };

@@ -56,15 +56,17 @@ impl Gen<'_, '_> {
             b.code.set_stack(depth + 1);
             let handler = b.code.here();
             b.cleanups.extend(cleanup);
-            match &c.bound {
-                Some((sym, local)) => {
-                    let slot = b.local(*sym, local.clone());
-                    b.code.store(local, slot);
-                }
+            let bound =
+                c.bound.as_ref().map(|(sym, local)| (*sym, local.as_str(), b.local(*sym, local.clone())));
+            match bound {
+                Some((_, local, slot)) => b.code.store(local, slot),
                 None => b.code.pop(),
             }
             self.expr_as(b, c.body, slots)?;
             nop_if_needed(b, handler);
+            if let Some((sym, local, slot)) = bound {
+                self.name_local(b, sym, (local, slot), handler, false);
+            }
             b.cleanups.truncate(b.cleanups.len() - usize::from(cleanup.is_some()));
             let class = b.pool.class(&c.class);
             b.code.protect(start, end, handler, class);

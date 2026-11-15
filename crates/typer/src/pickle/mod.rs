@@ -43,6 +43,9 @@ use tasty::{Binder, NameId, SymbolId, TypeId, Universe};
 /// Why a tree is outside the subset pickled.
 pub type Refusal = &'static str;
 
+/// Why a tree of an error type is not pickled.
+pub const ERROR_TYPE: Refusal = "an error type";
+
 pub struct TreePickler<'a> {
     u: &'a mut Universe,
     tpd: &'a Tpd,
