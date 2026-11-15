@@ -6,7 +6,7 @@
 
 use super::casts::class_named;
 use super::lambda_lift::Function;
-use super::lazy_trees::{local, method};
+use super::lazy_trees::method;
 use super::lifted::substitute;
 use crate::definitions::{symbol, type_ref};
 use crate::{Lower, Result, unsupported};
@@ -90,7 +90,8 @@ pub fn unpacked(
         let sym = l.tpd.sym(p).expect("a parameter's symbol");
         let name = l.u.symbol(sym).name.clone();
         let info = l.u.info(sym);
-        let value = local(l, owner, &name, info, false);
+        let value = l.u.define(symbol(&name, Kind::Val, owner, Flags::default()));
+        l.u.set_info(value, info);
         map.insert(sym, value);
         let span = l.tpd.span(p);
         let at = span.end_pos();

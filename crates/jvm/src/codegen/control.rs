@@ -54,10 +54,13 @@ impl Gen<'_, '_> {
         match *self.l.tpd.tree(t) {
             Tree::Typed { expr, .. } => return self.expr_to(b, expr, slots, dest),
             Tree::Block { stats, expr } => {
+                b.code.open_block();
                 for s in self.l.tpd.items(stats).to_vec() {
                     self.block_stat(b, s)?;
                 }
-                return self.expr_to(b, expr, slots, dest);
+                self.expr_to(b, expr, slots, dest)?;
+                b.code.close_block();
+                return Ok(());
             }
             Tree::If { cond, thenp, elsep, .. } => {
                 let (success, failure) = (b.code.new_label(), b.code.new_label());

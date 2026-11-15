@@ -74,9 +74,7 @@ impl Gen<'_, '_> {
         b.code.ret("V");
         let code = b.code;
         let access = if moved { ACC_PRIVATE } else { ACC_PUBLIC };
-        cf.method(access | ACC_STATIC, nme::STATIC_CONSTRUCTOR, "()V", Some(code), &mut |a, b| {
-            self.jvm_lub(a, b)
-        });
+        cf.method(access | ACC_STATIC, nme::STATIC_CONSTRUCTOR, "()V", Some(code));
         Ok(())
     }
 
@@ -98,13 +96,15 @@ impl Gen<'_, '_> {
         let class = self.l.u.symbol(sym).owner.expect("a constructor's class");
         let mut b = Body::new(&mut cf.pool, None, 1);
         b.this_class = Some(self.class_name(class));
+        let start = b.code.mark();
         for &t in &stats[..split] {
             self.stat(&mut b, t)?;
         }
         self.stat(&mut b, expr)?;
         b.code.ret("V");
+        self.name_this_and_params(&mut b, start, Some(nme::THIS), &[]);
         let code = b.code;
-        cf.method(flags, nme::CONSTRUCTOR, &desc, Some(code), &mut |a, b| self.jvm_lub(a, b));
+        cf.method(flags, nme::CONSTRUCTOR, &desc, Some(code));
         Ok(stats[split..].to_vec())
     }
 

@@ -4,6 +4,7 @@
 //! `InnerClasses` attribute (dotty's `NestedClassesCollector`).
 
 use crate::ClassFile;
+use crate::attributes::Attribute;
 use crate::pool::Entry;
 
 impl ClassFile {
@@ -16,26 +17,41 @@ impl ClassFile {
                 out.push(name);
             }
         };
-        let signature = self.pool.find_utf8("Signature");
-        let signatures = (self.fields.iter().chain(&self.methods).flat_map(|m| &m.attributes))
-            .chain(self.attributes.iter().map(|(_, a)| a))
-            .filter(|a| signature == Some(a.name) && a.bytes.len() == 2)
-            .map(|a| u16::from_be_bytes([a.bytes[0], a.bytes[1]]));
-        let members = self.fields.iter().chain(&self.methods).map(|m| m.descriptor);
-        let mut texts: Vec<u16> = signatures.chain(members).collect();
-        for e in self.pool.entries() {
-            match *e {
-                Entry::Class(n) => match self.pool.text(n) {
-                    name if name.starts_with('[') => texts.push(n),
-                    name => add(name),
-                },
-                Entry::NameAndType(_, d) | Entry::MethodType(d) => texts.push(d),
+        let mut classes: Vec<String> = [&self.name, &self.superclass].into_iter().cloned().collect();
+        classes.extend(self.interfaces.iter().cloned());
+        let mut texts: Vec<String> = Vec::new();
+        let attributes =
+            self.fields.iter().chain(&self.methods).flat_map(|m| &m.attributes).chain(&self.attributes);
+        for a in attributes {
+            match a {
+                Attribute::Signature(s) => texts.push(s.clone()),
+                Attribute::Exceptions(cs) => classes.extend(cs.iter().cloned()),
+                Attribute::EnclosingMethod(c, m) => {
+                    classes.push(c.clone());
+                    texts.extend(m.iter().map(|(_, d)| d.clone()));
+                }
+                Attribute::InnerClasses(cs) => {
+                    classes.extend(cs.iter().flat_map(|c| std::iter::once(&c.inner).chain(&c.outer)).cloned())
+                }
                 _ => {}
             }
         }
+        texts.extend(self.fields.iter().chain(&self.methods).map(|m| m.descriptor.clone()));
+        for e in self.pool.entries() {
+            match *e {
+                Entry::Class(n) => classes.push(self.pool.text(n)),
+                Entry::NameAndType(_, d) | Entry::MethodType(d) => texts.push(self.pool.text(d)),
+                _ => {}
+            }
+        }
+        for c in classes {
+            match c.starts_with('[') {
+                true => texts.push(c),
+                false => add(c),
+            }
+        }
         for t in texts {
-            let text = self.pool.text(t);
-            Signature { s: text.as_bytes(), i: 0 }.all(&mut add);
+            Signature { s: t.as_bytes(), i: 0 }.all(&mut add);
         }
         out
     }

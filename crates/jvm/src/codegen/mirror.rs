@@ -3,6 +3,7 @@
 //! Static forwarders to the methods of a top-level object, in its companion class or in a mirror
 //! class (dotty's `genMirrorClass`, `addForwarders`, `addForwarder`).
 
+use super::class_bytes::scala_markers;
 use super::descriptors::{class_descriptor, method_descriptor};
 use super::{ClassBytes, Gen, method_name, unsupported};
 use classfile::{
@@ -34,7 +35,8 @@ impl Gen<'_, '_> {
         let source = self.source_name(td);
         cf.source_file(&source);
         self.nested_attributes(&mut cf, module, declared);
-        let class = ClassBytes::new(name.to_owned(), &mut cf, tasty)
+        scala_markers(&mut cf, true);
+        let class = ClassBytes::new(name.to_owned(), cf, tasty, &mut |_, _| None)
             .or_else(|e| unsupported(self.l.tpd.span(td), e))?;
         self.out.push(class);
         Ok(())
@@ -65,7 +67,7 @@ impl Gen<'_, '_> {
             code.invoke(Invoke::Virtual, &mut cf.pool, &module_name, &method, &desc);
             code.ret(result);
             let flags = ACC_PUBLIC | ACC_STATIC | if synthetic { ACC_SYNTHETIC } else { 0 };
-            cf.method(flags, &method, &desc, Some(code), &mut |_, _| None);
+            cf.method(flags, &method, &desc, Some(code));
             self.emit_method_annotations(cf, m);
             let target = self.l.mixed_in_from(m).unwrap_or(m);
             let this = self.l.u.this_type(module);

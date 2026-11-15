@@ -3,6 +3,7 @@
 //! A class's skeleton: flags, parents, fields, methods, and an object's `MODULE$` and
 //! `<clinit>` (dotty's `genPlainClass`).
 
+use super::class_bytes::scala_markers;
 use super::clinit::StaticInit;
 use super::descriptors::{class_descriptor, class_internal, internal};
 use super::{ClassBytes, Gen, java_flags, unsupported};
@@ -38,8 +39,11 @@ impl Gen<'_, '_> {
             class_def: (module && !self.l.u.symbol(sym).flags.has(SYNTHETIC)).then_some(td),
             ..StaticInit::default()
         };
-        let mut nested = Vec::new();
+        let (mut nested, mut clinit_at) = (Vec::new(), None);
         for stat in std::iter::once(constr).chain(self.l.tpd.items(body).to_vec()) {
+            if stat != constr && clinit_at.is_none() {
+                clinit_at = Some(cf.method_count());
+            }
             let Some(s) = self.l.tpd.sym(stat) else { continue };
             match self.l.tpd.tree(stat) {
                 Tree::DefDef { .. } if stat == constr && module => {
@@ -85,13 +89,17 @@ impl Gen<'_, '_> {
                 _ => return unsupported(self.l.tpd.span(stat), "statements in a class body"),
             }
         }
+        let before_clinit = cf.method_count();
         self.gen_clinit(&mut cf, &name, &init)?;
-        self.deserialize_lambda(&mut cf);
+        if let Some(at) = clinit_at {
+            cf.move_methods(before_clinit, at);
+        }
         let top = self.l.u.symbol(sym).owner.is_some_and(|o| self.l.u.symbol(o).kind == tasty::Kind::Package);
         let companion = self.l.u.companion_module(sym).and_then(|m| self.l.u.module_class(m));
         if let Some(companion) = companion.filter(|&c| !module && self.l.u.is_static_module(c)) {
             self.add_forwarders(&mut cf, companion, Some(sym));
         }
+        self.deserialize_lambda(&mut cf);
         let original_top = self.original_top(sym);
         let signature = self.class_signature(sym, original_top);
         cf.signature(&signature);
@@ -109,8 +117,9 @@ impl Gen<'_, '_> {
         let mirror = module && top && self.l.u.companion_class(sym).is_none();
         let tasty = self.tasty.remove(&sym);
         let (own, mirrored) = if mirror { (None, tasty) } else { (tasty, None) };
-        let class =
-            ClassBytes::new(name.clone(), &mut cf, own).or_else(|e| unsupported(self.l.tpd.span(td), e))?;
+        scala_markers(&mut cf, false);
+        let class = ClassBytes::new(name.clone(), cf, own, &mut |a, b| self.jvm_lub(a, b));
+        let class = class.or_else(|e| unsupported(self.l.tpd.span(td), e))?;
         self.out.push(class);
         if mirror {
             self.gen_mirror_class(td, (sym, &name), &declared, mirrored)?;
