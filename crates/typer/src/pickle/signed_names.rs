@@ -144,7 +144,9 @@ impl TreePickler<'_> {
             (None, None) => orig.clone(),
         };
         let class = self.u.symbol(s).owner.filter(|_| self.u.is_constructor(s));
-        let result = match class.filter(|&c| self.u.underlying(c).is_none()) {
+        let named =
+            class.filter(|&c| self.u.underlying(c).is_none() && full_name(self.u, c) != crate::defn::PAIR);
+        let result = match named {
             Some(class) => Box::new(class_sig_name(self.u, class)),
             None => Box::new(sig_type_name(self.u, &result)?),
         };
