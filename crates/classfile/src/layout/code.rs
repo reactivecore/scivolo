@@ -9,6 +9,9 @@ use crate::{ACC_STATIC, Code, Member, writer};
 /// The `Code` attribute of `code` of method `m` of class `class`, whose entries move from the
 /// pool of `im` to its target.
 pub fn code(mut code: Code, class: &str, m: &Member, im: &mut Import, lub: &mut Lub) -> Result<Laid, String> {
+    if let Some(e) = code.problem() {
+        return Err(e);
+    }
     code.remap(&mut |i| im.entry(i));
     let names = code.local_var_names(&mut im.to);
     let frames = stack_map(&mut code, class, m, &mut im.to, lub)?;
@@ -26,7 +29,8 @@ pub fn code(mut code: Code, class: &str, m: &Member, im: &mut Import, lub: &mut 
     Ok(Laid { nested: Some(nested), ..Laid::new("Code", writer::code(&code)?) })
 }
 
-/// Checks `code`; the body of its `StackMapTable`, none if it needs none.
+/// Widens `code`'s jumps and checks its size; the body of its `StackMapTable`, none if it needs
+/// none.
 fn stack_map(
     code: &mut Code,
     class: &str,
@@ -37,9 +41,6 @@ fn stack_map(
     code.widen();
     if code.bytes.len() > usize::from(u16::MAX) {
         return Err("over 65,535 bytes of code".into());
-    }
-    if let Some(e) = code.problem() {
-        return Err(e);
     }
     let is_static = m.access & ACC_STATIC != 0;
     let method = frames::Method { class, is_static, name: &m.name, descriptor: &m.descriptor };

@@ -1,4 +1,6 @@
-use classfile::{ATHROW, Code, FieldOp, GOTO, ICONST_0, IFEQ, Invoke, NOP, Pool};
+use classfile::{
+    ACC_PUBLIC, ACC_STATIC, ATHROW, ClassFile, Code, FieldOp, GOTO, ICONST_0, IFEQ, Invoke, NOP, Pool,
+};
 
 /// The bytes `emit` appends to a fresh code of `params` slots whose stack holds `stack` slots.
 fn emitted(params: u16, stack: i32, emit: impl FnOnce(&mut Code, &mut Pool)) -> Vec<u8> {
@@ -230,6 +232,23 @@ fn set_stack_starts_a_label_after_code_that_does_not_fall_through() {
     assert_eq!((code.live(), code.stack(), code.max_stack), (true, 3, 3));
     code.set_stack(1);
     assert_eq!(code.max_stack, 3);
+}
+
+#[test]
+fn a_jump_to_a_label_never_placed_is_refused_before_an_ldc_moves() {
+    let mut cf = ClassFile::new(ACC_PUBLIC, "a/C", "java/lang/Object", &[]);
+    for i in 0..300 {
+        cf.pool.utf8(&format!("s{i}"));
+    }
+    let far = cf.pool.string(&"far".encode_utf16().collect::<Vec<u16>>());
+    let mut code = Code::new(0);
+    let never = code.new_label();
+    code.jump(GOTO, never);
+    code.ldc(far);
+    code.ret("V");
+    cf.method(ACC_STATIC, "m", "()V", Some(code));
+    let e = cf.bytes(&mut |_, _| None).expect_err("a jump to a label never placed");
+    assert!(e.contains("never placed"), "{e}");
 }
 
 #[test]
