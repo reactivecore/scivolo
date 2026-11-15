@@ -125,6 +125,7 @@ impl TreePickler<'_> {
                 self.param(binder, i as u32)
             }
             Type::Annotated(parent, annot) => self.annotated(t, parent, annot),
+            Type::Error => Err(super::ERROR_TYPE),
             _ => Err("a type outside the subset pickled"),
         }
     }

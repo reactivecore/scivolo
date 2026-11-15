@@ -154,7 +154,7 @@ impl Universe {
     /// The erasure of `t` where values are boxed: a value class as itself.
     pub fn erase_boxed(&mut self, t: TypeId) -> Erased {
         match self.value_class(t) {
-            Some(c) => Erased::Class(self.binary_name(c)),
+            Some(c) => Erased::Class(self.erased_class_name(c)),
             None => self.erase(t),
         }
     }

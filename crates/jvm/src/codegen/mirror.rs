@@ -3,10 +3,12 @@
 //! Static forwarders to the methods of a top-level object, in its companion class or in a mirror
 //! class (dotty's `genMirrorClass`, `addForwarders`, `addForwarder`).
 
+use super::class_bytes::scala_markers;
 use super::descriptors::{class_descriptor, method_descriptor};
 use super::{ClassBytes, Gen, method_name, unsupported};
 use classfile::{
-    ACC_FINAL, ACC_PUBLIC, ACC_STATIC, ACC_SUPER, ACC_SYNTHETIC, ClassFile, Code, FieldOp, Invoke, Last,
+    ACC_FINAL, ACC_PUBLIC, ACC_STATIC, ACC_SUPER, ACC_SYNTHETIC, ACC_VARARGS, ClassFile, Code, FieldOp,
+    Invoke, Last,
 };
 use lower::Result;
 use names::{name_kinds, nme};
@@ -14,7 +16,7 @@ use std::collections::HashSet;
 use tasty::tags::{
     FIELDaccessor, INLINE, MACRO, PRIVATE, PRIVATEqualified, PROTECTED, PROTECTEDqualified, STATIC,
 };
-use tasty::{Kind, SymbolId};
+use tasty::{Kind, PRIMITIVE_VALUE_CLASSES, SymbolId};
 use typer::tpd::TNodeId;
 
 impl Gen<'_, '_> {
@@ -34,7 +36,8 @@ impl Gen<'_, '_> {
         let source = self.source_name(td);
         cf.source_file(&source);
         self.nested_attributes(&mut cf, module, declared);
-        let class = ClassBytes::new(name.to_owned(), &mut cf, tasty)
+        scala_markers(&mut cf, true);
+        let class = ClassBytes::new(name.to_owned(), cf, tasty, &mut |_, _| None)
             .or_else(|e| unsupported(self.l.tpd.span(td), e))?;
         self.out.push(class);
         Ok(())
@@ -64,15 +67,16 @@ impl Gen<'_, '_> {
             }
             code.invoke(Invoke::Virtual, &mut cf.pool, &module_name, &method, &desc);
             code.ret(result);
-            let flags = ACC_PUBLIC | ACC_STATIC | if synthetic { ACC_SYNTHETIC } else { 0 };
-            cf.method(flags, &method, &desc, Some(code), &mut |_, _| None);
-            self.emit_method_annotations(cf, m);
             let target = self.l.mixed_in_from(m).unwrap_or(m);
+            let varargs = if self.l.is_varargs_forwarder(target) { ACC_VARARGS } else { 0 };
+            let flags = ACC_PUBLIC | ACC_STATIC | varargs | if synthetic { ACC_SYNTHETIC } else { 0 };
+            cf.method(flags, &method, &desc, Some(code));
+            self.emit_method_annotations(cf, m);
             let this = self.l.u.this_type(module);
             let unflattened = self.l.unflattened_info(target);
             let info = unflattened.unwrap_or_else(|| self.l.u.member_info(this, target));
             self.exceptions(cf, m);
-            let thrown = self.thrown(m);
+            let thrown = self.signature_thrown(m);
             let member = self.signed_member(target, target);
             let scope = self.class_type_vars(m);
             if !self.l.is_mixin_accessor(m)
@@ -86,14 +90,20 @@ impl Gen<'_, '_> {
     }
 
     /// The names and descriptors of the methods of `module` forwarded to, each with whether its
-    /// forwarder is synthetic: the members dotty's `addForwarders` takes.
+    /// forwarder is synthetic: the members dotty's `addForwarders` takes, but those of names the
+    /// erased companion has (a primitive class's has no parents).
     fn forwarded(
         &mut self,
         module: SymbolId,
         companion: Option<SymbolId>,
     ) -> Vec<(String, String, bool, SymbolId)> {
         let mut conflicting = HashSet::new();
-        for c in companion.map(|c| self.l.u.linearization(c)).unwrap_or_default() {
+        let erased_bases =
+            |u: &mut tasty::Universe, c| match PRIMITIVE_VALUE_CLASSES.contains(&u.full_name(c).as_str()) {
+                true => vec![c],
+                false => u.linearization(c),
+            };
+        for c in companion.map(|c| erased_bases(self.l.u, c)).unwrap_or_default() {
             for m in self.l.u.decls(c).unwrap_or_default() {
                 if self.l.u.symbol(m).kind.is_term() {
                     conflicting.insert(method_name(self.l.u, m));

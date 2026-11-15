@@ -74,6 +74,7 @@ fn refusals_after_typing_are_collected_from_all_files_at_once() {
         SourceFile::new("b.scala", deferred("B")),
         SourceFile::new("c.scala", deferred("C")),
         SourceFile::new("d.scala", "object D { def h: Int = 1 }".to_owned()),
+        SourceFile::new("e.scala", "object E { def h: Int = \"s\" }".to_owned()),
     ];
     let mut attempts = 0;
     let mut open = || {
@@ -83,7 +84,7 @@ fn refusals_after_typing_are_collected_from_all_files_at_once() {
     let isolated = lower::compile_sources_isolated(&mut open, &sources, Config::from_options(&[]), None)
         .unwrap_or_else(|r| panic!("{}", r.what));
     let refused: Vec<&str> = isolated.refused.iter().map(|r| r.file.as_str()).collect();
-    assert_eq!(refused, ["a.scala", "b.scala", "c.scala"]);
+    assert_eq!(refused, ["a.scala", "b.scala", "c.scala", "e.scala"]);
     assert!(
         isolated.refused[2].refusal.what.contains("deferred inline"),
         "{}",

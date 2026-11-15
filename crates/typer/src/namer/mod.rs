@@ -129,6 +129,12 @@ impl Typer<'_> {
         if flags.is(f::PRIVATE) && !ctor && !flags.is(f::PARAM) && !flags.is(f::PARAM_ACCESSOR) {
             flags = flags.or(f::LOCAL);
         }
+        if ctor
+            && self.scala2
+            && tasty::PRIMITIVE_VALUE_CLASSES.contains(&self.u.full_name(ctx.owner).as_str())
+        {
+            flags = flags.and_not(f::PRIVATE);
+        }
         if kind == Kind::Val && flags.is(f::ENUM) && self.u.is_static_owner(ctx.owner) {
             flags = flags.or(f::JAVA_STATIC);
         }

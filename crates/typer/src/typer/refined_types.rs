@@ -165,6 +165,11 @@ impl Typer<'_> {
     fn refines_member(&mut self, parent: TypeId, refined: TypeId, name: &str) -> Result<(), &'static str> {
         let members = self.type_members(parent, name);
         let terms: Vec<_> = members.into_iter().filter(|&m| self.u.symbol(m).kind.is_term()).collect();
+        for &m in &terms {
+            if matches!(self.syms.completions.get(&m), Some(crate::symbols::Completion::Pending { .. })) {
+                self.complete(m);
+            }
+        }
         if terms.iter().any(|&m| self.u.symbol(m).target.is_some()) {
             return Err("structural refinement of a member with a target name");
         }

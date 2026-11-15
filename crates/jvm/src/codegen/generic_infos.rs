@@ -8,7 +8,7 @@ use super::Gen;
 use super::descriptors::internal;
 use super::signatures::Member;
 use names::name_kinds;
-use tasty::tags::{FIELDaccessor, PRIVATE};
+use tasty::tags::{ARTIFACT, FIELDaccessor, PRIVATE};
 use tasty::{Kind, SymbolId, TypeId};
 
 /// A forwarder to a default method of a Java interface.
@@ -28,7 +28,8 @@ impl Gen<'_, '_> {
     pub fn generic_signature(&mut self, sym: SymbolId, desc: &str) -> Option<String> {
         let mixed = self.mixed_origin(sym);
         let java_forwarded = self.java_forwarded(sym);
-        let origin = mixed.or(java_forwarded.map(|f| f.target)).or(self.l.super_accessed(sym)).unwrap_or(sym);
+        let accessed = self.l.super_accessed(sym).or_else(|| self.implemented_super_accessor(sym));
+        let origin = mixed.or(java_forwarded.map(|f| f.target)).or(accessed).unwrap_or(sym);
         let info = match (self.l.unflattened_info(origin), java_forwarded) {
             (Some(info), _) => info,
             (None, Some(f)) => f.info,
@@ -38,7 +39,7 @@ impl Gen<'_, '_> {
             return None;
         }
 
-        let thrown = self.thrown(sym);
+        let thrown = self.signature_thrown(sym);
         let member = self.signed_member(sym, origin);
         let sig = self.member_signature(member, info, desc, &thrown)?;
         let forwarder =
@@ -165,6 +166,20 @@ impl Gen<'_, '_> {
         let private = |m| s(m).flags.has(PRIVATE) || s(m).flags.has(FIELDaccessor) && expanded(&s(m).name);
         let setter = s(sym).name.split_once(name_kinds::TRAIT_SETTER_SEPARATOR);
         mixed.is_some_and(private) || setter.is_some_and(|(_, value)| expanded(value))
+    }
+
+    /// The member accessed by the super accessor of a trait of the unit that class method `sym`
+    /// implements (dotty's `ResolveSuper`), whose type parameters its type may name.
+    fn implemented_super_accessor(&mut self, sym: SymbolId) -> Option<SymbolId> {
+        let s = self.l.u.symbol(sym);
+        if s.kind != Kind::Def || !s.flags.has(ARTIFACT) || !s.name.contains(name_kinds::SUPER_PREFIX) {
+            return None;
+        }
+        let (owner, name) = (s.owner?, s.name.clone());
+        let bases = self.l.u.linearization(owner);
+        let accessors: Vec<SymbolId> =
+            bases.into_iter().skip(1).flat_map(|b| self.l.u.decls_named(b, &name)).collect();
+        accessors.into_iter().find_map(|acc| self.l.super_accessed(acc))
     }
 
     /// The trait member mixin accessor or forwarder `sym` copies, or the field of a mixin getter

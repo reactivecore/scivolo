@@ -20,9 +20,9 @@ mod shapes;
 mod values;
 
 use crate::ctx::Ctx;
-use crate::tpd::TNodeId;
+use crate::tpd::{TNodeId, Tree as T};
 use crate::typer::{Pt, Typer};
-use syntax::ast::NodeId;
+use syntax::ast::{NodeId, Tree};
 use tasty::{SymbolId, Type, TypeId};
 
 /// Why alternatives are compared undecided: an implicit conversion outside the subset.
@@ -135,8 +135,14 @@ impl Typer<'_> {
     }
 
     /// Types argument `a` of the chosen alternative against its parameter type `formal`:
-    /// `pretyped` adapted if overload resolution typed it before, else typed now.
+    /// `pretyped` adapted if overload resolution typed it before, else typed now; a named argument
+    /// stays named (dotty's `typedNamedArg`).
     pub fn arg_against(&mut self, a: NodeId, pretyped: Option<TNodeId>, formal: TypeId, ctx: Ctx) -> TNodeId {
+        if let Tree::NamedArg { name, arg } = *self.ast.tree(a) {
+            let typed = self.arg_against(arg, pretyped, formal, ctx);
+            let tpe = self.tpd.get(typed).tpe;
+            return self.tpd.node(T::NamedArg { name, arg: typed }, self.ast.span(a), tpe, None);
+        }
         match pretyped {
             Some(typed) => {
                 let arg = self.to_sam(typed, formal).unwrap_or(typed);

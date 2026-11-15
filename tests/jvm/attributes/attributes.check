@@ -12,3 +12,5 @@ anon
 scala.math.Ordering<java.lang.Object>$OrderingOps
 scala.Function0<A>
 List(class ByName$In)
+5
+List(Summing.sum, Counting$.count, Counting$.sum, Counting.count, Counting.sum)

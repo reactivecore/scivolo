@@ -6,6 +6,7 @@
 use super::super::builtin::synthetic;
 use super::super::{Kind, SymbolId, Universe};
 use super::constant::constant_type;
+use super::signature_polymorphic::is_signature_polymorphic;
 use super::signatures::{Sig, Var, bounded_by_object, bounds, cooked};
 use super::{annotation, inner, visibility};
 use crate::tags::{ABSTRACT, FINAL, LOCAL, MUTABLE, OBJECT, PRIVATE, SEALED, STATIC, TRAIT};
@@ -107,9 +108,9 @@ fn class_signature<'a>(
     Ok(Owners { class, statics, params, vars, outer })
 }
 
-/// Enters field or method `m` unless it is private, synthetic, a bridge, a static initializer or
-/// signature polymorphic (native varargs, dotty's `isSignaturePolymorphic`), or its signature is
-/// one this reader refuses: the member entered, or the refusal.
+/// Enters field or method `m` unless it is private, synthetic, a bridge or a static initializer:
+/// the member entered, or the refusal of a signature this reader refuses or of a native varargs
+/// method outside `MethodHandle` and `VarHandle` (dotty's `isSignaturePolymorphic`).
 pub fn member(
     u: &mut Universe,
     owners: &Owners,
@@ -121,7 +122,7 @@ pub fn member(
     if m.access & ACC_PRIVATE != 0 || artifact || m.name == nme::STATIC_CONSTRUCTOR {
         return Ok(None);
     }
-    if polymorphic {
+    if polymorphic && !is_signature_polymorphic(u, owners.class, m) {
         return Err(format!("signature polymorphic method {}", m.name));
     }
     let is_static = m.access & ACC_STATIC != 0;
@@ -147,6 +148,9 @@ pub fn member(
     u.classfile_descriptors.insert(s, m.descriptor.clone());
     if method {
         u.set_deferred(s, m.access & ACC_ABSTRACT != 0);
+    }
+    if polymorphic {
+        u.set_signature_polymorphic(s);
     }
     Ok(Some(s))
 }
