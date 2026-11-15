@@ -47,6 +47,11 @@ impl Code {
         self.labels[l.0] == Some(self.bytes.len())
     }
 
+    /// The offsets of the labels placed.
+    pub fn label_offsets(&self) -> impl Iterator<Item = usize> + '_ {
+        self.labels.iter().flatten().copied()
+    }
+
     /// The offset of `l`, if placed.
     pub fn offset(&self, l: Label) -> Option<usize> {
         self.labels[l.0]

@@ -66,6 +66,7 @@ pub fn stack_map(
     starts.extend(&jumped);
     starts.extend(handlers.iter().flat_map(|h| [h[0], h[1]]));
     starts.extend(code.line_offsets());
+    starts.extend(code.label_offsets());
     let mut at = 0;
     while at < bytes.len() {
         let to = targets(bytes, at);
