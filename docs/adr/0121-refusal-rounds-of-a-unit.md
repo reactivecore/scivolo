@@ -36,5 +36,9 @@ lowering of a refused file adds for the classes of other files.
   definition once it is left out (the library jar's, with `--scalalib`).
 - A file with type errors is refused in the round its errors appear, with the unsupported
   constructs of the others: a file typed after a refused one may be refused for its error
-  trees and left out with it (as in ADR 0116).
+  trees and left out with it (as in ADR 0116). The pickling refuses no file for the error type
+  of another file's errors: such a file is refused in the next round, as needing that file.
+- The checks after typing run, unlike dotty's, beside type errors, and may report errors
+  dotty does not (a variance error at an error type); a unit with type errors is refused
+  either way, so only the messages differ.
 - Each lowering refusal costs a round.

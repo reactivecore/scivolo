@@ -132,9 +132,12 @@ pub fn compile_attributed<R>(
     Ok((out, typed.diags))
 }
 
-/// The refusal for the errors among `diags`, in the files they are in, none if one of them has no
-/// position.
+/// The refusal for the errors among `diags`, if any, in the files they are in, none if one of them
+/// has no position.
 fn type_errors(diags: &Diagnostics, sources: &Sources) -> Vec<Attributed> {
+    if !diags.has_errors() {
+        return Vec::new();
+    }
     let errors = diags.items.iter().filter(|d| d.level == Level::Error);
     let mut files = errors.map(|d| d.offset.map(|o| sources.index(o))).collect::<Option<Vec<_>>>();
     if let Some(files) = &mut files {

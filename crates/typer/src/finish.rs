@@ -3,7 +3,7 @@
 
 use crate::Typer;
 use crate::inlining::Lent;
-use crate::pickle::{FileAttributes, Pickled, QuoteSource, Refusal, pickle_file};
+use crate::pickle::{ERROR_TYPE, FileAttributes, Pickled, QuoteSource, Refusal, pickle_file};
 use crate::tpd::TNodeId;
 use crate::{Fallback, Typed, Units};
 use syntax::ast::Span;
@@ -133,12 +133,15 @@ impl Units {
     }
 
     /// Pickles the top-level classes of typed source files `files` into `out` if `tasty_sources`
-    /// is set; a refusal at each file refused.
+    /// is set; a refusal at each file refused, none at a file that has an error type of another
+    /// file's type errors.
     fn pickle_files(&mut self, typer: &mut Typer, files: &[TNodeId], out: &mut Vec<Pickled>) {
         let Some(sources) = &self.tasty_sources else { return };
         for &f in files {
-            if let Err((at, what)) = pickle_one(typer, sources, f, out) {
-                self.refused.push((at, format!("pickling {what} into TASTy")));
+            match pickle_one(typer, sources, f, out) {
+                Err((_, ERROR_TYPE)) if typer.diags.has_errors() => {}
+                Err((at, what)) => self.refused.push((at, format!("pickling {what} into TASTy"))),
+                Ok(()) => {}
             }
         }
     }
