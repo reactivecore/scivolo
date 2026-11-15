@@ -240,6 +240,22 @@ fn refuses(name: &str, code: &str, message: &str) {
 }
 
 #[test]
+fn a_jdk_method_s_signature_erases_a_type_parameter_to_its_bound() {
+    if Command::new("java").arg("-version").output().is_err() {
+        eprintln!("no java on the PATH: skipped");
+        return;
+    }
+    let source = root().join("tmp/jvm-test/boundsig.scala");
+    std::fs::create_dir_all(source.parent().expect("a directory")).expect("tmp/jvm-test");
+    let code = "object Boundsig { def d = classOf[String].getAnnotation(classOf[Deprecated]) }";
+    std::fs::write(&source, code).expect("writing");
+    let (out, compiled) = compile("boundsig", &source);
+    assert!(compiled.status.success(), "{}", String::from_utf8_lossy(&compiled.stderr));
+    let tasty = std::fs::read(out.join("Boundsig.tasty")).expect("Boundsig.tasty");
+    assert!(tasty.windows(b"Annotation".len()).any(|w| w == b"Annotation"), "a signature of `Annotation`");
+}
+
+#[test]
 fn a_definition_the_tasty_pickler_lacks_is_refused() {
     let code = "class tag extends scala.annotation.StaticAnnotation\n\
                 trait B { def f: Int @tag = 1; def g: Int @tag = 2; def h(b: Boolean) = if b then f else g }";
@@ -247,6 +263,10 @@ fn a_definition_the_tasty_pickler_lacks_is_refused() {
     let code = "import scala.annotation.unchecked.uncheckedVariance as uV\n\
                 class C[+A](val m: Map[A @uV, A @uV])";
     refuses("refusedaccessor", code, "an annotated type of several annotation trees");
+    let code = "class ann(x: String) extends scala.annotation.StaticAnnotation\n\
+                class Box[A](val v: (A, Int @ann(\"a\")))\n\
+                object M { def b: Box[Int @ann(\"b\")] = ???; val r = b.v }";
+    refuses("refusedtraced", code, "traced to one of several annotation trees with arguments");
 }
 
 /// Writes `files`, each a name and its code, into tmp/jvm-test/`name`.
@@ -354,13 +374,13 @@ fn a_javalib_member_the_jdk_lacks_is_not_found() {
 }
 
 #[test]
-fn a_java_annotation_with_arguments_is_refused() {
+fn a_java_annotation_with_an_argument_that_is_no_constant_is_refused() {
     if Command::new("java").arg("-version").output().is_err() {
         eprintln!("no java on the PATH: skipped");
         return;
     }
-    let code = "class R { @java.beans.Transient(false) def f = 1 }";
-    refuses("refusedannotation", code, "Java annotations with arguments on the JVM");
+    let code = "class R { @java.beans.Transient(sys.props.isEmpty) def f = 1 }";
+    refuses("refusedannotation", code, "Java annotation arguments other than constants");
     let code = "class R { def f(@java.lang.annotation.Documented x: Int) = x }";
     refuses("refusedparamannotation", code, "Java annotations of parameters on the JVM");
 }

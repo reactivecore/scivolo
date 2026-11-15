@@ -65,7 +65,7 @@ mod unused;
 
 pub use erased::is_erased_value;
 pub use host::{CheckedErrors, Host, ImportSelector, Lent};
-pub use local_implicits::{implicit_defs_at, is_implicit_def};
+pub use local_implicits::{implicit_scopes_at, is_implicit_def};
 pub use macros::{
     AnnotationCall, Annotations, Expanded, MacroArg, MacroCall, MacroError, Macros, Quoted, Reports, Search,
 };
@@ -119,16 +119,16 @@ pub struct Inlining<'a> {
     /// The context of the call of that tree, if the typer recorded one, and the tree.
     typer_ctx: Option<(Ctx, TNodeId)>,
     /// The implicits that tree defines, while a call inside it without a context of its own
-    /// expands in its context.
+    /// expands in its context and is not found in it.
     pub outer_implicits: Vec<SymbolId>,
+    /// The scopes of the implicits that tree defines in which such a call is, outermost first.
+    pub outer_scopes: Vec<local_implicits::Scope>,
     /// Whether the code being expanded is in the scope of an implicit it defines other than by a
     /// block statement or a `summonFrom` case.
     pub local_implicits: bool,
     /// The scopes of the implicits block statements of the code being expanded define and of its
     /// import statements, in which it is, outermost first.
     pub scopes: Vec<local_implicits::Scope>,
-    /// The bindings of the `summonFrom` cases whose bodies are being expanded, innermost last.
-    pub case_givens: Vec<SymbolId>,
     /// Whether the code being retyped is a macro's result, whose references to methods with a
     /// using clause take their implicit arguments.
     pub in_macro_result: bool,
@@ -174,9 +174,9 @@ impl<'a> Inlining<'a> {
             typer_inlined: None,
             typer_ctx: None,
             outer_implicits: Vec::new(),
+            outer_scopes: Vec::new(),
             local_implicits: false,
             scopes: Vec::new(),
-            case_givens: Vec::new(),
             in_macro_result: false,
             refusals: Vec::new(),
         }

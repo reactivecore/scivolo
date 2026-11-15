@@ -1,22 +1,32 @@
 //! Symbols defined outside TASTy (a script's), what completes them, binders for their types.
 
 use super::{FileId, Flags, Kind, Symbol, SymbolId, Universe};
-use crate::Erased;
+use crate::tags::PARAMsetter;
 use crate::types::{Binder, TypeId};
 
 impl Universe {
     /// Enters `s` into its owner; `s.tree` is `None` for a symbol without TASTy.
-    /// Resolved references are dropped when an owner already looked up by name gets a name new
-    /// to it, a class member or a symbol without TASTy.
+    /// What `changed` drops is dropped when an owner already looked up by name gets a name new
+    /// to it, a class member or a symbol without TASTy; the remembered erasures also when any
+    /// owner gets a symbol with a run-time name, or one without TASTy other than a method or a
+    /// value that is not a class parameter's accessor.
     pub fn define(&mut self, s: Symbol) -> SymbolId {
         let id = SymbolId(self.symbols.len() as u32);
+        let (tasty, targeted) = (s.tree.is_some(), s.target.is_some());
+        let plain_term = s.kind == Kind::Def || s.kind == Kind::Val && !s.flags.has(PARAMsetter);
         if let Some(o) = s.owner {
             self.symbols[o.0 as usize].decls.push(id);
+            if targeted {
+                self.targeted.insert(o);
+            }
+            if targeted || !tasty && !plain_term {
+                self.drop_erasures();
+            }
             if let Some(index) = self.by_name.get_mut(&o) {
                 let named = index.entry(self.types.intern_name(&s.name)).or_default();
                 let new_name = named.is_empty();
                 named.push(id);
-                if new_name || s.tree.is_none() || self.symbols[o.0 as usize].kind == Kind::Class {
+                if new_name || !tasty || self.symbols[o.0 as usize].kind == Kind::Class {
                     self.changed();
                 }
             }
@@ -34,11 +44,10 @@ impl Universe {
         self.changed();
     }
 
-    /// Drops the resolved references and the erased methods, and starts a new generation.
+    /// Drops the resolved references and the remembered erasures, and starts a new generation.
     fn changed(&mut self) {
         self.resolved.clear();
-        self.erased_methods.clear();
-        self.generation += 1;
+        self.drop_erasures();
     }
 
     /// How often declarations, parents, or set infos and flags changed; results derived from
@@ -50,24 +59,6 @@ impl Universe {
     /// How many binders `fresh_binder` has made.
     pub fn binders_made(&self) -> u32 {
         self.binders
-    }
-
-    /// The erased parameters and result of method `def` remembered since the last change, with
-    /// value classes semi-erased if `semi`.
-    pub fn erased_memo(&self, def: SymbolId, semi: bool) -> Option<&(Vec<Erased>, Erased)> {
-        self.erased_methods.get(&(def, semi))
-    }
-
-    /// Remembers `erased` as `erased_memo`'s answer if the generation is still `generation`.
-    pub fn remember_erased(
-        &mut self,
-        (def, semi): (SymbolId, bool),
-        generation: u64,
-        erased: &(Vec<Erased>, Erased),
-    ) {
-        if self.generation == generation {
-            self.erased_methods.insert((def, semi), erased.clone());
-        }
     }
 
     /// Sets the declared type of `sym`; replacing a different info drops the resolved references.
@@ -115,6 +106,13 @@ impl Universe {
     /// Gives `sym`, a symbol defined outside TASTy, the run-time name `target` (`@targetName`).
     pub fn set_target(&mut self, sym: SymbolId, target: &str) {
         self.symbols[sym.0 as usize].target = Some(target.to_owned());
+        self.targeted.extend(self.symbols[sym.0 as usize].owner);
+        self.drop_erasures();
+    }
+
+    /// Determines whether `owner` may declare a symbol with a run-time name (`target`).
+    pub fn may_declare_targets(&self, owner: SymbolId) -> bool {
+        self.targeted.contains(&owner)
     }
 
     /// Records whether `sym`, a term defined outside TASTy, is abstract.
@@ -129,19 +127,6 @@ impl Universe {
     /// Records that class `c`, defined outside TASTy, has initialization code.
     pub fn set_inits(&mut self, c: SymbolId) {
         self.with_inits.insert(c);
-    }
-
-    /// Records that an annotation of class `class` annotates `sym`, a symbol defined outside TASTy.
-    pub fn annotate(&mut self, sym: SymbolId, class: SymbolId) {
-        let classes = self.annotations.entry(sym).or_default();
-        if !classes.contains(&class) {
-            classes.push(class);
-        }
-    }
-
-    /// The annotation classes recorded for `sym`, a symbol defined outside TASTy, in order.
-    pub fn annotations(&self, sym: SymbolId) -> &[SymbolId] {
-        self.annotations.get(&sym).map_or(&[], Vec::as_slice)
     }
 
     /// Whether `sym` is a method or value defined outside TASTy without a body; `false` for
@@ -162,6 +147,10 @@ impl Universe {
     pub fn set_owner(&mut self, sym: SymbolId, owner: SymbolId) {
         self.unenter(sym);
         self.symbols[sym.0 as usize].owner = Some(owner);
+        if self.symbols[sym.0 as usize].target.is_some() {
+            self.targeted.insert(owner);
+        }
+        self.changed();
     }
 
     /// Enters `sym`, a symbol defined outside TASTy, into its owner's declarations.

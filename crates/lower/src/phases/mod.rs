@@ -67,7 +67,7 @@ mod initializers;
 mod inline_patterns;
 mod interpolators;
 mod java_enum_forwarders;
-mod java_enums;
+pub(crate) mod java_enums;
 mod lambda_lift;
 mod lazy_init;
 mod lazy_trees;
