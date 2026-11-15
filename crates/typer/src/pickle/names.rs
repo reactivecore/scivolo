@@ -21,10 +21,10 @@ pub fn sym_name(u: &Universe, s: SymbolId) -> Name {
 /// The separator of dotty's `UniqueInlineName`, of an accessor that passes its receiver.
 const UNIQUE_INLINE: &str = "$i";
 
-/// The name of `s` if it is an inline accessor: `inline$m`, `inline$m$iN` or, in an extensible
-/// class, `p$C$$inline$m`, as dotty's `InlineAccessorName` of a simple, `UniqueInlineName` or
-/// `ExpandedName` (`accessorNameOf`).
-fn inline_accessor_name(u: &Universe, s: SymbolId) -> Option<Name> {
+/// Determines the name of `s` if it is an inline accessor: `inline$m`, `inline$m$iN` or, in an
+/// extensible class, `p$C$$inline$m`, as dotty's `InlineAccessorName` of a simple,
+/// `UniqueInlineName` or `ExpandedName` (`accessorNameOf`).
+pub fn inline_accessor_name(u: &Universe, s: SymbolId) -> Option<Name> {
     let sym = u.symbol(s);
     if sym.kind != Kind::Def || !sym.flags.has(SYNTHETIC) {
         return None;
