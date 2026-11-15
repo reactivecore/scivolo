@@ -179,6 +179,21 @@ mod tests {
     }
 
     #[test]
+    fn labels_without_jumps_start_dead_blocks() {
+        let (mut code, mut pool) = (Code::new(0), Pool::default());
+        code.ret("V");
+        code.insn(ICONST_0);
+        code.insn(POP);
+        code.here();
+        code.insn(ICONST_0);
+        code.insn(POP);
+        code.ret("V");
+        let (table, [t0, t1]) = table(&mut code, &mut pool);
+        assert_eq!(code.bytes, [0xb1, 0, 0xbf, 0, 0, 0xbf]);
+        assert_eq!(table, Ok(Some(vec![0, 2, 65, 7, t0, t1, 65, 7, t0, t1])));
+    }
+
+    #[test]
     fn protected_ranges_split_dead_blocks_and_drop_them() {
         let (mut code, mut pool) = (Code::new(0), Pool::default());
         let start = code.here();
