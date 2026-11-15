@@ -91,8 +91,9 @@ pub struct TreePickler<'a> {
     /// The span of each super accessor's definition, its call's point, and the point of its
     /// member's definition if pickled.
     accessor_spans: FxHashMap<SymbolId, (Span, Span)>,
-    /// The annotated type trees of the signature of each super accessor's member, if defined here.
-    accessor_tpts: FxHashMap<SymbolId, Vec<TNodeId>>,
+    /// The trees of each term parameter and of the result type of each super accessor's member,
+    /// if defined in the unit.
+    accessor_tpts: FxHashMap<SymbolId, Vec<Vec<TNodeId>>>,
     /// The trees pickled that have no node, by the id they are registered under, their spans, and
     /// the node whose position theirs follows if not the node pickled next.
     synthetic: Vec<(u32, Span, Option<TNodeId>)>,

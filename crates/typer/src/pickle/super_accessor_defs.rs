@@ -28,15 +28,10 @@ pub fn accessor_info(u: &mut Universe, member: SymbolId, info: TypeId) -> TypeId
 }
 
 impl TreePickler<'_> {
-    /// Super accessor `acc`, declared without a body, its types with the annotation trees of its
-    /// member's signature.
+    /// Super accessor `acc`, declared without a body, the types of its parameters and result with
+    /// the annotation trees of its member's.
     pub fn super_accessor_def(&mut self, acc: SymbolId) -> Result<(), Refusal> {
-        let tpts = self.accessor_tpts.get(&acc).cloned().unwrap_or_default();
-        self.with_typed_tpts(tpts, &mut |p| p.accessor_def(acc))
-    }
-
-    /// Super accessor `acc`, declared without a body.
-    fn accessor_def(&mut self, acc: SymbolId) -> Result<(), Refusal> {
+        let mut member_tpts = self.accessor_tpts.get(&acc).cloned().unwrap_or_default().into_iter();
         self.defs.entry(acc).or_insert(None);
         self.register_def(acc);
         let name = self.accessor_name(acc).ok_or("a super accessor without a name")?;
@@ -57,12 +52,13 @@ impl TreePickler<'_> {
                     p.byte(SPLITCLAUSE);
                 }
                 for &(name, tpe) in params.iter() {
+                    let tpts = member_tpts.next().unwrap_or_default();
                     p.synthetic_here(span, None);
                     p.with_length(PARAM, &mut |p| {
                         let name = Name::utf8(p.u.name(name));
                         p.name(&name);
                         p.synthetic_here(span, None);
-                        p.ty(tpe, false)?;
+                        p.with_typed_tpts(tpts.clone(), &mut |p| p.ty(tpe, false))?;
                         modifier.into_iter().for_each(|m| p.byte(m));
                         Ok(())
                     })?;
@@ -74,7 +70,8 @@ impl TreePickler<'_> {
             }
             let tpt = p.synthetic.len();
             p.synthetic_here(span, None);
-            p.ty(t, false)?;
+            let tpts = member_tpts.next().unwrap_or_default();
+            p.with_typed_tpts(tpts, &mut |p| p.ty(t, false))?;
             p.byte(ARTIFACT);
             if let Some(target) = p.u.symbol(acc).target.clone() {
                 p.target_name_annotation(&target, member)?;
