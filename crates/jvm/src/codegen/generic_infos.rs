@@ -38,7 +38,7 @@ impl Gen<'_, '_> {
             return None;
         }
 
-        let thrown = self.thrown(sym);
+        let thrown = self.signature_thrown(sym);
         let member = self.signed_member(sym, origin);
         let sig = self.member_signature(member, info, desc, &thrown)?;
         let forwarder =

@@ -6,17 +6,17 @@
 use super::{Pt, Typer};
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::Tree;
-use tasty::{Type, TypeId};
+use tasty::{ANY, Type, TypeId};
 
 impl Typer<'_> {
     /// Retypes `f`, the method of an application to the arguments of `proto`, if it is
     /// signature polymorphic, as `mh.invokeExact(x, 1)`: as an instance of the method whose
     /// parameter types are the widened types of the arguments, typed without an expected type,
     /// and whose result type is the method's unless it is `Object`, else the expected type of
-    /// the application if fully defined, else `Object`. Other methods are left.
+    /// the application, `Any` without one. Other methods are left.
     ///
-    /// Refuses named and sequence arguments, an expected type with a wildcard in it, and one
-    /// whose type variables cannot be instantiated.
+    /// Refuses named and sequence arguments, an expected type with a wildcard in it or whose type
+    /// variables cannot be instantiated, and a call applied again or eta-expanded.
     pub fn signature_polymorphic_call(&mut self, f: TNodeId, proto: usize) -> Result<TNodeId, &'static str> {
         let Some(m) = self.tpd.sym(f).filter(|&m| self.u.is_signature_polymorphic(m)) else { return Ok(f) };
         let prefix = match *self.u.ty(self.tpd.tpe(f)) {
@@ -62,20 +62,41 @@ impl Typer<'_> {
         self.tpd.sym(fun).is_some_and(|s| self.u.original_signature_polymorphic(s).is_some())
     }
 
+    /// Retypes call `t` as the qualifier of a selection, as `mh.invoke(x).eq(y)`: a result of
+    /// `Any`, given for no expected type, becomes `Object`.
+    pub fn signature_polymorphic_selected(&mut self, t: TNodeId) {
+        let T::Apply { fun, .. } = *self.tpd.tree(t) else { return };
+        let Some(instance) = self.tpd.sym(fun) else { return };
+        let info = self.u.info(instance);
+        let Some(m) = self.u.method(info) else { return };
+        if m.result != ANY {
+            return;
+        }
+        let params = m.params.to_vec();
+        let object = self.u.intern_type(Type::Sym(None, self.u.defn().object));
+        let binder = self.u.fresh_binder();
+        let info = self.u.intern_method(binder, &params, object, false, false);
+        self.u.set_info(instance, info);
+        self.tpd.get_mut(t).tpe = Some(object);
+    }
+
     /// The result type of an instance of signature polymorphic method `m` at a call expected to
     /// be of `pt`.
     fn signature_polymorphic_result(&mut self, m: tasty::SymbolId, pt: Pt) -> Result<TypeId, &'static str> {
         let info = self.u.info(m);
         let result = self.final_result(info);
+        let result = self.strip_null(result);
         let object = self.u.defn().object;
         let dealiased = self.u.dealias(result);
         if self.u.applied(dealiased).is_some() || self.u.class_symbol(dealiased) != Some(object) {
             return Ok(result);
         }
-        let Pt::Type(expected) = pt else { return Ok(result) };
-        if matches!(self.u.ty(expected), Type::Wildcard(_)) {
-            return Ok(result);
-        }
+        let expected = match pt {
+            Pt::Any => return Ok(ANY),
+            Pt::Type(expected) if matches!(self.u.ty(expected), Type::Wildcard(_)) => return Ok(ANY),
+            Pt::Type(expected) => expected,
+            _ => return Err("signature polymorphic call applied or eta-expanded"),
+        };
         let mut wildcard = false;
         self.u.map_type(expected, &mut |u, part| {
             wildcard |= matches!(u.ty(part), Type::Wildcard(_));

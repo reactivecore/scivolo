@@ -72,7 +72,7 @@ impl Gen<'_, '_> {
             let unflattened = self.l.unflattened_info(target);
             let info = unflattened.unwrap_or_else(|| self.l.u.member_info(this, target));
             self.exceptions(cf, m);
-            let thrown = self.thrown(m);
+            let thrown = self.signature_thrown(m);
             let member = self.signed_member(target, target);
             let scope = self.class_type_vars(m);
             if !self.l.is_mixin_accessor(m)

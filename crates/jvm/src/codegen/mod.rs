@@ -37,6 +37,7 @@ mod stash;
 mod switches;
 #[cfg(test)]
 mod tests;
+mod throws;
 mod traits;
 mod tries;
 
