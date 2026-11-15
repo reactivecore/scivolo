@@ -1,5 +1,6 @@
 //! JVM class files (JVMS §4): a class with its constant pool, fields, methods and their code.
 
+mod annotations;
 mod attributes;
 mod code;
 mod frames;
@@ -11,6 +12,7 @@ mod read;
 mod references;
 mod writer;
 
+pub use annotations::{AnnotationValue, ElementValue};
 pub use attributes::{InnerClass, Last};
 pub use code::{Code, FieldOp, Invoke, Label, method_slots, split_method, value_slots};
 pub use frames::Lub;
@@ -70,6 +72,8 @@ pub struct ClassFile {
     attributes: Vec<(usize, Attribute)>,
     /// The attributes the JVM does not define, written last.
     custom: Vec<Attribute>,
+    /// The `Utf8` entries of the descriptors its annotations name.
+    annotation_descriptors: Vec<u16>,
     /// Why the class file cannot hold a method added.
     error: Option<String>,
 }
@@ -92,6 +96,7 @@ impl ClassFile {
             methods: Vec::new(),
             attributes: Vec::new(),
             custom: Vec::new(),
+            annotation_descriptors: Vec::new(),
             error: None,
         }
     }

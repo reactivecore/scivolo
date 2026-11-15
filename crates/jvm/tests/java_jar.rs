@@ -79,7 +79,7 @@ fn scala2_class_files_are_refused_by_name() {
 #[test]
 fn inaccessible_java_classes_and_native_classes_are_refused() {
     let Some(jar) = shapes_jar("javajar-refused") else { return };
-    for name in ["hidden", "subpackage", "native"] {
+    for name in ["hidden", "subpackage", "shelf", "native"] {
         let out = output(&mut scivolo(&jar, &jar.with_file_name(name), name));
         let stderr = String::from_utf8_lossy(&out.stderr);
         assert!(!out.status.success() && stderr.contains("does not support"), "{name}: {stderr}");
