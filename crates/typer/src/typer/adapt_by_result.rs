@@ -4,7 +4,7 @@
 //! The expected result type of an application: the result constrained by it (dotty's
 //! `constrainResult`), the results of alternatives compared with it (`resultConforms`).
 
-use super::dependent_params::{clause_param, mentions_clause_params, substituted};
+use super::dependent_params::{applied_result, clause_param, mentions_clause_params, substituted};
 use super::{Pt, Typer};
 use crate::ctx::Ctx;
 use tasty::{Binder, NameId, SymbolId, Type, TypeId, TypeVars};
@@ -193,15 +193,33 @@ impl Typer<'_> {
             let vars: Vec<TypeId> = names.iter().map(|_| self.constraint.fresh(self.u)).collect();
             info = self.instantiate_poly(result, binder, &names, &vars, Some(alt));
         }
-        let fits = match self.u.method(info).map(|m| m.result) {
-            Some(result) => match self.proto_normalized((result, Some(alt)), pt, follow, 8) {
-                Some(value) if self.u.is_necessary_subtype_in(value, pt, &mut self.constraint) => Some(true),
-                Some(value) => self.compatible(value, pt, views, ctx),
-                None => None,
-            },
+        let fits = match self.u.method(info).map(|m| (m.binder, m.params.to_vec(), m.result)) {
+            Some((binder, params, result)) => {
+                let result = self.params_as_skolems(result, (binder, &params), alt);
+                match self.proto_normalized((result, Some(alt)), pt, follow, 8) {
+                    Some(value) if self.u.is_necessary_subtype_in(value, pt, &mut self.constraint) => {
+                        Some(true)
+                    }
+                    Some(value) => self.compatible(value, pt, views, ctx),
+                    None => None,
+                }
+            }
             None => Some(true),
         };
         self.constraint.abandon(before);
         fits
+    }
+
+    /// Result `result` of method `alt` of binder `binder` and parameters `params`, each reference
+    /// to a parameter replaced by a skolem of its type, as dotty's `TermParamRef`s compare.
+    fn params_as_skolems(
+        &mut self,
+        result: TypeId,
+        (binder, params): (Binder, &[(NameId, TypeId)]),
+        alt: SymbolId,
+    ) -> TypeId {
+        let names: Vec<NameId> = params.iter().map(|&(n, _)| n).collect();
+        let formals: Vec<TypeId> = params.iter().map(|&(_, p)| p).collect();
+        applied_result(self.u, result, (binder, &names), Some(alt), &formals)
     }
 }
