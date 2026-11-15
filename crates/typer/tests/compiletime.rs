@@ -1,4 +1,5 @@
-//! The `scala.compiletime` expansions the inliner refuses rather than diverge from dotty.
+//! The `scala.compiletime` expansions the inliner refuses rather than diverge from dotty, and
+//! the local givens its searches find.
 
 use std::path::Path;
 use syntax::source::SourceFile;
