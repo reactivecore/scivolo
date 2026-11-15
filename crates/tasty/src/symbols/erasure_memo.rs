@@ -1,25 +1,30 @@
 //! The erased methods remembered between changes of the universe (ADR 0122).
 
-use super::{Flags, Kind, SymbolId, Universe};
+use super::{Kind, Symbol, SymbolId, Universe};
 use crate::tags::{OBJECT as MODULE, PARAMsetter};
 use crate::{Erased, NameId};
 use rustc_hash::{FxHashMap, FxHashSet};
 
-/// Erased methods by method and whether value classes are semi-erased, and the names their
-/// erasures looked up.
+/// Erased methods by method and whether value classes are semi-erased, the names their
+/// erasures looked up, and binary names of classes.
 #[derive(Default)]
 pub struct ErasureMemo {
     methods: FxHashMap<(SymbolId, bool), (Vec<Erased>, Erased)>,
     names: FxHashSet<NameId>,
     /// How many erasures of methods are being computed, one inside another.
     erasing: u32,
+    binary_names: FxHashMap<SymbolId, String>,
+    /// The erasures of references to classes that are not value classes.
+    classes: FxHashMap<SymbolId, Erased>,
 }
 
 impl ErasureMemo {
-    /// Forgets every erased method.
+    /// Forgets every erased method and binary name.
     pub fn clear(&mut self) {
         self.methods.clear();
         self.names.clear();
+        self.binary_names.clear();
+        self.classes.clear();
     }
 
     /// Records that members named `name` were looked up, if while an erasure is computed.
@@ -34,17 +39,16 @@ impl ErasureMemo {
         self.erasing > 0
     }
 
-    /// Determines whether a declaration of kind and flags `decl` that is defined, entered,
-    /// unentered or renamed under `names` can change a remembered erasure: unless it is a
-    /// method or value (not an object, not a class parameter's accessor) and no remembered
-    /// erasure looked up one of `names`.
-    pub fn changed_by(&self, (kind, flags): (Kind, Flags), names: &[NameId]) -> bool {
-        let term = match kind {
+    /// Determines whether declaration `s`, named `name`, defined, entered or unentered, can
+    /// change a remembered erasure: unless it is a method or value (not an object, not a class
+    /// parameter's accessor) without a run-time name whose name no remembered erasure looked up.
+    pub fn changed_by(&self, s: &Symbol, name: NameId) -> bool {
+        let term = match s.kind {
             Kind::Def => true,
-            Kind::Val => !flags.has(MODULE) && !flags.has(PARAMsetter),
+            Kind::Val => !s.flags.has(MODULE) && !s.flags.has(PARAMsetter),
             _ => false,
         };
-        !term || names.iter().any(|n| self.names.contains(n))
+        !term || s.target.is_some() || self.names.contains(&name)
     }
 }
 
@@ -65,6 +69,29 @@ impl Universe {
         if self.generation == generation {
             self.erased_methods.methods.insert(key, erased.clone());
         }
+    }
+
+    /// Determines `binary_name` of class `c`, remembered since the last change of a symbol it
+    /// depends on.
+    pub fn erased_class_name(&mut self, c: SymbolId) -> String {
+        if let Some(name) = self.erased_methods.binary_names.get(&c) {
+            debug_assert_eq!(*name, self.binary_name(c), "remembered binary name");
+            return name.clone();
+        }
+        let name = self.binary_name(c);
+        self.erased_methods.binary_names.insert(c, name.clone());
+        name
+    }
+
+    /// The erasure of a reference to class `c`, not a value class, remembered since the last
+    /// change.
+    pub fn erased_class_memo(&self, c: SymbolId) -> Option<Erased> {
+        self.erased_methods.classes.get(&c).cloned()
+    }
+
+    /// Remembers `erased` as `erased_class_memo`'s answer for class `c`.
+    pub fn remember_erased_class(&mut self, c: SymbolId, erased: &Erased) {
+        self.erased_methods.classes.insert(c, erased.clone());
     }
 
     /// Runs `erase`, an erasure of a method that `remember_erased` may remember, recording the

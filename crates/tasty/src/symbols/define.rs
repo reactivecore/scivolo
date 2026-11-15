@@ -4,52 +4,49 @@ use super::{FileId, Flags, Kind, Symbol, SymbolId, Universe};
 use crate::types::{Binder, TypeId};
 
 impl Universe {
-    /// Enters `s` into its owner; `s.tree` is `None` for a symbol without TASTy.
-    /// Resolved references are dropped when an owner already looked up by name gets a name new
-    /// to it, a class member or a symbol without TASTy; the erased methods then too unless
-    /// `ErasureMemo::changed_by` keeps them.
+    /// Enters `s` into its owner; `s.tree` is `None` for a symbol without TASTy. What
+    /// `decl_changed` drops is dropped when an owner already looked up by name gets a name new
+    /// to it, a class member or a symbol without TASTy.
     pub fn define(&mut self, s: Symbol) -> SymbolId {
         let id = SymbolId(self.symbols.len() as u32);
-        if let Some(o) = s.owner {
-            self.symbols[o.0 as usize].decls.push(id);
-            if s.target.is_some() {
-                self.targeted.insert(o);
-            }
-            if let Some(index) = self.by_name.get_mut(&o) {
-                let name = self.types.intern_name(&s.name);
-                let named = index.entry(name).or_default();
-                let new_name = named.is_empty();
-                named.push(id);
-                if new_name || s.tree.is_none() || self.symbols[o.0 as usize].kind == Kind::Class {
-                    self.decl_changed((s.kind, s.flags), &[name]);
-                }
-            }
-        }
         if let Some(tree) = s.tree {
             self.by_tree.insert(tree, id);
         }
+        let owner = s.owner;
         self.symbols.push(s);
+        let Some(o) = owner else { return id };
+        self.symbols[o.0 as usize].decls.push(id);
+        let s = &self.symbols[id.0 as usize];
+        if s.target.is_some() {
+            self.targeted.insert(o);
+            self.erased_methods.clear();
+        }
+        if let Some(index) = self.by_name.get_mut(&o) {
+            let name = self.types.intern_name(&s.name);
+            let named = index.entry(name).or_default();
+            let new_name = named.is_empty();
+            named.push(id);
+            if new_name || s.tree.is_none() || self.symbols[o.0 as usize].kind == Kind::Class {
+                self.decl_changed(id, name);
+            }
+        }
         id
     }
 
-    /// Drops the name index of the owner of `sym`, whose declarations gain or lose `sym` or
-    /// whose name changes from `old_name`, and what `decl_changed` drops.
-    fn decls_changed(&mut self, sym: SymbolId, old_name: Option<&str>) {
-        let s = self.symbol(sym);
-        let (kind, flags) = (s.kind, s.flags);
+    /// Drops the name index of the owner of `sym`, which gained or lost it, and what `decl_changed` drops.
+    fn decls_changed(&mut self, sym: SymbolId) {
+        let s = &self.symbols[sym.0 as usize];
         if let Some(owner) = s.owner {
             self.by_name.remove(&owner);
         }
-        let name = self.types.intern_name(&self.symbols[sym.0 as usize].name);
-        let old = old_name.map_or(name, |n| self.types.intern_name(n));
-        self.decl_changed((kind, flags), &[name, old]);
+        let name = self.types.intern_name(&s.name);
+        self.decl_changed(sym, name);
     }
 
     /// Drops the resolved references, and the erased methods unless `ErasureMemo::changed_by`
-    /// keeps them for a declaration of kind and flags `decl` named `names`; starts a new
-    /// generation.
-    fn decl_changed(&mut self, decl: (Kind, Flags), names: &[crate::NameId]) {
-        if self.erased_methods.changed_by(decl, names) {
+    /// keeps them for declaration `sym` named `name`; starts a new generation.
+    fn decl_changed(&mut self, sym: SymbolId, name: crate::NameId) {
+        if self.erased_methods.changed_by(&self.symbols[sym.0 as usize], name) {
             self.erased_methods.clear();
         }
         self.resolved.clear();
@@ -120,6 +117,7 @@ impl Universe {
     pub fn set_target(&mut self, sym: SymbolId, target: &str) {
         self.symbols[sym.0 as usize].target = Some(target.to_owned());
         self.targeted.extend(self.symbols[sym.0 as usize].owner);
+        self.erased_methods.clear();
     }
 
     /// Determines whether `owner` may declare a symbol with a run-time name (`target`).
@@ -141,19 +139,6 @@ impl Universe {
         self.with_inits.insert(c);
     }
 
-    /// Records that an annotation of class `class` annotates `sym`, a symbol defined outside TASTy.
-    pub fn annotate(&mut self, sym: SymbolId, class: SymbolId) {
-        let classes = self.annotations.entry(sym).or_default();
-        if !classes.contains(&class) {
-            classes.push(class);
-        }
-    }
-
-    /// The annotation classes recorded for `sym`, a symbol defined outside TASTy, in order.
-    pub fn annotations(&self, sym: SymbolId) -> &[SymbolId] {
-        self.annotations.get(&sym).map_or(&[], Vec::as_slice)
-    }
-
     /// Whether `sym` is a method or value defined outside TASTy without a body; `false` for
     /// the library's symbols, whose bodies `body` gives.
     pub fn is_deferred(&self, sym: SymbolId) -> bool {
@@ -164,7 +149,7 @@ impl Universe {
     pub fn unenter(&mut self, sym: SymbolId) {
         if let Some(owner) = self.symbol(sym).owner {
             self.symbols[owner.0 as usize].decls.retain(|&d| d != sym);
-            self.decls_changed(sym, None);
+            self.decls_changed(sym);
         }
     }
 
@@ -175,21 +160,23 @@ impl Universe {
         if self.symbols[sym.0 as usize].target.is_some() {
             self.targeted.insert(owner);
         }
+        self.changed();
     }
 
     /// Enters `sym`, a symbol defined outside TASTy, into its owner's declarations.
     pub fn enter(&mut self, sym: SymbolId) {
         if let Some(owner) = self.symbol(sym).owner {
             self.symbols[owner.0 as usize].decls.push(sym);
-            self.decls_changed(sym, None);
+            self.decls_changed(sym);
         }
     }
 
     /// Renames `sym`.
     pub fn rename(&mut self, sym: SymbolId, name: &str) {
-        let old = std::mem::replace(&mut self.symbols[sym.0 as usize].name, name.to_owned());
-        if self.symbol(sym).owner.is_some() {
-            self.decls_changed(sym, Some(&old));
+        self.symbols[sym.0 as usize].name = name.to_owned();
+        if let Some(owner) = self.symbol(sym).owner {
+            self.by_name.remove(&owner);
+            self.changed();
         }
     }
 
