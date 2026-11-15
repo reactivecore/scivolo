@@ -353,6 +353,23 @@ fn a_tuple_class_of_the_unit_extends_its_generic_tuple() {
 }
 
 #[test]
+fn an_alias_of_the_unit_a_library_class_refers_to_is_completed() {
+    let package = "package object scala { type Iterator[+A] = scala.collection.Iterator[A] }\n";
+    let user = "package scala.collection\nobject Use { def s(it: Iterator[Int]) = \
+                new convert.impl.IntIteratorStepper(it) }\n";
+    let sources = written("aliasunit", &[("use.scala", user), ("package.scala", package)]);
+    let out = root().join("tmp/jvm-test/aliasunit-out");
+    let _ = std::fs::remove_dir_all(&out);
+    let run = Command::new(env!("CARGO_BIN_EXE_scivolo-jvm"))
+        .args(["--scalalib", "-d"])
+        .arg(&out)
+        .args(&sources)
+        .output()
+        .expect("running scivolo-jvm");
+    assert!(run.status.success(), "{}", String::from_utf8_lossy(&run.stderr));
+}
+
+#[test]
 fn a_class_extending_a_namesake_with_statements_of_another_file_compiles() {
     let sources = written(
         "localdummyunit",
