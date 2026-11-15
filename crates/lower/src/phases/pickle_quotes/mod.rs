@@ -150,6 +150,7 @@ fn pickled(
     let (base, unit) = files[file.unwrap_or(own)];
     let mut source = QuoteSource::of(files[own].1.tasty_path().to_owned(), unit, base);
     source.others = files.iter().filter(|&&(b, _)| b != base).map(|&(b, f)| (f, b)).collect();
+    source.compact_annotations = l.compact_annotations.get(file.unwrap_or(own)).is_none_or(|&c| c);
     let bytes = pickle_positioned_quote((l.u, l.tpd, l.names), root, holes, &source)
         .or_else(|r| unsupported(span, format!("quotes with {r}")))?;
     strings::pickled(l, &bytes).or_else(|()| unsupported(span, "quotes whose TASTy takes several strings"))

@@ -114,7 +114,11 @@ pub fn compile_attributed<R>(
         Err(Fallback::Errors(diags)) => return Err(type_errors(&diags, &sources)),
     };
     let located = Sources::new(files).map_err(|e| whole(refused(e)))?;
-    let sources = (sources, cfg);
+    let cfgs: Vec<Config> = match units.is_empty() {
+        true => vec![cfg],
+        false => units.iter().map(|unit| unit.cfg).collect(),
+    };
+    let sources = (sources, cfgs.as_slice());
     let pickles = std::mem::take(&mut typed.pickles);
     let mut in_backend = false;
     let generate = |l: &mut crate::Lower, root| generate(l, root, pickles).inspect_err(|_| in_backend = true);

@@ -77,24 +77,27 @@ fn trees_and_flags(bytes: &[u8]) -> (Vec<u8>, Vec<u8>, Vec<u8>) {
     (section("ASTs"), section("Positions"), flags.collect())
 }
 
-/// The trees, positions and flag attributes of tests/jvm/tastylib/captures.scala's `Break`,
-/// whose field `label: Label[T]^{}` keeps its capture set, are dotty's
-/// (tests/jvm/tastylib/captures-Break.tasty, whose source path is absolute).
+/// The trees, positions and flag attributes of the `Break` of tests/jvm/tastylib/captures.scala
+/// and of captures38.scala, whose field `label: Label[T]^{}` keeps its capture set as a type and,
+/// under source 3.8, as `new retains[Nothing]()`, are dotty's (`<name>-Break.tasty` beside them).
 #[test]
 fn a_class_parameter_field_keeps_its_capture_set() {
-    let out = root().join("tmp/jvm-test/captures");
-    let _ = std::fs::remove_dir_all(&out);
-    let run = Command::new(env!("CARGO_BIN_EXE_scivolo-jvm"))
-        .current_dir(root())
-        .arg("-d")
-        .arg(&out)
-        .arg("tests/jvm/tastylib/captures.scala")
-        .output()
-        .expect("running scivolo-jvm");
-    assert!(run.status.success(), "{}", String::from_utf8_lossy(&run.stderr));
-    let ours = std::fs::read(out.join("Break.tasty")).expect("Break.tasty");
-    let theirs = std::fs::read(root().join("tests/jvm/tastylib/captures-Break.tasty")).expect("dotty's");
-    assert!(trees_and_flags(&ours) == trees_and_flags(&theirs), "Break.tasty differs from dotty's");
+    for name in ["captures", "captures38"] {
+        let out = root().join("tmp/jvm-test").join(name);
+        let _ = std::fs::remove_dir_all(&out);
+        let run = Command::new(env!("CARGO_BIN_EXE_scivolo-jvm"))
+            .current_dir(root())
+            .arg("-d")
+            .arg(&out)
+            .arg(format!("tests/jvm/tastylib/{name}.scala"))
+            .output()
+            .expect("running scivolo-jvm");
+        assert!(run.status.success(), "{}", String::from_utf8_lossy(&run.stderr));
+        let ours = std::fs::read(out.join("Break.tasty")).expect("Break.tasty");
+        let theirs = std::fs::read(root().join(format!("tests/jvm/tastylib/{name}-Break.tasty")));
+        let same = trees_and_flags(&ours) == trees_and_flags(&theirs.expect("dotty's"));
+        assert!(same, "{name}'s Break.tasty differs from dotty's");
+    }
 }
 
 /// scala-cli 3.9.0 compiles tests/jvm/tastylib/user.scala against the jar, and the result runs
