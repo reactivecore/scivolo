@@ -104,8 +104,7 @@ impl TreePickler<'_> {
         let Some(q) = self.u.access_qualifier(sym) else { return Ok(flags) };
         self.byte(if flags.has(PROTECTED) { PROTECTEDqualified } else { PRIVATEqualified });
         if self.u.symbol(q).kind == Kind::Package {
-            self.byte(TYPEREFpkg);
-            self.package_name(q);
+            self.package_type_ref(q);
         } else {
             let class = type_ref(self.u, q);
             self.ty(class, false)?;
