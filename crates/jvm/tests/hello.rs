@@ -241,6 +241,10 @@ fn refuses(name: &str, code: &str, message: &str) {
 
 #[test]
 fn a_jdk_method_s_signature_erases_a_type_parameter_to_its_bound() {
+    if Command::new("java").arg("-version").output().is_err() {
+        eprintln!("no java on the PATH: skipped");
+        return;
+    }
     let source = root().join("tmp/jvm-test/boundsig.scala");
     std::fs::create_dir_all(source.parent().expect("a directory")).expect("tmp/jvm-test");
     let code = "object Boundsig { def d = classOf[String].getAnnotation(classOf[Deprecated]) }";
