@@ -16,5 +16,6 @@ object Types {
     def paramName: binder.ThisName = binder.paramNames(paramNum)
     type BT <: Lambda
     def paramNum: Int
+    def lambda: Lambda = binder
   }
 }

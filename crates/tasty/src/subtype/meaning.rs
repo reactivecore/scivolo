@@ -57,6 +57,11 @@ pub fn meaning(u: &mut Universe, s: SymbolId, prefix: Option<TypeId>) -> Meaning
             if let Some(alias) = prefix.filter(|_| member).and_then(|p| u.overriding_alias(p, s)) {
                 return Meaning::Alias(alias);
             }
+            if let Some(info) = prefix.filter(|_| member).and_then(|p| u.overriding_bounds(p, s))
+                && let Type::Bounds(lo, hi) = *u.ty(info)
+            {
+                return Meaning::Abstract(lo, hi);
+            }
             if let Some((lo, hi)) = u.opaque_bounds(s) {
                 return Meaning::Abstract(seen(u, lo), seen(u, hi));
             }
