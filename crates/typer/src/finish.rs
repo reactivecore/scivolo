@@ -133,13 +133,14 @@ impl Units {
     }
 
     /// Pickles the top-level classes of typed source files `files` into `out` if `tasty_sources`
-    /// is set; a refusal at each file refused, none at a file that has an error type of another
-    /// file's type errors.
+    /// is set; a refusal at each file refused, none for an error type while another file is
+    /// refused or has type errors.
     fn pickle_files(&mut self, typer: &mut Typer, files: &[TNodeId], out: &mut Vec<Pickled>) {
         let Some(sources) = &self.tasty_sources else { return };
+        let others_fail = typer.diags.has_errors() || !self.refused.is_empty();
         for &f in files {
             match pickle_one(typer, sources, f, out) {
-                Err((_, ERROR_TYPE)) if typer.diags.has_errors() => {}
+                Err((_, ERROR_TYPE)) if others_fail => {}
                 Err((at, what)) => self.refused.push((at, format!("pickling {what} into TASTy"))),
                 Ok(()) => {}
             }
