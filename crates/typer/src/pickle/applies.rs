@@ -2,12 +2,13 @@
 //   compiler/src/dotty/tools/dotc/core/tasty/TreePickler.scala
 //! Applications in the shape of dotty's trees (the `Apply` case of `pickleTree`): a
 //! parameterless method without an empty application, the constructor of a generic class
-//! with its type arguments, a Java annotation's without its omitted arguments.
+//! with its type arguments, a Java annotation's without its omitted arguments, a signature
+//! polymorphic call with its method type.
 
 use super::{Refusal, TreePickler};
 use crate::tpd::{List, TNodeId, Tree as T};
 use names::nme;
-use tasty::tags::{APPLY, TYPEAPPLY};
+use tasty::tags::{APPLY, APPLYsigpoly, TYPEAPPLY};
 use tasty::{Kind, Type, TypeId};
 
 impl TreePickler<'_> {
@@ -20,6 +21,18 @@ impl TreePickler<'_> {
                 self.tpd.items(args).iter().copied().filter(|&a| !self.is_default_placeholder(a)).collect();
             return self.with_length(APPLY, &mut |p| {
                 p.tree(fun)?;
+                args.iter().try_for_each(|&a| p.tree(a))
+            });
+        }
+        if let Some(instance) =
+            self.tpd.sym(fun).filter(|&s| self.u.original_signature_polymorphic(s).is_some())
+        {
+            let info = self.u.info(instance);
+            let args = self.tpd.items(args).to_vec();
+            return self.with_length(APPLYsigpoly, &mut |p| {
+                p.tree(fun)?;
+                let at = p.buf.buf.current_addr();
+                p.new_type(info, true, at)?;
                 args.iter().try_for_each(|&a| p.tree(a))
             });
         }

@@ -185,6 +185,11 @@ fn jdk_classes_javalib_lacks_run_on_the_jvm() {
 }
 
 #[test]
+fn signature_polymorphic_calls_run_on_the_jvm() {
+    runs_on_the_jvm("sigpoly", "Sigpoly");
+}
+
+#[test]
 fn jdk_members_under_explicit_nulls_run_on_the_jvm() {
     runs_on_the_jvm("explicitnulls", "Explicitnulls");
 }
@@ -422,7 +427,7 @@ fn a_refused_file_refuses_the_unit() {
 }
 
 #[test]
-fn a_signature_polymorphic_method_is_refused() {
-    let code = "object R { def f = java.lang.invoke.MethodHandles.identity(classOf[String]).invoke(\"a\") }";
-    refuses("refusedpolymorphic", code, "member not found");
+fn a_cast_signature_polymorphic_call_is_refused() {
+    let code = "object R { def f = java.lang.invoke.MethodHandles.identity(classOf[String]).invoke(\"a\").asInstanceOf[String] }";
+    refuses("refusedpolymorphic", code, "cast of a signature polymorphic call");
 }

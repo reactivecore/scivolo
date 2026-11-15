@@ -4,6 +4,7 @@ use super::super::{Kind, SymbolId, Universe};
 use super::class::method_type;
 use super::descriptor_erasure;
 use super::javalib::library_owners;
+use super::signature_polymorphic::is_signature_polymorphic;
 use super::signatures::Sig;
 use crate::tags::OBJECT;
 use crate::types::TypeId;
@@ -23,7 +24,8 @@ impl Universe {
 
     /// Selects among members `found` of class `owner` those `jdk_lacks` finds, each member
     /// checked once: methods and values, not objects nor members entered from class files. The
-    /// others take their types from the JDK (`take_jdk_type`).
+    /// others take their types from the JDK (`take_jdk_type`), and are signature polymorphic where
+    /// the JDK's are (javalib's `VarHandle.compareAndSet`).
     pub fn jdk_lacking(&mut self, owner: SymbolId, found: &[SymbolId]) -> Vec<SymbolId> {
         let fresh: Vec<SymbolId> =
             found.iter().copied().filter(|&m| self.jdk_checked.insert(m) && self.is_api_term(m)).collect();
@@ -34,7 +36,12 @@ impl Universe {
         let mut lacking = Vec::new();
         for m in fresh {
             match declaration(self, m, &info) {
-                Some(member) => self.take_jdk_type(m, member, &info),
+                Some(member) => {
+                    self.take_jdk_type(m, member, &info);
+                    if is_signature_polymorphic(self, owner, member) {
+                        self.set_signature_polymorphic(m);
+                    }
+                }
                 None => lacking.push(m),
             }
         }

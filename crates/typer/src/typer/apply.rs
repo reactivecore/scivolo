@@ -61,7 +61,7 @@ impl Typer<'_> {
                 let g = self.inlined_transparent(g, Pt::Fun(proto), fun_ctx).unwrap_or(g);
                 self.with_apply(g, Pt::Fun(proto), fun_ctx)
             }
-            other => other,
+            other => other.and_then(|f| self.signature_polymorphic_call(f, proto)),
         };
         let f = match f {
             Ok(f) if self.is_pending_dynamic(f) => return self.dynamic_apply(id, f, proto, pt, fun_ctx),
