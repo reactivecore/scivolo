@@ -197,6 +197,7 @@ mod summon_from;
 mod supers;
 mod this;
 mod this_calls;
+mod this_constr_calls;
 mod throws_types;
 mod top_level_annotations;
 mod trait_params;

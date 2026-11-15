@@ -74,6 +74,18 @@ impl TreePickler<'_> {
         self.package_name(p);
     }
 
+    /// The type reference of package `p`, a `SHAREDtype` if pickled before.
+    pub fn package_type_ref(&mut self, p: SymbolId) {
+        let key = [&[TYPEREFpkg][..], &p.0.to_le_bytes()].concat();
+        if self.keying {
+            return self.buf.buf.write_bytes(&key);
+        }
+        if !self.is_shared(key) {
+            self.byte(TYPEREFpkg);
+            self.package_name(p);
+        }
+    }
+
     /// Writes a `SHAREDtype` if `key` was pickled before, else records it at the current address.
     fn is_shared(&mut self, key: Vec<u8>) -> bool {
         match self.types.get(&key) {

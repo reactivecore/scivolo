@@ -116,6 +116,11 @@ impl Typer<'_> {
         {
             return self.unsupported(id, "secondary constructor calling a later constructor");
         }
+        if let Some(r) =
+            rhs.filter(|_| self.u.symbol(sym).name == nme::CONSTRUCTOR && self.features.capture_checking())
+        {
+            self.record_param_aliases(sym, r);
+        }
         let flags = self.u.symbol(sym).flags;
         if flags.has(tasty::tags::INLINE) && self.u.symbol(sym).name == nme::CONSTRUCTOR {
             return self.unsupported(id, "inline constructor");
@@ -148,39 +153,6 @@ impl Typer<'_> {
         let span = self.tpd.span(tpt).union(self.tpd.span(rhs)).to_synthetic();
         let tpe = self.tpd.tpe(tpt);
         self.tpd.node(T::Typed { expr: rhs, tpt }, span, Some(tpe), None)
-    }
-
-    /// Whether the self-constructor call in constructor body `tree` of `sym`, if any, calls a
-    /// constructor defined before `sym` (dotty's `checkThisConstrCall`).
-    fn calls_preceding_constructor(&mut self, tree: TNodeId, sym: SymbolId) -> bool {
-        match *self.tpd.tree(tree) {
-            T::Block { stats, expr } => {
-                let first = self.tpd.items(stats).first().copied();
-                first.is_none_or(|s| self.calls_preceding_constructor(s, sym))
-                    && self.calls_preceding_constructor(expr, sym)
-            }
-            T::Apply { .. } => {
-                let callee = self.tpd.meth_part(tree);
-                let this_call = matches!(*self.tpd.tree(callee), T::Select { qualifier, .. }
-                    if matches!(self.tpd.tree(qualifier), T::This { .. }));
-                let Some(target) =
-                    self.tpd.sym(callee).filter(|&s| this_call && self.u.symbol(s).name == nme::CONSTRUCTOR)
-                else {
-                    return true;
-                };
-                let primary =
-                    self.u.symbol(target).owner.and_then(|c| self.syms.primary_ctors.get(&c).copied());
-                if primary == Some(target) {
-                    return true;
-                }
-                let start = |t: &Self, s| t.syms.def_trees.get(&s).map(|&d| t.ast.span(d).start());
-                match (start(self, sym), start(self, target)) {
-                    (Some(own), Some(called)) => own > called || self.tpd.span(tree).is_synthetic(),
-                    _ => true,
-                }
-            }
-            _ => true,
-        }
     }
 
     /// The parameter clauses of method definition `id`.

@@ -20,6 +20,7 @@ mod sharing;
 mod signed_names;
 mod super_accessor_defs;
 mod super_accessors;
+mod super_param_aliases;
 mod templates;
 mod trees;
 mod types;
@@ -27,6 +28,7 @@ mod unit;
 mod variances;
 
 pub use quote_source::QuoteSource;
+pub use super_param_aliases::super_param_aliases;
 pub use unit::{FileAttributes, Pickled, pickle_file};
 
 use super_accessors::Accessors;

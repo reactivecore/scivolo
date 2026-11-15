@@ -21,7 +21,8 @@ impl Desugar<'_> {
     ) -> (NodeId, Vec<NodeId>) {
         let own: Vec<Vec<NodeId>> =
             self.clauses_of(ddef).iter().map(|&l| self.ast.items(l).to_vec()).collect();
-        let joined = self.join_params(tparams, &own);
+        let tparams = self.fresh_type_params(tparams);
+        let joined = self.join_params(&tparams, &own);
         let ddef = self.with_clauses(ddef, &joined);
         let evidence: Vec<NodeId> = self
             .evidence_params(constr1)
