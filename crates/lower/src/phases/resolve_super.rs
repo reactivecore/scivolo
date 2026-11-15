@@ -65,24 +65,23 @@ fn implementation(l: &mut Lower, class: SymbolId, acc: SymbolId, span: Span) -> 
         let fun = l.select(sup, target, span);
         l.apply(fun, args, result, span)
     })?;
-    own_type_params(l, sym, &[acc, member]);
+    own_type_params(l, sym, acc);
     Ok(def)
 }
 
-/// New type parameters of `sym` for those of its type, in which references to those of each of
-/// `methods` of as many type parameters become references to them.
-fn own_type_params(l: &mut Lower, sym: SymbolId, methods: &[SymbolId]) {
+/// New type parameters of `sym` for those of its type, in which references to those of `acc`
+/// become references to them.
+fn own_type_params(l: &mut Lower, sym: SymbolId, acc: SymbolId) {
     let info = l.u.info(sym);
     let (fresh, _) = super::super_accessors::type_params(l, sym, info);
-    let olds: Vec<Vec<SymbolId>> =
-        methods.iter().map(|&m| l.u.type_params(m)).filter(|old| old.len() == fresh.len()).collect();
-    if olds.is_empty() {
+    let old = l.u.type_params(acc);
+    if old.len() != fresh.len() {
         return;
     }
     let refs: Vec<TypeId> = fresh.iter().map(|&t| l.u.intern_type(Type::Sym(None, t))).collect();
     let info = l.u.map_type(info, &mut |u, t| {
         let s = u.sym_of(t)?;
-        olds.iter().find_map(|old| old.iter().position(|&p| p == s)).map(|i| refs[i])
+        old.iter().position(|&p| p == s).map(|i| refs[i])
     });
     l.u.set_info(sym, info);
 }
@@ -113,7 +112,7 @@ fn library_implementation(l: &mut Lower, class: SymbolId, acc: SymbolId, span: S
         l.u.set_target(sym, t);
     }
     l.u.set_info(sym, info);
-    own_type_params(l, sym, &[acc]);
+    own_type_params(l, sym, acc);
     Ok(l.forwarding_def(sym, span, |l, args, result| {
         let sup = l.super_mix(class, owner, span);
         let fun = l.select(sup, target, span);
