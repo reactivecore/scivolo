@@ -96,6 +96,29 @@ fn erased_methods_follow_changed_infos() {
 }
 
 #[test]
+fn erasures_of_classes_follow_renamed_and_retargeted_owners() {
+    let mut u = Universe::empty();
+    let root = u.root();
+    let p = u.define(symbol("p", Kind::Package, root));
+    let outer = u.define(symbol("Outer", Kind::Class, p));
+    let inner = u.define(symbol("Inner", Kind::Class, outer));
+    let c = u.define(symbol("C", Kind::Class, root));
+    let m = u.define(symbol("m", Kind::Def, c));
+    let inner_t = sym_type(&mut u, inner);
+    u.set_info(m, inner_t);
+    let erased = |u: &mut Universe| (u.erase(inner_t), u.erased_method(m).1);
+    let expected = |name: &str| (Erased::Class(name.into()), Erased::Class(name.into()));
+
+    assert_eq!(erased(&mut u), expected("p.Outer$Inner"));
+    u.rename(outer, "Shell");
+    assert_eq!(erased(&mut u), expected("p.Shell$Inner"));
+    u.set_target(outer, "Target");
+    assert_eq!(erased(&mut u), expected("p.Target$Inner"));
+    u.set_owner(inner, root);
+    assert_eq!(erased(&mut u), expected("Inner"));
+}
+
+#[test]
 fn renamed_and_unentered_members_resolve_no_more() {
     let mut u = Universe::empty();
     let root = u.root();
