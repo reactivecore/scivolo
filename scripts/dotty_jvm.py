@@ -1,7 +1,9 @@
 """dotty's tests/run through the Rust frontend and the JVM backend, run on `java -Xverify:all`.
 
 Writes jvm-report.md and jvm-results.tsv under tmp/dotty/<versions> (another directory DIR of
-dotty's tests: jvm-report-DIR.md, jvm-results-DIR.tsv). Earlier compilation groups are compiled
+dotty's tests: jvm-report-DIR.md, jvm-results-DIR.tsv; with a directory LIBS of library jars, the
+last group is typed and run against its scala-library jar, into jvm-report[-DIR]-library.md and
+jvm-results[-DIR]-library.tsv). Earlier compilation groups are compiled
 by scala-cli for the JVM; the last group by scivolo-jvm, which sees their TASTy and, for a macro
 call, runs the macro in the VM over their Scala Native build (ADR 0112).
 `scripts/DottyRun.java` calls `Test.main` through reflection, as dotty's test runner does.
@@ -132,7 +134,8 @@ def one(name, groups, check, reason, dir):
         out, cp = compiled(name, [*groups[:-1], quoted, rest], dir, using_options(groups[-1]))
     if isinstance(out, tuple):
         return out
-    classpath = os.pathsep.join(map(str, [out, *cp, LIBRARY, LAUNCHER]))
+    library = os.path.join(os.environ.get("SCIVOLO_LIBS", LIBRARY.parent), LIBRARY.name)
+    classpath = os.pathsep.join(map(str, [out, *cp, library, LAUNCHER]))
     cmd = ["java", "-Xverify:all", "-Duser.language=en", "-Duser.country=US", "-cp", classpath, "DottyRun"]
     code, stdout, err = run(cmd, TIMEOUT, cwd=out)
     (WORK / "jvm-logs" / out.name).write_text(stdout + "\n--- stderr ---\n" + err)
@@ -160,7 +163,9 @@ def group(detail):
     return re.sub(r"(Location:|for class|method|class|in|field) \S+", r"\1 _", re.sub(r"'[^']*'", "'_'", detail))
 
 
-def jvm(filter_, dir="run"):
+def jvm(filter_, dir="run", libs=""):
+    if libs:
+        os.environ["SCIVOLO_LIBS"] = os.path.abspath(libs)
     (WORK / "jvm-logs").mkdir(parents=True, exist_ok=True)
     code, _, err = run(["javac", "-d", str(LAUNCHER), str(ROOT / "scripts/DottyRun.java")], TIMEOUT)
     if code != 0:
@@ -173,7 +178,7 @@ def jvm(filter_, dir="run"):
         todo.append((name, groups, check, None if reason == "jvm-only api" else reason))
     with concurrent.futures.ThreadPoolExecutor(JOBS) as pool:
         results = list(pool.map(lambda t: one(*t, dir), todo))
-    suffix = "" if dir == "run" else f"-{dir}"
+    suffix = ("" if dir == "run" else f"-{dir}") + ("-library" if libs else "")
     write(WORK / f"jvm-results{suffix}.tsv", WORK / f"jvm-report{suffix}.md", filter_,
           {t[0]: r for t, r in zip(todo, results)})
 
