@@ -57,6 +57,7 @@ impl Gen<'_, '_> {
             (_, Some(constr)) => self.line(&mut b, constr),
             _ => {}
         }
+        b.code.open_block();
         self.init_var_handles(&mut b, class, &init.handles);
         if let Some(t) = init.statics {
             self.stat(&mut b, t)?;
@@ -72,6 +73,7 @@ impl Gen<'_, '_> {
             self.stat(&mut b, t)?;
         }
         b.code.ret("V");
+        b.code.close_block();
         let code = b.code;
         let access = if moved { ACC_PRIVATE } else { ACC_PUBLIC };
         cf.method(access | ACC_STATIC, nme::STATIC_CONSTRUCTOR, "()V", Some(code));
@@ -97,11 +99,13 @@ impl Gen<'_, '_> {
         let mut b = Body::new(&mut cf.pool, None, 1);
         b.this_class = Some(self.class_name(class));
         let start = b.code.mark();
+        b.code.open_block();
         for &t in &stats[..split] {
             self.stat(&mut b, t)?;
         }
         self.stat(&mut b, expr)?;
         b.code.ret("V");
+        b.code.close_block();
         self.name_this_and_params(&mut b, start, Some(nme::THIS), &[]);
         let code = b.code;
         cf.method(flags, nme::CONSTRUCTOR, &desc, Some(code));

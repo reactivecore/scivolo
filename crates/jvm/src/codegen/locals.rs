@@ -65,7 +65,7 @@ impl Gen<'_, '_> {
         }
     }
 
-    /// Names the receiver in slot 0 `this`, none for a static method, and parameters `params`
+    /// Names the receiver in slot 0 by `this`, none in a static method, and parameters `params`
     /// from `start` to here (dotty's `emitNormalMethodBody`).
     pub fn name_this_and_params(
         &mut self,
