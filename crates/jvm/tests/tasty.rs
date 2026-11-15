@@ -78,7 +78,8 @@ fn trees_and_flags(bytes: &[u8]) -> (Vec<u8>, Vec<u8>, Vec<u8>) {
 }
 
 /// The files of tests/jvm/tastylib and the classes of each whose dotty TASTy lies beside them as
-/// `<file>-<class>.tasty`, compiled with `-sourceroot` at the repository's root.
+/// `<file>-<class>.tasty`, those of `scala.probe` compiled with `-sourceroot` at the repository's
+/// root.
 const DOTTY_TASTY: &[(&str, &[&str])] = &[
     ("captures", &["Break"]),
     ("captures38", &["Break"]),
@@ -89,14 +90,17 @@ const DOTTY_TASTY: &[(&str, &[&str])] = &[
     ),
     ("superaccessorannotations", &["scala/probe/Lengths", "scala/probe/Sizes"]),
     ("inlineaccessors", &["scala/probe/Counter", "scala/probe/Counters"]),
+    ("constructors", &["scala/probe/Base", "scala/probe/Derived"]),
 ];
 
 /// The trees, positions and flag attributes of the classes of `DOTTY_TASTY` are dotty's: the
 /// field `label: Label[T]^{}` of captures.scala keeps its capture set as a type and, under source
 /// 3.8, as `new retains[Nothing]()`; annotated types take the annotation tree of their own
-/// origin in match selectors and patterns, inferred types, super accessors and inline accessors.
+/// origin in match selectors and patterns, inferred types, super accessors and inline accessors;
+/// secondary constructors have their own type parameters and parameters passed on to the
+/// superclass are its parameters' aliases.
 #[test]
-fn annotations_and_capture_sets_pickle_as_dotty_s() {
+fn probes_pickle_as_dotty_s() {
     for &(name, classes) in DOTTY_TASTY {
         let out = root().join("tmp/jvm-test").join(name);
         let _ = std::fs::remove_dir_all(&out);
