@@ -63,7 +63,16 @@ fn a_super_accessor_of_a_capturing_type_refused() {
     let source = root().join("tests/jvm/refused/supercaptures.scala");
     let (_, compiled) = compile("supercaptures", &source);
     let stderr = String::from_utf8_lossy(&compiled.stderr);
-    let refusal = "does not support pickling an annotated type of a generic annotation class";
+    let refusal = "does not support pickling an annotated type of a capture set that refers to other";
+    assert!(!compiled.status.success() && stderr.contains(refusal), "{stderr}");
+}
+
+#[test]
+fn a_class_parameter_field_capturing_another_parameter_refused() {
+    let source = root().join("tests/jvm/refused/fieldcaptures.scala");
+    let (_, compiled) = compile("fieldcaptures", &source);
+    let stderr = String::from_utf8_lossy(&compiled.stderr);
+    let refusal = "does not support pickling a synthetic type tree of a capture set";
     assert!(!compiled.status.success() && stderr.contains(refusal), "{stderr}");
 }
 

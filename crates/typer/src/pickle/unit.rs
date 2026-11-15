@@ -17,6 +17,8 @@ use tasty::{Kind, SymbolId, Universe};
 
 const SCALA2STANDARDLIBRARY: u8 = 1;
 const EXPLICITNULLS: u8 = 2;
+const CAPTURECHECKED: u8 = 3;
+const WITHPUREFUNS: u8 = 4;
 const SOURCEFILE: u8 = 129;
 
 /// The attributes of a file's TASTy (dotty's `Attributes`).
@@ -24,6 +26,10 @@ const SOURCEFILE: u8 = 129;
 pub struct FileAttributes {
     pub scala2: bool,
     pub explicit_nulls: bool,
+    /// The file's language features, its global language imports among them.
+    pub features: syntax::config::Features,
+    /// Whether the source version keeps capture-set annotations as types.
+    pub compact_annotations: bool,
 }
 
 /// A top-level class, the TASTy of it and its companion, and the super accessors it declares.
@@ -182,7 +188,12 @@ impl TreePickler<'_> {
         self.pickler.set_section(comments, Vec::new());
         let section = self.pickler.new_section("Attributes");
         let mut buf = tasty::write::Buffer::default();
-        let flags = [(attributes.scala2, SCALA2STANDARDLIBRARY), (attributes.explicit_nulls, EXPLICITNULLS)];
+        let flags = [
+            (attributes.scala2, SCALA2STANDARDLIBRARY),
+            (attributes.explicit_nulls, EXPLICITNULLS),
+            (attributes.features.capture_checking(), CAPTURECHECKED),
+            (attributes.features.pure_functions(), WITHPUREFUNS),
+        ];
         flags.iter().filter(|(on, _)| *on).for_each(|&(_, tag)| buf.write_byte(tag));
         let source = self.pickler.names.utf8(source);
         buf.write_byte(SOURCEFILE);

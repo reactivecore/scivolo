@@ -324,8 +324,11 @@ Results:
   about otherwise, and checks no other `future` rule.
 - **Capture checking:** typed as dotty's typer types it (`ImpureFunctionN`, `@retains` trees);
   types drop `@retains`, `@retainsCap` and `@retainsByName` as unpickled ones do (case 1: the
-  annotations are not refining and erase away), and the capture checker, which runs after the
-  typer and leaves the NIR unchanged, is not run (#168). dotty pickles quotes before the capture
+  annotations are not refining and erase away). TASTy keeps a capture set of static definitions
+  in the field of a class parameter, as dotty a type `retains[C]` or below source 3.9
+  `new retains[C]()`, and refuses one of other references there and in pickled types; other
+  inferred and synthetic type trees drop it (e.g. `_1` of a case class). The capture checker,
+  which runs after the typer and leaves the NIR unchanged, is not run (#168). dotty pickles quotes before the capture
   checker, so their TASTy is the typer's: ours as dotty's, with the inferred type arguments of
   inline methods annotated `@caps.internal.inferred` (`PostTyper.markInferred`). Since the
   dropped annotations would be in the quote's inferred types, a quote is refused in a file that

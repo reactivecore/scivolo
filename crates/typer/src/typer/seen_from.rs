@@ -103,14 +103,10 @@ pub fn class_param_arg(u: &mut tasty::Universe, t: TypeId) -> Option<TypeId> {
 /// `t` with applied type lambdas and applied aliases of type lambdas reduced, and capture-checking
 /// annotations dropped, as `Typer::normalized`.
 pub fn normalized(u: &mut tasty::Universe, t: TypeId) -> TypeId {
-    let retains = |u: &mut tasty::Universe, a| {
-        u.class_symbol(a)
-            .is_some_and(|c| member_of(u, c, "scala.annotation", |n| n.starts_with(names::nme::RETAINS)))
-    };
     let mut again = false;
     let out = u.map_type(t, &mut |u, part| {
         if let Some((inner, a)) = u.annotated(part)
-            && retains(u, a)
+            && is_retains_like(u, a)
         {
             return Some(inner);
         }
@@ -127,7 +123,7 @@ pub fn normalized(u: &mut tasty::Universe, t: TypeId) -> TypeId {
                 for &a in &args {
                     u.map_type(a, &mut |u, x| {
                         if let Some((_, an)) = u.annotated(x) {
-                            annotated |= retains(u, an);
+                            annotated |= is_retains_like(u, an);
                         }
                         None
                     });
@@ -175,6 +171,13 @@ pub fn normalized(u: &mut tasty::Universe, t: TypeId) -> TypeId {
         Some(u.subst(result, binder, &names, &args))
     });
     if again { normalized(u, out) } else { out }
+}
+
+/// Whether annotation class type `a` is capture checking's `retains`, `retainsByName` or
+/// `retainsCap` (dotty's `isRetainsLike`).
+pub fn is_retains_like(u: &mut tasty::Universe, a: TypeId) -> bool {
+    u.class_symbol(a)
+        .is_some_and(|c| member_of(u, c, "scala.annotation", |n| n.starts_with(names::nme::RETAINS)))
 }
 
 /// Whether `s` is a member of package `pkg` whose name `name` accepts.

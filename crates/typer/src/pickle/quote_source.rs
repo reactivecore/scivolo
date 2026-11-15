@@ -14,6 +14,8 @@ pub struct QuoteSource<'a> {
     pub file: Option<(&'a SourceFile, Offset)>,
     /// The other source files of the quote's unit, each at its offset among the sources.
     pub others: Vec<(&'a SourceFile, Offset)>,
+    /// Whether the source version of the quote's file keeps capture-set annotations as types.
+    pub compact_annotations: bool,
     /// The offset after each non-ASCII character of `file`, with the bytes its text up to there
     /// has beyond its UTF-16 units.
     non_ascii: Vec<(Offset, u32)>,
@@ -30,12 +32,21 @@ impl<'a> QuoteSource<'a> {
                 ((i + c.len_utf8()) as Offset, excess)
             })
             .collect();
-        QuoteSource { path, line_sizes, file: Some((file, base)), others: Vec::new(), non_ascii }
+        let others = Vec::new();
+        QuoteSource {
+            path,
+            line_sizes,
+            file: Some((file, base)),
+            others,
+            compact_annotations: true,
+            non_ascii,
+        }
     }
 
     /// The source of a quote read from TASTy, its path `path` and the sizes of its lines.
     pub fn of_tasty(path: String, line_sizes: Vec<u32>) -> QuoteSource<'a> {
-        QuoteSource { path, line_sizes, file: None, others: Vec::new(), non_ascii: Vec::new() }
+        let (others, non_ascii) = (Vec::new(), Vec::new());
+        QuoteSource { path, line_sizes, file: None, others, compact_annotations: true, non_ascii }
     }
 
     /// The path of the file of the unit that `span` starts in, if it starts in one.

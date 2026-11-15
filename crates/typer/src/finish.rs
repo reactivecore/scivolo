@@ -160,8 +160,12 @@ fn pickle_one(
     let Some((file, base)) = sources.get(index) else {
         return Err((at, "a file without its source"));
     };
-    let scala2 = typer.file_cfgs.get(index).map_or(typer.scala2, |c| c.source_version.is_scala2());
-    let attributes = FileAttributes { scala2, explicit_nulls: typer.explicit_nulls };
+    let cfg = typer.file_cfgs.get(index);
+    let scala2 = cfg.map_or(typer.scala2, |c| c.source_version.is_scala2());
+    let compact_annotations = cfg.map_or(!scala2, |c| c.source_version.enables_compact_annotation());
+    let features = cfg.map_or(typer.features, |c| c.features);
+    let attributes =
+        FileAttributes { scala2, explicit_nulls: typer.explicit_nulls, features, compact_annotations };
     let mut source = QuoteSource::of(file.tasty_path().to_owned(), file, *base);
     source.others = sources.iter().filter(|(_, b)| b != base).map(|(f, b)| (f, *b)).collect();
     let annotations = typer.with_child_annotations(f).map_err(|r| (at, r))?;
