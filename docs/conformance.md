@@ -482,13 +482,12 @@ own 35 files have no scala-cli oracle (Scala 3.9 reports cyclic references in `A
 | clib | 21 of 21 | 114 | | 1 |
 | posixlib | 67 of 67 | 270 | | |
 | windowslib | 34 | 130 | | |
-| scalalib | 647 of 649 | 4,317 | 17 | 13 |
+| scalalib | 649 of 649 | 4,379 | 17 | 13 |
 
 clib, posixlib and scalalib pass Scala Native's unit tests on our jars (`just lib-jar-report`).
 `unsafe/package{,$}` in nativelib differ only as a joint compilation with `UnsafePackageCompat`
 does; `UnsafePackageCompat` differs in the positions of its inline accessors (the template's
-end, Scala Native's build: the inline method's). scalalib's `IterableOnce` and `StringOps` are
-refused: named or default arguments of a repeated method, or wrong arity.
+end, Scala Native's build: the inline method's).
 
 `just lib-compile scalalib` lowers each file of Scala Native's scalalib alone against Scala's
 library, its `LazyVals` replaced by Scala Native's (`scripts/scalalib_sources.py`). As in Scala
