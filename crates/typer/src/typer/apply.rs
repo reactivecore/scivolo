@@ -112,7 +112,7 @@ impl Typer<'_> {
             self.arg_name(a).is_some_and(|n| names.last().is_some_and(|&l| self.u.name(l) == n))
         });
         let unnamed = &arg_ids[..arg_ids.len() - usize::from(named_seq)];
-        let aligned = match self.aligned_args(unnamed, &params, repeated.is_some()) {
+        let aligned = match self.aligned_args(unnamed, &params, repeated.and(names.last().copied())) {
             Ok(aligned) => aligned,
             Err(what) => return self.unsupported(id, what),
         };

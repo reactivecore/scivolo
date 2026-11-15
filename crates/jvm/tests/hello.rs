@@ -190,6 +190,11 @@ fn classes_implementing_java_annotations_run_on_the_jvm() {
 }
 
 #[test]
+fn named_arguments_of_repeated_methods_run_on_the_jvm() {
+    runs_on_the_jvm("namedvarargs", "Namedvarargs");
+}
+
+#[test]
 fn signature_polymorphic_calls_run_on_the_jvm() {
     runs_on_the_jvm("sigpoly", "Sigpoly");
 }
