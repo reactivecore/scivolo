@@ -1,23 +1,28 @@
 //! Symbols defined outside TASTy (a script's), what completes them, binders for their types.
 
 use super::{FileId, Flags, Kind, Symbol, SymbolId, Universe};
-use crate::Erased;
 use crate::types::{Binder, TypeId};
 
 impl Universe {
     /// Enters `s` into its owner; `s.tree` is `None` for a symbol without TASTy.
     /// Resolved references are dropped when an owner already looked up by name gets a name new
-    /// to it, a class member or a symbol without TASTy.
+    /// to it, a class member or a symbol without TASTy; the erased methods then too unless
+    /// `ErasureMemo::changed_by` keeps them.
     pub fn define(&mut self, s: Symbol) -> SymbolId {
         let id = SymbolId(self.symbols.len() as u32);
         if let Some(o) = s.owner {
             self.symbols[o.0 as usize].decls.push(id);
             if let Some(index) = self.by_name.get_mut(&o) {
-                let named = index.entry(self.types.intern_name(&s.name)).or_default();
+                let name = self.types.intern_name(&s.name);
+                let named = index.entry(name).or_default();
                 let new_name = named.is_empty();
                 named.push(id);
                 if new_name || s.tree.is_none() || self.symbols[o.0 as usize].kind == Kind::Class {
-                    self.changed();
+                    if self.erased_methods.changed_by(&s, name) {
+                        self.erased_methods.clear();
+                    }
+                    self.resolved.clear();
+                    self.generation += 1;
                 }
             }
         }
@@ -50,24 +55,6 @@ impl Universe {
     /// How many binders `fresh_binder` has made.
     pub fn binders_made(&self) -> u32 {
         self.binders
-    }
-
-    /// The erased parameters and result of method `def` remembered since the last change, with
-    /// value classes semi-erased if `semi`.
-    pub fn erased_memo(&self, def: SymbolId, semi: bool) -> Option<&(Vec<Erased>, Erased)> {
-        self.erased_methods.get(&(def, semi))
-    }
-
-    /// Remembers `erased` as `erased_memo`'s answer if the generation is still `generation`.
-    pub fn remember_erased(
-        &mut self,
-        (def, semi): (SymbolId, bool),
-        generation: u64,
-        erased: &(Vec<Erased>, Erased),
-    ) {
-        if self.generation == generation {
-            self.erased_methods.insert((def, semi), erased.clone());
-        }
     }
 
     /// Sets the declared type of `sym`; replacing a different info drops the resolved references.

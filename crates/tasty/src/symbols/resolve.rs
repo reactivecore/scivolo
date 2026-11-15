@@ -12,6 +12,9 @@ impl Universe {
     /// The symbol the `TypeRef` or `TermRef` `t` refers to, remembered once found.
     pub fn resolve_ref(&mut self, t: TypeId) -> Option<SymbolId> {
         if let Some(&s) = self.resolved.get(&t) {
+            if self.erased_methods.is_erasing() {
+                self.looked_up_path(t);
+            }
             return Some(s);
         }
         let s = match *self.types.get(t) {
@@ -21,6 +24,15 @@ impl Universe {
         };
         self.resolved.insert(t, s);
         Some(s)
+    }
+
+    /// Records the names of named reference `t` and of the named references of its prefix as
+    /// looked up by an erasure.
+    fn looked_up_path(&mut self, mut t: TypeId) {
+        while let Type::TypeRef(p, n) | Type::TermRef(p, n) = *self.types.get(t) {
+            self.erased_methods.looked_up(n);
+            t = p;
+        }
     }
 
     /// The symbol `prefix.name` refers to, a type symbol if `ty`, else a term symbol; `None` for
