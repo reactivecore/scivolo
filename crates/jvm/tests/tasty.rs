@@ -98,7 +98,7 @@ const DOTTY_TASTY: &[(&str, &[&str])] = &[
 /// 3.8, as `new retains[Nothing]()`; annotated types take the annotation tree of their own
 /// origin in match selectors and patterns, inferred types, super accessors and inline accessors;
 /// secondary constructors have their own type parameters and parameters passed on to the
-/// superclass are its parameters' aliases.
+/// superclass are its parameters' aliases. Needs a JDK (java on the PATH), as dotty's did.
 #[test]
 fn probes_pickle_as_dotty_s() {
     if Command::new("java").arg("-version").output().is_err() {
