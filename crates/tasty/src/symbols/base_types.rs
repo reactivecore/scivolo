@@ -91,7 +91,7 @@ impl Universe {
             let dealiased = match (args.is_empty(), prefix) {
                 (true, Some(p)) if term => self.member_info(p, s),
                 (true, Some(p)) => {
-                    let path = self.is_value_path(p);
+                    let path = self.is_value_path(p) || matches!(self.ty(p), Type::This(_));
                     let refined = if path { self.refinement_info(p, s) } else { None };
                     let refined = refined.or_else(|| self.arg_for_param(p, s));
                     if let Some(refined) = refined.or_else(|| self.overriding_bounds(p, s)) {
