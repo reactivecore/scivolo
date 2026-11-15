@@ -5,7 +5,7 @@
 
 use super::TreePickler;
 use names::{name_kinds, nme};
-use tasty::tags::{OBJECT, PARAMsetter, TERMREFpkg};
+use tasty::tags::{OBJECT, PARAMsetter, SYNTHETIC, TERMREFpkg};
 use tasty::write::Name;
 use tasty::{Kind, SymbolId, Universe};
 
@@ -14,8 +14,41 @@ pub fn sym_name(u: &Universe, s: SymbolId) -> Name {
     let sym = u.symbol(s);
     match sym.name.strip_suffix('$') {
         Some(n) if sym.kind == Kind::Class && sym.flags.has(OBJECT) => Name::ObjectClass(utf8(n)),
-        _ => Name::utf8(&sym.name),
+        _ => inline_accessor_name(u, s).unwrap_or_else(|| Name::utf8(&sym.name)),
     }
+}
+
+/// The separator of dotty's `UniqueInlineName`, of an accessor that passes its receiver.
+const UNIQUE_INLINE: &str = "$i";
+
+/// Determines the name of `s` if it is an inline accessor: `inline$m`, `inline$m$iN` or, in an
+/// extensible class, `p$C$$inline$m`, as dotty's `InlineAccessorName` of a simple,
+/// `UniqueInlineName` or `ExpandedName` (`accessorNameOf`).
+pub fn inline_accessor_name(u: &Universe, s: SymbolId) -> Option<Name> {
+    let sym = u.symbol(s);
+    if sym.kind != Kind::Def || !sym.flags.has(SYNTHETIC) {
+        return None;
+    }
+    let owner = sym.owner?;
+    let expanded = format!("{}{}", u.expanded_prefix(owner), name_kinds::EXPAND_SEPARATOR);
+    let (prefix, name) = match sym.name.strip_prefix(&expanded) {
+        Some(rest) => (Some(owner), rest),
+        None => (None, sym.name.as_str()),
+    };
+    let base = name.strip_prefix(name_kinds::INLINE_PREFIX)?;
+    let digits = base.trim_end_matches(|c: char| c.is_ascii_digit());
+    let unique = (digits.len() < base.len() && !base[digits.len()..].starts_with('0'))
+        .then(|| Some((digits.strip_suffix(UNIQUE_INLINE)?, base[digits.len()..].parse().ok()?)))
+        .flatten();
+    let inner = match unique {
+        Some((under, num)) => Name::Unique { under: utf8(under), sep: UNIQUE_INLINE.to_owned(), num },
+        None => Name::utf8(base),
+    };
+    let inner = match prefix {
+        Some(o) => Name::Expanded(Box::new(expanded_prefix_name(u, o)), Box::new(inner)),
+        None => inner,
+    };
+    Some(Name::InlineAccessor(Box::new(inner)))
 }
 
 /// The separators of dotty's unique name kinds, longest first.
@@ -160,7 +193,7 @@ mod tests {
     use super::{
         derived_name, expanded_prefix_name, local_name, package_name, param_name, qualified, sym_name, utf8,
     };
-    use tasty::tags::OBJECT;
+    use tasty::tags::{OBJECT, SYNTHETIC};
     use tasty::write::Name;
     use tasty::{Flags, Kind, Symbol, SymbolId, Universe};
 
@@ -247,5 +280,20 @@ mod tests {
         assert_eq!(local_name(&u, getter), Name::DefaultGetter(utf8("m"), 0));
         assert_eq!(local_name(&u, synthetic), Name::utf8("x$1"));
         assert_eq!(local_name(&u, fresh), unique("x", "$", 1));
+
+        let synthetic_def = |u: &mut Universe, name: &str, owner: SymbolId| {
+            let s = define(u, name, Kind::Def, owner);
+            u.set_flags(s, Flags::default().with(SYNTHETIC));
+            s
+        };
+        let expanded = synthetic_def(&mut u, "p$q$C$$inline$n_=", c);
+        let passing = synthetic_def(&mut u, "inline$n$i2", o);
+        let written = define(&mut u, "inline$n", Kind::Def, o);
+        let inline = |n: Name| Name::InlineAccessor(Box::new(n));
+        let c_name = prefixed(Name::ExpandPrefix(utf8("p"), utf8("q")), "C");
+        let n_setter = Name::Expanded(Box::new(c_name), utf8("n_="));
+        assert_eq!(sym_name(&u, expanded), inline(n_setter));
+        assert_eq!(sym_name(&u, passing), inline(unique("n", "$i", 2)));
+        assert_eq!(sym_name(&u, written), Name::utf8("inline$n"));
     }
 }

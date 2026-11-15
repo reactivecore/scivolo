@@ -9,10 +9,10 @@ use super::walk::children;
 use crate::Lower;
 use crate::definitions::symbol;
 use crate::symbols::has;
-use names::{name_kinds, nme};
+use names::name_kinds;
 use rustc_hash::FxHashSet;
 use tasty::tags::{FIELDaccessor, MUTABLE, PARAMalias, PARAMsetter, PRIVATE, PRIVATEqualified, STABLE};
-use tasty::{Kind, NameId, SymbolId, Type};
+use tasty::{Kind, SymbolId, Type};
 use typer::tpd::{TNodeId, Template, Tree};
 
 /// A parameter accessor `sym` defined by `stat` of class definition `td`, and the accessor of a
@@ -55,64 +55,11 @@ pub fn param_name<'a>(l: &'a Lower, s: SymbolId) -> &'a str {
     parameter.flatten().unwrap_or(name)
 }
 
-/// The definitions and symbols of the private immutable parameter accessors of class definition
-/// `td` its superclass call passes to the superclass's parameter of the same name (dotty's
-/// `SuperParamAlias`).
+/// The definitions and symbols of the parameter accessors of class definition `td` that alias
+/// its superclass's.
 fn super_param_aliases(l: &mut Lower, td: TNodeId) -> Vec<(TNodeId, SymbolId)> {
-    let Some(Template { parents, body, .. }) = l.tpd.class_template(td) else { return Vec::new() };
-    let Some(&call) = l.tpd.items(parents).first() else { return Vec::new() };
-    let Tree::Apply { fun, args } = *l.tpd.tree(call) else { return Vec::new() };
-    let args = l.tpd.items(args).to_vec();
-    let (mut f, mut clause) = (fun, 0);
-    let ctor = loop {
-        match *l.tpd.tree(f) {
-            Tree::Apply { fun, .. } => (f, clause) = (fun, clause + 1),
-            Tree::TypeApply { fun, .. } => f = fun,
-            _ => break l.tpd.sym(f),
-        }
-    };
-    let Some(ctor) = ctor.filter(|&c| !args.is_empty() && is_primary_constructor(l, c)) else {
-        return Vec::new();
-    };
-    let names = clause_names(l, ctor, clause);
-    let mut out = Vec::new();
-    for &stat in l.tpd.items(body) {
-        let (Tree::ValDef { .. }, Some(sym)) = (l.tpd.tree(stat), l.tpd.sym(stat)) else { continue };
-        if !has(l.u, sym, PRIVATE) || !has(l.u, sym, PARAMsetter) || has(l.u, sym, MUTABLE) {
-            continue;
-        }
-        let info = l.u.info(sym);
-        if l.u.by_name(info).is_some() {
-            continue;
-        }
-        let Some(i) = args.iter().position(|&a| l.tpd.sym(a) == Some(sym)) else { continue };
-        if names.get(i).is_some_and(|&n| l.u.name(n) == l.u.symbol(sym).name) {
-            out.push((stat, sym));
-        }
-    }
-    out
-}
-
-fn is_primary_constructor(l: &mut Lower, ctor: SymbolId) -> bool {
-    let Some(class) = l.u.symbol(ctor).owner else { return false };
-    l.u.decls_named(class, nme::CONSTRUCTOR).first() == Some(&ctor)
-}
-
-/// The parameter names of clause `n` of constructor `ctor`.
-fn clause_names(l: &mut Lower, ctor: SymbolId, n: usize) -> Vec<NameId> {
-    let mut t = l.u.info(ctor);
-    let mut clauses = Vec::new();
-    loop {
-        match *l.u.ty(t) {
-            Type::Poly { result, .. } => t = result,
-            Type::Method { params, result, .. } => {
-                clauses.push(l.u.params_of(params).iter().map(|&(name, _)| name).collect());
-                t = result;
-            }
-            _ => break,
-        }
-    }
-    clauses.into_iter().nth(n).unwrap_or_default()
+    let Some(template) = l.tpd.class_template(td) else { return Vec::new() };
+    typer::pickle::super_param_aliases(l.u, l.tpd, &template)
 }
 
 /// The parameter accessor of the superclass of `sym`'s class that `class` reaches through

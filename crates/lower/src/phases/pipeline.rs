@@ -99,6 +99,9 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
         pure_stats::unit_blocks(l, td);
         bridges::transform(l, td, &deferred)?;
     }
+    for &td in &classes {
+        erasure::class_parents::transform(l, td)?;
+    }
     eval_once::renumber(l, root);
     drop_inlined::unmark_calls(l);
     array_apply::transform(l, &classes)?;

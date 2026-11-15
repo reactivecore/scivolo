@@ -9,6 +9,7 @@ mod applies;
 mod cases;
 mod defs;
 mod kept_annotations;
+mod member_tpts;
 mod names;
 mod packages;
 mod positions;
@@ -20,6 +21,7 @@ mod sharing;
 mod signed_names;
 mod super_accessor_defs;
 mod super_accessors;
+mod super_param_aliases;
 mod templates;
 mod trees;
 mod types;
@@ -27,6 +29,7 @@ mod unit;
 mod variances;
 
 pub use quote_source::QuoteSource;
+pub use super_param_aliases::super_param_aliases;
 pub use unit::{FileAttributes, Pickled, pickle_file};
 
 use super_accessors::Accessors;
@@ -94,6 +97,9 @@ pub struct TreePickler<'a> {
     /// The span of each super accessor's definition, its call's point, and the point of its
     /// member's definition if pickled.
     accessor_spans: FxHashMap<SymbolId, (Span, Span)>,
+    /// The trees of each term parameter and of the result type of each super accessor's member,
+    /// if defined in the unit.
+    accessor_tpts: FxHashMap<SymbolId, Vec<Vec<TNodeId>>>,
     /// The trees pickled that have no node, by the id they are registered under, their spans, and
     /// the node whose position theirs follows if not the node pickled next.
     synthetic: Vec<(u32, Span, Option<TNodeId>)>,
@@ -102,8 +108,12 @@ pub struct TreePickler<'a> {
     /// `Apply` and `New`, and the type tree.
     type_tree: Option<TNodeId>,
     annots: Vec<(u32, u32, TNodeId)>,
-    /// The type trees of the case patterns and pattern variables enclosing the tree pickled now.
-    typed_tpts: Vec<TNodeId>,
+    /// The type trees of the case patterns, typed patterns and pattern variables enclosing the
+    /// tree pickled now, or of the member of the super accessor pickled now, outermost first.
+    typed_tpts: Vec<Vec<TNodeId>>,
+    /// The selector of the match whose case is pickled next, and of the pattern pickled now.
+    scrutinee: Option<TNodeId>,
+    pattern_selector: Option<TNodeId>,
     /// The annotation trees pickled in types, in order (dotty's `typeAnnots`).
     type_annots: Vec<TNodeId>,
     root: TNodeId,
@@ -171,11 +181,14 @@ fn pickle<'a>(
         accessor_names: FxHashMap::default(),
         accessor_targets: FxHashMap::default(),
         accessor_spans: FxHashMap::default(),
+        accessor_tpts: FxHashMap::default(),
         synthetic: Vec::new(),
         accessors: Vec::new(),
         type_tree: None,
         annots: Vec::new(),
         typed_tpts: Vec::new(),
+        scrutinee: None,
+        pattern_selector: None,
         type_annots: Vec::new(),
         root,
         origins: None,

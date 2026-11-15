@@ -1,4 +1,5 @@
-//! Completion of the unit's classes before a base class test or an erasure.
+//! Completion of the unit's classes and type members before a base class test, a conformance
+//! test or an erasure.
 
 use super::Typer;
 use crate::symbols::Completion;
@@ -19,16 +20,17 @@ impl Typer<'_> {
         }
     }
 
-    /// Completes the unit's classes not yet completed, members of packages and classes, whose
-    /// parents a library class may reach, unless a definition is being completed; whether there
-    /// were any.
+    /// Completes the unit's classes and type members not yet completed, members of packages and
+    /// classes, whose parents or aliases a library type may reach, unless a definition is being
+    /// completed; whether there were any.
     pub fn complete_unit_classes(&mut self) -> bool {
         if self.syms.completions.values().any(|c| matches!(c, Completion::Completing(_))) {
             return false;
         }
         let mut pending: Vec<SymbolId> = (self.syms.completions.iter())
             .filter(|&(&s, c)| {
-                matches!(c, Completion::Pending { .. }) && self.u.symbol(s).kind == Kind::Class
+                matches!(c, Completion::Pending { .. })
+                    && matches!(self.u.symbol(s).kind, Kind::Class | Kind::Type)
             })
             .filter(|&(&s, _)| self.u.symbol(s).owner.is_some_and(|o| self.u.symbol(o).kind != Kind::Def))
             .map(|(&s, _)| s)
@@ -62,6 +64,31 @@ impl Typer<'_> {
                 self.complete(value);
             }
         }
+    }
+
+    /// Completes the unit's type members not yet completed that `a` or `b` refer to by name, as
+    /// library types do; whether there were any.
+    pub fn complete_named_type_members(&mut self, a: TypeId, b: TypeId) -> bool {
+        let mut named = Vec::new();
+        for t in [a, b] {
+            self.u.map_type(t, &mut |u, part| {
+                if matches!(u.ty(part), Type::TypeRef(..)) {
+                    named.push(part);
+                }
+                None
+            });
+        }
+        let mut any = false;
+        for part in named {
+            let Some(s) = self.u.resolve_ref(part) else { continue };
+            if self.u.symbol(s).kind == Kind::Type
+                && matches!(self.syms.completions.get(&s), Some(Completion::Pending { .. }))
+            {
+                self.complete(s);
+                any = true;
+            }
+        }
+        any
     }
 
     /// Completes class `c` and the unit's classes among its base classes.

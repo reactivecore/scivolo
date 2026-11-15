@@ -22,8 +22,11 @@ impl TreePickler<'_> {
     pub fn annotated(&mut self, annotated: TypeId, parent: TypeId, annot: TypeId) -> Result<(), Refusal> {
         let several = "an annotated type of several annotation trees";
         let tree = match self.tpt_annotation(annotated) {
-            Some(tree) => Some(tree),
-            None => match self.origin_annotation(annotated, annot) {
+            Some(tree) => Some(tree.ok_or(several)?),
+            None => match self
+                .selector_annotation(annotated)
+                .or_else(|| self.origin_annotation(annotated, annot))
+            {
                 Some(Some(tree))
                     if self.tpd.type_annotation(annotated) == Some(None)
                         && self.has_arguments(tree, annot) =>
@@ -54,12 +57,36 @@ impl TreePickler<'_> {
         })
     }
 
-    /// The annotation tree of the type tree pickled, else of the innermost type tree of the
-    /// enclosing case pattern, whose type is `annotated` and an annotated expression gave.
-    pub fn tpt_annotation(&self, annotated: TypeId) -> Option<TNodeId> {
-        let enclosing = self.typed_tpts.iter().rev().copied();
-        let tpts = self.type_tree.into_iter().chain(enclosing);
-        tpts.filter(|&tpt| self.tpd.tpe(tpt) == annotated).find_map(|tpt| self.annotation_of(tpt))
+    /// The annotation tree of the type tree pickled, else of the type trees of the innermost
+    /// enclosing pattern, case pattern or super accessor's member that have one, whose type is
+    /// `annotated` and an annotated expression gave, or that annotate `annotated`'s parent with its
+    /// annotation class (a capture type tree, typed without its annotation); `Some(None)` if those
+    /// type trees give several annotation trees, one with arguments.
+    pub fn tpt_annotation(&self, annotated: TypeId) -> Option<Option<TNodeId>> {
+        let parts = match *self.u.ty(annotated) {
+            Type::Annotated(parent, class) => Some((parent, class)),
+            _ => None,
+        };
+        let gives = |tpt: TNodeId| {
+            let annotates = match (self.tpd.tree(tpt), parts) {
+                (&Tree::Annotated { arg, annot }, Some((parent, class))) => {
+                    self.tpd.get(arg).tpe == Some(parent) && self.tpd.get(annot).tpe == Some(class)
+                }
+                _ => false,
+            };
+            (self.tpd.tpe(tpt) == annotated || annotates).then(|| self.annotation_of(tpt)).flatten()
+        };
+        if let Some(tree) = self.type_tree.and_then(gives) {
+            return Some(Some(tree));
+        }
+        let class = parts.map_or(annotated, |(_, c)| c);
+        self.typed_tpts.iter().rev().find_map(|layer| {
+            let trees: Vec<TNodeId> = layer.iter().rev().filter_map(|&t| gives(t)).collect();
+            let first = *trees.first()?;
+            let several =
+                trees.iter().any(|&t| t != first) && trees.iter().any(|&t| self.has_arguments(t, class));
+            Some((!several).then_some(first))
+        })
     }
 
     /// The annotation tree of `annotated`, of annotation class `annot` and part of the type of the
@@ -69,6 +96,16 @@ impl TreePickler<'_> {
         let tpt = self.type_tree?;
         let origins = self.origins.get_or_insert_with(|| AnnotationOrigins::new(self.u, self.tpd, self.root));
         let tree = origins.of_type_tree(self.u, self.tpd, tpt, annotated, annot)?;
+        self.keyed_by_place = true;
+        Some(tree)
+    }
+
+    /// The annotation tree of `annotated` in a pattern that the match's selector gives (dotty's
+    /// patterns share the selector's type), `Some(None)` if several may.
+    fn selector_annotation(&mut self, annotated: TypeId) -> Option<Option<TNodeId>> {
+        let selector = self.pattern_selector?;
+        let origins = self.origins.get_or_insert_with(|| AnnotationOrigins::new(self.u, self.tpd, self.root));
+        let tree = origins.of_expr(self.u, self.tpd, selector, annotated)?;
         self.keyed_by_place = true;
         Some(tree)
     }
@@ -87,30 +124,6 @@ impl TreePickler<'_> {
             Tree::Annotated { annot, .. } => Some(annot),
             _ => self.tpd.tpt_annotation(tpt),
         }
-    }
-
-    /// The type trees of the typed patterns in pattern `t`, and the annotated type trees in them.
-    pub fn annotated_tpts(&self, t: TNodeId) -> Vec<TNodeId> {
-        let mut tpts = match *self.tpd.tree(t) {
-            Tree::Typed { tpt, .. } => vec![tpt],
-            Tree::Annotated { .. } => vec![t],
-            _ => Vec::new(),
-        };
-        tpts.extend(self.tpd.children(t).into_iter().flat_map(|c| self.annotated_tpts(c)));
-        tpts
-    }
-
-    /// Pickles `pickle` inside the case pattern or pattern variable of type trees `tpts`.
-    pub fn with_typed_tpts(
-        &mut self,
-        tpts: Vec<TNodeId>,
-        pickle: &mut dyn FnMut(&mut Self) -> Result<(), Refusal>,
-    ) -> Result<(), Refusal> {
-        let depth = self.typed_tpts.len();
-        self.typed_tpts.extend(tpts);
-        let pickled = pickle(self);
-        self.typed_tpts.truncate(depth);
-        pickled
     }
 
     /// Whether class type `class` is capture checking's `caps.internal.inferred`.

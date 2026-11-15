@@ -4,9 +4,10 @@
 //! Class templates (dotty's `Template` case of `pickleTree`, `decomposeTemplateBody`).
 
 use super::names::sym_name;
+use super::super_param_aliases;
 use super::{Refusal, TreePickler};
-use crate::tpd::{TNodeId, Tree as T};
-use tasty::tags::{IDENTtpt, PARAMsetter, QUALTHIS, SELFDEF, SUPER, SYNTHETIC, TEMPLATE};
+use crate::tpd::{TNodeId, Template, Tree as T};
+use tasty::tags::{IDENTtpt, PARAMalias, PARAMsetter, QUALTHIS, SELFDEF, SUPER, SYNTHETIC, TEMPLATE};
 use tasty::write::Name;
 use tasty::{Kind, Type, TypeId};
 
@@ -20,6 +21,11 @@ impl TreePickler<'_> {
         };
         if !matches!(self.defs.get(&sym), Some(Some(_))) {
             self.register_def(sym);
+        }
+        let template = Template { constr, parents, self_, body };
+        for (_, alias) in super_param_aliases(self.u, self.tpd, &template) {
+            let flags = self.u.symbol(alias).flags.with(PARAMalias);
+            self.u.set_flags(alias, flags);
         }
         let (params, rest): (Vec<TNodeId>, Vec<TNodeId>) =
             self.tpd.items(body).iter().partition(|&&s| self.is_class_param(s));

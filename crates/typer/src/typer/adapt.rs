@@ -100,7 +100,10 @@ impl Typer<'_> {
         }
         self.complete_refined_members(tpe, pt);
         let lifts = self.u.opaque_lifts();
-        if self.conforms(tpe, pt) || self.complete_unit_classes() && self.conforms(tpe, pt) {
+        if self.conforms(tpe, pt)
+            || self.complete_unit_classes() && self.conforms(tpe, pt)
+            || self.complete_named_type_members(tpe, pt) && self.conforms(tpe, pt)
+        {
             if self.u.opaque_lifts() != lifts && !self.types().conforms_unlifted(tpe, pt) {
                 let tpt = self.type_tree(pt, span.end_pos(), true);
                 return self.tpd.node(T::Typed { expr: tree, tpt }, span.to_synthetic(), Some(pt), None);
