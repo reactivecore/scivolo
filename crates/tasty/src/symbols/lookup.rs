@@ -142,7 +142,8 @@ impl Universe {
     }
 
     /// Makes the declarations of class `owner` named `name` those of its JDK class file (ADR
-    /// 0118): hides the library's that the JDK lacks, then enters the JDK's where none is left.
+    /// 0118): hides the library's that the JDK lacks, then enters the JDK's where none is left,
+    /// members or else a nested class.
     fn jdk_view(&mut self, owner: SymbolId, name: NameId) {
         let found = self.named(owner, name).to_vec();
         let lacking = self.jdk_lacking(owner, &found);
@@ -152,6 +153,10 @@ impl Universe {
         }
         if lacking.is_empty() {
             self.enter_jdk_members(owner);
+            if self.named(owner, name).is_empty() {
+                let text = self.name(name).to_owned();
+                self.enter_jdk_nested(owner, &text);
+            }
         } else {
             let text = self.name(name).to_owned();
             self.enter_jdk_named(owner, &text);
