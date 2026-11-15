@@ -193,7 +193,7 @@ mod tests {
     use super::{
         derived_name, expanded_prefix_name, local_name, package_name, param_name, qualified, sym_name, utf8,
     };
-    use tasty::tags::OBJECT;
+    use tasty::tags::{OBJECT, SYNTHETIC};
     use tasty::write::Name;
     use tasty::{Flags, Kind, Symbol, SymbolId, Universe};
 
@@ -280,5 +280,20 @@ mod tests {
         assert_eq!(local_name(&u, getter), Name::DefaultGetter(utf8("m"), 0));
         assert_eq!(local_name(&u, synthetic), Name::utf8("x$1"));
         assert_eq!(local_name(&u, fresh), unique("x", "$", 1));
+
+        let synthetic_def = |u: &mut Universe, name: &str, owner: SymbolId| {
+            let s = define(u, name, Kind::Def, owner);
+            u.set_flags(s, Flags::default().with(SYNTHETIC));
+            s
+        };
+        let expanded = synthetic_def(&mut u, "p$q$C$$inline$n_=", c);
+        let passing = synthetic_def(&mut u, "inline$n$i2", o);
+        let written = define(&mut u, "inline$n", Kind::Def, o);
+        let inline = |n: Name| Name::InlineAccessor(Box::new(n));
+        let c_name = prefixed(Name::ExpandPrefix(utf8("p"), utf8("q")), "C");
+        let n_setter = Name::Expanded(Box::new(c_name), utf8("n_="));
+        assert_eq!(sym_name(&u, expanded), inline(n_setter));
+        assert_eq!(sym_name(&u, passing), inline(unique("n", "$i", 2)));
+        assert_eq!(sym_name(&u, written), Name::utf8("inline$n"));
     }
 }

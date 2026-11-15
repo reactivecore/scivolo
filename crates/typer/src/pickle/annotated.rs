@@ -23,7 +23,10 @@ impl TreePickler<'_> {
         let several = "an annotated type of several annotation trees";
         let tree = match self.tpt_annotation(annotated) {
             Some(tree) => Some(tree),
-            None => match self.origin_annotation(annotated, annot) {
+            None => match self
+                .selector_annotation(annotated)
+                .or_else(|| self.origin_annotation(annotated, annot))
+            {
                 Some(Some(tree))
                     if self.tpd.type_annotation(annotated) == Some(None)
                         && self.has_arguments(tree, annot) =>
@@ -69,6 +72,16 @@ impl TreePickler<'_> {
         let tpt = self.type_tree?;
         let origins = self.origins.get_or_insert_with(|| AnnotationOrigins::new(self.u, self.tpd, self.root));
         let tree = origins.of_type_tree(self.u, self.tpd, tpt, annotated, annot)?;
+        self.keyed_by_place = true;
+        Some(tree)
+    }
+
+    /// The annotation tree of `annotated` in a pattern that the match's selector gives (dotty's
+    /// patterns share the selector's type), `Some(None)` if several may.
+    fn selector_annotation(&mut self, annotated: TypeId) -> Option<Option<TNodeId>> {
+        let selector = self.pattern_selector?;
+        let origins = self.origins.get_or_insert_with(|| AnnotationOrigins::new(self.u, self.tpd, self.root));
+        let tree = origins.of_expr(self.u, self.tpd, selector, annotated)?;
         self.keyed_by_place = true;
         Some(tree)
     }

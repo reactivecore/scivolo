@@ -101,8 +101,9 @@ pub struct TreePickler<'a> {
     annots: Vec<(u32, u32, TNodeId)>,
     /// The type trees of the case patterns and pattern variables enclosing the tree pickled now.
     typed_tpts: Vec<TNodeId>,
-    /// The type tree of the ascribed selector of the match whose case is pickled next.
+    /// The selector of the match whose case is pickled next, and of the pattern pickled now.
     scrutinee: Option<TNodeId>,
+    pattern_selector: Option<TNodeId>,
     /// The annotation trees pickled in types, in order (dotty's `typeAnnots`).
     type_annots: Vec<TNodeId>,
     root: TNodeId,
@@ -176,6 +177,7 @@ fn pickle<'a>(
         annots: Vec::new(),
         typed_tpts: Vec::new(),
         scrutinee: None,
+        pattern_selector: None,
         type_annots: Vec::new(),
         root,
         origins: None,

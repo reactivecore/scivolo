@@ -11,10 +11,6 @@ use tasty::tags::*;
 impl TreePickler<'_> {
     pub fn match_(&mut self, selector: Option<TNodeId>, cases: List, kind: MatchKind) -> Result<(), Refusal> {
         let cases = self.tpd.items(cases).to_vec();
-        let scrutinee = selector.and_then(|s| match *self.tpd.tree(s) {
-            Tree::Typed { tpt, .. } => Some(tpt),
-            _ => None,
-        });
         self.with_length(MATCH, &mut |p| {
             match (kind, selector) {
                 (MatchKind::Inline, None) => p.byte(IMPLICIT),
@@ -24,18 +20,26 @@ impl TreePickler<'_> {
             }
             selector.into_iter().try_for_each(|t| p.tree(t))?;
             cases.iter().try_for_each(|&t| {
-                p.scrutinee = scrutinee;
+                p.scrutinee = selector;
                 p.tree(t)
             })
         })
     }
 
-    /// A case, its pattern pickled with the type trees in it and of its match's ascribed selector.
+    /// A case, its pattern pickled with the type trees in it, of its match's ascribed selector,
+    /// and its match's selector.
     pub fn case_def(&mut self, pat: TNodeId, guard: Option<TNodeId>, body: TNodeId) -> Result<(), Refusal> {
-        let mut tpts: Vec<TNodeId> = self.scrutinee.take().into_iter().collect();
+        let selector = self.scrutinee.take();
+        let mut tpts: Vec<TNodeId> = (selector.map(|s| self.tpd.tree(s)))
+            .and_then(|t| if let Tree::Typed { tpt, .. } = *t { Some(tpt) } else { None })
+            .into_iter()
+            .collect();
         tpts.extend(self.annotated_tpts(pat));
         self.with_length(CASEDEF, &mut |p| {
-            p.with_typed_tpts(tpts.clone(), &mut |p| p.tree(pat))?;
+            let outer = std::mem::replace(&mut p.pattern_selector, selector);
+            let pickled = p.with_typed_tpts(tpts.clone(), &mut |p| p.tree(pat));
+            p.pattern_selector = outer;
+            pickled?;
             [Some(body), guard].into_iter().flatten().try_for_each(|t| p.tree(t))
         })
     }
