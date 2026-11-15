@@ -240,6 +240,18 @@ fn refuses(name: &str, code: &str, message: &str) {
 }
 
 #[test]
+fn a_jdk_method_s_signature_erases_a_type_parameter_to_its_bound() {
+    let source = root().join("tmp/jvm-test/boundsig.scala");
+    std::fs::create_dir_all(source.parent().expect("a directory")).expect("tmp/jvm-test");
+    let code = "object Boundsig { def d = classOf[String].getAnnotation(classOf[Deprecated]) }";
+    std::fs::write(&source, code).expect("writing");
+    let (out, compiled) = compile("boundsig", &source);
+    assert!(compiled.status.success(), "{}", String::from_utf8_lossy(&compiled.stderr));
+    let tasty = std::fs::read(out.join("Boundsig.tasty")).expect("Boundsig.tasty");
+    assert!(tasty.windows(b"Annotation".len()).any(|w| w == b"Annotation"), "a signature of `Annotation`");
+}
+
+#[test]
 fn a_definition_the_tasty_pickler_lacks_is_refused() {
     let code = "class tag extends scala.annotation.StaticAnnotation\n\
                 trait B { def f: Int @tag = 1; def g: Int @tag = 2; def h(b: Boolean) = if b then f else g }";
