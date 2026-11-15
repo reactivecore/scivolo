@@ -5,5 +5,5 @@ object Namedvarargs:
   def main(args: Array[String]): Unit =
     println(f(a = 1, xs = "x", "y", "z"))
     println(f(1, xs = "x", "y"))
-    println(f(a = 2))
+    println(f(a = 2).trim)
     println(g(first = "a", rest = "b", "c"))
