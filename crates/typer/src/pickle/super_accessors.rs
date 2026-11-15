@@ -5,6 +5,7 @@
 //! (`transformSuperSelect`, `superAccessorCall`): in a trait without `M`, or in a class nested in
 //! `C`; declared without a body, each call a selection of its accessor on `C.this`.
 
+use super::member_tpts::member_tpts;
 use super::names::expanded_prefix_name;
 use super::super_accessor_defs::accessor_info;
 use super::{Refusal, TreePickler};
@@ -160,13 +161,16 @@ impl TreePickler<'_> {
             Name::SuperAccessor(Box::new(unexpanded))
         };
         self.accessor_names.insert(acc, tasty_name(self.u, &original));
+        let def = (0..self.tpd.len())
+            .map(TNodeId::new)
+            .find(|&t| matches!(self.tpd.tree(t), T::DefDef { .. }) && self.tpd.sym(t) == Some(*member));
         let mut defined = Span::NONE;
         if let Some(t) = self.u.symbol(*member).target.clone() {
             self.accessor_targets.insert(acc, tasty_name(self.u, &t));
-            let def = (0..self.tpd.len())
-                .map(TNodeId::new)
-                .find(|&t| matches!(self.tpd.tree(t), T::DefDef { .. }) && self.tpd.sym(t) == Some(*member));
             defined = def.map_or(Span::NONE, |d| Span::at(self.tpd.span(d).point()));
+        }
+        if let Some(tpts) = def.and_then(|d| member_tpts(self.tpd, d)) {
+            self.accessor_tpts.insert(acc, tpts);
         }
         self.accessor_spans.insert(acc, (Span::at(self.tpd.span(sel).point()), defined));
         self.accessors.push((class, name));

@@ -109,7 +109,7 @@ impl MakeInlineable {
             t.unsupported_at(span, "inline accessor in a class whose body is typed already");
             return None;
         }
-        let def = passing_def(t, name, access, receiver, span)?;
+        let def = passing_def(t, host, name, access, receiver, span)?;
         let actx = Ctx { owner: host, ..self.ctx };
         t.index(&[def], actx);
         let sym = t.syms.by_tree[&def];

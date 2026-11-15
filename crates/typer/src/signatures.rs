@@ -39,8 +39,9 @@ pub fn params_sig(u: &mut Universe, s: SymbolId) -> Vec<String> {
     }
 }
 
-/// The result part of the signature of method `s`, a constructor's its class or a value class's
-/// underlying type, `None` if `s` is not a method (dotty's `Signature.NotAMethod`).
+/// The result part of the signature of method `s`, a constructor's its class (`Product` for
+/// `*:`, dotty's `erasePair`) or a value class's underlying type, `None` if `s` is not a method
+/// (dotty's `Signature.NotAMethod`).
 pub fn result_sig(u: &mut Universe, s: SymbolId) -> Option<String> {
     let mut t = u.info(s);
     let mut method = false;
@@ -57,8 +58,12 @@ pub fn result_sig(u: &mut Universe, s: SymbolId) -> Option<String> {
     }
     if u.is_constructor(s) {
         let c = u.symbol(s).owner?;
+        let name = full_name(u, c);
+        if name == crate::defn::PAIR {
+            return Some(crate::defn::PRODUCT.into());
+        }
         if u.underlying(c).is_none() {
-            return Some(full_name(u, c));
+            return Some(name);
         }
         t = type_ref(u, c);
     } else {

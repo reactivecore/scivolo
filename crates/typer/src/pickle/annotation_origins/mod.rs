@@ -99,6 +99,12 @@ impl AnnotationOrigins {
         }
     }
 
+    /// The annotation tree of `annotated` that expression `expr` gives, `Some(None)` if several
+    /// may (a match selector's, for the types of its patterns).
+    pub fn of_expr(&self, u: &Universe, tpd: &Tpd, expr: TNodeId, annotated: TypeId) -> Found {
+        self.of_rhs(&Query { u, tpd, annotated }, expr, MAX_HOPS)
+    }
+
     /// The tree type tree `tpt` gives `q.annotated`, the whole of its type or a part: an
     /// annotated type tree of that type, else the one annotated type tree of that type in its
     /// span; of an inferred type tree, a flow-typing cast's, an eta-expanded parameter's or an

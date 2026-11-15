@@ -195,6 +195,7 @@ mod structural;
 mod structural_calls;
 mod summon_from;
 mod supers;
+mod synthetic_parents;
 mod this;
 mod this_calls;
 mod throws_types;
