@@ -17,3 +17,5 @@ import java.util.Arrays
   println(Point(3, 1).color.compareTo(Circle.Color.BLUE))
   println(Circle.Color.valueOf("GREEN"))
   println(c.compareTo(built))
+  println(s"${Circle.NEGATED} ${Circle.SIZES} ${Circle.NONE} ${Circle.first[Integer, Integer](1, 2)}")
+  println(classOf[Point].getAnnotation(classOf[Tag]).value())

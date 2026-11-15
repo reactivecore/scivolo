@@ -1,6 +1,6 @@
 package mixed
 
-case class Point(x: Int, y: Int):
+@Tag case class Point(x: Int, y: Int):
   def show: String = s"($x, $y)"
   def color: Circle.Color = if x > y then Circle.Color.RED else Circle.Color.GREEN
 

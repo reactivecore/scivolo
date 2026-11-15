@@ -18,7 +18,7 @@ impl Typer<'_> {
     /// Records that `id` is outside the subset if a lookup since `before`
     /// (`Universe::refused_lookups`) found a refused class (a jar's Scala 2 class file, which
     /// dotty would read, or a Java source's class the reader refuses): an error tree in its place.
-    pub fn scala2_refusal(&mut self, id: NodeId, before: usize) -> Option<TNodeId> {
+    pub fn lookup_refusal(&mut self, id: NodeId, before: usize) -> Option<TNodeId> {
         if self.u.refused_lookups() == before {
             return None;
         }

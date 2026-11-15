@@ -9,6 +9,8 @@ public class Circle implements Shape {
     public static final long BIG = -9_000_000_000L;
     public static final char LETTER = 'c';
     public static final String GREETING = "hi\tthere";
+    public static final int NEGATED = -'a';
+    public static final java.util.Map<String, Integer> SIZES = new java.util.HashMap<String, Integer>(), NONE = null;
     private static int created = FIRST;
     protected final double radius;
 
@@ -28,6 +30,8 @@ public class Circle implements Shape {
     public static int created() { return created; }
 
     public <T extends Comparable<T>> T max(T a, T b) { return a.compareTo(b) >= 0 ? a : b; }
+
+    public static <T extends U, U extends Number> T first(T t, U u) { return t; }
 
     public static String join(String sep, String... parts) { return String.join(sep, parts); }
 

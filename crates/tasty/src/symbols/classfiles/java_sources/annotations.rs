@@ -21,8 +21,8 @@ impl Parser {
         Ok(())
     }
 
-    /// Reads an annotation: its name and the enum constants among its arguments, `X.C` or `C`
-    /// alone as an element's value.
+    /// Reads an annotation: its name and the enum constants among its arguments, a name `p.X.C`
+    /// or `C` alone as an element's value.
     pub fn annotation(&mut self) -> Result<Annotation, String> {
         self.expect("@")?;
         let name = self.qualified()?;
@@ -56,11 +56,11 @@ impl Parser {
         Ok(Annotation { name, enum_elements })
     }
 
-    /// The last name of the tokens from `start` to the cursor if they are `X.C` or `C`.
+    /// The last name of the tokens from `start` to the cursor if they are a name `p.X.C` or `C`.
     fn enum_constant(&self, start: usize) -> Option<&Token> {
         let value = &self.tokens[start..self.at];
         let names = value.iter().step_by(2).all(|t| matches!(t, Token::Ident(_)));
         let dots = value.iter().skip(1).step_by(2).all(|t| *t == Token::Op("."));
-        (value.len() % 2 == 1 && value.len() <= 3 && names && dots).then(|| &value[value.len() - 1])
+        (value.len() % 2 == 1 && names && dots).then(|| &value[value.len() - 1])
     }
 }

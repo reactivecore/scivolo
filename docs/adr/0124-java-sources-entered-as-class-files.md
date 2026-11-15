@@ -25,12 +25,21 @@ enters Java classes of jars from their class files on lookup.
   that directory and the classpath on its classpath.
 
 ## Consequences
-- The Java classes get the symbols dotty gives the class files javac writes from the same source
-  (case 2 of CLAUDE.md): flags, statics and types match what dotty reads on a separate compile.
-  Parameter names are `x$0`, … as for class files without `MethodParameters`.
+- dotty enters a Java source from its `JavaParsers` trees (Namer and Typer of a Java unit), not
+  from class files. The class file here is built to give the same symbols: flags, statics in the
+  companion, generic signatures, varargs, enum members, annotation constructors and
+  element defaults. Constants follow dotty's source rule (`tryConstant`: a literal alone, typed
+  `String` or primitive), not javac's `ConstantValue`: `1 + 2` and `"a" + "b"` are read from the
+  field, as dotty does.
+- Differences from dotty's Java units:
+  - Parameter names are `x$0`, …: named arguments to a Java source's method are refused.
+  - Private members are not entered, as for class files: Scala code cannot reach them (case 1).
+  - Annotations of members are dropped, as the class-file reader drops them for jars; in dotty
+    they only give deprecation warnings, and `-Werror` is refused (case 1). Class annotations
+    are kept: the retention of a Java annotation type of the run.
+  - A negated character literal (`-'a'`) is no constant; dotty folds it as `97` (case 3,
+    `docs/conformance.md`).
 - Refused by name: records, sealed classes (`sealed`, `non-sealed`, `permits`), receiver
   parameters, inner classes of generic classes and type arguments of an outer class
   (`Outer<A>.Inner`), hexadecimal floating-point literals, names found nowhere, an output jar
   (`-d x.jar`), and a missing javac.
-- Annotations of members are dropped; those of classes are kept for the retention of annotation
-  types.

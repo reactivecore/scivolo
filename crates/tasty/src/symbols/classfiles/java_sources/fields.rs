@@ -10,34 +10,49 @@ use classfile::{ACC_FINAL, ACC_STATIC, ConstantValue};
 
 impl Parser {
     /// Reads the fields `name, …` of one declaration of type `ty` up to its `;`, a constant
-    /// value for a static final one of a literal (dotty's `fieldDecls`, `varDecl`).
-    pub fn fields(
-        &mut self,
-        class: &mut Class,
-        access: u16,
-        ty: Type,
-        mut name: String,
-    ) -> Result<(), String> {
-        loop {
-            let mut ty = ty.clone();
-            while self.eat("[") {
-                self.expect("]")?;
-                ty = Type::Array(Box::new(ty));
-            }
-            let mut constant = None;
-            if self.eat("=") {
-                if access & (ACC_STATIC | ACC_FINAL) == ACC_STATIC | ACC_FINAL {
-                    constant = literal_constant(self, &ty);
-                }
+    /// value for a static final one of a literal (dotty's `fieldDecls`, `varDecl`). A name after
+    /// a comma is a field only if `=`, `;` or another such name follows it; otherwise the comma
+    /// was inside an initializer (`new HashMap<K, V>()`), which is skipped.
+    pub fn fields(&mut self, class: &mut Class, access: u16, ty: Type, name: String) -> Result<(), String> {
+        self.field(class, access, &ty, name)?;
+        let mut maybe = Vec::new();
+        while self.eat(",") {
+            let Token::Ident(name) = self.peek().clone() else {
+                maybe.clear();
+                self.skip_to_comma_or_semi()?;
+                continue;
+            };
+            self.bump();
+            if self.is("=") || self.is(";") {
+                class.fields.append(&mut maybe);
+                self.field(class, access, &ty, name)?;
+            } else if self.is(",") {
+                maybe.push(Field { access, name, ty: ty.clone(), constant: None });
+            } else {
+                maybe.clear();
                 self.skip_to_comma_or_semi()?;
             }
-            class.fields.push(Field { access, name, ty, constant });
-            if !self.eat(",") {
-                break;
-            }
-            name = self.ident()?;
         }
+        class.fields.append(&mut maybe);
         self.expect(";")
+    }
+
+    /// Reads field `name` of type `ty` from its array brackets to the end of its initializer.
+    fn field(&mut self, class: &mut Class, access: u16, ty: &Type, name: String) -> Result<(), String> {
+        let mut ty = ty.clone();
+        while self.eat("[") {
+            self.expect("]")?;
+            ty = Type::Array(Box::new(ty));
+        }
+        let mut constant = None;
+        if self.eat("=") {
+            if access & (ACC_STATIC | ACC_FINAL) == ACC_STATIC | ACC_FINAL {
+                constant = literal_constant(self, &ty);
+            }
+            self.skip_to_comma_or_semi()?;
+        }
+        class.fields.push(Field { access, name, ty, constant });
+        Ok(())
     }
 }
 

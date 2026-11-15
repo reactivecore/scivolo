@@ -106,18 +106,21 @@ fn inner_classes(at: &Located) -> Vec<InnerClass> {
 
 impl Signatures<'_> {
     /// The generic signature of type parameters `params` (`<T:…>`, empty without any), their
-    /// names put in scope.
+    /// names put in scope with their erasures, that of the first bound, which may name a later
+    /// parameter (`<T extends U, U extends Number>`).
     fn type_params(&mut self, u: &mut Universe, params: &[TypeParam]) -> Result<String, String> {
         if params.is_empty() {
             return Ok(String::new());
         }
         self.scope.vars.extend(params.iter().map(|p| p.name.clone()));
-        for p in params {
-            let erased = match p.bounds.first() {
-                Some(b) => self.ty(u, b)?.1,
-                None => format!("L{OBJECT};"),
-            };
-            self.erased_vars.push((p.name.clone(), erased));
+        let first = self.erased_vars.len();
+        self.erased_vars.extend(params.iter().map(|p| (p.name.clone(), format!("L{OBJECT};"))));
+        for _ in params {
+            for (i, p) in params.iter().enumerate() {
+                if let Some(b) = p.bounds.first() {
+                    self.erased_vars[first + i].1 = self.ty(u, b)?.1;
+                }
+            }
         }
         let mut out = String::from("<");
         for p in params {
