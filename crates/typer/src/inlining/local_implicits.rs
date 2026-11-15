@@ -130,24 +130,21 @@ impl Inlining<'_> {
 
     /// Adds the given and implicit terms `t` defines to `found`.
     pub fn implicit_defs(&self, t: TNodeId, found: &mut Vec<SymbolId>) {
-        if self.is_implicit_def(t)
-            && let Some(s) = self.tpd.sym(t)
-        {
-            found.push(s);
-        }
-        for c in self.tpd.children(t) {
-            self.implicit_defs(c, found);
-        }
-    }
-
-    pub fn implicit_scopes_at(&self, t: TNodeId, call: TNodeId) -> Option<Vec<Vec<SymbolId>>> {
-        implicit_scopes_at(self.tpd, self.u, (t, call))
+        implicit_defs(self.tpd, self.u, t, found);
     }
 }
 
-/// Whether `t` defines a given or implicit value or method.
+/// Adds the given and implicit terms `t` defines to `found`.
+fn implicit_defs(tpd: &Tpd, u: &Universe, t: TNodeId, found: &mut Vec<SymbolId>) {
+    found.extend(tpd.sym(t).filter(|_| is_implicit_def(tpd, u, t)));
+    for c in tpd.children(t) {
+        implicit_defs(tpd, u, c, found);
+    }
+}
+
+/// Whether `t` defines a given or implicit value or method, or binds a given in a pattern.
 pub fn is_implicit_def(tpd: &Tpd, u: &Universe, t: TNodeId) -> bool {
-    let def = matches!(tpd.tree(t), T::ValDef { .. } | T::DefDef { .. });
+    let def = matches!(tpd.tree(t), T::ValDef { .. } | T::DefDef { .. } | T::Bind { .. });
     def && tpd.sym(t).is_some_and(|s| {
         let flags = u.symbol(s).flags;
         flags.has(GIVEN) || flags.has(IMPLICIT)
@@ -156,7 +153,7 @@ pub fn is_implicit_def(tpd: &Tpd, u: &Universe, t: TNodeId) -> bool {
 
 /// Determines the scopes of the given and implicit terms `t` defines in whose scope `call` is,
 /// outermost first: `t` if it defines one, then for each tree containing `call` the terms its
-/// children define; `None` if `t` does not contain `call`.
+/// children define, or a case's pattern binds; `None` if `t` does not contain `call`.
 pub fn implicit_scopes_at(
     tpd: &Tpd,
     u: &Universe,
@@ -186,8 +183,12 @@ fn scopes_within(
     if !children.iter().any(|&c| scopes_within(tpd, u, (c, call), found)) {
         return false;
     }
-    let defined: Vec<SymbolId> =
-        children.into_iter().filter(|&c| is_implicit_def(tpd, u, c)).filter_map(|c| tpd.sym(c)).collect();
+    let mut defined = Vec::new();
+    match *tpd.tree(t) {
+        T::CaseDef { pat, .. } => implicit_defs(tpd, u, pat, &mut defined),
+        _ => defined
+            .extend(children.into_iter().filter(|&c| is_implicit_def(tpd, u, c)).filter_map(|c| tpd.sym(c))),
+    }
     if !defined.is_empty() {
         found.push(defined);
     }

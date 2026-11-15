@@ -24,6 +24,11 @@ const CASES: &[(&str, &str)] = &[
          def g = f }",
         "ambiguous implicit arguments",
     ),
+    (
+        "object O { given o: Show[Int] = null; inline def f(v: Any): Show[Int] = \
+         v match { case given Show[Int] => summonInline[Show[Int]] }; def g = f(1) }",
+        "implicit search in an inline body with local implicits",
+    ),
     ("object O { def g = codeOf(List(1, 2)) }", "codeOf an argument"),
     ("object O { def h(using i: Int) = i; given Int = 3; def g = codeOf(h) }", "codeOf an argument"),
     ("object O { inline def f(x: Int): String = codeOf(x); def g(y: Int) = f(y + 1) }", "codeOf an argument"),
@@ -76,6 +81,12 @@ const LOCAL_GIVENS: &[(&str, &[&str])] = &[
          inline def s[T]: Show[T] = summonInline[Show[T]]; \
          transparent inline def t: Show[List[Int]] = { given x: Show[Int] = null; s[List[Int]] }; def g = t }",
         &["O$.ls#(1,Show)", "O$._$x"],
+    ),
+    (
+        "object O { given o: Show[Int] = null; inline def s[T]: Show[T] = summonInline[Show[T]]; \
+         transparent inline def t(v: Any): Show[Int] = v match { case (_, given Show[Int]) => s[Int] }; \
+         def g = t((1, o)) }",
+        &["O$.s#(1)", "O$._$given_Show_Int"],
     ),
 ];
 

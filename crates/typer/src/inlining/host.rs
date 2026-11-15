@@ -89,7 +89,7 @@ impl Inlining<'_> {
         self.ctx = self.host.call_ctx(call);
         let Some((ctx, around)) = self.typer_ctx.filter(|_| self.ctx.is_none()) else { return };
         self.ctx = Some(ctx);
-        match self.implicit_scopes_at(around, call) {
+        match super::implicit_scopes_at(self.tpd, self.u, (around, call)) {
             Some(scopes) => self.outer_scopes = scopes.into_iter().map(Scope::Implicits).collect(),
             None => {
                 let mut implicits = Vec::new();
