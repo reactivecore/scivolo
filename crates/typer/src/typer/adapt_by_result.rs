@@ -174,7 +174,8 @@ impl Typer<'_> {
 
     /// Whether the result of `alt` after its first parameter clause and its implicit clauses is
     /// compatible with `pt` in `ctx`, through an implicit conversion if `views`, its type
-    /// parameters made type variables; the constraint unchanged; `None` if undecided.
+    /// parameters made type variables, its parameters skolems of their types; the constraint
+    /// unchanged; `None` if undecided.
     pub fn result_conforms(
         &mut self,
         alt: SymbolId,
@@ -195,7 +196,8 @@ impl Typer<'_> {
         }
         let fits = match self.u.method(info).map(|m| (m.binder, m.params.to_vec(), m.result)) {
             Some((binder, params, result)) => {
-                let result = self.params_as_skolems(result, (binder, &params), alt);
+                let (names, formals): (Vec<NameId>, Vec<TypeId>) = params.into_iter().unzip();
+                let result = applied_result(self.u, result, (binder, &names), Some(alt), &formals);
                 match self.proto_normalized((result, Some(alt)), pt, follow, 8) {
                     Some(value) if self.u.is_necessary_subtype_in(value, pt, &mut self.constraint) => {
                         Some(true)
@@ -208,18 +210,5 @@ impl Typer<'_> {
         };
         self.constraint.abandon(before);
         fits
-    }
-
-    /// Result `result` of method `alt` of binder `binder` and parameters `params`, each reference
-    /// to a parameter replaced by a skolem of its type, as dotty's `TermParamRef`s compare.
-    fn params_as_skolems(
-        &mut self,
-        result: TypeId,
-        (binder, params): (Binder, &[(NameId, TypeId)]),
-        alt: SymbolId,
-    ) -> TypeId {
-        let names: Vec<NameId> = params.iter().map(|&(n, _)| n).collect();
-        let formals: Vec<TypeId> = params.iter().map(|&(_, p)| p).collect();
-        applied_result(self.u, result, (binder, &names), Some(alt), &formals)
     }
 }
