@@ -101,6 +101,9 @@ const DOTTY_TASTY: &[(&str, &[&str])] = &[
 /// superclass are its parameters' aliases.
 #[test]
 fn probes_pickle_as_dotty_s() {
+    if Command::new("java").arg("-version").output().is_err() {
+        return;
+    }
     for &(name, classes) in DOTTY_TASTY {
         let out = root().join("tmp/jvm-test").join(name);
         let _ = std::fs::remove_dir_all(&out);
