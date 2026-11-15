@@ -58,11 +58,24 @@ impl TreePickler<'_> {
     }
 
     /// The annotation tree of the type tree pickled, else of the innermost type tree of the
-    /// enclosing case pattern, whose type is `annotated` and an annotated expression gave.
+    /// enclosing case pattern or super accessor's member, whose type is `annotated` and an
+    /// annotated expression gave, or that annotates `annotated`'s parent with its annotation class
+    /// (a capture type tree, typed without its annotation).
     pub fn tpt_annotation(&self, annotated: TypeId) -> Option<TNodeId> {
         let enclosing = self.typed_tpts.iter().rev().copied();
         let tpts = self.type_tree.into_iter().chain(enclosing);
-        tpts.filter(|&tpt| self.tpd.tpe(tpt) == annotated).find_map(|tpt| self.annotation_of(tpt))
+        let parts = match *self.u.ty(annotated) {
+            Type::Annotated(parent, class) => Some((parent, class)),
+            _ => None,
+        };
+        let annotates = |tpt: TNodeId| match (self.tpd.tree(tpt), parts) {
+            (&Tree::Annotated { arg, annot }, Some((parent, class))) => {
+                self.tpd.get(arg).tpe == Some(parent) && self.tpd.get(annot).tpe == Some(class)
+            }
+            _ => false,
+        };
+        tpts.filter(|&tpt| self.tpd.tpe(tpt) == annotated || annotates(tpt))
+            .find_map(|tpt| self.annotation_of(tpt))
     }
 
     /// The annotation tree of `annotated`, of annotation class `annot` and part of the type of the
