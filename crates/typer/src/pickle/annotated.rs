@@ -103,9 +103,13 @@ impl TreePickler<'_> {
     }
 
     /// `new C()` of class type `class`, an annotation without arguments, through its constructor
-    /// of no parameters.
+    /// of no parameters. Refuses a generic class, e.g. capture checking's `retains[T]`, whose
+    /// type arguments the annotated type does not keep.
     pub fn new_annotation(&mut self, class: TypeId) -> Result<(), Refusal> {
         let c = self.u.class_symbol(class).ok_or("an annotation of no class")?;
+        if !self.u.type_params(c).is_empty() {
+            return Err("an annotated type of a generic annotation class without its annotation tree");
+        }
         let ctors = self.u.decls_named(c, nme::CONSTRUCTOR);
         let init = ctors.into_iter().find(|&c| self.u.erased_method(c).0.is_empty());
         let init = init.ok_or("a type annotation without a constructor of no parameters")?;

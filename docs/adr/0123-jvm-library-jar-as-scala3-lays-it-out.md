@@ -21,7 +21,10 @@ compiled by javac. `just jvm-lib-compile` compiles each `.scala` file alone.
   4. the published jar's classes of `.java` sources and its resources.
 - All TASTy files are ours (or the oracle's, for a refused file); none come from the published
   jar.
-- `jar.tsv` lists each entry's origin; the counts are printed.
+- `libs/jar.tsv` lists each entry's origin; the counts are printed and head the report of a run
+  on the jar.
+- The build stops unless the jar has the published jar's entries and each class's `TASTY`
+  attribute is the UUID of its TASTy file.
 - `just dotty-jvm-report "" run tmp/lib-jvm/scalalib/libs` types the last group against our jar
   and runs it on it; earlier groups stay compiled by scala-cli against the published jar. Given
   the jar itself, the last group is typed against the published jar and run on ours, which tells
@@ -31,4 +34,4 @@ compiled by javac. `just jvm-lib-compile` compiles each `.scala` file alone.
 - The jar is equivalent to the published one in which classes are dotty's and which 2.13's, so
   a test that differs between the two names our class files or TASTy, not the layout.
 - A `TASTY` attribute in only one of 2.13's class and ours stops the build, as `patchFile` does.
-- With refused files the jar is not ours alone: the count says how much is dotty's.
+- The jar is not ours alone: the counts say how much is dotty's, Scala 2.13's and javac's.

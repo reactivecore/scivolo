@@ -11,7 +11,8 @@ directory for SCIVOLO_LIBS), laid out as scala3's `scala-library-bootstrapped` j
   class's (`StripScala2Annotations.patchFile`), and its classes dotty does not generate;
 - javac: the published jar's classes of the `.java` sources;
 - resources: the published jar's other entries.
-jar.tsv lists each entry and its origin; prints the counts.
+Stops unless the jar has the published jar's entries and each class's `TASTY` attribute is its
+TASTy file's UUID. libs/jar.tsv lists each entry and its origin; prints the counts.
 """
 import collections
 import sys
@@ -19,10 +20,14 @@ import zipfile
 from pathlib import Path
 
 import jvm_check
+import jvm_lib_oracle
 from jvm_lib_compile import LIBS, ORACLE, WORK, read_tsv, write_tsv
 
 PUBLISHED = LIBS / "scala-library-3.9.0.jar"
 OUT = WORK / "libs"
+MANIFEST = "META-INF/MANIFEST.MF"
+# Beside the jar: each entry and its origin, which `dotty_jvm.py` counts in its report.
+ORIGINS_TSV = "jar.tsv"
 # scala3 3.9.0's project/ScalaLibraryFilesToCopy.scala: classes taken from Scala 2.13 with their
 # nested classes (`NAME$…`).
 FILES_TO_COPY = {
@@ -79,19 +84,44 @@ def generated():
     rows = read_tsv(WORK / "results.tsv")
     if not rows:
         sys.exit("no tmp/lib-jvm/scalalib/results.tsv: run `just jvm-lib-compile scalalib` first")
-    oracle_by_file = collections.defaultdict(list)
-    for p in ORACLE.rglob("*.class"):
-        file = str(p.relative_to(ORACLE).parent / source_file(p.read_bytes()))
-        oracle_by_file[file] += [p, *[t for t in [p.with_suffix(".tasty")] if t.exists()]]
+    oracle_by_file = jvm_lib_oracle.origins(ORACLE, {r[0] for r in rows})
     out = {}
     for file, state, *_ in rows:
         if state in ("same", "code differs", "attributes differ"):
             root = WORK / "out" / file.removesuffix(".scala")
             files, origin = [(p, root) for p in root.rglob("*") if p.suffix in (".class", ".tasty")], "ours"
         else:
-            files, origin = [(p, ORACLE) for p in oracle_by_file[file]], "dotty (refused file)"
+            classes = [ORACLE / c for c in oracle_by_file[file]]
+            files = [(p, ORACLE) for c in classes for p in (c, c.with_suffix(".tasty")) if p.exists()]
+            origin = "dotty (refused file)"
         out |= {str(p.relative_to(r)): (p.read_bytes(), origin) for p, r in files}
     return out
+
+
+def tasty_uuid(t):
+    """The UUID of TASTy file bytes `t`: after the magic, three version numbers and the tooling string."""
+    i = 4
+    for field in range(4):
+        n = 0
+        while t[i] < 0x80:
+            n, i = (n << 7) | t[i], i + 1
+        n, i = (n << 7) | (t[i] & 0x7F), i + 1
+        i += n if field == 3 else 0
+    return t[i:i + 16]
+
+
+def check(jar):
+    """Stops unless `jar` has the published jar's entries and each class's `TASTY` attribute is
+    the UUID of the TASTy file of its name (the class name without a trailing `$`)."""
+    with zipfile.ZipFile(PUBLISHED) as z:
+        published = {n for n in z.namelist() if not n.endswith("/")}
+    if diff := sorted(published ^ (jar.keys() | {MANIFEST})):
+        sys.exit(f"{len(diff)} entries in only one of the published jar and ours, e.g. {diff[:5]}")
+    for name, (b, _) in jar.items():
+        tasty = name.removesuffix(".class").removesuffix("$") + ".tasty"
+        if name.endswith(".class") and (a := attribute(b, "TASTY")) and tasty in jar:
+            if b[a[0]:a[0] + a[1]] != tasty_uuid(jar[tasty][0]):
+                sys.exit(f"{name}: its TASTY attribute is not the UUID of {tasty}")
 
 
 def entries():
@@ -100,7 +130,7 @@ def entries():
     oracle = {str(p.relative_to(ORACLE)) for p in ORACLE.rglob("*.class")}
     with zipfile.ZipFile(PUBLISHED) as z:
         for name in z.namelist():
-            if name.endswith("/") or name.endswith(".tasty") or name == "META-INF/MANIFEST.MF":
+            if name.endswith("/") or name.endswith(".tasty") or name == MANIFEST:
                 continue
             b = z.read(name)
             if not name.endswith(".class"):
@@ -113,21 +143,30 @@ def entries():
     return dict(sorted(out.items()))
 
 
+def shares(jar):
+    """The count of each origin of the entries of library `jar`, from the jar.tsv beside it."""
+    tsv = jar.parent / ORIGINS_TSV
+    if not tsv.exists():
+        return f"origins unknown, no {ORIGINS_TSV} beside it"
+    counts = collections.Counter(l.split("\t")[1] for l in tsv.read_text().splitlines())
+    return f"{sum(counts.values())}: " + ", ".join(f"{counts[o]} {o}" for o in ORIGINS)
+
+
 def write_jar(module):
     if module != "scalalib":
         sys.exit(__doc__)
     jar = entries()
+    check(jar)
     OUT.mkdir(parents=True, exist_ok=True)
     for lib in LIBS.glob("*.jar"):
         if lib.name != PUBLISHED.name and not (OUT / lib.name).exists():
             (OUT / lib.name).symlink_to(lib.resolve())
     with zipfile.ZipFile(OUT / PUBLISHED.name, "w", zipfile.ZIP_DEFLATED) as z:
-        z.writestr("META-INF/MANIFEST.MF", "Manifest-Version: 1.0\r\nScala-Compiler-Version: 3.9.0\r\n\r\n")
+        z.writestr(MANIFEST, "Manifest-Version: 1.0\r\nScala-Compiler-Version: 3.9.0\r\n\r\n")
         for name, (b, _) in jar.items():
             z.writestr(zipfile.ZipInfo(name, (1980, 1, 1, 0, 0, 0)), b, zipfile.ZIP_DEFLATED)
-    write_tsv(WORK / "jar.tsv", [[name, origin] for name, (_, origin) in jar.items()])
-    counts = collections.Counter(origin for _, origin in jar.values())
-    print(f"{OUT / PUBLISHED.name}: {len(jar)} entries: " + ", ".join(f"{counts[o]} {o}" for o in ORIGINS))
+    write_tsv(OUT / ORIGINS_TSV, [[name, origin] for name, (_, origin) in jar.items()])
+    print(f"{OUT / PUBLISHED.name}: entries {shares(OUT / PUBLISHED.name)}")
 
 
 if __name__ == "__main__":

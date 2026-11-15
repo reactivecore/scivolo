@@ -59,6 +59,15 @@ fn several_files_run_on_the_jvm() {
 }
 
 #[test]
+fn a_super_accessor_of_a_capturing_type_refused() {
+    let source = root().join("tests/jvm/refused/supercaptures.scala");
+    let (_, compiled) = compile("supercaptures", &source);
+    let stderr = String::from_utf8_lossy(&compiled.stderr);
+    let refusal = "does not support pickling an annotated type of a generic annotation class";
+    assert!(!compiled.status.success() && stderr.contains(refusal), "{stderr}");
+}
+
+#[test]
 fn a_file_of_a_unit_compiles_as_alone() {
     let dir = root().join("tests/jvm/units");
     let mut sources: Vec<PathBuf> = std::fs::read_dir(&dir)

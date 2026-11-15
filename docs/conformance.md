@@ -435,7 +435,7 @@ published one (ADR 0123): the classes scala3's build takes from Scala 2.13 and j
 the published jar, a refused file's from dotty's run; `just dotty-jvm-report "" run
 tmp/lib-jvm/scalalib/libs` types and runs tests/run against it, `just dotty-jvm-report "" run
 tmp/lib-jvm/scalalib/libs/scala-library-3.9.0.jar` types them against the published jar and runs
-them on ours.
+them on ours. The jar is not ours alone: each report's first line counts its entries by origin.
 
 ### com-lihaoyi libraries from source
 

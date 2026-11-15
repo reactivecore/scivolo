@@ -41,7 +41,7 @@ impl Gen<'_, '_> {
         code.invoke_in(Invoke::Special, true, &mut cf.pool, (&trait_name, &name, desc));
         code.ret(result);
         let static_desc = with_receiver(&trait_name, desc);
-        let flags = (flags & !classfile::ACC_ABSTRACT) | ACC_STATIC;
+        let flags = (flags & !(classfile::ACC_ABSTRACT | classfile::ACC_VARARGS)) | ACC_STATIC;
         let static_name = name_kinds::trait_super_accessor(&name);
         cf.method(flags, &static_name, &static_desc, Some(code), &mut |a, b| self.jvm_lub(a, b));
         self.method_attributes(cf, (m, false), &static_desc, params, (true, true));

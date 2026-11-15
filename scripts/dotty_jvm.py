@@ -13,7 +13,9 @@ import os
 import re
 import shutil
 import sys
+from pathlib import Path
 
+import jvm_lib_jar
 from dotty_sources import ROOT, SCALA, WORK, compile_groups, run, shared, tests, using_options
 
 SCIVOLO_JVM = ROOT / "target/release/scivolo-jvm"
@@ -120,9 +122,9 @@ def java_error(err):
     return re.sub(r'^Exception in thread "\w+" ', "", line).strip()[:160]
 
 
-def one(name, groups, check, reason, dir):
-    """The outcome of test `name` and a detail; a last group whose macro definitions the typer
-    refuses compiles them first, as `scripts/dotty-lower.py` does."""
+def one(name, groups, check, reason, dir, logs):
+    """The outcome of test `name` and a detail, its JVM output written to `logs`; a last group
+    whose macro definitions the typer refuses compiles them first, as `scripts/dotty-lower.py` does."""
     if reason:
         return "skipped", reason
     out, cp = compiled(name, groups, dir)
@@ -135,7 +137,7 @@ def one(name, groups, check, reason, dir):
     classpath = os.pathsep.join(map(str, [out, *cp, os.environ.get("SCIVOLO_RUN_LIBRARY", LIBRARY), LAUNCHER]))
     cmd = ["java", "-Xverify:all", "-Duser.language=en", "-Duser.country=US", "-cp", classpath, "DottyRun"]
     code, stdout, err = run(cmd, TIMEOUT, cwd=out)
-    (WORK / "jvm-logs" / out.name).write_text(stdout + "\n--- stderr ---\n" + err)
+    (logs / out.name).write_text(stdout + "\n--- stderr ---\n" + err)
     return ran(code, stdout, err, check)
 
 
@@ -160,13 +162,26 @@ def group(detail):
     return re.sub(r"(Location:|for class|method|class|in|field) \S+", r"\1 _", re.sub(r"'[^']*'", "'_'", detail))
 
 
-def jvm(filter_, dir="run", libs=""):
+def library(libs):
+    """Sets the library jar of directory `libs` to type and run against, or jar `libs` to only run
+    on; the report's suffix and its line naming the jar and the share of each origin."""
+    if not libs:
+        return "", ""
     run_only = libs.endswith(".jar")
-    if libs:
-        os.environ["SCIVOLO_RUN_LIBRARY"] = os.path.abspath(libs if run_only else os.path.join(libs, LIBRARY.name))
-    if libs and not run_only:
-        os.environ["SCIVOLO_LIBS"] = os.path.abspath(libs)
-    (WORK / "jvm-logs").mkdir(parents=True, exist_ok=True)
+    jar = Path(libs).resolve() / ("" if run_only else LIBRARY.name)
+    os.environ["SCIVOLO_RUN_LIBRARY"] = str(jar)
+    if not run_only:
+        os.environ["SCIVOLO_LIBS"] = str(jar.parent)
+    typed = "typed against the published jar" if run_only else "typed against it"
+    line = f"Run on `{jar}` ({typed}); its entries: {jvm_lib_jar.shares(jar)}.\n\n"
+    return ("-library-run" if run_only else "-library"), line
+
+
+def jvm(filter_, dir="run", libs=""):
+    library_suffix, header = library(libs)
+    suffix = ("" if dir == "run" else f"-{dir}") + library_suffix
+    logs = WORK / f"jvm-logs{library_suffix}"
+    logs.mkdir(parents=True, exist_ok=True)
     code, _, err = run(["javac", "-d", str(LAUNCHER), str(ROOT / "scripts/DottyRun.java")], TIMEOUT)
     if code != 0:
         sys.exit(f"compiling DottyRun.java: {err}")
@@ -177,20 +192,19 @@ def jvm(filter_, dir="run", libs=""):
             name += "-dir"
         todo.append((name, groups, check, None if reason == "jvm-only api" else reason))
     with concurrent.futures.ThreadPoolExecutor(JOBS) as pool:
-        results = list(pool.map(lambda t: one(*t, dir), todo))
-    suffix = ("" if dir == "run" else f"-{dir}") + ("" if not libs else "-library-run" if run_only else "-library")
+        results = list(pool.map(lambda t: one(*t, dir, logs), todo))
     write(WORK / f"jvm-results{suffix}.tsv", WORK / f"jvm-report{suffix}.md", filter_,
-          {t[0]: r for t, r in zip(todo, results)})
+          {t[0]: r for t, r in zip(todo, results)}, header)
 
 
-def write(path, report, filter_, new):
+def write(path, report, filter_, new, header=""):
     """Writes the result rows `new` over those of the last run at `path` when `filter_` names
-    some, and their counts and top groups to `report`."""
+    some, and `header`, their counts and top groups to `report`."""
     old = [l.split("\t") for l in path.read_text().splitlines()] if filter_ and path.exists() else []
     rows = {r[0]: (r[1], r[2]) for r in old} | new
     path.write_text("".join(f"{n}\t{o}\t{d}\n" for n, (o, d) in sorted(rows.items())))
     counts = collections.Counter(o for o, _ in rows.values())
-    md = "| Outcome | Tests |\n|---|---:|\n" + "".join(f"| {o} | {counts[o]} |\n" for o in OUTCOMES)
+    md = header + "| Outcome | Tests |\n|---|---:|\n" +"".join(f"| {o} | {counts[o]} |\n" for o in OUTCOMES)
     md += f"| **total** | **{len(rows)}** |\n"
     for outcome in GROUPED:
         reasons = collections.Counter(group(d) for o, d in rows.values() if o == outcome)
