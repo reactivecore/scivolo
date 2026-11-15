@@ -82,7 +82,8 @@ impl Typer<'_> {
             if matches!(self.tpd.tree(arg), T::NamedArg { .. }) {
                 return arg;
             }
-            let name = TName { name: self.name(&self.u.name(name).to_owned()), is_type: false };
+            let text = self.u.name(name).to_owned();
+            let name = TName { name: self.name(&text), is_type: false };
             let (span, tpe) = (self.tpd.span(arg), self.tpd.get(arg).tpe);
             self.tpd.node(T::NamedArg { name, arg }, span, tpe, None)
         });

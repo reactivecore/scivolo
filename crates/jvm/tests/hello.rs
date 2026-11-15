@@ -354,13 +354,13 @@ fn a_javalib_member_the_jdk_lacks_is_not_found() {
 }
 
 #[test]
-fn a_java_annotation_with_arguments_is_refused() {
+fn a_java_annotation_with_an_argument_that_is_no_constant_is_refused() {
     if Command::new("java").arg("-version").output().is_err() {
         eprintln!("no java on the PATH: skipped");
         return;
     }
-    let code = "class R { @java.beans.Transient(false) def f = 1 }";
-    refuses("refusedannotation", code, "Java annotations with arguments on the JVM");
+    let code = "class R { @java.beans.Transient(sys.props.isEmpty) def f = 1 }";
+    refuses("refusedannotation", code, "Java annotation arguments other than constants");
     let code = "class R { def f(@java.lang.annotation.Documented x: Int) = x }";
     refuses("refusedparamannotation", code, "Java annotations of parameters on the JVM");
 }
