@@ -55,8 +55,10 @@ impl Universe {
     /// Determines whether element `name` of annotation class `class` of a class file has a
     /// default value (dotty's `AnnotationDefaultAnnot`).
     pub fn has_annotation_default(&self, class: SymbolId, name: &str) -> bool {
-        let decls = self.symbol(class).decls.iter();
-        decls.into_iter().any(|&m| self.annotation_defaults.contains(&m) && self.symbol(m).name == name)
+        self.symbol(class)
+            .decls
+            .iter()
+            .any(|&m| self.annotation_defaults.contains(&m) && self.symbol(m).name == name)
     }
 }
 
