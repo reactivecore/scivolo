@@ -74,7 +74,7 @@ impl TreePickler<'_> {
         self.package_name(p);
     }
 
-    /// The type reference of package `p`, a `SHAREDtype` if pickled before.
+    /// Writes the type reference of package `p`, a `SHAREDtype` if pickled before.
     pub fn package_type_ref(&mut self, p: SymbolId) {
         let key = [&[TYPEREFpkg][..], &p.0.to_le_bytes()].concat();
         if self.keying {

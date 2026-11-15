@@ -16,8 +16,8 @@ use tasty::defn::PARAM_ALIAS;
 use tasty::{Kind, SymbolId};
 
 impl Typer<'_> {
-    /// Whether the self-constructor call in constructor body `tree` of `sym`, if any, calls a
-    /// constructor defined before `sym` (dotty's `checkThisConstrCall`).
+    /// Checks whether the self-constructor call in constructor body `tree` of `sym`, if any,
+    /// calls a constructor defined before `sym` (dotty's `checkThisConstrCall`).
     pub fn calls_preceding_constructor(&mut self, tree: TNodeId, sym: SymbolId) -> bool {
         if let T::Block { stats, expr } = *self.tpd.tree(tree) {
             let first = self.tpd.items(stats).first().copied();
