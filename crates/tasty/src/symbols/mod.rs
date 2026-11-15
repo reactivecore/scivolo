@@ -92,6 +92,8 @@ pub struct Universe {
     resolved: FxHashMap<TypeId, SymbolId>,
     generation: u64,
     erased_methods: erasure_memo::ErasureMemo,
+    /// The owners that are or were the owner of a declaration with a run-time name (`target`).
+    targeted: FxHashSet<SymbolId>,
     types: Types,
     /// The declared type of each symbol whose type was asked for.
     infos: FxHashMap<SymbolId, TypeId>,

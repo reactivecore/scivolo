@@ -1,6 +1,6 @@
 //! The erased methods remembered between changes of the universe (ADR 0122).
 
-use super::{Kind, Symbol, SymbolId, Universe};
+use super::{Flags, Kind, SymbolId, Universe};
 use crate::tags::{OBJECT as MODULE, PARAMsetter};
 use crate::{Erased, NameId};
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -34,16 +34,17 @@ impl ErasureMemo {
         self.erasing > 0
     }
 
-    /// Determines whether defining `s`, named `name`, can change a remembered erasure: unless
-    /// `s` is a method or value (not an object, not a class parameter's accessor) whose name no
-    /// remembered erasure looked up.
-    pub fn changed_by(&self, s: &Symbol, name: NameId) -> bool {
-        let term = match s.kind {
+    /// Determines whether a declaration of kind and flags `decl` that is defined, entered,
+    /// unentered or renamed under `names` can change a remembered erasure: unless it is a
+    /// method or value (not an object, not a class parameter's accessor) and no remembered
+    /// erasure looked up one of `names`.
+    pub fn changed_by(&self, (kind, flags): (Kind, Flags), names: &[NameId]) -> bool {
+        let term = match kind {
             Kind::Def => true,
-            Kind::Val => !s.flags.has(MODULE) && !s.flags.has(PARAMsetter),
+            Kind::Val => !flags.has(MODULE) && !flags.has(PARAMsetter),
             _ => false,
         };
-        !term || self.names.contains(&name)
+        !term || names.iter().any(|n| self.names.contains(n))
     }
 }
 
