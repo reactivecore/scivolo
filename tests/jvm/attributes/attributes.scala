@@ -67,6 +67,7 @@ object Attributes:
     println(classOf[ByName[?]].getDeclaredMethods.filter(_.getName.startsWith("loc")).map(_.getGenericReturnType).toList)
     println(Counting.count("a") + Counting.sum(1, 2) + Counting.plain("b"))
     println(List(classOf[Summing], Counting.getClass, Class.forName("Counting")).flatMap(Varargs.show))
+    println(Throws.show(classOf[Throwing]))
 
 class ByName[A](elem: => A):
   class In

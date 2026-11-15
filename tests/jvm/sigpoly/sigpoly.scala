@@ -17,6 +17,8 @@ object Sigpoly:
       val any = neg.invokeExact(foo, 1)
       println(s"unexpected $any")
     catch case _: WrongMethodTypeException => println("object result refused")
+    println(neg.invoke(foo, 5).eq(null))
+    println(neg.invoke(foo, 6).toString)
 
     val ref = new IntRef(1)
     val vh = l.findVarHandle(classOf[IntRef], "elem", classOf[Int])

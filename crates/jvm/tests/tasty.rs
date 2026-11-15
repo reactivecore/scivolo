@@ -77,12 +77,34 @@ fn trees_and_flags(bytes: &[u8]) -> (Vec<u8>, Vec<u8>, Vec<u8>) {
     (section("ASTs"), section("Positions"), flags.collect())
 }
 
-/// The trees, positions and flag attributes of the `Break` of tests/jvm/tastylib/captures.scala
-/// and of captures38.scala, whose field `label: Label[T]^{}` keeps its capture set as a type and,
-/// under source 3.8, as `new retains[Nothing]()`, are dotty's (`<name>-Break.tasty` beside them).
+/// The files of tests/jvm/tastylib and the classes of each whose dotty TASTy lies beside them as
+/// `<file>-<class>.tasty`, those of `scala.probe` compiled with `-sourceroot` at the repository's
+/// root.
+const DOTTY_TASTY: &[(&str, &[&str])] = &[
+    ("captures", &["Break"]),
+    ("captures38", &["Break"]),
+    ("selectorannotations", &["scala/probe/Selectors"]),
+    (
+        "nestedannotations",
+        &["scala/probe/Cell", "scala/probe/Concat", "scala/probe/Ops", "scala/probe/Patterns"],
+    ),
+    ("superaccessorannotations", &["scala/probe/Lengths", "scala/probe/Sizes"]),
+    ("inlineaccessors", &["scala/probe/Counter", "scala/probe/Counters"]),
+    ("constructors", &["scala/probe/Base", "scala/probe/Derived"]),
+];
+
+/// The trees, positions and flag attributes of the classes of `DOTTY_TASTY` are dotty's: the
+/// field `label: Label[T]^{}` of captures.scala keeps its capture set as a type and, under source
+/// 3.8, as `new retains[Nothing]()`; annotated types take the annotation tree of their own
+/// origin in match selectors and patterns, inferred types, super accessors and inline accessors;
+/// secondary constructors have their own type parameters and parameters passed on to the
+/// superclass are its parameters' aliases. Needs a JDK (java on the PATH), as dotty's did.
 #[test]
-fn a_class_parameter_field_keeps_its_capture_set() {
-    for name in ["captures", "captures38"] {
+fn probes_pickle_as_dotty_s() {
+    if Command::new("java").arg("-version").output().is_err() {
+        return;
+    }
+    for &(name, classes) in DOTTY_TASTY {
         let out = root().join("tmp/jvm-test").join(name);
         let _ = std::fs::remove_dir_all(&out);
         let run = Command::new(env!("CARGO_BIN_EXE_scivolo-jvm"))
@@ -93,10 +115,13 @@ fn a_class_parameter_field_keeps_its_capture_set() {
             .output()
             .expect("running scivolo-jvm");
         assert!(run.status.success(), "{}", String::from_utf8_lossy(&run.stderr));
-        let ours = std::fs::read(out.join("Break.tasty")).expect("Break.tasty");
-        let theirs = std::fs::read(root().join(format!("tests/jvm/tastylib/{name}-Break.tasty")));
-        let same = trees_and_flags(&ours) == trees_and_flags(&theirs.expect("dotty's"));
-        assert!(same, "{name}'s Break.tasty differs from dotty's");
+        for class in classes {
+            let ours = std::fs::read(out.join(format!("{class}.tasty"))).expect("our TASTy");
+            let simple = class.rsplit('/').next().expect("a class name");
+            let theirs = std::fs::read(root().join(format!("tests/jvm/tastylib/{name}-{simple}.tasty")));
+            let same = trees_and_flags(&ours) == trees_and_flags(&theirs.expect("dotty's"));
+            assert!(same, "{name}'s {class}.tasty differs from dotty's");
+        }
     }
 }
 
