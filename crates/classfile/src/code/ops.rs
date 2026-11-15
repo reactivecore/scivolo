@@ -136,6 +136,18 @@ impl Code {
         self.op(opcode, &[], -kind.slots());
     }
 
+    pub fn dup(&mut self) {
+        self.op(0x59, &[], 1);
+    }
+
+    pub fn pop(&mut self) {
+        self.op(0x57, &[], -1);
+    }
+
+    pub fn aconst_null(&mut self) {
+        self.op(0x01, &[], 1);
+    }
+
     /// Drops a value of descriptor `desc`.
     pub fn drop_value(&mut self, desc: &str) {
         match Kind::of(desc).slots() {

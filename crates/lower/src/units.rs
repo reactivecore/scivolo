@@ -107,15 +107,18 @@ pub fn compile_attributed<R>(
                 let what = format!("the typer does not support {what}{}", at_point(&sources, at));
                 Attributed { refusal: refused(what), files: file_at(&sources, at) }
             });
-            return Err(attributed.collect());
+            let mut attributed: Vec<Attributed> = attributed.collect();
+            attributed.extend(type_errors(&std::mem::take(&mut typer.errors), &sources));
+            return Err(attributed);
         }
-        Err(Fallback::Errors(diags)) => {
-            let files = error_files(&diags, &sources);
-            return Err(vec![Attributed { refusal: refusal("type errors", &diags, &sources), files }]);
-        }
+        Err(Fallback::Errors(diags)) => return Err(type_errors(&diags, &sources)),
     };
     let located = Sources::new(files).map_err(|e| whole(refused(e)))?;
-    let sources = (sources, cfg);
+    let cfgs: Vec<Config> = match units.is_empty() {
+        true => vec![cfg],
+        false => units.iter().map(|unit| unit.cfg).collect(),
+    };
+    let sources = (sources, cfgs.as_slice());
     let pickles = std::mem::take(&mut typed.pickles);
     let mut in_backend = false;
     let generate = |l: &mut crate::Lower, root| generate(l, root, pickles).inspect_err(|_| in_backend = true);
@@ -133,16 +136,20 @@ pub fn compile_attributed<R>(
     Ok((out, typed.diags))
 }
 
-/// The indices of the files the errors among `diags` are in, none if one of them has no position.
-fn error_files(diags: &Diagnostics, sources: &Sources) -> Vec<usize> {
-    let errors = diags.items.iter().filter(|d| d.level == Level::Error);
-    let Some(mut files) = errors.map(|d| d.offset.map(|o| sources.index(o))).collect::<Option<Vec<_>>>()
-    else {
+/// The refusal for the errors among `diags`, if any, in the files they are in, none if one of them
+/// has no position.
+fn type_errors(diags: &Diagnostics, sources: &Sources) -> Vec<Attributed> {
+    if !diags.has_errors() {
         return Vec::new();
-    };
-    files.sort_unstable();
-    files.dedup();
-    files
+    }
+    let errors = diags.items.iter().filter(|d| d.level == Level::Error);
+    let mut files = errors.map(|d| d.offset.map(|o| sources.index(o))).collect::<Option<Vec<_>>>();
+    if let Some(files) = &mut files {
+        files.sort_unstable();
+        files.dedup();
+    }
+    let files = files.unwrap_or_default();
+    vec![Attributed { refusal: refusal("type errors", diags, sources), files }]
 }
 
 /// The index of the file the point of `at` is in, if it has one in `sources`.

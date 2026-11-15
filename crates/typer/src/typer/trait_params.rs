@@ -138,14 +138,16 @@ impl Typer<'_> {
     }
 
     /// Checks that class `cls`, with parent trees `parents`, calls the constructor of each
-    /// parameterized trait it mixes in (dotty's `traitInits`).
+    /// parameterized trait it mixes in, but a Java annotation, whose parameters have no accessors
+    /// (dotty's `traitInits`).
     pub fn check_trait_inits(&mut self, cls: SymbolId, parents: &[TNodeId], at: Span) {
         if self.u.is_trait(cls) {
             return;
         }
         let called: Vec<Option<SymbolId>> = parents.iter().map(|&p| self.called_class(p)).collect();
         for mixin in self.mixins(cls) {
-            if self.trait_takes_params(mixin) && !called.contains(&Some(mixin)) {
+            let annotation = self.u.classfile_retention(mixin).is_some();
+            if self.trait_takes_params(mixin) && !annotation && !called.contains(&Some(mixin)) {
                 let name = self.u.symbol(mixin).name.clone();
                 let msg = format!(
                     "parameterized trait {name} is indirectly implemented,\nneeds to be implemented directly so that arguments can be passed"

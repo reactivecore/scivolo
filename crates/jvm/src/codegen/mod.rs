@@ -3,6 +3,7 @@
 //! Class files from the lowered trees: a port of dotty's `GenBCode`.
 
 mod access;
+mod annotation_values;
 mod arrays;
 mod body;
 mod callee;
@@ -17,6 +18,7 @@ mod descriptors;
 mod deserialize;
 mod equality;
 mod generic_infos;
+mod inline_info;
 mod java_annotations;
 mod jdk_statics;
 mod labeled;
@@ -36,6 +38,7 @@ mod stash;
 mod switches;
 #[cfg(test)]
 mod tests;
+mod throws;
 mod traits;
 mod tries;
 
@@ -138,6 +141,6 @@ fn java_flags(l: &Lower, s: SymbolId) -> u16 {
     let outer = !class && name_kinds::is_outer(&u.symbol(s).name);
     flags |= if has(ARTIFACT) || outer { ACC_SYNTHETIC } else { 0 };
     flags |= if has(ENUM) { ACC_ENUM } else { 0 };
-    flags |= if l.is_varargs_forwarder(s) { ACC_VARARGS } else { 0 };
+    flags |= if l.is_varargs_forwarder(l.mixed_in_from(s).unwrap_or(s)) { ACC_VARARGS } else { 0 };
     flags | if class && !has(TRAIT) { ACC_SUPER } else { 0 }
 }

@@ -232,8 +232,9 @@ bench-edit-base base file runs="10": release
     python3 scripts/bench_edit.py --base {{ base }} {{ file }} {{ runs }}
 
 # Time scivolo-jvm, scivolo-lower and scalac 3.9.0 (cold, and warm in one JVM) compiling all files
-# of `codebase` (tasty-core, upickle-core, scalalib, javalib or all) as one unit, `runs` times each;
-# tables under tmp/bench-compile. javalib needs `just lib-oracle`.
+# of `codebase` (tasty-core, upickle-core, scalalib, javalib, compiler, compiler-accepted,
+# compiler-half or all) as one unit, `runs` times each; tables under tmp/bench-compile. javalib needs
+# `just lib-oracle`; compiler-accepted and compiler-half a compiler run first.
 bench-compile codebase="all" runs="3": fetch-libs fetch-scala-native
     cargo build -q --release -p scivolo-jvm -p scivolo-lower
     python3 scripts/bench_compile.py '{{ codebase }}' '{{ runs }}'
@@ -329,9 +330,12 @@ dotty-lower-report filter="" dir="run": release
 # Compile the dotty tests (default: all) with scivolo-jvm and run them on `java -Xverify:all`;
 # jvm-report.md and jvm-results.tsv under tmp/dotty. `dir` another directory of dotty's tests
 # (run-macros: `just dotty-macros`), reported in jvm-report-<dir>.md and jvm-results-<dir>.tsv.
-dotty-jvm-report filter="" dir="run":
+# `libs` a directory of library jars (`just jvm-lib-jar`'s tmp/lib-jvm/scalalib/libs): typed and
+# run against its scala-library jar, reported with the suffix `-library`; a jar: only run on it,
+# suffix `-library-run`.
+dotty-jvm-report filter="" dir="run" libs="":
     cargo build -q --release -p scivolo-jvm
-    python3 scripts/dotty-tests.py jvm '{{ filter }}' '{{ dir }}'
+    python3 scripts/dotty-tests.py jvm '{{ filter }}' '{{ dir }}' '{{ libs }}'
 
 # Compile tests/programs (default: all) with scivolo-jvm, run them on `java -Xverify:all` and
 # compare with their `.check`; programs-results.tsv and programs-report.md under tmp/jvm.
@@ -554,6 +558,11 @@ jvm-lib-compile module filter="": fetch-libs
 # Make the last jvm-lib-compile results the baseline later runs list worse files against.
 jvm-lib-baseline module="scalalib":
     cp tmp/lib-jvm/{{ module }}/results.tsv tmp/lib-jvm/{{ module }}/baseline.tsv
+
+# Pack the last full jvm-lib-compile's class files and TASTy into tmp/lib-jvm/<module>/libs as the
+# published scala-library jar is laid out (ADR 0123), for `just dotty-jvm-report "" run <libs>`.
+jvm-lib-jar module="scalalib":
+    python3 scripts/jvm_lib_jar.py '{{ module }}'
 
 # Read the TASTy files of jvm-build through dotty's TASTy inspector and print their trees.
 jvm-inspect file: (jvm-build file)

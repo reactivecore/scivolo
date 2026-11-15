@@ -1,10 +1,13 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/backend/jvm/CodeGen.scala
 //   compiler/src/dotty/tools/backend/jvm/BCodeHelpers.scala
-//! A class file's bytes with the `TASTY` attribute, the UUID of the class's TASTy, and the
-//! `Scala` marker (dotty's `genTastyAndSetAttributes`, `pickleMarkerForeign`).
+//   compiler/src/dotty/tools/backend/jvm/BCodeSkelBuilder.scala
+//! A class file's bytes with the `Scala` marker, the `Scala3InlineInfo` attribute and the
+//! `TASTY` attribute, the UUID of the class's TASTy (dotty's `genTastyAndSetAttributes`,
+//! `pickleMarkerForeign`, `initJClass`).
 
-use classfile::ClassFile;
+use super::inline_info::{SCALA3_INLINE_INFO, empty_inline_info};
+use classfile::{ClassFile, Lub};
 use lower::{Lower, Unsupported};
 use syntax::ast::Span;
 use tasty::SymbolId;
@@ -25,6 +28,15 @@ pub fn check_super_accessors(l: &Lower, pickles: &[Pickled]) -> lower::Result<()
     Ok(())
 }
 
+/// Adds the `Scala` marker to `cf`, then the `Scala3InlineInfo` attribute unless `cf` is a
+/// mirror class.
+pub fn scala_markers(cf: &mut ClassFile, mirror: bool) {
+    cf.custom_attribute("Scala", Vec::new());
+    if !mirror {
+        cf.custom_attribute(SCALA3_INLINE_INFO, empty_inline_info());
+    }
+}
+
 /// A class file: the class's internal name, its bytes and the TASTy its `TASTY` attribute names.
 pub struct ClassBytes {
     pub name: String,
@@ -33,15 +45,19 @@ pub struct ClassBytes {
 }
 
 impl ClassBytes {
-    /// Class `cf` named `name` with the `TASTY` attribute of `tasty` if given and the `Scala`
-    /// marker.
-    pub fn new(name: String, cf: &mut ClassFile, tasty: Option<Vec<u8>>) -> Result<Self, String> {
+    /// Class `cf` named `name` with the `TASTY` attribute of `tasty` if given; `lub` gives the
+    /// common superclass of two classes for its stack map frames.
+    pub fn new(
+        name: String,
+        mut cf: ClassFile,
+        tasty: Option<Vec<u8>>,
+        lub: &mut Lub,
+    ) -> Result<Self, String> {
         if let Some(tasty) = &tasty {
             let header =
                 tasty::Tasty::parse(tasty).map_err(|e| format!("our TASTy unreadable: {e:?}"))?.header;
             cf.custom_attribute("TASTY", header.uuid.to_vec());
         }
-        cf.custom_attribute("Scala", Vec::new());
-        Ok(ClassBytes { name, bytes: cf.bytes()?, tasty })
+        Ok(ClassBytes { name, bytes: cf.bytes(lub)?, tasty })
     }
 }

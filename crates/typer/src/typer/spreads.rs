@@ -146,6 +146,7 @@ impl Typer<'_> {
         let result = self.spread_select(chain, "result", span);
         let result = self.spread_applied(result, &[], span);
         let unsupported = self.unsupported.take();
+        let errors = self.diags.error_count();
         let mut typed = self.typed(result, Pt::Any, ctx);
         let refused = std::mem::replace(&mut self.unsupported, unsupported);
         if !defs.is_empty() {
@@ -153,7 +154,7 @@ impl Typer<'_> {
             typed = self.build().block(stats, typed, span);
         }
         let zonked = self.zonk_trees();
-        match refused.is_some() || self.diags.has_errors() || zonked.is_err() {
+        match refused.is_some() || self.diags.error_count() != errors || zonked.is_err() {
             true => Err("spread the typer cannot flatten"),
             false => Ok(typed),
         }

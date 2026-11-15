@@ -138,6 +138,11 @@ impl Diagnostics {
         self.items.iter().any(|d| d.level == Level::Error)
     }
 
+    /// Counts the errors reported so far.
+    pub fn error_count(&self) -> usize {
+        self.items.iter().filter(|d| d.level == Level::Error).count()
+    }
+
     /// Whether the only errors are incomplete-input errors, and there is one (dotty's
     /// `ParseResult.isIncomplete`).
     pub fn is_incomplete(&self) -> bool {

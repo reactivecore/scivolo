@@ -69,6 +69,11 @@ impl Typer<'_> {
                 }
                 _ => {
                     self.complete(s);
+                    if let Some(p) = prefix.filter(|_| self.u.is_type_symbol(s)) {
+                        for (m, _) in self.u.overriders(p, s) {
+                            self.complete(m);
+                        }
+                    }
                     let info = match prefix {
                         Some(p) if !self.u.is_type_symbol(s) => {
                             let info = self.u.member_info(p, s);
@@ -80,6 +85,7 @@ impl Typer<'_> {
                             .or_else(|| super::seen_from::class_param_arg(self.u, t))
                             .or_else(|| self.u.opaque_underlying(s, prefix))
                             .or_else(|| prefix.and_then(|p| self.u.overriding_alias(p, s)))
+                            .or_else(|| prefix.and_then(|p| self.u.overriding_bounds(p, s)))
                             .unwrap_or_else(|| self.u.info(s)),
                     };
                     let info = self.u.by_name(info).unwrap_or(info);

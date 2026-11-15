@@ -32,7 +32,7 @@ impl OverrideChecks {
             if synthesized {
                 continue;
             }
-            let decls = t.u.symbol(base).decls.clone();
+            let decls = t.u.jdk_viewed_decls(base);
             for d in decls {
                 let (kind, name) = (t.u.symbol(d).kind, t.u.symbol(d).name.clone());
                 let accessor = t.u.symbol(d).flags.has(ARTIFACT) && name.contains("$super$");

@@ -148,6 +148,25 @@ fn types_pickled_again_are_shared() {
     }
 }
 
+#[test]
+fn secondary_constructors_refer_to_their_own_type_parameters() {
+    let Some(mut u) = universe(&[]) else { return };
+    let text = "class C[A](xs: List[A]) { def this(x: A) = this(List(x)); val a = xs }";
+    let (tpd, _, rhss) = typed_rhss(&mut u, text, &["a"]);
+    let class = tpd.sym(rhss[0]).and_then(|xs| u.symbol(xs).owner).expect("C");
+    let mut x_and_own = Vec::new();
+    for ctor in u.decls_named(class, "<init>") {
+        let decls = u.symbol(ctor).decls.clone();
+        let tparam = decls.iter().copied().find(|&d| u.symbol(d).kind == Kind::TypeParam);
+        let x = decls.iter().copied().find(|&d| u.symbol(d).name == "x");
+        x_and_own.push((x, tparam));
+    }
+    let [(None, primary), (Some(x), Some(secondary))] = x_and_own[..] else { panic!("{x_and_own:?}") };
+    assert_ne!(primary, Some(secondary));
+    let info = u.info(x);
+    assert_eq!(u.sym_of(info), Some(secondary));
+}
+
 /// The right-hand side of `val a` in unit `text`, quoted, pickled with positions and read back.
 fn positioned_read_back(text: &str) -> Result<Span, String> {
     let mut u = universe(&[]).ok_or("no library")?;

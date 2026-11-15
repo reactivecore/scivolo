@@ -5,7 +5,7 @@
 
 use super::names::local_name;
 use super::{Refusal, TreePickler};
-use crate::tpd::{List, MatchKind, TNodeId};
+use crate::tpd::{List, MatchKind, TNodeId, Tree};
 use tasty::tags::*;
 
 impl TreePickler<'_> {
@@ -18,14 +18,30 @@ impl TreePickler<'_> {
                 (MatchKind::Sub, _) => p.byte(SUBMATCH),
                 (MatchKind::Plain, _) => {}
             }
-            selector.into_iter().chain(cases.iter().copied()).try_for_each(|t| p.tree(t))
+            selector.into_iter().try_for_each(|t| p.tree(t))?;
+            cases.iter().try_for_each(|&t| {
+                p.scrutinee = selector;
+                p.tree(t)
+            })
         })
     }
 
+    /// A case, its pattern pickled with the type trees in it, of its match's ascribed selector,
+    /// and its match's selector.
     pub fn case_def(&mut self, pat: TNodeId, guard: Option<TNodeId>, body: TNodeId) -> Result<(), Refusal> {
+        let selector = self.scrutinee.take();
+        let ascribed: Vec<TNodeId> = (selector.map(|s| self.tpd.tree(s)))
+            .and_then(|t| if let Tree::Typed { tpt, .. } = *t { Some(tpt) } else { None })
+            .into_iter()
+            .collect();
         let tpts = self.annotated_tpts(pat);
         self.with_length(CASEDEF, &mut |p| {
-            p.with_typed_tpts(tpts.clone(), &mut |p| p.tree(pat))?;
+            let outer = std::mem::replace(&mut p.pattern_selector, selector);
+            let pickled = p.with_typed_tpts(ascribed.clone(), &mut |p| {
+                p.with_typed_tpts(tpts.clone(), &mut |p| p.tree(pat))
+            });
+            p.pattern_selector = outer;
+            pickled?;
             [Some(body), guard].into_iter().flatten().try_for_each(|t| p.tree(t))
         })
     }
@@ -80,5 +96,28 @@ impl TreePickler<'_> {
             p.ty(tpe, false)?;
             patterns.iter().try_for_each(|&t| p.tree(t))
         })
+    }
+
+    /// The type trees of the typed patterns in pattern `t`, and the annotated type trees in them.
+    pub fn annotated_tpts(&self, t: TNodeId) -> Vec<TNodeId> {
+        let mut tpts = match *self.tpd.tree(t) {
+            Tree::Typed { tpt, .. } => vec![tpt],
+            Tree::Annotated { .. } => vec![t],
+            _ => Vec::new(),
+        };
+        tpts.extend(self.tpd.children(t).into_iter().flat_map(|c| self.annotated_tpts(c)));
+        tpts
+    }
+
+    /// Pickles `pickle` inside the pattern or super accessor parameter of type trees `tpts`.
+    pub fn with_typed_tpts(
+        &mut self,
+        tpts: Vec<TNodeId>,
+        pickle: &mut dyn FnMut(&mut Self) -> Result<(), Refusal>,
+    ) -> Result<(), Refusal> {
+        self.typed_tpts.push(tpts);
+        let pickled = pickle(self);
+        self.typed_tpts.pop();
+        pickled
     }
 }

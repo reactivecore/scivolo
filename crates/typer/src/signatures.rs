@@ -28,15 +28,7 @@ pub fn params_sig(u: &mut Universe, s: SymbolId) -> Vec<String> {
                     if u.is_erased_param(p) {
                         continue;
                     }
-                    let p = if u.param_ref(p).is_some() {
-                        bounded(u, p, &bounds)
-                    } else {
-                        u.map_type(p, &mut |u, x| {
-                            u.param_ref(x)?;
-                            let hi = bounded(u, x, &bounds);
-                            Some(u.intern_type(Type::Bounds(tasty::NOTHING, hi)))
-                        })
-                    };
+                    let p = to_erase(u, p, &bounds);
                     let e = u.erase(p).boxing_unit();
                     parts.push(sig_name(u, p, &e));
                 }
@@ -47,12 +39,18 @@ pub fn params_sig(u: &mut Universe, s: SymbolId) -> Vec<String> {
     }
 }
 
-/// The result part of the signature of method `s`, a constructor's its class or a value class's
-/// underlying type, `None` if `s` is not a method (dotty's `Signature.NotAMethod`).
+/// The result part of the signature of method `s`, a constructor's its class (`Product` for
+/// `*:`, dotty's `erasePair`) or a value class's underlying type, `None` if `s` is not a method
+/// (dotty's `Signature.NotAMethod`).
 pub fn result_sig(u: &mut Universe, s: SymbolId) -> Option<String> {
     let mut t = u.info(s);
     let mut method = false;
+    let mut bounds: Vec<(Binder, Vec<TypeId>)> = Vec::new();
     while let Some(b) = u.poly(t).or_else(|| u.method(t)) {
+        if let Type::Poly { binder, params, .. } = *u.ty(t) {
+            let his = u.params_of(params).iter().map(|&(_, b)| upper_bound(u, b)).collect();
+            bounds.push((binder, his));
+        }
         (t, method) = (b.result, true);
     }
     if !method {
@@ -60,10 +58,16 @@ pub fn result_sig(u: &mut Universe, s: SymbolId) -> Option<String> {
     }
     if u.is_constructor(s) {
         let c = u.symbol(s).owner?;
+        let name = full_name(u, c);
+        if name == crate::defn::PAIR {
+            return Some(crate::defn::PRODUCT.into());
+        }
         if u.underlying(c).is_none() {
-            return Some(full_name(u, c));
+            return Some(name);
         }
         t = type_ref(u, c);
+    } else {
+        t = to_erase(u, t, &bounds);
     }
     Some(match u.erase(t) {
         Erased::Unit => "scala.Unit".into(),
@@ -163,6 +167,19 @@ fn bounded(u: &mut Universe, t: TypeId, bounds: &[(Binder, Vec<TypeId>)]) -> Typ
         let his = &bounds.iter().find(|(binder, _)| *binder == b)?.1;
         let hi = *his.get(i as usize)?;
         Some(bounded(u, hi, &[]))
+    })
+}
+
+/// Type `t` of a method's signature as erasure sees it: a reference to a type parameter of
+/// polymorphic types `bounds` as its upper bound, one within `t` as a wildcard of that bound.
+fn to_erase(u: &mut Universe, t: TypeId, bounds: &[(Binder, Vec<TypeId>)]) -> TypeId {
+    if u.param_ref(t).is_some() {
+        return bounded(u, t, bounds);
+    }
+    u.map_type(t, &mut |u, x| {
+        u.param_ref(x)?;
+        let hi = bounded(u, x, bounds);
+        Some(u.intern_type(Type::Bounds(tasty::NOTHING, hi)))
     })
 }
 

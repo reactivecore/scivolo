@@ -68,7 +68,13 @@ impl TreePickler<'_> {
             }
             T::Typed { expr, tpt } => {
                 self.share_placeholder_tpt(expr, tpt);
-                self.node(TYPED, &[expr, tpt], &[])
+                match self.typed_tpts.is_empty() {
+                    true => self.node(TYPED, &[expr, tpt], &[]),
+                    false => {
+                        let tpts = self.annotated_tpts(id);
+                        self.with_typed_tpts(tpts, &mut |p| p.node(TYPED, &[expr, tpt], &[]))
+                    }
+                }
             }
             T::NamedArg { name, arg } => {
                 self.byte(NAMEDARG);
@@ -122,7 +128,7 @@ impl TreePickler<'_> {
                 self.type_tree = Some(id);
                 let pickled = match self.tpd.has_fresh_type(id) {
                     true => self.new_type(typed()?, false, self.buf.buf.current_addr()),
-                    false => self.ty(typed()?, false),
+                    false => self.ty(self.kept_captures.get(&id).copied().map_or_else(typed, Ok)?, false),
                 };
                 self.type_tree = None;
                 pickled

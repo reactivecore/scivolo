@@ -78,34 +78,6 @@ impl Universe {
         self.bounds(info).map(|(_, hi)| hi)
     }
 
-    /// The alias or class by which the class of term `prefix`'s type as seen from its own prefix,
-    /// or of `prefix` a `this`, overrides abstract type member `s`, seen from `prefix`.
-    pub fn overriding_alias(&mut self, prefix: TypeId, s: SymbolId) -> Option<TypeId> {
-        if self.symbol(s).kind != Kind::Type {
-            return None;
-        }
-        let declared = match *self.ty(prefix) {
-            Type::Sym(p, term) if self.symbol(term).kind.is_term() => self.term_type(p, term),
-            Type::TermRef(p, _) => {
-                let term = self.resolve_ref(prefix)?;
-                self.term_type(Some(p), term)
-            }
-            Type::This(c) => c,
-            _ => return None,
-        };
-        let base = self.symbol(s).owner?;
-        let cls = self.class_symbol(declared).filter(|&c| c != base && self.derives_from(c, base))?;
-        let name = self.symbol(s).name.clone();
-        let found = self
-            .member_where(cls, &name, |u, m| m != s && matches!(u.symbol(m).kind, Kind::Type | Kind::Class));
-        let (&m, owner) = (found.first()?, self.symbol(found[0]).owner?);
-        if self.symbol(m).kind == Kind::Class {
-            return Some(self.intern_type(Type::Sym(Some(prefix), m)));
-        }
-        let alias = self.alias_of(m)?;
-        Some(self.as_seen_from(alias, prefix, owner))
-    }
-
     /// `t` without its refinements, and whether one of them refines a term member.
     pub fn without_refinements(&mut self, mut t: TypeId) -> (TypeId, bool) {
         let mut term = false;

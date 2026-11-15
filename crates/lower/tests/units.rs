@@ -50,12 +50,14 @@ fn a_refused_file_leaves_out_itself_and_the_files_needing_it() {
         SourceFile::new("c.scala", "object C { def h: Int = B.g + A.f }"),
         SourceFile::new("d.scala", "import scala.language.`3.9-migration`\nobject D"),
         SourceFile::new("e.scala", "import scala.language.`3.9-migration`\nobject E"),
+        SourceFile::new("f.scala", "object F { def f = { var i = 0; i += 1; i } }"),
     ];
     let mut open = || Universe::open(&jars).unwrap();
     let isolated = lower::compile_sources_isolated(&mut open, &sources, Config::from_options(&[]), None)
         .unwrap_or_else(|r| panic!("{}", r.what));
     let names: Vec<String> = isolated.out.into_iter().map(|f| f.name).collect();
     assert!(names.contains(&"A".to_owned()) && !names.iter().any(|n| n.starts_with(['B', 'C'])), "{names:?}");
+    assert!(names.contains(&"F".to_owned()), "an assignment operator beside another file's error: {names:?}");
     let refused: Vec<&str> = isolated.refused.iter().map(|r| r.file.as_str()).collect();
     assert_eq!(refused, ["d.scala", "e.scala", "b.scala", "c.scala"]);
     assert!(isolated.refused[3].refusal.what.contains("c.scala:1:"), "{}", isolated.refused[3].refusal.what);
@@ -74,6 +76,7 @@ fn refusals_after_typing_are_collected_from_all_files_at_once() {
         SourceFile::new("b.scala", deferred("B")),
         SourceFile::new("c.scala", deferred("C")),
         SourceFile::new("d.scala", "object D { def h: Int = 1 }".to_owned()),
+        SourceFile::new("e.scala", "object E { def h: Int = \"s\" }".to_owned()),
     ];
     let mut attempts = 0;
     let mut open = || {
@@ -83,7 +86,7 @@ fn refusals_after_typing_are_collected_from_all_files_at_once() {
     let isolated = lower::compile_sources_isolated(&mut open, &sources, Config::from_options(&[]), None)
         .unwrap_or_else(|r| panic!("{}", r.what));
     let refused: Vec<&str> = isolated.refused.iter().map(|r| r.file.as_str()).collect();
-    assert_eq!(refused, ["a.scala", "b.scala", "c.scala"]);
+    assert_eq!(refused, ["a.scala", "b.scala", "c.scala", "e.scala"]);
     assert!(
         isolated.refused[2].refusal.what.contains("deferred inline"),
         "{}",

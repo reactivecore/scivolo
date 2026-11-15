@@ -67,6 +67,64 @@ fn assert_trees_read_strictly(zip: &mut zip::ZipArchive<std::fs::File>) {
     }
 }
 
+/// The trees, positions and flag attributes of TASTy `bytes`.
+fn trees_and_flags(bytes: &[u8]) -> (Vec<u8>, Vec<u8>, Vec<u8>) {
+    let file = tasty::Tasty::parse(bytes).expect("a TASTy file");
+    let section = |name| file.section(name).expect(name).bytes.to_vec();
+    let attributes = file.attributes().expect("attributes");
+    let flags =
+        attributes.iter().filter_map(|a| if let tasty::Attribute::Flag(f) = a { Some(*f) } else { None });
+    (section("ASTs"), section("Positions"), flags.collect())
+}
+
+/// The files of tests/jvm/tastylib and the classes of each whose dotty TASTy lies beside them as
+/// `<file>-<class>.tasty`, those of `scala.probe` compiled with `-sourceroot` at the repository's
+/// root.
+const DOTTY_TASTY: &[(&str, &[&str])] = &[
+    ("captures", &["Break"]),
+    ("captures38", &["Break"]),
+    ("selectorannotations", &["scala/probe/Selectors"]),
+    (
+        "nestedannotations",
+        &["scala/probe/Cell", "scala/probe/Concat", "scala/probe/Ops", "scala/probe/Patterns"],
+    ),
+    ("superaccessorannotations", &["scala/probe/Lengths", "scala/probe/Sizes"]),
+    ("inlineaccessors", &["scala/probe/Counter", "scala/probe/Counters"]),
+    ("constructors", &["scala/probe/Base", "scala/probe/Derived"]),
+];
+
+/// The trees, positions and flag attributes of the classes of `DOTTY_TASTY` are dotty's: the
+/// field `label: Label[T]^{}` of captures.scala keeps its capture set as a type and, under source
+/// 3.8, as `new retains[Nothing]()`; annotated types take the annotation tree of their own
+/// origin in match selectors and patterns, inferred types, super accessors and inline accessors;
+/// secondary constructors have their own type parameters and parameters passed on to the
+/// superclass are its parameters' aliases. Needs a JDK (java on the PATH), as dotty's did.
+#[test]
+fn probes_pickle_as_dotty_s() {
+    if Command::new("java").arg("-version").output().is_err() {
+        return;
+    }
+    for &(name, classes) in DOTTY_TASTY {
+        let out = root().join("tmp/jvm-test").join(name);
+        let _ = std::fs::remove_dir_all(&out);
+        let run = Command::new(env!("CARGO_BIN_EXE_scivolo-jvm"))
+            .current_dir(root())
+            .arg("-d")
+            .arg(&out)
+            .arg(format!("tests/jvm/tastylib/{name}.scala"))
+            .output()
+            .expect("running scivolo-jvm");
+        assert!(run.status.success(), "{}", String::from_utf8_lossy(&run.stderr));
+        for class in classes {
+            let ours = std::fs::read(out.join(format!("{class}.tasty"))).expect("our TASTy");
+            let simple = class.rsplit('/').next().expect("a class name");
+            let theirs = std::fs::read(root().join(format!("tests/jvm/tastylib/{name}-{simple}.tasty")));
+            let same = trees_and_flags(&ours) == trees_and_flags(&theirs.expect("dotty's"));
+            assert!(same, "{name}'s {class}.tasty differs from dotty's");
+        }
+    }
+}
+
 /// scala-cli 3.9.0 compiles tests/jvm/tastylib/user.scala against the jar, and the result runs
 /// on `java -Xverify:all`, when both are on the PATH.
 #[test]

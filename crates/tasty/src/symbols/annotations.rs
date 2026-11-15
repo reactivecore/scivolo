@@ -6,6 +6,19 @@ use super::{FileId, SymbolId, Universe};
 use crate::{NodeId, View, view};
 
 impl Universe {
+    /// Records that an annotation of class `class` annotates `sym`, a symbol defined outside TASTy.
+    pub fn annotate(&mut self, sym: SymbolId, class: SymbolId) {
+        let classes = self.annotations.entry(sym).or_default();
+        if !classes.contains(&class) {
+            classes.push(class);
+        }
+    }
+
+    /// The annotation classes recorded for `sym`, a symbol defined outside TASTy, in order.
+    pub fn annotations(&self, sym: SymbolId) -> &[SymbolId] {
+        self.annotations.get(&sym).map_or(&[], Vec::as_slice)
+    }
+
     /// Whether an annotation of the class with full name `full` annotates `sym`.
     pub fn is_annotated(&mut self, sym: SymbolId, full: &str) -> bool {
         if self.symbol(sym).tree.is_none() {

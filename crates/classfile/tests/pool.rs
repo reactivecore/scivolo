@@ -44,14 +44,13 @@ fn call_sites_share_their_bootstrap_methods() {
     let boot = Handle::static_method("a/B", "boot", meta);
     let args = [Constant::Int(3), Constant::MethodType("()V")];
     let apply = pool.invoke_dynamic("apply", "()La/F;", &boot, &args);
-    assert_eq!(apply, 15);
-    assert_eq!(pool.invoke_dynamic("other", "()La/F;", &boot, &args), 18);
+    assert_eq!(apply, 14);
+    assert_eq!(pool.invoke_dynamic("other", "()La/F;", &boot, &args), 17);
     assert_eq!(pool.invoke_dynamic("apply", "()La/F;", &boot, &args), apply);
-    assert_eq!(pool.invoke_dynamic("apply", "()La/F;", &boot, &[Constant::Int(4)]), 20);
+    assert_eq!(pool.invoke_dynamic("apply", "()La/F;", &boot, &[Constant::Int(4)]), 19);
 
-    let (name, bytes) = pool.bootstrap_methods().expect("call sites");
-    assert_eq!((name, pool.find_utf8("BootstrapMethods")), (11, Some(11)));
-    assert_eq!(bytes, [0, 2, 0, 7, 0, 2, 0, 8, 0, 10, 0, 7, 0, 1, 0, 19]);
+    let bytes = pool.bootstrap_methods().expect("call sites");
+    assert_eq!(bytes, [0, 2, 0, 7, 0, 2, 0, 8, 0, 10, 0, 7, 0, 1, 0, 18]);
     assert_eq!(pool.member_parts(apply), (String::new(), "apply".into(), "()La/F;".into()));
     let descriptors = [7, 10, 2, 8, apply].map(|i| pool.constant_descriptor(i));
     let expected =
@@ -62,5 +61,5 @@ fn call_sites_share_their_bootstrap_methods() {
     pool.write(&mut out).expect("a small pool");
     let at = |s: &[u8]| out.windows(s.len()).any(|w| w == s);
     assert!(at(&[15, 6, 0, 6]), "the handle is REF_invokeStatic of Methodref 6");
-    assert!(at(&[16, 0, 9]) && at(&[18, 0, 0, 0, 14]) && at(&[18, 0, 1, 0, 14]));
+    assert!(at(&[16, 0, 9]) && at(&[18, 0, 0, 0, 13]) && at(&[18, 0, 1, 0, 13]));
 }

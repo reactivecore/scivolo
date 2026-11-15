@@ -7,7 +7,7 @@ use super::descriptors::{method_descriptor, with_receiver};
 use super::{Gen, java_flags, method_name, unsupported};
 use classfile::{ACC_ABSTRACT, ACC_BRIDGE, ACC_FINAL, ACC_PUBLIC, ACC_STATIC, ACC_SYNTHETIC, ClassFile};
 use lower::Result;
-use names::name_kinds;
+use names::{name_kinds, nme};
 use syntax::ast::constant::Constant;
 use tasty::SymbolId;
 use typer::tpd::{TNodeId, Tree};
@@ -50,7 +50,7 @@ impl Gen<'_, '_> {
         let deprecated = self.is_deprecated(sym);
         let Some(rhs) = rhs else {
             let flags = (flags & !(ACC_FINAL | ACC_STATIC)) | ACC_ABSTRACT;
-            cf.method(flags, &name, &desc, None, &mut |a, b| self.jvm_lub(a, b));
+            cf.method(flags, &name, &desc, None);
             self.exceptions(cf, sym);
             self.method_attributes(cf, (sym, deprecated), &desc, &param_syms, (erased, false));
             self.emit_method_annotations(cf, sym);
@@ -64,14 +64,18 @@ impl Gen<'_, '_> {
         }
         let result = b.result.clone();
         let unit = matches!(self.l.tpd.tree(rhs), Tree::Literal { value: Constant::Unit });
+        let start = b.code.mark();
         if unit && name.contains(name_kinds::TRAIT_SETTER_SEPARATOR) {
             b.code.ret("V");
         } else {
             self.line(&mut b, rhs);
             self.method_body(&mut b, rhs, &result)?;
         }
+        let this = if trait_init { Some(nme::SELF) } else { (!static_).then_some(nme::THIS) };
+        self.name_this_and_params(&mut b, start, this, &param_syms);
         let code = b.code;
-        cf.method(flags, &name, &desc, Some(code), &mut |a, b| self.jvm_lub(a, b));
+        let at = cf.method_count();
+        cf.method(flags, &name, &desc, Some(code));
         self.exceptions(cf, sym);
         self.method_attributes(cf, (sym, deprecated), &desc, &param_syms, (erased, trait_init));
         if !trait_init {
@@ -79,6 +83,7 @@ impl Gen<'_, '_> {
         }
         let line = self.line_of(class_def);
         self.trait_forwarder(cf, (sym, flags), (&desc, &param_syms), line);
+        cf.move_methods(at + 1, at);
         Ok(())
     }
 
@@ -111,10 +116,13 @@ impl Gen<'_, '_> {
             Tree::ClassLiteral { tpe } => self.class_literal(b, tpe),
             Tree::Typed { expr, .. } => self.expr(b, expr)?,
             Tree::Block { stats, expr } => {
+                b.code.open_block();
                 for s in self.l.tpd.items(stats).to_vec() {
                     self.block_stat(b, s)?;
                 }
-                self.expr(b, expr)?
+                let slots = self.expr(b, expr)?;
+                b.code.close_block();
+                slots
             }
             Tree::This { .. } if let Some(c) = sym.filter(|&c| self.l.u.is_module_class(c)) => {
                 self.load_module(b, c, span)?

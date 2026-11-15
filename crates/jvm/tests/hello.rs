@@ -59,6 +59,24 @@ fn several_files_run_on_the_jvm() {
 }
 
 #[test]
+fn a_super_accessor_of_a_capturing_type_refused() {
+    let source = root().join("tests/jvm/refused/supercaptures.scala");
+    let (_, compiled) = compile("supercaptures", &source);
+    let stderr = String::from_utf8_lossy(&compiled.stderr);
+    let refusal = "does not support pickling an annotated type of a capture set that refers to other";
+    assert!(!compiled.status.success() && stderr.contains(refusal), "{stderr}");
+}
+
+#[test]
+fn a_class_parameter_field_capturing_another_parameter_refused() {
+    let source = root().join("tests/jvm/refused/fieldcaptures.scala");
+    let (_, compiled) = compile("fieldcaptures", &source);
+    let stderr = String::from_utf8_lossy(&compiled.stderr);
+    let refusal = "does not support pickling a synthetic type tree of a capture set";
+    assert!(!compiled.status.success() && stderr.contains(refusal), "{stderr}");
+}
+
+#[test]
 fn a_file_of_a_unit_compiles_as_alone() {
     let dir = root().join("tests/jvm/units");
     let mut sources: Vec<PathBuf> = std::fs::read_dir(&dir)
@@ -185,6 +203,21 @@ fn jdk_classes_javalib_lacks_run_on_the_jvm() {
 }
 
 #[test]
+fn classes_implementing_java_annotations_run_on_the_jvm() {
+    runs_on_the_jvm("annotationimpls", "Annotationimpls");
+}
+
+#[test]
+fn named_arguments_of_repeated_methods_run_on_the_jvm() {
+    runs_on_the_jvm("namedvarargs", "Namedvarargs");
+}
+
+#[test]
+fn signature_polymorphic_calls_run_on_the_jvm() {
+    runs_on_the_jvm("sigpoly", "Sigpoly");
+}
+
+#[test]
 fn jdk_members_under_explicit_nulls_run_on_the_jvm() {
     runs_on_the_jvm("explicitnulls", "Explicitnulls");
 }
@@ -240,6 +273,22 @@ fn refuses(name: &str, code: &str, message: &str) {
 }
 
 #[test]
+fn a_jdk_method_s_signature_erases_a_type_parameter_to_its_bound() {
+    if Command::new("java").arg("-version").output().is_err() {
+        eprintln!("no java on the PATH: skipped");
+        return;
+    }
+    let source = root().join("tmp/jvm-test/boundsig.scala");
+    std::fs::create_dir_all(source.parent().expect("a directory")).expect("tmp/jvm-test");
+    let code = "object Boundsig { def d = classOf[String].getAnnotation(classOf[Deprecated]) }";
+    std::fs::write(&source, code).expect("writing");
+    let (out, compiled) = compile("boundsig", &source);
+    assert!(compiled.status.success(), "{}", String::from_utf8_lossy(&compiled.stderr));
+    let tasty = std::fs::read(out.join("Boundsig.tasty")).expect("Boundsig.tasty");
+    assert!(tasty.windows(b"Annotation".len()).any(|w| w == b"Annotation"), "a signature of `Annotation`");
+}
+
+#[test]
 fn a_definition_the_tasty_pickler_lacks_is_refused() {
     let code = "class tag extends scala.annotation.StaticAnnotation\n\
                 trait B { def f: Int @tag = 1; def g: Int @tag = 2; def h(b: Boolean) = if b then f else g }";
@@ -247,6 +296,10 @@ fn a_definition_the_tasty_pickler_lacks_is_refused() {
     let code = "import scala.annotation.unchecked.uncheckedVariance as uV\n\
                 class C[+A](val m: Map[A @uV, A @uV])";
     refuses("refusedaccessor", code, "an annotated type of several annotation trees");
+    let code = "class ann(x: String) extends scala.annotation.StaticAnnotation\n\
+                class Box[A](val v: (A, Int @ann(\"a\")))\n\
+                object M { def b: Box[Int @ann(\"b\")] = ???; val r = b.v }";
+    refuses("refusedtraced", code, "traced to one of several annotation trees with arguments");
 }
 
 /// Writes `files`, each a name and its code, into tmp/jvm-test/`name`.
@@ -329,6 +382,82 @@ fn any_val_of_a_unit_of_several_files_is_left_out() {
 }
 
 #[test]
+fn a_tuple_class_of_the_unit_extends_its_generic_tuple() {
+    let tuple2 = "package scala\nimport scala.language.`2.13`\n\
+                  final case class Tuple2[+T1, +T2](_1: T1, _2: T2) extends Product2[T1, T2]\n";
+    let user =
+        "object Use { def t: Tuple = Tuple2(1, \"a\"); def p: Int *: String *: EmptyTuple = (1, \"a\") }\n";
+    let main = "object Main {\n\
+                \x20 def main(args: Array[String]): Unit = {\n\
+                \x20   val tup2: Tuple = 1 *: 2 *: Tuple()\n\
+                \x20   tup2 match\n\
+                \x20     case Tuple() => println(\"empty\")\n\
+                \x20     case (1, 2) => println(\"pair\")\n\
+                \x20   val any: Any = (3, 4)\n\
+                \x20   println(any.isInstanceOf[NonEmptyTuple])\n\
+                \x20   any match\n\
+                \x20     case h *: t => println(s\"cons $h $t\")\n\
+                \x20     case _ => println(\"other\")\n\
+                \x20 }\n\
+                }\n";
+    let sources =
+        written("tupleunit", &[("Tuple2.scala", tuple2), ("use.scala", user), ("main.scala", main)]);
+    let unit = root().join("tmp/jvm-test/tupleunit-out");
+    let _ = std::fs::remove_dir_all(&unit);
+    let run = Command::new(env!("CARGO_BIN_EXE_scivolo-jvm"))
+        .args(["--scalalib", "-d"])
+        .arg(&unit)
+        .args(&sources)
+        .output()
+        .expect("running scivolo-jvm");
+    assert!(run.status.success(), "{}", String::from_utf8_lossy(&run.stderr));
+    let (alone, compiled) = compile("tupleunit-alone", &sources[1]);
+    assert!(compiled.status.success(), "{}", String::from_utf8_lossy(&compiled.stderr));
+    for name in ["Use.class", "Use$.class", "Use.tasty"] {
+        let bytes = |out: &Path| std::fs::read(out.join(name)).expect("a class file");
+        assert!(bytes(&unit) == bytes(&alone), "{name} differs");
+    }
+    let class = std::fs::read(unit.join("scala/Tuple2.class")).expect("Tuple2.class");
+    let has = |s: &str| class.windows(s.len()).any(|w| w == s.as_bytes());
+    assert!(!has("$times$colon") && has("productIterator"), "Tuple2.class extends *: or lacks forwarders");
+    if Command::new("java").arg("-version").output().is_err() {
+        return;
+    }
+    let classpath =
+        format!("{}:{}", root().join("ref/libs/scala-library-3.9.0.jar").display(), unit.display());
+    let run = Command::new("java")
+        .args(["-Xverify:all", "-cp", &classpath, "Main"])
+        .output()
+        .expect("running java");
+    assert!(run.status.success(), "{}", String::from_utf8_lossy(&run.stderr));
+    assert_eq!(String::from_utf8_lossy(&run.stdout), "pair\ntrue\ncons 3 (4)\n");
+}
+
+#[test]
+fn a_tuple_class_with_a_class_parent_is_refused() {
+    let code = "package scala\nimport scala.language.`2.13`\nabstract class Base\n\
+                final case class Tuple2[+T1, +T2](_1: T1, _2: T2) extends Base with Product2[T1, T2]\n";
+    refuses("tupleclassparent", code, "a tuple class with a class parent");
+}
+
+#[test]
+fn an_alias_of_the_unit_a_library_class_refers_to_is_completed() {
+    let package = "package object scala { type Iterator[+A] = scala.collection.Iterator[A] }\n";
+    let user = "package scala.collection\nobject Use { def s(it: Iterator[Int]) = \
+                new convert.impl.IntIteratorStepper(it) }\n";
+    let sources = written("aliasunit", &[("use.scala", user), ("package.scala", package)]);
+    let out = root().join("tmp/jvm-test/aliasunit-out");
+    let _ = std::fs::remove_dir_all(&out);
+    let run = Command::new(env!("CARGO_BIN_EXE_scivolo-jvm"))
+        .args(["--scalalib", "-d"])
+        .arg(&out)
+        .args(&sources)
+        .output()
+        .expect("running scivolo-jvm");
+    assert!(run.status.success(), "{}", String::from_utf8_lossy(&run.stderr));
+}
+
+#[test]
 fn a_class_extending_a_namesake_with_statements_of_another_file_compiles() {
     let sources = written(
         "localdummyunit",
@@ -354,13 +483,13 @@ fn a_javalib_member_the_jdk_lacks_is_not_found() {
 }
 
 #[test]
-fn a_java_annotation_with_arguments_is_refused() {
+fn a_java_annotation_with_an_argument_that_is_no_constant_is_refused() {
     if Command::new("java").arg("-version").output().is_err() {
         eprintln!("no java on the PATH: skipped");
         return;
     }
-    let code = "class R { @java.beans.Transient(false) def f = 1 }";
-    refuses("refusedannotation", code, "Java annotations with arguments on the JVM");
+    let code = "class R { @java.beans.Transient(sys.props.isEmpty) def f = 1 }";
+    refuses("refusedannotation", code, "Java annotation arguments other than constants");
     let code = "class R { def f(@java.lang.annotation.Documented x: Int) = x }";
     refuses("refusedparamannotation", code, "Java annotations of parameters on the JVM");
 }
@@ -406,7 +535,11 @@ fn a_refused_file_refuses_the_unit() {
 }
 
 #[test]
-fn a_signature_polymorphic_method_is_refused() {
-    let code = "object R { def f = java.lang.invoke.MethodHandles.identity(classOf[String]).invoke(\"a\") }";
-    refuses("refusedpolymorphic", code, "member not found");
+fn a_cast_signature_polymorphic_call_is_refused() {
+    if Command::new("java").arg("-version").output().is_err() {
+        eprintln!("no java on the PATH: skipped");
+        return;
+    }
+    let code = "object R { def f = java.lang.invoke.MethodHandles.identity(classOf[String]).invoke(\"a\").asInstanceOf[String] }";
+    refuses("refusedpolymorphic", code, "cast of a signature polymorphic call");
 }

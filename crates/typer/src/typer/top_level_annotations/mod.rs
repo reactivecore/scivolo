@@ -6,11 +6,9 @@
 //! setting (`checkAndAdaptExperimentalImports`).
 
 use super::Typer;
-use crate::defn::type_ref;
 use crate::tpd::{List, TNodeId, Tree as T};
 use names::nme;
 use syntax::ast::Span;
-use syntax::ast::constant::Constant;
 use tasty::defn::{EXPERIMENTAL, SOURCE_FILE};
 use tasty::{Kind, SymbolId};
 
@@ -161,14 +159,6 @@ fn prepend_annotation(t: &mut Typer, s: SymbolId, class: &str, text: &str, span:
     let Some(package) = t.u.package(pkg) else { return };
     let classes = t.u.decls_named(package, name);
     let Some(cls) = classes.into_iter().find(|&c| t.u.is_class(c)) else { return };
-    let ctors = t.u.decls_named(cls, nme::CONSTRUCTOR);
-    let Some(ctor) = ctors.into_iter().find(|&c| t.u.erased_method(c).0.len() == 1) else { return };
-    let at = if span.exists() { span.start_pos() } else { span };
-    let tpe = type_ref(t.u, cls);
-    let tpt = t.type_tree(tpe, at, false);
-    let new = t.tpd.node(T::New { tpt }, at, Some(tpe), None);
-    let select = t.build().select(new, ctor, at);
-    let arg = t.build().literal(Constant::String(text.encode_utf16().collect()), at);
-    let annot = t.build().apply(select, &[arg], tpe, span);
+    let Some(annot) = t.string_annotation(cls, text, span) else { return };
     t.syms.annotations.entry(s).or_default().insert(0, annot);
 }

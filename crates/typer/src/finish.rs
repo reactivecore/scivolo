@@ -3,10 +3,11 @@
 
 use crate::Typer;
 use crate::inlining::Lent;
-use crate::pickle::{FileAttributes, Pickled, QuoteSource, Refusal, pickle_file};
+use crate::pickle::{ERROR_TYPE, FileAttributes, Pickled, QuoteSource, Refusal, pickle_file};
 use crate::tpd::TNodeId;
 use crate::{Fallback, Typed, Units};
 use syntax::ast::Span;
+use syntax::diag::{Diagnostic, Level};
 
 /// Adds the synthetic members of the classes of typed unit `root`, its files starting at the
 /// offsets given but the first (dotty's `SyntheticMembers` as PostTyper runs it), or why it cannot.
@@ -61,6 +62,9 @@ impl Units {
             return Err(Fallback::Errors(typer.diags));
         }
         if let Some((at, what)) = self.refused.first().cloned() {
+            if typer.diags.has_errors() {
+                self.errors = typer.diags;
+            }
             return Err(Fallback::Unsupported { at, what });
         }
         if typer.diags.has_errors() {
@@ -105,15 +109,15 @@ impl Units {
         self.refused.extend(typer.unsupported.take());
     }
 
-    /// The top-level trees among `files` of the files no refusal lies in, none if there are type
-    /// errors, a refusal in no file or no such file.
+    /// The top-level trees among `files` of the files no refusal or type error lies in, none if a
+    /// refusal or type error lies in no file, or there is no such file.
     fn kept_files(&self, typer: &Typer, files: &[TNodeId]) -> Option<Vec<TNodeId>> {
-        if typer.diags.has_errors() {
-            return None;
-        }
         let in_file =
             |&(at, _): &(Span, String)| (at.exists() && !at.is_in_other_source()).then(|| typer.file_of(at));
-        let refused = self.refused.iter().map(in_file).collect::<Option<Vec<usize>>>()?;
+        let mut refused = self.refused.iter().map(in_file).collect::<Option<Vec<usize>>>()?;
+        let errors = typer.diags.items.iter().filter(|d| d.level == Level::Error);
+        let error_file = |d: &Diagnostic| d.offset.map(|o| typer.file_starts.partition_point(|&s| s <= o));
+        refused.extend(errors.map(error_file).collect::<Option<Vec<usize>>>()?);
         let kept: Vec<TNodeId> =
             files.iter().copied().filter(|&f| !refused.contains(&typer.file_of(typer.tpd.span(f)))).collect();
         (!kept.is_empty()).then_some(kept)
@@ -129,12 +133,16 @@ impl Units {
     }
 
     /// Pickles the top-level classes of typed source files `files` into `out` if `tasty_sources`
-    /// is set; a refusal at each file refused.
+    /// is set; a refusal at each file refused, none for an error type while another file is
+    /// refused or has type errors.
     fn pickle_files(&mut self, typer: &mut Typer, files: &[TNodeId], out: &mut Vec<Pickled>) {
         let Some(sources) = &self.tasty_sources else { return };
+        let others_fail = typer.diags.has_errors() || !self.refused.is_empty();
         for &f in files {
-            if let Err((at, what)) = pickle_one(typer, sources, f, out) {
-                self.refused.push((at, format!("pickling {what} into TASTy")));
+            match pickle_one(typer, sources, f, out) {
+                Err((_, ERROR_TYPE)) if others_fail => {}
+                Err((at, what)) => self.refused.push((at, format!("pickling {what} into TASTy"))),
+                Ok(()) => {}
             }
         }
     }
@@ -152,8 +160,12 @@ fn pickle_one(
     let Some((file, base)) = sources.get(index) else {
         return Err((at, "a file without its source"));
     };
-    let scala2 = typer.file_cfgs.get(index).map_or(typer.scala2, |c| c.source_version.is_scala2());
-    let attributes = FileAttributes { scala2, explicit_nulls: typer.explicit_nulls };
+    let cfg = typer.file_cfgs.get(index);
+    let scala2 = cfg.map_or(typer.scala2, |c| c.source_version.is_scala2());
+    let compact_annotations = cfg.map_or(!scala2, |c| c.source_version.enables_compact_annotation());
+    let features = cfg.map_or(typer.features, |c| c.features);
+    let attributes =
+        FileAttributes { scala2, explicit_nulls: typer.explicit_nulls, features, compact_annotations };
     let mut source = QuoteSource::of(file.tasty_path().to_owned(), file, *base);
     source.others = sources.iter().filter(|(_, b)| b != base).map(|(f, b)| (f, *b)).collect();
     let annotations = typer.with_child_annotations(f).map_err(|r| (at, r))?;

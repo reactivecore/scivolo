@@ -135,7 +135,7 @@ impl Typer<'_> {
     }
 
     /// Refuses member `sym` selected through `prefix`, not a `this`, if its info refers through
-    /// its owner's `this` to a member of the owner's self type the owner does not inherit.
+    /// its owner's `this` to a self-type member that neither the owner nor `prefix` has.
     pub fn check_self_members(&mut self, sym: SymbolId, prefix: Option<TypeId>) -> Result<(), &'static str> {
         let (Some(prefix), Some(owner)) = (prefix, self.u.symbol(sym).owner) else { return Ok(()) };
         self.ensure_self(owner);
@@ -155,11 +155,17 @@ impl Typer<'_> {
         });
         for (c, s) in parts {
             let inherited = self.u.symbol(s).owner.is_none_or(|o| self.u.derives_from(owner, o));
-            if self.u.class_symbol(c) == Some(owner) && !inherited {
+            if self.u.class_symbol(c) == Some(owner) && !inherited && !self.is_member_of(s, prefix) {
                 return Err("member of a self type seen from outside its class");
             }
         }
         Ok(())
+    }
+
+    /// Whether `sym` is a member of `prefix`, as `Tree` of `tpd` for its parent's self type.
+    fn is_member_of(&mut self, sym: SymbolId, prefix: TypeId) -> bool {
+        let name = self.u.symbol(sym).name.clone();
+        self.type_members(prefix, &name).contains(&sym)
     }
 
     /// The type parameter `name` of class `cls` with a given self type whose members named `name`

@@ -109,3 +109,6 @@ pub const SOURCE_FILE: &str = "scala.annotation.internal.SourceFile";
 pub const CHILD: &str = "scala.annotation.internal.Child";
 pub const PURE: &str = "scala.caps.Pure";
 pub const INFERRED: &str = "scala.caps.internal$.inferred";
+/// The annotation naming the primary constructor parameter a secondary constructor's
+/// parameter is passed to, under capture checking.
+pub const PARAM_ALIAS: &str = "scala.caps.internal$.paramAlias";

@@ -52,9 +52,9 @@ impl Typer<'_> {
             let tpe = self.u.intern_type(Type::Package(root));
             return self.tpd.node(T::Ident { name }, self.ast.span(id), Some(tpe), Some(root));
         }
-        let scala2 = self.u.scala2_lookups();
+        let before = self.u.refused_lookups();
         let found = self.find_ref(&text, name.is_type, ctx);
-        if let Some(refused) = self.scala2_refusal(id, scala2) {
+        if let Some(refused) = self.lookup_refusal(id, before) {
             return refused;
         }
         let found = match found {

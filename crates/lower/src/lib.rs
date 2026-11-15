@@ -20,6 +20,7 @@ pub use isolated::{FileRefusal, Isolated, compile_isolated, compile_sources_isol
 pub use options::Options;
 pub use output::NirFile;
 pub use phases::adapt::erased_type;
+pub use phases::java_enums::derives_from_java_enum;
 pub use phases::sam::abstract_methods;
 use rustc_hash::{FxHashMap, FxHashSet};
 pub use symbols::{is_erased, is_jdk_object};
@@ -193,6 +194,8 @@ pub struct Lower<'a> {
     explicit_nulls: bool,
     /// Not `-Xmixin-force-forwarders:false`.
     force_forwarders: bool,
+    /// Whether each file of the unit keeps capture-set annotations as types in TASTy, by index.
+    compact_annotations: Vec<bool>,
     pub backend: Backend,
     /// The static `VarHandle` field of each lazy value's field on the JVM.
     var_handles: FxHashMap<SymbolId, SymbolId>,
@@ -210,22 +213,25 @@ pub fn lower_sources(
     (sources, cfg): (Sources, Config),
 ) -> Result<Vec<NirFile>> {
     let generate = (Backend::Native, codegen::unit);
-    lower_trees(u, (tpd, warnings), root, (names, fresh), (sources, cfg), generate)
+    lower_trees(u, (tpd, warnings), root, (names, fresh), (sources, &[cfg]), generate)
 }
 
-/// Runs the phases for `backend` over typed unit `root`, compiled under the settings `cfg`,
-/// then `generate` over the lowered trees; the phases' warnings go to `warnings`.
+/// Runs the phases for `backend` over typed unit `root`, compiled under the settings `cfgs` of
+/// the files of `sources` in order, whose command-line settings are the first one's, then
+/// `generate` over the lowered trees; the phases' warnings go to `warnings`.
 pub fn lower_trees<R>(
     u: &mut Universe,
     (tpd, warnings): (&mut Tpd, &mut Diagnostics),
     root: TNodeId,
     (names, fresh): (&mut Names, &mut FreshNames),
-    (sources, cfg): (Sources, Config),
+    (sources, cfgs): (Sources, &[Config]),
     (backend, generate): (Backend, impl FnOnce(&mut Lower, TNodeId) -> Result<R>),
 ) -> Result<R> {
     let mut l = Lower::new(u, tpd, (names, fresh), sources)?;
+    let cfg = cfgs.first().copied().unwrap_or_default();
     l.explicit_nulls = cfg.explicit_nulls;
     l.force_forwarders = cfg.force_forwarders;
+    l.compact_annotations = cfgs.iter().map(|c| c.source_version.enables_compact_annotation()).collect();
     l.backend = backend;
     let starts: Vec<_> = l.sources.files().iter().skip(1).map(|&(base, _)| base).collect();
     l.record_files(root, &starts);
@@ -338,6 +344,7 @@ impl<'a> Lower<'a> {
             moved_classes: Vec::new(),
             explicit_nulls: false,
             force_forwarders: true,
+            compact_annotations: Vec::new(),
             backend: Backend::Native,
             var_handles: FxHashMap::default(),
             warnings: Diagnostics::default(),

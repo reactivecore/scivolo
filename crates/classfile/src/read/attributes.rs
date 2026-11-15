@@ -1,5 +1,7 @@
 //! The attributes of classes and members read: `Signature` (JVMS §4.7.9), `ConstantValue`, the
-//! annotations (§4.7.16), `InnerClasses` (§4.7.6) and the Scala compilers' markers.
+//! annotations (§4.7.16), `InnerClasses` (§4.7.6), `PermittedSubclasses` (§4.7.31), whether
+//! there is an `AnnotationDefault`
+//! (§4.7.22) and the Scala compilers' markers.
 
 use super::{Bytes, ConstantValue, Constants};
 use crate::InnerClass;
@@ -11,6 +13,8 @@ pub struct Attributes {
     pub constant: Option<ConstantValue>,
     pub annotations: Vec<Annotation>,
     pub inner_classes: Vec<InnerClass>,
+    pub permitted: Vec<String>,
+    pub annotation_default: bool,
     pub scala: bool,
 }
 
@@ -28,6 +32,12 @@ pub fn attributes(b: &mut Bytes, c: &Constants) -> Result<Attributes, String> {
                 a.annotations.extend(annotations(&mut value, c)?)
             }
             Ok("InnerClasses") => a.inner_classes = inner_classes(&mut value, c)?,
+            Ok("PermittedSubclasses") => {
+                for _ in 0..value.u2()? {
+                    a.permitted.push(c.class(value.u2()?)?.ok_or("a permitted subclass without a name")?);
+                }
+            }
+            Ok("AnnotationDefault") => a.annotation_default = true,
             Ok("Scala" | "ScalaSig" | "TASTY") => a.scala = true,
             _ => {}
         }

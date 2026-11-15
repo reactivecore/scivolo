@@ -13,8 +13,10 @@ mod classfiles;
 mod companions;
 mod define;
 pub mod defn;
+mod encoded_names;
 mod enter;
 mod entries;
+mod erasure_memo;
 mod full_names;
 mod function_classes;
 mod higher_kinds;
@@ -61,12 +63,13 @@ use std::io;
 
 pub use bodies::BodyInfo;
 pub use builtin::{ANY, NOTHING};
-pub use classfiles::Retention;
+pub use classfiles::{JavaSources, Retention};
 pub use companions::{module_class_name, module_name};
 pub use defn::Defn;
+pub use encoded_names::{decode, encode};
 pub use function_classes::MAX_IMPLEMENTED_ARITY;
 pub use jdk::{defined_name, jdk_name};
-pub use lookup::{LookupName, decode, encode};
+pub use lookup::LookupName;
 pub use packages::{PACKAGE_TABLE, package_table, package_table_version};
 pub use predicates::is_package_object_name;
 pub use symbol::{FileId, Flags, Kind, Symbol, SymbolId};
@@ -90,7 +93,9 @@ pub struct Universe {
     /// The symbol each `TypeRef` or `TermRef` resolved to.
     resolved: FxHashMap<TypeId, SymbolId>,
     generation: u64,
-    erased_methods: FxHashMap<(SymbolId, bool), (Vec<crate::Erased>, crate::Erased)>,
+    erasures: erasure_memo::ErasureMemo,
+    /// The owners that are or were the owner of a declaration with a run-time name (`target`).
+    targeted: FxHashSet<SymbolId>,
     types: Types,
     /// The declared type of each symbol whose type was asked for.
     infos: FxHashMap<SymbolId, TypeId>,
@@ -125,6 +130,11 @@ pub struct Universe {
     classfile_descriptors: FxHashMap<SymbolId, String>,
     /// The retention of each annotation class entered from them.
     classfile_annotations: FxHashMap<SymbolId, classfiles::Retention>,
+    /// The signature polymorphic methods entered from them, and each instance at a call of one
+    /// with the method it instantiates.
+    signature_polymorphic: classfiles::SignaturePolymorphic,
+    /// Their elements that have a default value.
+    annotation_defaults: FxHashSet<SymbolId>,
     /// The library's classes the JDK's class files were asked for the members they lack.
     jdk_member_classes: FxHashSet<SymbolId>,
     /// The library's members of JDK classes checked against the JDK's class files.

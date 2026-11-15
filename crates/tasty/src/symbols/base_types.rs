@@ -91,9 +91,10 @@ impl Universe {
             let dealiased = match (args.is_empty(), prefix) {
                 (true, Some(p)) if term => self.member_info(p, s),
                 (true, Some(p)) => {
-                    let path = self.is_value_path(p);
+                    let path = self.is_value_path(p) || self.is_self_type_member(p, s);
                     let refined = if path { self.refinement_info(p, s) } else { None };
-                    if let Some(refined) = refined.or_else(|| self.arg_for_param(p, s)) {
+                    let refined = refined.or_else(|| self.arg_for_param(p, s));
+                    if let Some(refined) = refined.or_else(|| self.overriding_bounds(p, s)) {
                         return self.base_type_within(refined, base, depth);
                     }
                     let info = self.info(s);
@@ -171,6 +172,16 @@ impl Universe {
     fn is_null_without(&self, c: SymbolId, base: SymbolId) -> bool {
         let b = self.defn();
         self.null_mode.explicit && c == b.null && base != b.any && base != b.matchable
+    }
+
+    /// Whether `prefix` is the `this` of a class with a given self type and type member `s` is a
+    /// member of that self type the class does not inherit.
+    fn is_self_type_member(&mut self, prefix: TypeId, s: SymbolId) -> bool {
+        let Some(c) = self.this_of(prefix).and_then(|t| self.class_symbol(t)) else { return false };
+        let owner = self.symbol(s).owner;
+        self.symbol(s).kind == Kind::Type
+            && self.given_self_type(c).is_some()
+            && owner.is_some_and(|o| self.symbol(o).kind == Kind::Class && !self.derives_from(c, o))
     }
 
     /// `t` with the type parameters of class `c` replaced by `args`.

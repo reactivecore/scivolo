@@ -42,9 +42,21 @@ impl Code {
         l
     }
 
+    /// A new label at the current offset that no jump targets; whether the code is live stays.
+    pub fn mark(&mut self) -> Label {
+        let l = self.new_label();
+        self.labels[l.0] = Some(self.bytes.len());
+        l
+    }
+
     /// Whether `l` is placed at the current offset.
     pub fn is_here(&self, l: Label) -> bool {
         self.labels[l.0] == Some(self.bytes.len())
+    }
+
+    /// The offsets of the labels placed.
+    pub fn label_offsets(&self) -> impl Iterator<Item = usize> + '_ {
+        self.labels.iter().flatten().copied()
     }
 
     /// The offset of `l`, if placed.
@@ -101,6 +113,9 @@ impl Code {
 
     /// Why the code cannot be written, if it cannot.
     pub fn problem(&self) -> Option<String> {
+        if self.local_var_unplaced() {
+            return Some("a local's range ends at a label never placed".to_owned());
+        }
         (!self.fixups.is_empty()).then(|| "a jump to a label never placed".to_owned())
     }
 

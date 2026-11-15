@@ -3,24 +3,22 @@
 //! The Java annotations a class file keeps (dotty's `emitAnnotations`).
 
 use super::Gen;
-use super::descriptors::{class_descriptor, class_internal};
-use classfile::{ClassFile, Last};
+use classfile::{AnnotationValue, ClassFile, Last};
 use names::name_kinds;
 use tasty::tags::FIELDaccessor;
 use tasty::{Retention, SymbolId};
-use typer::tpd::Tree;
 
-/// A Java annotation a class file keeps: its class's descriptor and whether it is kept at run time.
+/// A Java annotation a class file keeps: its class file form and whether it is kept at run time.
 pub struct Kept {
-    descriptor: String,
+    value: AnnotationValue,
     visible: bool,
 }
 
 impl Gen<'_, '_> {
     /// Determines the annotations of `sym` of Java annotation classes read from class files that
     /// its class file keeps, those whose retention is not `SOURCE` (dotty's
-    /// `shouldEmitAnnotation`). Refuses, with what is not supported, a kept annotation with
-    /// arguments and several kept annotations.
+    /// `shouldEmitAnnotation`). Refuses, with what is not supported, an argument
+    /// `annotation_value` refuses and several kept annotations.
     pub fn kept_annotations(&mut self, sym: SymbolId) -> Result<Vec<Kept>, &'static str> {
         let mut kept = Vec::new();
         for annot in self.l.tpd.annotations(sym).to_vec() {
@@ -30,16 +28,8 @@ impl Gen<'_, '_> {
             if retention == Retention::Source {
                 continue;
             }
-            let no_args = match self.l.tpd.tree(annot) {
-                Tree::Apply { args, .. } => self.l.tpd.items(*args).is_empty(),
-                Tree::New { .. } => true,
-                _ => false,
-            };
-            if !no_args {
-                return Err("Java annotations with arguments on the JVM");
-            }
-            let descriptor = class_descriptor(&class_internal(&self.l.u.erase(tpe)));
-            kept.push(Kept { descriptor, visible: retention == Retention::Runtime });
+            let value = self.annotation_value(annot)?;
+            kept.push(Kept { value, visible: retention == Retention::Runtime });
         }
         if kept.len() > 1 {
             return Err("several Java annotations of one definition on the JVM");
@@ -87,10 +77,10 @@ impl Gen<'_, '_> {
     pub fn emit_annotations(&mut self, cf: &mut ClassFile, last: Option<Last>, sym: SymbolId) {
         let kept = self.kept_annotations(sym).unwrap_or_default();
         for visible in [true, false] {
-            let descriptors: Vec<String> =
-                kept.iter().filter(|k| k.visible == visible).map(|k| k.descriptor.clone()).collect();
-            if !descriptors.is_empty() {
-                cf.annotations(last, visible, &descriptors);
+            let values: Vec<AnnotationValue> =
+                kept.iter().filter(|k| k.visible == visible).map(|k| k.value.clone()).collect();
+            if !values.is_empty() {
+                cf.annotations(last, visible, &values);
             }
         }
     }

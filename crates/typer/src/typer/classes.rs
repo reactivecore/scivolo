@@ -53,6 +53,7 @@ impl Typer<'_> {
         self.u.type_params(cls).into_iter().for_each(|p| self.complete(p));
         let parents = self.parent_types(cls, tree, &t.parents, super_ctx);
         self.check_parents(cls, rhs, &parents);
+        let parents = self.adjust_synthetic_parents(cls, tree, parents);
         self.check_dynamics_enabled(rhs, &parents, ctx);
         self.u.set_parents(cls, parents);
         self.check_object_parent_assumed(cls, tree);

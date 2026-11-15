@@ -149,6 +149,18 @@ impl Typer<'_> {
         let text = self.text(name.name).to_owned();
         self.check_def_name(p, &text, flags, method);
         let s = self.syms.define(self.u, &text, kind, method, flags);
+        if let Some(q) = self.ast.modifiers(mods).private_within {
+            let q = self.text(q).to_owned();
+            match self.enclosing_class_named(method, &q) {
+                Some(within) => {
+                    self.syms.private_within.insert(s, within);
+                    self.u.set_access_qualifier(s, Some(within));
+                }
+                None => {
+                    self.unsupported(p, "qualifier of private or protected not an enclosing class");
+                }
+            }
+        }
         self.syms.param_trees.insert(s, p);
         if self.syms.by_tree.insert(p, s).is_some() {
             self.unsupported(p, "definition tree shared by two definitions");

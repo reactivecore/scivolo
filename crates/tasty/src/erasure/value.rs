@@ -28,7 +28,7 @@ impl Universe {
         }
         let widened = self.widen(t);
         match self.value_class(widened) {
-            Some(c) => Erased::Value(self.binary_name(c), Box::new(self.erase(widened))),
+            Some(c) => Erased::Value(self.erased_class_name(c), Box::new(self.erase(widened))),
             None => self.erase(t),
         }
     }

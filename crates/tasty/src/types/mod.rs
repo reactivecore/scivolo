@@ -6,6 +6,7 @@ mod flexible;
 mod map;
 mod name_table;
 mod narrowing;
+mod overriders;
 mod parts;
 mod refined_aliases;
 mod refinements;

@@ -1,12 +1,11 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/typer/Applications.scala
 //   compiler/src/dotty/tools/dotc/typer/ProtoTypes.scala
-//! The expected result type of an application: the result constrained by it (dotty's
-//! `constrainResult`), the results of alternatives compared with it (`resultConforms`).
+//! The expected result type of an application: the result approximated and constrained by it
+//! (dotty's `resultTypeApprox`, `constrainResult`), normalized for comparing with it (`normalize`).
 
 use super::dependent_params::{clause_param, mentions_clause_params, substituted};
 use super::{Pt, Typer};
-use crate::ctx::Ctx;
 use tasty::{Binder, NameId, SymbolId, Type, TypeId, TypeVars};
 
 impl Typer<'_> {
@@ -170,38 +169,5 @@ impl Typer<'_> {
                 _ => Some(t),
             },
         }
-    }
-
-    /// Whether the result of `alt` after its first parameter clause and its implicit clauses is
-    /// compatible with `pt` in `ctx`, through an implicit conversion if `views`, its type
-    /// parameters made type variables; the constraint unchanged; `None` if undecided.
-    pub fn result_conforms(
-        &mut self,
-        alt: SymbolId,
-        prefix: Option<TypeId>,
-        pt: TypeId,
-        (views, ctx): (bool, Ctx),
-    ) -> Option<bool> {
-        if self.u.class_symbol(pt) == Some(self.defn.unit) {
-            return Some(true);
-        }
-        let follow = !self.is_context_function_type(pt);
-        let before = self.constraint.attempt();
-        let tpe = self.u.intern_type(Type::Sym(prefix, alt));
-        let mut info = self.method_info(tpe).unwrap_or(tpe);
-        if let Some((binder, result, names)) = self.u.poly(info).map(|p| (p.binder, p.result, p.names())) {
-            let vars: Vec<TypeId> = names.iter().map(|_| self.constraint.fresh(self.u)).collect();
-            info = self.instantiate_poly(result, binder, &names, &vars, Some(alt));
-        }
-        let fits = match self.u.method(info).map(|m| m.result) {
-            Some(result) => match self.proto_normalized((result, Some(alt)), pt, follow, 8) {
-                Some(value) if self.u.is_necessary_subtype_in(value, pt, &mut self.constraint) => Some(true),
-                Some(value) => self.compatible(value, pt, views, ctx),
-                None => None,
-            },
-            None => Some(true),
-        };
-        self.constraint.abandon(before);
-        fits
     }
 }

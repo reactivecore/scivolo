@@ -74,6 +74,11 @@ impl SourceVersion {
         self.is_at_least(Self::V3_7)
     }
 
+    /// Whether TASTy keeps capture-set annotations as types (dotty's `enablesCompactAnnotation`).
+    pub fn enables_compact_annotation(self) -> bool {
+        self.is_at_least(Self::V3_9) && !self.is_scala2()
+    }
+
     pub fn requires_new_syntax(self) -> bool {
         self.is_at_least(Self::FUTURE_VERSION)
     }
