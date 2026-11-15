@@ -59,8 +59,8 @@ impl TreePickler<'_> {
     /// from gave, `Some(None)` if several may have; marks the type keyed as told by its place.
     fn origin_annotation(&mut self, annotated: TypeId, annot: TypeId) -> Option<Option<TNodeId>> {
         let tpt = self.type_tree?;
-        let origins = self.origins.get_or_insert_with(|| AnnotationOrigins::new(self.tpd, self.root));
-        let tree = origins.of_type_tree(self.tpd, tpt, annotated, annot)?;
+        let origins = self.origins.get_or_insert_with(|| AnnotationOrigins::new(self.u, self.tpd, self.root));
+        let tree = origins.of_type_tree(self.u, self.tpd, tpt, annotated, annot)?;
         self.keyed_by_place = true;
         Some(tree)
     }
