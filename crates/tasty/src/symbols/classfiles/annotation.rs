@@ -21,11 +21,13 @@ pub enum Retention {
     Runtime,
 }
 
-/// Determines the retention of annotation class `info` from its `@Retention`, `CLASS` without one
-/// (dotty's `retentionPolicyOf`).
+/// Determines the retention of annotation class `info` from its `@Retention`, `RUNTIME` without
+/// one (dotty's `retentionPolicyOf` and `isRuntimeVisible`).
 fn retention(info: &ClassInfo) -> Retention {
-    let retention = info.annotations.iter().find(|a| a.descriptor == RETENTION);
-    let policy = retention.and_then(|a| a.enum_elements.iter().find(|(n, _)| n == "value"));
+    let Some(retention) = info.annotations.iter().find(|a| a.descriptor == RETENTION) else {
+        return Retention::Runtime;
+    };
+    let policy = retention.enum_elements.iter().find(|(n, _)| n == "value");
     match policy.map(|(_, c)| c.as_str()) {
         Some("SOURCE") => Retention::Source,
         Some("RUNTIME") => Retention::Runtime,
@@ -33,12 +35,30 @@ fn retention(info: &ClassInfo) -> Retention {
     }
 }
 
-/// Records the retention of `class` entered from `info` and enters its constructor if `info` is
-/// an annotation class.
+/// Records the retention of `class` entered from `info` and the elements of `members` with a
+/// default value, and enters its constructor, if `info` is an annotation class.
 pub fn enter(u: &mut Universe, class: SymbolId, info: &ClassInfo, members: &[SymbolId]) {
     if info.access & ACC_ANNOTATION != 0 {
         enter_constructor(u, class, members);
         u.classfile_annotations.insert(class, retention(info));
+        let defaults = info.methods.iter().filter(|m| m.annotation_default).map(|m| m.name.as_str());
+        let defaults: Vec<&str> = defaults.collect();
+        for &m in members {
+            if u.symbol(m).owner == Some(class) && defaults.contains(&u.symbol(m).name.as_str()) {
+                u.annotation_defaults.insert(m);
+            }
+        }
+    }
+}
+
+impl Universe {
+    /// Determines whether element `name` of annotation class `class` of a class file has a
+    /// default value (dotty's `AnnotationDefaultAnnot`).
+    pub fn has_annotation_default(&self, class: SymbolId, name: &str) -> bool {
+        self.symbol(class)
+            .decls
+            .iter()
+            .any(|&m| self.annotation_defaults.contains(&m) && self.symbol(m).name == name)
     }
 }
 

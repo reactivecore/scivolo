@@ -1,7 +1,7 @@
 //! Loading the pending files of a package: those defining a name, the package objects' or all.
 
 use super::companions::module_name;
-use super::lookup::encode;
+use super::encoded_names::encode;
 use super::predicates::is_package_object_name;
 use super::{Error, SymbolId, Universe};
 use crate::types::NameId;

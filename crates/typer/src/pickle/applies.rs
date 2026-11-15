@@ -2,16 +2,27 @@
 //   compiler/src/dotty/tools/dotc/core/tasty/TreePickler.scala
 //! Applications in the shape of dotty's trees (the `Apply` case of `pickleTree`): a
 //! parameterless method without an empty application, the constructor of a generic class
-//! with its type arguments.
+//! with its type arguments, a Java annotation's without its omitted arguments.
 
 use super::{Refusal, TreePickler};
 use crate::tpd::{List, TNodeId, Tree as T};
+use names::nme;
 use tasty::tags::{APPLY, TYPEAPPLY};
 use tasty::{Kind, Type, TypeId};
 
 impl TreePickler<'_> {
     /// Application `fun(args)`, in a file in dotty's shape.
     pub fn apply_(&mut self, fun: TNodeId, args: List) -> Result<(), Refusal> {
+        let ctor = self.tpd.sym(fun).filter(|&c| self.u.is_constructor(c));
+        if ctor.and_then(|c| self.u.symbol(c).owner).is_some_and(|o| self.u.classfile_retention(o).is_some())
+        {
+            let args: Vec<TNodeId> =
+                self.tpd.items(args).iter().copied().filter(|&a| !self.is_default_placeholder(a)).collect();
+            return self.with_length(APPLY, &mut |p| {
+                p.tree(fun)?;
+                args.iter().try_for_each(|&a| p.tree(a))
+            });
+        }
         if self.file.is_none() {
             return self.node(APPLY, &[fun], &[args]);
         }
@@ -91,5 +102,13 @@ impl TreePickler<'_> {
             Type::Bounds(_, hi) | Type::Alias(hi) => hi,
             _ => bounds,
         }
+    }
+
+    /// Whether `arg` is `name = _`, an omitted argument of a Java annotation with a default value
+    /// (dotty's `pickleTree` skips it, #19951).
+    fn is_default_placeholder(&self, arg: TNodeId) -> bool {
+        let T::NamedArg { arg, .. } = *self.tpd.tree(arg) else { return false };
+        matches!(*self.tpd.tree(arg), T::Ident { name } if self.names.text(name.name) == nme::WILDCARD)
+            && self.tpd.sym(arg).is_none()
     }
 }

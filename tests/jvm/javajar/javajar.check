@@ -8,3 +8,6 @@ count 2 2 6
 named
 7
 hi 2.0 2.0
+16
+t 1 Object  TYPE
+u 2 String a,b METHOD
