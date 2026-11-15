@@ -3,12 +3,14 @@
 mod descriptors;
 mod jumps;
 mod lines;
+mod local_vars;
 mod ops;
-mod widen;
+mod relayout;
 
 pub use descriptors::{method_slots, split_method, value_slots};
 use jumps::Fixup;
 pub use jumps::Label;
+use local_vars::LocalVars;
 
 use crate::kind::Kind;
 use crate::opcodes::{ILOAD, ILOAD_0, ISTORE, ISTORE_0, SHORT_VARS, WIDE};
@@ -50,6 +52,8 @@ pub struct Code {
     /// The `LineNumberTable`: offsets and their source lines.
     lines: Vec<(u16, u16)>,
     last_line: u16,
+    /// The `LocalVariableTable`.
+    local_vars: LocalVars,
 }
 
 impl Code {
@@ -69,6 +73,7 @@ impl Code {
             live: true,
             lines: Vec::new(),
             last_line: 0,
+            local_vars: LocalVars::default(),
         }
     }
 
@@ -183,17 +188,5 @@ impl Code {
     pub fn checkcast(&mut self, pool: &mut Pool, class: &str) {
         let index = pool.class(class);
         self.op(0xc0, &index.to_be_bytes(), 0);
-    }
-
-    pub fn dup(&mut self) {
-        self.op(0x59, &[], 1);
-    }
-
-    pub fn pop(&mut self) {
-        self.op(0x57, &[], -1);
-    }
-
-    pub fn aconst_null(&mut self) {
-        self.op(0x01, &[], 1);
     }
 }

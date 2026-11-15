@@ -36,8 +36,6 @@ pub enum Constant<'a> {
     Handle(&'a Handle),
 }
 
-const ATTRIBUTE: &str = "BootstrapMethods";
-
 impl Pool {
     pub fn handle(&mut self, h: &Handle) -> u16 {
         let r = if h.interface { Ref::InterfaceMethod } else { Ref::Method };
@@ -71,7 +69,6 @@ impl Pool {
         let i = match self.bootstraps.iter().position(|b| *b == method) {
             Some(i) => i,
             None => {
-                self.utf8(ATTRIBUTE);
                 self.bootstraps.push(method);
                 self.bootstraps.len() - 1
             }
@@ -80,9 +77,11 @@ impl Pool {
         self.add(Entry::InvokeDynamic(u16::try_from(i).unwrap_or(u16::MAX), nt))
     }
 
-    /// The `BootstrapMethods` attribute's name and bytes, none without call sites.
-    pub fn bootstrap_methods(&self) -> Option<(u16, Vec<u8>)> {
-        let name = *self.index.get(&Entry::Utf8(ATTRIBUTE.encode_utf16().collect()))?;
+    /// The body of the `BootstrapMethods` attribute, none without call sites.
+    pub fn bootstrap_methods(&self) -> Option<Vec<u8>> {
+        if self.bootstraps.is_empty() {
+            return None;
+        }
         let mut bytes = Vec::new();
         bytes.extend((self.bootstraps.len() as u16).to_be_bytes());
         for (handle, args) in &self.bootstraps {
@@ -90,6 +89,6 @@ impl Pool {
             bytes.extend((args.len() as u16).to_be_bytes());
             bytes.extend(args.iter().flat_map(|a| a.to_be_bytes()));
         }
-        Some((name, bytes))
+        Some(bytes)
     }
 }

@@ -1,52 +1,55 @@
 //! The bytes of a class file.
 
-use crate::{Attribute, ClassFile, Code, MAJOR_VERSION, Member};
+use crate::layout::{Laid, LaidMember};
+use crate::{Code, MAJOR_VERSION, Pool};
 
-impl ClassFile {
-    /// The class file's bytes, or why it cannot hold the class.
-    pub fn bytes(&self) -> Result<Vec<u8>, String> {
-        if let Some(e) = &self.error {
-            return Err(e.clone());
-        }
-        let mut out = Vec::new();
-        out.extend(0xcafe_babe_u32.to_be_bytes());
-        out.extend(0_u16.to_be_bytes());
-        out.extend(MAJOR_VERSION.to_be_bytes());
-        self.pool.write(&mut out).ok_or("more than 65,534 constants")?;
-        for v in [self.access, self.this, self.superclass] {
-            out.extend(v.to_be_bytes());
-        }
-        out.extend(count(self.interfaces.len())?);
-        out.extend(self.interfaces.iter().flat_map(|i| i.to_be_bytes()));
-        for members in [&self.fields, &self.methods] {
-            out.extend(count(members.len())?);
-            for m in members {
-                member(&mut out, m)?;
-            }
-        }
-        let bootstraps = self.pool.bootstrap_methods().map(|(name, bytes)| Attribute { name, bytes });
-        let attrs: Vec<&Attribute> =
-            self.attributes.iter().map(|(_, a)| a).chain(&bootstraps).chain(&self.custom).collect();
-        attributes(&mut out, attrs)?;
-        Ok(out)
-    }
+/// A class whose entries are all in its pool.
+pub struct Class {
+    pub access: u16,
+    pub this: u16,
+    pub superclass: u16,
+    pub interfaces: Vec<u16>,
+    pub fields: Vec<LaidMember>,
+    pub methods: Vec<LaidMember>,
+    pub attributes: Vec<Laid>,
 }
 
-fn member(out: &mut Vec<u8>, m: &Member) -> Result<(), String> {
-    for v in [m.access, m.name, m.descriptor] {
+/// The bytes of class `c` with pool `pool`, or why they cannot hold it.
+pub fn bytes(pool: &Pool, c: &Class) -> Result<Vec<u8>, String> {
+    let mut out = Vec::new();
+    out.extend(0xcafe_babe_u32.to_be_bytes());
+    out.extend(0_u16.to_be_bytes());
+    out.extend(MAJOR_VERSION.to_be_bytes());
+    pool.write(&mut out).ok_or("more than 65,534 constants")?;
+    for v in [c.access, c.this, c.superclass] {
         out.extend(v.to_be_bytes());
     }
-    attributes(out, &m.attributes)
+    out.extend(count(c.interfaces.len())?);
+    out.extend(c.interfaces.iter().flat_map(|i| i.to_be_bytes()));
+    for members in [&c.fields, &c.methods] {
+        out.extend(count(members.len())?);
+        for m in members {
+            for v in [m.access, m.name, m.descriptor] {
+                out.extend(v.to_be_bytes());
+            }
+            attributes(&mut out, &m.attributes)?;
+        }
+    }
+    attributes(&mut out, &c.attributes)?;
+    Ok(out)
 }
 
-fn attributes<'a>(out: &mut Vec<u8>, attrs: impl IntoIterator<Item = &'a Attribute>) -> Result<(), String> {
-    let attrs: Vec<&Attribute> = attrs.into_iter().collect();
+fn attributes(out: &mut Vec<u8>, attrs: &[Laid]) -> Result<(), String> {
     out.extend(count(attrs.len())?);
     for a in attrs {
-        out.extend(a.name.to_be_bytes());
-        let len = u32::try_from(a.bytes.len()).map_err(|_| "an attribute over 4 GiB")?;
+        out.extend(a.index.to_be_bytes());
+        let mut body = a.body.clone();
+        if let Some(nested) = &a.nested {
+            attributes(&mut body, nested)?;
+        }
+        let len = u32::try_from(body.len()).map_err(|_| "an attribute over 4 GiB")?;
         out.extend(len.to_be_bytes());
-        out.extend(&a.bytes);
+        out.extend(body);
     }
     Ok(())
 }
@@ -55,8 +58,8 @@ fn count(n: usize) -> Result<[u8; 2], String> {
     u16::try_from(n).map(u16::to_be_bytes).map_err(|_| format!("{n} items in a table of at most 65,535"))
 }
 
-/// The `Code` attribute's bytes with the attributes `attrs`.
-pub fn code(c: &Code, attrs: &[Attribute]) -> Result<Vec<u8>, String> {
+/// The body of the `Code` attribute of `c` up to its attributes.
+pub fn code(c: &Code) -> Result<Vec<u8>, String> {
     let mut out = Vec::with_capacity(c.bytes.len() + 12);
     out.extend(c.max_stack.to_be_bytes());
     out.extend(c.max_locals.to_be_bytes());
@@ -64,6 +67,5 @@ pub fn code(c: &Code, attrs: &[Attribute]) -> Result<Vec<u8>, String> {
     out.extend(&c.bytes);
     out.extend(count(c.exceptions.len())?);
     out.extend(c.exceptions.iter().flatten().flat_map(|v| v.to_be_bytes()));
-    attributes(&mut out, attrs)?;
     Ok(out)
 }

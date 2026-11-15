@@ -182,6 +182,7 @@ mod selectable_fields;
 mod selves;
 mod settle;
 mod shown_prefix;
+mod signature_polymorphic;
 pub(crate) mod simplify;
 mod small_tuples;
 mod source_splices;

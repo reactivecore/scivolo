@@ -107,10 +107,13 @@ impl Gen<'_, '_> {
         }
         match *self.l.tpd.tree(t) {
             Tree::Block { stats, expr } => {
+                b.code.open_block();
                 for s in self.l.tpd.items(stats).to_vec() {
                     self.block_stat(b, s)?;
                 }
-                return self.cond(b, expr, success, failure, fall);
+                self.cond(b, expr, success, failure, fall)?;
+                b.code.close_block();
+                return Ok(());
             }
             Tree::If { cond, thenp, elsep, .. } => {
                 let (inner_success, inner_failure) = (b.code.new_label(), b.code.new_label());

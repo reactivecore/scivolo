@@ -20,6 +20,8 @@ pub const DOLLAR_VALUES: &str = "$values";
 pub const OUTER: &str = "$outer";
 /// The name of an extension method's receiver parameter.
 pub const SELF: &str = "$this";
+/// The name of the receiver in a method's `LocalVariableTable`.
+pub const THIS: &str = "this";
 /// The name of the root package.
 pub const ROOT: &str = "<root>";
 /// The name `_root_` of the root package in source.

@@ -24,7 +24,7 @@ use crate::{Lower, Result};
 use plan::{Plan, PlanId};
 use rustc_hash::{FxHashMap, FxHashSet};
 use syntax::ast::Span;
-use tasty::tags::{INLINE, LAZY};
+use tasty::tags::{INLINE, LAZY, SYNTHETIC};
 use tasty::{Flags, Kind, SymbolId, TypeId};
 use typer::tpd::{MatchKind, TNodeId, Tree};
 
@@ -159,7 +159,7 @@ impl<'t, 'a> Translator<'t, 'a> {
             _ => self.sanitized(tpe),
         };
         let name = self.l.fresh_name(self.owner, "x");
-        let var = self.l.u.define(symbol(&name, Kind::Val, self.owner, Flags::default()));
+        let var = self.l.u.define(symbol(&name, Kind::Val, self.owner, Flags::default().with(SYNTHETIC)));
         self.l.u.set_info(var, tpe);
         self.generated.insert(var);
         self.initializer.insert(var, rhs);
