@@ -26,12 +26,12 @@ impl Gen<'_, '_> {
         let (superclass, interfaces) = self.parents(sym, &targets);
         let interfaces: Vec<&str> = interfaces.iter().map(String::as_str).collect();
         let mut cf = ClassFile::new(java_flags(self.l, sym), &name, &superclass, &interfaces);
-        self.serial_version_uid(&mut cf, sym)?;
         let module = self.l.u.is_static_module(sym);
         let module_desc = class_descriptor(&name);
         if module {
             cf.field(ACC_PUBLIC | ACC_STATIC | ACC_FINAL, nme::MODULE_INSTANCE_FIELD, &module_desc);
         }
+        self.serial_version_uid(&mut cf, sym)?;
         let module_name = module.then(|| name.clone());
         let mut init = StaticInit {
             module: module_name,
