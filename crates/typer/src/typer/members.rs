@@ -69,6 +69,11 @@ impl Typer<'_> {
                 }
                 _ => {
                     self.complete(s);
+                    if let Some(p) = prefix.filter(|_| self.u.is_type_symbol(s))
+                        && let Some((m, _)) = self.u.overrider(p, s)
+                    {
+                        self.complete(m);
+                    }
                     let info = match prefix {
                         Some(p) if !self.u.is_type_symbol(s) => {
                             let info = self.u.member_info(p, s);

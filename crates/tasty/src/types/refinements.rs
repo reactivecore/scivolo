@@ -101,9 +101,9 @@ impl Universe {
         Some(self.as_seen_from(info, prefix, owner))
     }
 
-    /// The type member or class overriding abstract type member `s` in the class of `prefix`'s
-    /// type, and its owner.
-    fn overrider(&mut self, prefix: TypeId, s: SymbolId) -> Option<(SymbolId, SymbolId)> {
+    /// Finds the type member or class overriding abstract type member `s` in the class of
+    /// `prefix`'s type, and its owner.
+    pub fn overrider(&mut self, prefix: TypeId, s: SymbolId) -> Option<(SymbolId, SymbolId)> {
         if self.symbol(s).kind != Kind::Type {
             return None;
         }
