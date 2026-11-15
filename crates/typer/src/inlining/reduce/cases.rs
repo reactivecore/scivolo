@@ -97,10 +97,7 @@ impl Reducer<'_, '_> {
         }
         if let Some(g) = guard {
             self.subst(&m, g);
-            let mark = self.with_givens(&bindings);
-            let g = self.i.retype(g, self.args, self.owner);
-            self.i.case_givens.truncate(mark);
-            let g = g?;
+            let g = self.i.retype(g, self.args, self.owner)?;
             match self.i.constant_of(g) {
                 Some(C::Boolean(true)) => {}
                 Some(C::Boolean(false)) => return Ok(Case::NoMatch),

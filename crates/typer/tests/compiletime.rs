@@ -19,28 +19,6 @@ const CASES: &[(&str, &str)] = &[
         "implicit search in an inline body with local implicits",
     ),
     (
-        "object O { inline def s[T]: Show[T] = summonInline[Show[T]]; \
-         transparent inline def t: Show[Int] = { given x: Show[Int] = null; s[Int] }; def g = t }",
-        "implicit search in an inline body with local implicits",
-    ),
-    (
-        "object O { given ls[A](using Show[A]): Show[List[A]] = null; inline def f: Int = \
-         summonFrom { case s: Show[Int] => summonInline[Show[List[Int]]].hashCode }; def g = f }",
-        "implicit search in an inline body with local implicits",
-    ),
-    (
-        "object O { given ls[A](using Show[A]): Show[List[A]] = null; \
-         inline def s: Int = summonFrom { case _: Show[List[Long]] => 1; case _ => 2 }; \
-         transparent inline def t: Int = { given x: Show[Long] = null; s }; def g = t }",
-        "implicit search in an inline body with local implicits",
-    ),
-    (
-        "object O { given ls[A](using Show[A]): Show[List[A]] = null; \
-         inline def s[T]: Show[T] = summonInline[Show[T]]; \
-         transparent inline def t: Show[List[Int]] = { given x: Show[Int] = null; s[List[Int]] }; def g = t }",
-        "implicit search in an inline body with local implicits",
-    ),
-    (
         "object O { given a: Show[String] = new Show[String] { def show(t: String) = \"\" }; \
          given b: Show[String] = a; inline def f: Boolean = summonFrom { case _: Show[String] => true }; \
          def g = f }",
@@ -68,6 +46,60 @@ fn compiletime_refusals() {
         let text = format!("{PRELUDE}{case}\n");
         let actual = dump(&mut u, &SourceFile::new("case.scala", text.as_str()), &[], false, true);
         if !actual.starts_with(&format!("== unsupported {refusal}")) {
+            failures.push(format!("{case}: {}", actual.lines().next().unwrap_or_default()));
+        }
+    }
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
+
+/// Searches in inline bodies with local givens in scope, and the symbols their expansion refers
+/// to in this order.
+const LOCAL_GIVENS: &[(&str, &[&str])] = &[
+    (
+        "object O { inline def s[T]: Show[T] = summonInline[Show[T]]; \
+         transparent inline def t: Show[Int] = { given x: Show[Int] = null; s[Int] }; def g = t }",
+        &["O$.s#(1)", "O$._$x"],
+    ),
+    (
+        "object O { given ls[A](using Show[A]): Show[List[A]] = null; inline def f: Int = \
+         summonFrom { case s: Show[Int] => summonInline[Show[List[Int]]].hashCode }; def g = f }",
+        &["O$.ls#(1,Show)", "O$._$s"],
+    ),
+    (
+        "object O { given ls[A](using Show[A]): Show[List[A]] = null; \
+         inline def s: Int = summonFrom { case _: Show[List[Long]] => 1; case _ => 2 }; \
+         transparent inline def t: Int = { given x: Show[Long] = null; s }; def g = t }",
+        &["O$.ls#(1,Show)", "O$._$x", "#Int:\"1\""],
+    ),
+    (
+        "object O { given ls[A](using Show[A]): Show[List[A]] = null; \
+         inline def s[T]: Show[T] = summonInline[Show[T]]; \
+         transparent inline def t: Show[List[Int]] = { given x: Show[Int] = null; s[List[Int]] }; def g = t }",
+        &["O$.ls#(1,Show)", "O$._$x"],
+    ),
+];
+
+#[test]
+fn local_givens_in_inline_searches() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let jars = library_jars(&root.join("../../ref/libs"));
+    if jars.iter().any(|j| !j.exists()) {
+        return;
+    }
+    let mut failures = Vec::new();
+    for &(case, refs) in LOCAL_GIVENS {
+        let mut u = Universe::open(&jars).expect("the library");
+        let text = format!("{PRELUDE}{case}\n");
+        let actual = dump(&mut u, &SourceFile::new("case.scala", text.as_str()), &[], false, true);
+        let mut rest = actual.as_str();
+        let in_order = refs.iter().all(|r| match rest.find(r) {
+            Some(i) => {
+                rest = &rest[i + r.len()..];
+                true
+            }
+            None => false,
+        });
+        if !in_order {
             failures.push(format!("{case}: {}", actual.lines().next().unwrap_or_default()));
         }
     }

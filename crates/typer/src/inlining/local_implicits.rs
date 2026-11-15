@@ -39,15 +39,6 @@ impl Inlining<'_> {
         Ok(imp)
     }
 
-    /// The implicits the blocks in `scopes` define.
-    pub fn block_defs(&self) -> Vec<SymbolId> {
-        let defs = self.scopes.iter().flat_map(|s| match s {
-            Scope::Implicits(defs) => defs.as_slice(),
-            Scope::Import(_) => &[],
-        });
-        defs.copied().collect()
-    }
-
     /// `ctx` inside the imports among `scopes`.
     pub fn within_imports(&mut self, ctx: Ctx) -> Ctx {
         let imports: Vec<Scope> =
@@ -149,8 +140,8 @@ impl Inlining<'_> {
         }
     }
 
-    pub fn implicit_defs_at(&self, t: TNodeId, call: TNodeId, found: &mut Vec<SymbolId>) -> bool {
-        implicit_defs_at(self.tpd, self.u, (t, call), found)
+    pub fn implicit_scopes_at(&self, t: TNodeId, call: TNodeId) -> Option<Vec<Vec<SymbolId>>> {
+        implicit_scopes_at(self.tpd, self.u, (t, call))
     }
 }
 
@@ -163,23 +154,42 @@ pub fn is_implicit_def(tpd: &Tpd, u: &Universe, t: TNodeId) -> bool {
     })
 }
 
-/// Adds the given and implicit terms `t` defines in whose scope `call` is to `found`: those
-/// defined beside a tree containing it, or defining it; whether `t` contains `call`.
-pub fn implicit_defs_at(
+/// Determines the scopes of the given and implicit terms `t` defines in whose scope `call` is,
+/// outermost first: `t` if it defines one, then for each tree containing `call` the terms its
+/// children define; `None` if `t` does not contain `call`.
+pub fn implicit_scopes_at(
     tpd: &Tpd,
     u: &Universe,
     (t, call): (TNodeId, TNodeId),
-    found: &mut Vec<SymbolId>,
+) -> Option<Vec<Vec<SymbolId>>> {
+    let mut scopes = Vec::new();
+    if !scopes_within(tpd, u, (t, call), &mut scopes) {
+        return None;
+    }
+    scopes.extend(tpd.sym(t).filter(|_| is_implicit_def(tpd, u, t)).map(|s| vec![s]));
+    scopes.reverse();
+    Some(scopes)
+}
+
+/// Adds the scopes of `implicit_scopes_at` inside `t` to `found`, innermost first; whether `t`
+/// contains `call`.
+fn scopes_within(
+    tpd: &Tpd,
+    u: &Universe,
+    (t, call): (TNodeId, TNodeId),
+    found: &mut Vec<Vec<SymbolId>>,
 ) -> bool {
     if t == call {
         return true;
     }
     let children = tpd.children(t);
-    let Some(i) = children.iter().position(|&c| implicit_defs_at(tpd, u, (c, call), found)) else {
+    if !children.iter().any(|&c| scopes_within(tpd, u, (c, call), found)) {
         return false;
-    };
-    let beside = children.iter().enumerate().filter(|&(j, &c)| j != i && is_implicit_def(tpd, u, c));
-    found.extend(beside.filter_map(|(_, &c)| tpd.sym(c)));
-    found.extend(tpd.sym(t).filter(|_| is_implicit_def(tpd, u, t)));
+    }
+    let defined: Vec<SymbolId> =
+        children.into_iter().filter(|&c| is_implicit_def(tpd, u, c)).filter_map(|c| tpd.sym(c)).collect();
+    if !defined.is_empty() {
+        found.push(defined);
+    }
     true
 }
