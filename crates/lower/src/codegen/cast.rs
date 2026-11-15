@@ -80,13 +80,12 @@ impl Gen<'_, '_> {
         let Tree::Select { qualifier, .. } = *self.l.tpd.tree(fun) else {
             return unsupported(span, "type applications without a call");
         };
+        let Tree::TypeApply { args, .. } = *self.l.tpd.tree(t) else { unreachable!("a type application") };
+        let target = self.l.tpd.tpe(self.l.tpd.items(args)[0]);
         if self.l.tpd.sym(fun) == Some(self.l.defs.is_instance_of) {
             let value = self.gen_expr(qualifier)?;
             let saved = self.at_span(span);
-            let Tree::TypeApply { args, .. } = *self.l.tpd.tree(t) else {
-                unreachable!("a type application")
-            };
-            let tested = self.l.u.erase_boxed(self.l.tpd.tpe(self.l.tpd.items(args)[0]));
+            let tested = self.l.u.erase_boxed(target);
             let ty = self.erased(&tested);
             let ty = self.bottom_box(ty).unwrap_or(ty);
             let v = self.emit(Op::Is { ty, obj: value });
@@ -97,7 +96,7 @@ impl Gen<'_, '_> {
             return unsupported(span, "type applications without a call");
         }
         let erased_from = erased_type(self.l, qualifier).full();
-        let erased_to = self.l.u.erase_boxed(self.l.tpd.tpe(t));
+        let erased_to = self.l.u.erase_boxed(target);
         let literal = matches!(self.l.tpd.tree(self.l.tpd.strip_typed(qualifier)), Tree::SeqLiteral { .. });
         let other_array = literal
             && matches!((&erased_from, &erased_to), (Erased::Array(_), Erased::Array(_)))

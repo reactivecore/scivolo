@@ -64,16 +64,7 @@ impl Inlining<'_> {
                 if matches!(self.u.ty(tpe), Type::Method { .. } | Type::Poly { .. }) {
                     return Ok(t);
                 }
-                let simplified = crate::typer::simplify::simplified(self.u, tpe);
-                if simplified != tpe
-                    && (self.u.erase(simplified) != self.u.erase(tpe)
-                        || self.u.erase_boxed(simplified) != self.u.erase_boxed(tpe))
-                {
-                    let what =
-                        "type application in an inline expansion whose simplified type erases differently";
-                    return Err((self.tpd.span(t), what));
-                }
-                self.tpd.get_mut(t).tpe = Some(simplified);
+                self.tpd.get_mut(t).tpe = Some(crate::typer::simplify::simplified(self.u, tpe));
                 Ok(t)
             }
             _ => Ok(t),
