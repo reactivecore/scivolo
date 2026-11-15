@@ -5,7 +5,7 @@
 
 use super::{Type, TypeId};
 use crate::tags::PRIVATE;
-use crate::{Kind, SymbolId, Universe};
+use crate::{ANY, Kind, NOTHING, SymbolId, Universe};
 
 impl Universe {
     /// The alias or class by which the class of term `prefix`'s type as seen from its own prefix,
@@ -42,12 +42,25 @@ impl Universe {
             }
             let (lo, hi) = self.bounds_seen_from(m, owner, prefix)?;
             met = Some(match met {
-                Some((lo2, hi2)) => (self.lub(lo2, lo), self.glb(hi2, hi)),
+                Some((lo2, hi2)) => {
+                    (self.met_side(lo2, lo, NOTHING, false), self.met_side(hi2, hi, ANY, true))
+                }
                 None => (lo, hi),
             });
         }
         let (lo, hi) = met?;
         Some(self.intern_type(Type::Bounds(lo, hi)))
+    }
+
+    /// Joins bounds `a` and `b` without comparing them: `a & b` if `and`, else `a | b`; one of
+    /// them if they are equal or the other is `trivial`.
+    fn met_side(&mut self, a: TypeId, b: TypeId, trivial: TypeId, and: bool) -> TypeId {
+        match () {
+            _ if a == b || b == trivial => a,
+            _ if a == trivial => b,
+            _ if and => self.intern_type(Type::And(a, b)),
+            _ => self.intern_type(Type::Or(a, b, false)),
+        }
     }
 
     /// The bounds of abstract type member `m` of class `owner`, seen from `prefix`.

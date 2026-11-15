@@ -23,7 +23,7 @@ impl Desugar<'_> {
         self.list(&mapped)
     }
 
-    /// Statement `t` transformed, an expression of a class body owned by a term (dotty's local
+    /// Transforms statement `t`, an expression of a class body as owned by a term (dotty's local
     /// dummy).
     fn transform_stat(&mut self, t: NodeId) -> NodeId {
         let import =
