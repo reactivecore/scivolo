@@ -122,7 +122,8 @@ impl Universe {
         let found = self
             .member_where(cls, &name, |u, m| m != s && matches!(u.symbol(m).kind, Kind::Type | Kind::Class));
         let m = *found.first()?;
-        Some((m, self.symbol(m).owner?))
+        let owner = self.symbol(m).owner?;
+        (!self.derives_from(base, owner)).then_some((m, owner))
     }
 
     /// `t` without its refinements, and whether one of them refines a term member.

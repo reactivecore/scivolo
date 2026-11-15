@@ -3,7 +3,7 @@
 //   compiler/src/dotty/tools/dotc/typer/Namer.scala
 //! Statement lists, blocks and templates: definitions expanded as dotty's Namer enters them.
 
-use super::{Desugar, Mode};
+use super::{Desugar, Mode, Owner};
 use crate::ast::{List, NodeId, Tree};
 use names::nme;
 
@@ -19,8 +19,19 @@ impl Desugar<'_> {
         let merged = self.merge_companions(&expanded);
         let flat = self.flatten(&merged);
         self.register_classes(&flat);
-        let mapped: Vec<NodeId> = flat.iter().map(|&t| self.transform(t)).collect();
+        let mapped: Vec<NodeId> = flat.iter().map(|&t| self.transform_stat(t)).collect();
         self.list(&mapped)
+    }
+
+    /// Statement `t` transformed, an expression of a class body owned by a term (dotty's local
+    /// dummy).
+    fn transform_stat(&mut self, t: NodeId) -> NodeId {
+        let import =
+            matches!(self.ast.tree(t), Tree::Import { .. } | Tree::Export { .. } | Tree::PackageDef { .. });
+        match self.owner.is_class() && self.ast.is_term(t) && !import {
+            true => self.in_owner(Owner::Term { is_constructor: false }, |d| d.transform(t)),
+            false => self.transform(t),
+        }
     }
 
     /// `stat` as Namer expands it before entering it.
