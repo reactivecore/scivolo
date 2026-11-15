@@ -15,6 +15,7 @@ mod positions;
 mod quote_patterns;
 mod quote_source;
 mod refs;
+mod retaining;
 mod selects;
 mod sharing;
 mod signed_names;
@@ -77,6 +78,9 @@ pub struct TreePickler<'a> {
     self_refs: FxHashSet<TNodeId>,
     /// The type tree of each parameter pickled.
     param_tpts: FxHashMap<SymbolId, TNodeId>,
+    /// The type of each synthetic type tree pickled with the capture-set annotations its
+    /// definition's info has (`retaining::keep_captures`).
+    kept_captures: FxHashMap<TNodeId, TypeId>,
     /// The file pickled, `None` for a quote.
     file: Option<&'a File<'a>>,
     /// The inline calls pickled as references to a class, without their parts.
@@ -163,6 +167,7 @@ fn pickle<'a>(
         anew_at: FxHashMap::default(),
         self_refs: FxHashSet::default(),
         param_tpts: FxHashMap::default(),
+        kept_captures: FxHashMap::default(),
         file,
         call_traces: FxHashSet::default(),
         method_binders: FxHashMap::default(),

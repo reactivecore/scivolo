@@ -67,6 +67,36 @@ fn assert_trees_read_strictly(zip: &mut zip::ZipArchive<std::fs::File>) {
     }
 }
 
+/// The trees, positions and flag attributes of TASTy `bytes`.
+fn trees_and_flags(bytes: &[u8]) -> (Vec<u8>, Vec<u8>, Vec<u8>) {
+    let file = tasty::Tasty::parse(bytes).expect("a TASTy file");
+    let section = |name| file.section(name).expect(name).bytes.to_vec();
+    let attributes = file.attributes().expect("attributes");
+    let flags =
+        attributes.iter().filter_map(|a| if let tasty::Attribute::Flag(f) = a { Some(*f) } else { None });
+    (section("ASTs"), section("Positions"), flags.collect())
+}
+
+/// The trees, positions and flag attributes of tests/jvm/tastylib/captures.scala's `Break`,
+/// whose field `label: Label[T]^{}` keeps its capture set, are dotty's
+/// (tests/jvm/tastylib/captures-Break.tasty, whose source path is absolute).
+#[test]
+fn a_class_parameter_field_keeps_its_capture_set() {
+    let out = root().join("tmp/jvm-test/captures");
+    let _ = std::fs::remove_dir_all(&out);
+    let run = Command::new(env!("CARGO_BIN_EXE_scivolo-jvm"))
+        .current_dir(root())
+        .arg("-d")
+        .arg(&out)
+        .arg("tests/jvm/tastylib/captures.scala")
+        .output()
+        .expect("running scivolo-jvm");
+    assert!(run.status.success(), "{}", String::from_utf8_lossy(&run.stderr));
+    let ours = std::fs::read(out.join("Break.tasty")).expect("Break.tasty");
+    let theirs = std::fs::read(root().join("tests/jvm/tastylib/captures-Break.tasty")).expect("dotty's");
+    assert!(trees_and_flags(&ours) == trees_and_flags(&theirs), "Break.tasty differs from dotty's");
+}
+
 /// scala-cli 3.9.0 compiles tests/jvm/tastylib/user.scala against the jar, and the result runs
 /// on `java -Xverify:all`, when both are on the PATH.
 #[test]

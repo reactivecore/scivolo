@@ -12,7 +12,8 @@ use tasty::tags::{ANNOTATEDtpt, ANNOTATEDtype, APPLY, NEW, REFINEDtpt, SELECTin}
 use tasty::{Type, TypeId};
 
 impl TreePickler<'_> {
-    /// Type `annotated`, `parent` annotated with class type `annot`: with the annotation tree an
+    /// Type `annotated`, `parent` annotated with class type `annot`: a capture set as
+    /// `retaining`'s, else with the annotation tree an
     /// annotated expression of the file gave it, else `new annot()`; told from the others by its
     /// tree when keyed. Refuses a type several annotated expressions gave, outside their type trees
     /// and the type trees derived from or inferred from one of them (`AnnotationOrigins`), a type
@@ -20,6 +21,9 @@ impl TreePickler<'_> {
     /// type traced back to one of several annotation trees of the file where that one has
     /// arguments.
     pub fn annotated(&mut self, annotated: TypeId, parent: TypeId, annot: TypeId) -> Result<(), Refusal> {
+        if let Some(pickled) = self.retaining(parent, annot) {
+            return pickled;
+        }
         let several = "an annotated type of several annotation trees";
         let tree = match self.tpt_annotation(annotated) {
             Some(tree) => Some(tree),

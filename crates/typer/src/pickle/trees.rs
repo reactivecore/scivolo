@@ -122,7 +122,7 @@ impl TreePickler<'_> {
                 self.type_tree = Some(id);
                 let pickled = match self.tpd.has_fresh_type(id) {
                     true => self.new_type(typed()?, false, self.buf.buf.current_addr()),
-                    false => self.ty(typed()?, false),
+                    false => self.ty(self.kept_captures.get(&id).copied().map_or_else(typed, Ok)?, false),
                 };
                 self.type_tree = None;
                 pickled

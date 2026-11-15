@@ -104,6 +104,7 @@ impl TreePickler<'_> {
         if tag == VALDEF && self.u.symbol(sym).flags.has(OBJECT) {
             self.share_module_class(tpt, rhs);
         }
+        self.keep_captures(sym, tpt)?;
         self.with_length(tag, &mut |p| {
             p.name(&local_name(p.u, sym));
             if let Some(paramss) = paramss {

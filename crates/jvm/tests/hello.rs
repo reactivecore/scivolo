@@ -68,6 +68,15 @@ fn a_super_accessor_of_a_capturing_type_refused() {
 }
 
 #[test]
+fn a_class_parameter_field_capturing_another_parameter_refused() {
+    let source = root().join("tests/jvm/refused/fieldcaptures.scala");
+    let (_, compiled) = compile("fieldcaptures", &source);
+    let stderr = String::from_utf8_lossy(&compiled.stderr);
+    let refusal = "does not support pickling a synthetic type tree of a capture set";
+    assert!(!compiled.status.success() && stderr.contains(refusal), "{stderr}");
+}
+
+#[test]
 fn a_file_of_a_unit_compiles_as_alone() {
     let dir = root().join("tests/jvm/units");
     let mut sources: Vec<PathBuf> = std::fs::read_dir(&dir)
