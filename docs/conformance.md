@@ -341,6 +341,7 @@ just programs-jvm       # tests/programs: programs-report.md and programs-result
 just jvm-run FILE       # one file on java -Xverify:all against its .check
 just jvm-check FILE     # its class files against scala-cli's, through javap
 just jvm-lib-compile scalalib   # Scala's library file by file against dotty's; tmp/lib-jvm/scalalib
+just jvm-lib-jar scalalib       # its class files and TASTy as a library jar; tmp/lib-jvm/scalalib/libs
 ```
 
 `scivolo-jvm` writes class version 61 (Java 17) with stack map frames; its output is semantically
@@ -428,6 +429,11 @@ the optimizer (1883 of its 3134 classes dotty also writes differ in code from do
   following an inlined `.nn` (`if_icmpne`, `ifeq`, `ifnonnull`,
   `goto`; the library oracle inlines from source, dotty compiling against the jar writes ours).
 - **Attributes differ:** mostly line numbers.
+
+`just jvm-lib-jar scalalib` packs those class files and TASTy into a library jar laid out as the
+published one (ADR 0123): the classes scala3's build takes from Scala 2.13 and javac's come from
+the published jar, a refused file's from dotty's run; `just dotty-jvm-report "" run
+tmp/lib-jvm/scalalib/libs` types and runs tests/run against it.
 
 ### com-lihaoyi libraries from source
 
