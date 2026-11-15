@@ -5,12 +5,16 @@
 
 use super::names::local_name;
 use super::{Refusal, TreePickler};
-use crate::tpd::{List, MatchKind, TNodeId};
+use crate::tpd::{List, MatchKind, TNodeId, Tree};
 use tasty::tags::*;
 
 impl TreePickler<'_> {
     pub fn match_(&mut self, selector: Option<TNodeId>, cases: List, kind: MatchKind) -> Result<(), Refusal> {
         let cases = self.tpd.items(cases).to_vec();
+        let scrutinee = selector.and_then(|s| match *self.tpd.tree(s) {
+            Tree::Typed { tpt, .. } => Some(tpt),
+            _ => None,
+        });
         self.with_length(MATCH, &mut |p| {
             match (kind, selector) {
                 (MatchKind::Inline, None) => p.byte(IMPLICIT),
@@ -18,12 +22,18 @@ impl TreePickler<'_> {
                 (MatchKind::Sub, _) => p.byte(SUBMATCH),
                 (MatchKind::Plain, _) => {}
             }
-            selector.into_iter().chain(cases.iter().copied()).try_for_each(|t| p.tree(t))
+            selector.into_iter().try_for_each(|t| p.tree(t))?;
+            cases.iter().try_for_each(|&t| {
+                p.scrutinee = scrutinee;
+                p.tree(t)
+            })
         })
     }
 
+    /// A case, its pattern pickled with the type trees in it and of its match's ascribed selector.
     pub fn case_def(&mut self, pat: TNodeId, guard: Option<TNodeId>, body: TNodeId) -> Result<(), Refusal> {
-        let tpts = self.annotated_tpts(pat);
+        let mut tpts: Vec<TNodeId> = self.scrutinee.take().into_iter().collect();
+        tpts.extend(self.annotated_tpts(pat));
         self.with_length(CASEDEF, &mut |p| {
             p.with_typed_tpts(tpts.clone(), &mut |p| p.tree(pat))?;
             [Some(body), guard].into_iter().flatten().try_for_each(|t| p.tree(t))

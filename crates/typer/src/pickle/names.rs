@@ -5,7 +5,7 @@
 
 use super::TreePickler;
 use names::{name_kinds, nme};
-use tasty::tags::{OBJECT, PARAMsetter, TERMREFpkg};
+use tasty::tags::{OBJECT, PARAMsetter, SYNTHETIC, TERMREFpkg};
 use tasty::write::Name;
 use tasty::{Kind, SymbolId, Universe};
 
@@ -14,8 +14,41 @@ pub fn sym_name(u: &Universe, s: SymbolId) -> Name {
     let sym = u.symbol(s);
     match sym.name.strip_suffix('$') {
         Some(n) if sym.kind == Kind::Class && sym.flags.has(OBJECT) => Name::ObjectClass(utf8(n)),
-        _ => Name::utf8(&sym.name),
+        _ => inline_accessor_name(u, s).unwrap_or_else(|| Name::utf8(&sym.name)),
     }
+}
+
+/// The separator of dotty's `UniqueInlineName`, of an accessor that passes its receiver.
+const UNIQUE_INLINE: &str = "$i";
+
+/// The name of `s` if it is an inline accessor: `inline$m`, `inline$m$iN` or, in an extensible
+/// class, `p$C$$inline$m`, as dotty's `InlineAccessorName` of a simple, `UniqueInlineName` or
+/// `ExpandedName` (`accessorNameOf`).
+fn inline_accessor_name(u: &Universe, s: SymbolId) -> Option<Name> {
+    let sym = u.symbol(s);
+    if sym.kind != Kind::Def || !sym.flags.has(SYNTHETIC) {
+        return None;
+    }
+    let owner = sym.owner?;
+    let expanded = format!("{}{}", u.expanded_prefix(owner), name_kinds::EXPAND_SEPARATOR);
+    let (prefix, name) = match sym.name.strip_prefix(&expanded) {
+        Some(rest) => (Some(owner), rest),
+        None => (None, sym.name.as_str()),
+    };
+    let base = name.strip_prefix(name_kinds::INLINE_PREFIX)?;
+    let digits = base.trim_end_matches(|c: char| c.is_ascii_digit());
+    let unique = (digits.len() < base.len() && !base[digits.len()..].starts_with('0'))
+        .then(|| Some((digits.strip_suffix(UNIQUE_INLINE)?, base[digits.len()..].parse().ok()?)))
+        .flatten();
+    let inner = match unique {
+        Some((under, num)) => Name::Unique { under: utf8(under), sep: UNIQUE_INLINE.to_owned(), num },
+        None => Name::utf8(base),
+    };
+    let inner = match prefix {
+        Some(o) => Name::Expanded(Box::new(expanded_prefix_name(u, o)), Box::new(inner)),
+        None => inner,
+    };
+    Some(Name::InlineAccessor(Box::new(inner)))
 }
 
 /// The separators of dotty's unique name kinds, longest first.

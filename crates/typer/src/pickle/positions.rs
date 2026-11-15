@@ -58,14 +58,16 @@ impl TreePickler<'_> {
         while let Some((t, current, library, copy_owner)) = todo.pop() {
             let span = self.tpd.span(t);
             let other = span.exists() && span.without_inlined_call().is_in_other_source();
+            let foreign = other && library.is_none() && self.at_foreign_span(t);
             let own = match other && self.file.is_some() {
+                true if foreign => current,
                 true => library,
                 false => match source.unit_file(span) {
                     Some(path) => Some(path_index(&mut paths, path)),
                     None => Some(0),
                 },
             };
-            let in_library = own.is_some_and(|i| i > 0);
+            let in_library = own.is_some_and(|i| i > 0) || (other && own.is_some());
             let key = self.tpd.copy_of(t).unwrap_or(t).index() as u32;
             let at = self.buf.addr_of_tree(key).map(|a| a.0);
             while let Some(&(_, addr, span)) = synthetic.last().filter(|&&(next, _, _)| Some(next) == at) {
@@ -95,6 +97,7 @@ impl TreePickler<'_> {
             let current = if span.exists() { own } else { current };
             let library = match self.inline_source(t) {
                 Some(path) => Some(path_index(&mut paths, path)),
+                None if foreign => own,
                 None => library,
             };
             let hole_args = self.holes.get(&t).map(|(_, args)| args.clone()).unwrap_or_default();
@@ -147,6 +150,14 @@ impl TreePickler<'_> {
             call = fun;
         }
         self.u.source_path(self.tpd.sym(call)?)
+    }
+
+    /// Whether `t` is a synthetic method at the span of a member of another source, its offsets
+    /// pickled in the current source (an inline accessor of a loaded member: dotty's
+    /// `accessed.span`).
+    fn at_foreign_span(&self, t: TNodeId) -> bool {
+        matches!(self.tpd.tree(t), T::DefDef { .. })
+            && self.tpd.sym(t).is_some_and(|s| self.u.symbol(s).flags.has(tasty::tags::SYNTHETIC))
     }
 
     /// The span enclosing `t`'s children, synthetic, else an inlined tree's call's (dotty's
