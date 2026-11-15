@@ -120,7 +120,13 @@ impl Typer<'_> {
             types.push(tpe);
         }
         let types = self.ensure_first_is_class(types);
-        self.add_using_traits(cls, types)
+        let mut types = self.add_using_traits(cls, types);
+        if self.u.full_name(cls) == crate::defn::BOXED_UNIT {
+            types.retain(|&t| {
+                self.u.class_symbol(t).is_none_or(|c| self.u.full_name(c) != "java.io.Serializable")
+            });
+        }
+        types
     }
 
     /// `parents` with the class parent their class parents agree on first, if they do not start
