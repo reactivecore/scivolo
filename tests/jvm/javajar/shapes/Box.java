@@ -1,5 +1,8 @@
 package shapes;
 
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
 import java.util.function.Function;
 
 public class Box<T> {
@@ -71,6 +74,23 @@ public class Box<T> {
         static Shape square(double side) {
             return () -> side * side;
         }
+    }
+
+    public static class Crate extends Shelf {}
+
+    @Retention(RetentionPolicy.RUNTIME)
+    public @interface Tag {
+        String value();
+        int level() default 1;
+        Class<?> kind() default Object.class;
+        String[] tags() default {};
+        ElementType where() default ElementType.TYPE;
+    }
+}
+
+class Shelf {
+    public int shelf() {
+        return 8;
     }
 }
 

@@ -22,7 +22,8 @@ impl ClassFile {
             .filter(|a| signature == Some(a.name) && a.bytes.len() == 2)
             .map(|a| u16::from_be_bytes([a.bytes[0], a.bytes[1]]));
         let members = self.fields.iter().chain(&self.methods).map(|m| m.descriptor);
-        let mut texts: Vec<u16> = signatures.chain(members).collect();
+        let annotations = self.annotation_descriptors.iter().copied();
+        let mut texts: Vec<u16> = signatures.chain(members).chain(annotations).collect();
         for e in self.pool.entries() {
             match *e {
                 Entry::Class(n) => match self.pool.text(n) {

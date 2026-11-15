@@ -91,20 +91,7 @@ impl Inlining<'_> {
         }
         if self.depth == 0 {
             self.outermost_span = self.typer_inlined.unwrap_or(span);
-            self.outer_implicits.clear();
-            if !self.transparent_only {
-                self.ctx = self.host.call_ctx(call);
-                if self.ctx.is_none()
-                    && let Some((ctx, around)) = self.typer_ctx
-                {
-                    self.ctx = Some(ctx);
-                    let mut implicits = Vec::new();
-                    if !self.implicit_defs_at(around, call, &mut implicits) {
-                        self.implicit_defs(around, &mut implicits);
-                    }
-                    self.outer_implicits = implicits;
-                }
-            }
+            self.enter_outermost_call(call);
         }
         if self.depth > 0 && self.tpd.sym(def).is_some_and(|m| self.u.within_opaques(m)) {
             return Err((span, "inline call of an object with opaque types in an inline expansion"));

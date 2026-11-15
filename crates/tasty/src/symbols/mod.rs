@@ -13,6 +13,7 @@ mod classfiles;
 mod companions;
 mod define;
 pub mod defn;
+mod encoded_names;
 mod enter;
 mod entries;
 mod erasure_memo;
@@ -65,9 +66,10 @@ pub use builtin::{ANY, NOTHING};
 pub use classfiles::Retention;
 pub use companions::{module_class_name, module_name};
 pub use defn::Defn;
+pub use encoded_names::{decode, encode};
 pub use function_classes::MAX_IMPLEMENTED_ARITY;
 pub use jdk::{defined_name, jdk_name};
-pub use lookup::{LookupName, decode, encode};
+pub use lookup::LookupName;
 pub use packages::{PACKAGE_TABLE, package_table, package_table_version};
 pub use predicates::is_package_object_name;
 pub use symbol::{FileId, Flags, Kind, Symbol, SymbolId};
@@ -128,6 +130,8 @@ pub struct Universe {
     classfile_descriptors: FxHashMap<SymbolId, String>,
     /// The retention of each annotation class entered from them.
     classfile_annotations: FxHashMap<SymbolId, classfiles::Retention>,
+    /// Their elements that have a default value.
+    annotation_defaults: FxHashSet<SymbolId>,
     /// The library's classes the JDK's class files were asked for the members they lack.
     jdk_member_classes: FxHashSet<SymbolId>,
     /// The library's members of JDK classes checked against the JDK's class files.
