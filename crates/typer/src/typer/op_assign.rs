@@ -74,10 +74,10 @@ impl Typer<'_> {
         if name.is_type || !is_op_assignment_name(&text) || self.ast.items(args).is_empty() {
             return None;
         }
-        let unsupported = self.unsupported.clone();
+        let (reports, errors) = (self.reports, self.diags.error_count());
         let typed_lhs = self.typed(lhs, Pt::Any, ctx);
         self.typed_ahead(lhs, typed_lhs, ctx);
-        let clean = self.unsupported == unsupported && !self.diags.has_errors();
+        let clean = self.reports == reports && self.diags.error_count() == errors;
         let has_member = if clean { self.has_member(typed_lhs, &text, ctx) } else { Ok(true) };
         match has_member {
             Ok(true) => return None,
