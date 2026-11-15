@@ -34,7 +34,7 @@ impl Typer<'_> {
         }
         let (mut converted, mut widened, mut tupled, mut defined, mut healed) =
             (false, false, false, false, false);
-        let scala2 = self.u.scala2_lookups();
+        let before = self.u.refused_lookups();
         let (qual_tpe, syms) = loop {
             let qual_tpe = self.tpd.tpe(qual);
             let qual_tpe = self.instantiated_selected(qual_tpe);
@@ -44,7 +44,7 @@ impl Typer<'_> {
                 .into_iter()
                 .filter(|&s| self.u.is_type_symbol(s) == name.is_type)
                 .collect();
-            if let Some(refused) = self.scala2_refusal(id, scala2) {
+            if let Some(refused) = self.lookup_refusal(id, before) {
                 return refused;
             }
             if syms.is_empty() && self.needs_joint_member(qual_tpe, &text) {

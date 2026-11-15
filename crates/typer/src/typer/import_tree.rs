@@ -22,12 +22,12 @@ impl Typer<'_> {
             return self.unsupported(id, "cyclic import");
         };
         let expr = *expr;
-        let scala2 = self.u.scala2_lookups();
+        let before = self.u.refused_lookups();
         if let Type::Package(p) = *self.u.ty(self.tpd.tpe(expr)) {
             self.u.look_up_scala2_package_object(p);
         }
         let checked = self.check_selectors(i);
-        if let Some(refused) = self.scala2_refusal(id, scala2) {
+        if let Some(refused) = self.lookup_refusal(id, before) {
             return refused;
         }
         if let Err(what) = checked {

@@ -39,9 +39,10 @@ pub fn enter(
 ) -> Option<Vec<SymbolId>> {
     let interface = access & ACC_INTERFACE != 0;
     let mut flags = Vec::new();
-    let sealed = access & ACC_ENUM != 0 && info.fields.iter().any(|f| f.access & ACC_ENUM != 0);
+    let enum_sealed = access & ACC_ENUM != 0 && info.fields.iter().any(|f| f.access & ACC_ENUM != 0);
+    let sealed = enum_sealed || !info.permitted.is_empty();
     flags.extend(if interface { &[TRAIT, ABSTRACT][..] } else { &[] });
-    flags.extend((!interface && (sealed || access & ACC_ABSTRACT != 0)).then_some(ABSTRACT));
+    flags.extend((!interface && (enum_sealed || access & ACC_ABSTRACT != 0)).then_some(ABSTRACT));
     flags.extend((access & ACC_FINAL != 0).then_some(FINAL));
     flags.extend(sealed.then_some(SEALED));
     let visible = visibility::modifiers(access);

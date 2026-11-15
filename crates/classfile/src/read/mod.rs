@@ -34,6 +34,8 @@ pub struct ClassInfo {
     pub signature: Option<String>,
     pub annotations: Vec<Annotation>,
     pub inner_classes: Vec<crate::InnerClass>,
+    /// The permitted subclasses of a sealed class, empty for another.
+    pub permitted: Vec<String>,
     /// Whether a `Scala`, `ScalaSig` or `TASTY` attribute marks it as compiled from Scala.
     pub scala: bool,
 }
@@ -180,7 +182,7 @@ pub fn read(bytes: &[u8]) -> Result<ClassInfo, String> {
     let interfaces = interfaces.collect::<Result<_, String>>()?;
     let fields = members(&mut b, &c)?;
     let methods = members(&mut b, &c)?;
-    let Attributes { signature, annotations, inner_classes, scala, .. } = attributes(&mut b, &c)?;
+    let Attributes { signature, annotations, inner_classes, permitted, scala, .. } = attributes(&mut b, &c)?;
     Ok(ClassInfo {
         access,
         name,
@@ -191,6 +193,7 @@ pub fn read(bytes: &[u8]) -> Result<ClassInfo, String> {
         signature,
         annotations,
         inner_classes,
+        permitted,
         scala,
     })
 }

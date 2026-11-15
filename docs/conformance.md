@@ -227,6 +227,12 @@ The VM fixes javalib bugs in its library overlay (`overlay/src`, ADR 0009).
       `c.first` in `gadt-TypeSafeLambda`; erasure drops it.
     - Fix: mark the supertype of an application of a pattern-bound type provisional. Frontend:
       the supertype from the current info: refuses `z`, no cast.
+23. **A negated character literal of a Java source is a positive constant** (dotty 3.9.0,
+    `compiler/src/dotty/tools/dotc/parsing/JavaParsers.scala:1094`, `tryConstant`).
+    - `CHARLIT` ignores the `-` read before it: `static final int N = -'a';` in a Java source of
+      the run gets type `97` while javac stores `-97`.
+    - A Scala `J.N` is inlined as `97`.
+    - Fix: no constant for a negated character. Frontend: does so, `J.N` reads the field.
 
 ## Own frontend: parser, symbols, typer
 
