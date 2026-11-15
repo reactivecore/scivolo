@@ -34,7 +34,7 @@ impl Typer<'_> {
         }
         let (mut converted, mut widened, mut tupled, mut defined, mut healed) =
             (false, false, false, false, false);
-        let scala2 = self.u.scala2_lookups();
+        let scala2 = self.u.refused_lookups();
         let (qual_tpe, syms) = loop {
             let qual_tpe = self.tpd.tpe(qual);
             let qual_tpe = self.instantiated_selected(qual_tpe);

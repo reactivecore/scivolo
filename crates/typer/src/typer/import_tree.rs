@@ -22,7 +22,7 @@ impl Typer<'_> {
             return self.unsupported(id, "cyclic import");
         };
         let expr = *expr;
-        let scala2 = self.u.scala2_lookups();
+        let scala2 = self.u.refused_lookups();
         if let Type::Package(p) = *self.u.ty(self.tpd.tpe(expr)) {
             self.u.look_up_scala2_package_object(p);
         }

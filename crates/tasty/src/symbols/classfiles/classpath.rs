@@ -3,26 +3,36 @@
 
 use super::super::{SymbolId, Universe, module_class_name};
 use super::class;
+use super::java_sources::JavaSources;
 use crate::types::NameId;
 use classfile::{ACC_MODULE, ACC_PRIVATE, ACC_PROTECTED, ACC_PUBLIC, ACC_STATIC, ClassInfo};
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::rc::Rc;
 
-/// The Java class files of the jars: the jar of each class by internal name, each class read
-/// once, the internal names of the Scala 2 class files read, and the lookups that found one.
+/// The Java class files of the jars and the Java sources: the jar of each class by internal
+/// name, each class read once, the refusals of the classes read but refused (Scala 2 class files,
+/// Java sources' classes of a name not found), and the lookups that found one.
 #[derive(Default)]
 pub struct JavaClasses {
     jars: FxHashMap<String, usize>,
+    sources: JavaSources,
     read: FxHashMap<String, Option<Rc<ClassInfo>>>,
-    scala2: FxHashSet<String>,
-    scala2_lookups: Scala2Lookups,
+    refused: FxHashMap<String, String>,
+    refused_lookups: RefusedLookups,
 }
 
-/// The lookups that found a Scala 2 class file in the jars: how many, and the last one's class.
+/// The lookups that found a refused class: how many, and the last one's refusal.
 #[derive(Default)]
-struct Scala2Lookups {
+struct RefusedLookups {
     count: usize,
     last: String,
+}
+
+impl JavaClasses {
+    /// Determines whether a jar holds class `internal`.
+    pub fn in_jars(&self, internal: &str) -> bool {
+        self.jars.contains_key(internal)
+    }
 }
 
 impl Universe {
@@ -49,15 +59,27 @@ impl Universe {
         Ok(())
     }
 
-    /// Counts the lookups that found a jar's Scala 2 class file, whose pickle this reader does not
-    /// read: a class `p.C`, or the package object `p.package` of a name `p` lacks.
-    pub fn scala2_lookups(&self) -> usize {
-        self.java_classes.as_ref().map_or(0, |c| c.scala2_lookups.count)
+    /// Makes the classes of Java sources `sources` known and enters their packages; they shadow
+    /// the jars' classes of the same names. Needs `use_java_classfiles` first.
+    pub fn use_java_sources(&mut self, sources: JavaSources) {
+        for p in sources.packages() {
+            self.enter_package(&p);
+        }
+        if let Some(classes) = self.java_classes.as_mut() {
+            classes.sources = sources;
+        }
     }
 
-    /// Names the class of the last lookup `scala2_lookups` counts, as `p.C`.
-    pub fn last_scala2_class(&self) -> Option<&str> {
-        let last = &self.java_classes.as_ref()?.scala2_lookups.last;
+    /// Counts the lookups that found a refused class: a jar's Scala 2 class file, whose pickle
+    /// this reader does not read (a class `p.C`, or the package object `p.package` of a name `p`
+    /// lacks), or a Java source's class of a name not found.
+    pub fn refused_lookups(&self) -> usize {
+        self.java_classes.as_ref().map_or(0, |c| c.refused_lookups.count)
+    }
+
+    /// The refusal of the last lookup `refused_lookups` counts.
+    pub fn last_refused_lookup(&self) -> Option<&str> {
+        let last = &self.java_classes.as_ref()?.refused_lookups.last;
         (!last.is_empty()).then_some(last.as_str())
     }
 
@@ -123,23 +145,41 @@ pub fn enter(u: &mut Universe, owner: SymbolId, name: &str, info: &ClassInfo, ac
     entered
 }
 
-/// Reads the class of internal name `internal` from the jars' class files; none if they lack it,
-/// it is no class file or one compiled from Scala, which counts as a Scala 2 lookup.
+/// Reads the class of internal name `internal` from the Java sources, else the jars' class files;
+/// none if they lack it, it is no class file, or it is refused, which counts as a refused lookup:
+/// a class file compiled from Scala, or a Java source's class of a name not found.
 pub fn java_class(u: &mut Universe, internal: &str) -> Option<Rc<ClassInfo>> {
     let classes = u.java_classes.as_mut()?;
     if !classes.read.contains_key(internal) {
-        let jar = *classes.jars.get(internal)?;
-        let info = u.library.read_class(jar, internal).ok().and_then(|b| classfile::read(&b).ok());
+        let info = if classes.sources.declares(internal) {
+            let sources = classes.sources.clone();
+            classes.read.insert(internal.to_owned(), None);
+            let info = sources.class_info(u, internal);
+            info.map(Some).map_err(|e| format!("Java source class `{}`: {e}", dotted(internal)))
+        } else {
+            let jar = *classes.jars.get(internal)?;
+            let info = u.library.read_class(jar, internal).ok().and_then(|b| classfile::read(&b).ok());
+            match info {
+                Some(i) if i.scala => Err(format!("Scala 2 class file `{}` of a jar", dotted(internal))),
+                info => Ok(info),
+            }
+        };
         let classes = u.java_classes.as_mut()?;
-        if info.as_ref().is_some_and(|i| i.scala) {
-            classes.scala2.insert(internal.to_owned());
-        }
-        classes.read.insert(internal.to_owned(), info.filter(|i| !i.scala).map(Rc::new));
+        let info = info.unwrap_or_else(|e| {
+            classes.refused.insert(internal.to_owned(), e);
+            None
+        });
+        classes.read.insert(internal.to_owned(), info.map(Rc::new));
     }
     let classes = u.java_classes.as_mut()?;
-    if classes.scala2.contains(internal) {
-        classes.scala2_lookups.count += 1;
-        classes.scala2_lookups.last = internal.replace('/', ".");
+    if let Some(refusal) = classes.refused.get(internal) {
+        classes.refused_lookups.count += 1;
+        classes.refused_lookups.last.clone_from(refusal);
     }
     classes.read[internal].clone()
+}
+
+/// Internal name `internal` with dots for its slashes.
+fn dotted(internal: &str) -> String {
+    internal.replace('/', ".")
 }

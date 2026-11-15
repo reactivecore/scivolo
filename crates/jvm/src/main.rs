@@ -1,3 +1,5 @@
+mod javac;
+
 use clap::Parser;
 use jvmgen::ClassBytes;
 use lower::{Isolated, Options};
@@ -7,8 +9,10 @@ use syntax::source::SourceFile;
 use tasty::Universe;
 
 /// Compiles Scala files through the Rust frontend into JVM class files and TASTy files; the
-/// files are typed as one unit, with the options of their `//> using options` directives. When the
-/// frontend refuses a file, the refused files are reported, nothing is written and the run fails.
+/// files are typed as one unit, with the options of their `//> using options` directives. Java
+/// files among them are parsed for their declarations, which the Scala files see, and compiled by
+/// javac after them. When the frontend refuses a file, the refused files are reported, nothing is
+/// written and the run fails.
 ///
 /// Environment: SCIVOLO_LIBS holds the library jars (default: the distribution's, else the
 /// Coursier cache).
@@ -38,7 +42,7 @@ struct Cli {
     /// files that need them, then fails; for measurements only.
     #[arg(long)]
     leave_out_refused: bool,
-    /// The Scala files.
+    /// The Scala and Java files.
     #[arg(required = true)]
     files: Vec<String>,
 }
@@ -57,11 +61,14 @@ fn main() {
     let library = library_jars().unwrap_or_else(|e| fail(&e));
     let jars = [&library[..], &cp].concat();
     let on_the_jvm: Vec<usize> = std::iter::once(0).chain(library.len()..jars.len()).collect();
+    let (java, files): (Vec<&String>, Vec<&String>) = files.iter().partition(|f| javac::is_java(f));
+    let java_sources = javac::parse(&java).unwrap_or_else(|e| fail(&e));
     let mut open = || {
         let mut u = Universe::open(&jars).unwrap_or_else(|e| fail(&format!("opening the library: {e:?}")));
         u.set_jdk(classfile::Jdk::default());
         u.use_java_classfiles(&on_the_jvm)
             .unwrap_or_else(|e| fail(&format!("reading the class files of {jars:?}: {e}")));
+        u.use_java_sources(java_sources.clone());
         if scalalib {
             u.set_same_run_jar(0);
         }
@@ -96,6 +103,10 @@ fn main() {
             .unwrap_or_else(|e| fail(&message(&e)));
     if refused.is_empty() || leave_out_refused {
         write(&out, &entries(&classes), main_class.as_deref());
+    }
+    if refused.is_empty() && !java.is_empty() {
+        let classpath: Vec<PathBuf> = std::iter::once(library[0].clone()).chain(cp).collect();
+        javac::compile(&java, &out, &classpath).unwrap_or_else(|e| fail(&e));
     }
     if leave_out_refused {
         eprintln!("typings: {typings}");
