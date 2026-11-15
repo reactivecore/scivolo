@@ -20,7 +20,8 @@ type Found = Option<Option<TNodeId>>;
 
 /// The definitions of a tree pickled: the type tree of each, the right-hand side of each
 /// inferred or cast type tree, the parameter type trees of each method and the eta-expanded
-/// parameters, and the annotation of each annotated type tree by its span and type.
+/// parameters, the arguments and expected type of each inferred type argument, and the annotation
+/// of each annotated type tree by its span and type.
 pub struct AnnotationOrigins {
     tpts: FxHashMap<SymbolId, TNodeId>,
     rhs_of: FxHashMap<TNodeId, TNodeId>,
