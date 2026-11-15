@@ -165,7 +165,6 @@ impl Universe {
 
     /// The declarations of `owner` named `name`, through its name index, built on first use.
     fn named(&mut self, owner: SymbolId, name: NameId) -> &[SymbolId] {
-        self.erased_methods.looked_up(name);
         let Universe { by_name, symbols, types, .. } = self;
         let index = by_name.entry(owner).or_insert_with(|| {
             let mut index: FxHashMap<NameId, Vec<SymbolId>> = FxHashMap::default();

@@ -42,9 +42,10 @@ impl Universe {
                     debug_assert_eq!(e, self.erase_class(s).0, "remembered erasure of {}", self.full_name(s));
                     return e;
                 }
+                let generation = self.generation();
                 let (e, value_class) = self.erase_class(s);
                 if !value_class {
-                    self.remember_erased_class(s, &e);
+                    self.remember_erased_class(s, generation, &e);
                 }
                 e
             }

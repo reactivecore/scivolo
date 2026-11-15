@@ -1,63 +1,53 @@
 //! Symbols defined outside TASTy (a script's), what completes them, binders for their types.
 
 use super::{FileId, Flags, Kind, Symbol, SymbolId, Universe};
+use crate::tags::PARAMsetter;
 use crate::types::{Binder, TypeId};
 
 impl Universe {
-    /// Enters `s` into its owner; `s.tree` is `None` for a symbol without TASTy. What
-    /// `decl_changed` drops is dropped when an owner already looked up by name gets a name new
-    /// to it, a class member or a symbol without TASTy.
+    /// Enters `s` into its owner; `s.tree` is `None` for a symbol without TASTy.
+    /// What `changed` drops is dropped when an owner already looked up by name gets a name new
+    /// to it, a class member or a symbol without TASTy; the remembered erasures also when any
+    /// owner gets a symbol with a run-time name, or one without TASTy other than a method or a
+    /// value that is not a class parameter's accessor.
     pub fn define(&mut self, s: Symbol) -> SymbolId {
         let id = SymbolId(self.symbols.len() as u32);
+        let (tasty, targeted) = (s.tree.is_some(), s.target.is_some());
+        let plain_term = s.kind == Kind::Def || s.kind == Kind::Val && !s.flags.has(PARAMsetter);
+        if let Some(o) = s.owner {
+            self.symbols[o.0 as usize].decls.push(id);
+            if targeted {
+                self.targeted.insert(o);
+            }
+            if targeted || !tasty && !plain_term {
+                self.drop_erasures();
+            }
+            if let Some(index) = self.by_name.get_mut(&o) {
+                let named = index.entry(self.types.intern_name(&s.name)).or_default();
+                let new_name = named.is_empty();
+                named.push(id);
+                if new_name || !tasty || self.symbols[o.0 as usize].kind == Kind::Class {
+                    self.changed();
+                }
+            }
+        }
         if let Some(tree) = s.tree {
             self.by_tree.insert(tree, id);
         }
-        let owner = s.owner;
         self.symbols.push(s);
-        let Some(o) = owner else { return id };
-        self.symbols[o.0 as usize].decls.push(id);
-        let s = &self.symbols[id.0 as usize];
-        if s.target.is_some() {
-            self.targeted.insert(o);
-            self.erased_methods.clear();
-        }
-        if let Some(index) = self.by_name.get_mut(&o) {
-            let name = self.types.intern_name(&s.name);
-            let named = index.entry(name).or_default();
-            let new_name = named.is_empty();
-            named.push(id);
-            if new_name || s.tree.is_none() || self.symbols[o.0 as usize].kind == Kind::Class {
-                self.decl_changed(id, name);
-            }
-        }
         id
     }
 
-    /// Drops the name index of the owner of `sym`, which gained or lost it, and what `decl_changed` drops.
-    fn decls_changed(&mut self, sym: SymbolId) {
-        let s = &self.symbols[sym.0 as usize];
-        if let Some(owner) = s.owner {
-            self.by_name.remove(&owner);
-        }
-        let name = self.types.intern_name(&s.name);
-        self.decl_changed(sym, name);
+    /// Drops the name index of `owner` and what `changed` drops.
+    fn decls_changed(&mut self, owner: SymbolId) {
+        self.by_name.remove(&owner);
+        self.changed();
     }
 
-    /// Drops the resolved references, and the erased methods unless `ErasureMemo::changed_by`
-    /// keeps them for declaration `sym` named `name`; starts a new generation.
-    fn decl_changed(&mut self, sym: SymbolId, name: crate::NameId) {
-        if self.erased_methods.changed_by(&self.symbols[sym.0 as usize], name) {
-            self.erased_methods.clear();
-        }
-        self.resolved.clear();
-        self.generation += 1;
-    }
-
-    /// Drops the resolved references and the erased methods, and starts a new generation.
+    /// Drops the resolved references and the remembered erasures, and starts a new generation.
     fn changed(&mut self) {
         self.resolved.clear();
-        self.erased_methods.clear();
-        self.generation += 1;
+        self.drop_erasures();
     }
 
     /// How often declarations, parents, or set infos and flags changed; results derived from
@@ -117,7 +107,7 @@ impl Universe {
     pub fn set_target(&mut self, sym: SymbolId, target: &str) {
         self.symbols[sym.0 as usize].target = Some(target.to_owned());
         self.targeted.extend(self.symbols[sym.0 as usize].owner);
-        self.erased_methods.clear();
+        self.drop_erasures();
     }
 
     /// Determines whether `owner` may declare a symbol with a run-time name (`target`).
@@ -149,7 +139,7 @@ impl Universe {
     pub fn unenter(&mut self, sym: SymbolId) {
         if let Some(owner) = self.symbol(sym).owner {
             self.symbols[owner.0 as usize].decls.retain(|&d| d != sym);
-            self.decls_changed(sym);
+            self.decls_changed(owner);
         }
     }
 
@@ -167,7 +157,7 @@ impl Universe {
     pub fn enter(&mut self, sym: SymbolId) {
         if let Some(owner) = self.symbol(sym).owner {
             self.symbols[owner.0 as usize].decls.push(sym);
-            self.decls_changed(sym);
+            self.decls_changed(owner);
         }
     }
 
@@ -175,8 +165,7 @@ impl Universe {
     pub fn rename(&mut self, sym: SymbolId, name: &str) {
         self.symbols[sym.0 as usize].name = name.to_owned();
         if let Some(owner) = self.symbol(sym).owner {
-            self.by_name.remove(&owner);
-            self.changed();
+            self.decls_changed(owner);
         }
     }
 

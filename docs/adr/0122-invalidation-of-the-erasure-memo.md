@@ -3,28 +3,28 @@
 Status: accepted · Date: 2026-11-15
 
 ## Context
-`Universe::erased_method` remembers the erasure of each method until the universe changes.
-Every change (`changed`) dropped it, and `define` changes the universe on almost every new
-member. Lowering defines many methods and values (bridges, forwarders, accessors) and
-unenters bridges, so the memo was empty most of the time. dotty caches an erasure per denotation and period
-(`SymDenotation.info` at `erasurePhase`); a new member does not end a period.
+`Universe::erased_method` remembers the erasure of each method until the universe changes
+(`changed`). Erasing a reference to a class recomputed its erasure and binary name each time:
+a walk over its owners and, for an object's class, a scan of its owner's declarations for a
+`@targetName`. Keeping the memo over new methods and values by recording the names erasures
+look up gained under 0.3% of instructions on upickle-core and rested on the claim that no
+erasure depends on a declaration in any other way.
 
 ## Decision
-- The memo (`ErasureMemo`) also records the names the erasures it holds looked up: every
-  by-name lookup of declarations (`Universe::named`) and every remembered resolution
-  (`resolve_ref`, with its prefix's names) while an erasure is computed (`while_erasing`).
-- Defining, entering or unentering a method, or a value that is neither an object nor a class
-  parameter's accessor, keeps the memo unless its name is one of those names or it has a
-  run-time name (`@targetName`). Every other change drops it as before: other kinds of symbols,
-  renames and new owners (a class's binary name contains the names of its owners), set infos,
-  flags, parents, self types, kinds.
-- The memo also holds the binary names of the classes erasures name and the erasures of
-  references to classes other than value classes, dropped with it.
-- Debug builds recompute each remembered erasure on use and assert that it is equal.
+- The memo (`ErasureMemo`) also holds the erasures of references to classes other than value
+  classes and the binary names of classes. All of it is dropped by every change that dropped
+  the method memo before, and also by defining a symbol with a run-time name (`@targetName`),
+  setting one (`set_target`), and defining a symbol without TASTy other than a method or a
+  value that is not a class parameter's accessor (erasure scans declarations for those:
+  `underlying`, `class_target`, opaque types, type parameters).
+- An entry is kept only if no change happened while it was computed (`generation`).
+- `class_target` scans an owner's declarations for the run-time name of an object only if the
+  owner ever had a declaration with one (`may_declare_targets`).
+- Debug builds recompute each remembered erasure and binary name on use and assert that it is
+  equal.
 
 ## Consequences
-- A method or value can change an erasure only through a lookup of its name (a `TermRef`, a
-  member of a refinement) or as a value class's underlying value, which a class parameter's
-  accessor is; both are covered.
-- The memo stays per `Universe` (one unit), so it keeps parallel compilation of files open.
+- A class's erasure and binary name depend on its owners, names, flags, kinds, parents,
+  run-time names and declarations, as a method's erasure does; the memo is dropped as the
+  method memo was, so it is valid as long as that was.
 - Tests run every remembered erasure twice; a stale entry fails them instead of erasing wrong.

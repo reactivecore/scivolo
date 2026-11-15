@@ -94,8 +94,7 @@ impl Universe {
     /// The erasure of method `def`, as Scala 2 erases it for a method of a Scala 2 class that is
     /// not inline (dotty's `SourceLanguage`).
     fn erased_method_as(&mut self, def: SymbolId, semi: bool) -> (Vec<Erased>, Erased) {
-        if let Some(e) = self.erased_memo(def, semi) {
-            let e = e.clone();
+        if let Some(e) = self.erased_memo(def, semi).cloned() {
             debug_assert_eq!(
                 e,
                 self.erase_method_of(def, semi),
@@ -108,7 +107,7 @@ impl Universe {
             return e;
         }
         let generation = self.generation();
-        let erased = self.while_erasing(|u| u.erase_method_of(def, semi));
+        let erased = self.erase_method_of(def, semi);
         self.remember_erased((def, semi), generation, &erased);
         erased
     }

@@ -38,7 +38,7 @@ impl Universe {
             by_name: FxHashMap::default(),
             resolved: FxHashMap::default(),
             generation: 0,
-            erased_methods: Default::default(),
+            erasures: Default::default(),
             targeted: Default::default(),
             types: Types::default(),
             infos: FxHashMap::default(),

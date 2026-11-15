@@ -91,7 +91,7 @@ pub struct Universe {
     /// The symbol each `TypeRef` or `TermRef` resolved to.
     resolved: FxHashMap<TypeId, SymbolId>,
     generation: u64,
-    erased_methods: erasure_memo::ErasureMemo,
+    erasures: erasure_memo::ErasureMemo,
     /// The owners that are or were the owner of a declaration with a run-time name (`target`).
     targeted: FxHashSet<SymbolId>,
     types: Types,
