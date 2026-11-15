@@ -6,7 +6,7 @@
 
 use super::builtin::synthetic;
 use super::{Kind, SymbolId, Universe};
-use crate::tags::{ARTIFACT, FINAL, INFIX, PROTECTED};
+use crate::tags::{ARTIFACT, FINAL, INFIX, PROTECTED, STABLE};
 use crate::types::{Type, TypeId};
 use crate::{ANY, NOTHING};
 use names::nme;
@@ -79,7 +79,7 @@ pub fn enter(u: &mut Universe, any: SymbolId, object: SymbolId) {
     u.set_flags(type_test, u.symbol(type_test).flags.with(ARTIFACT));
     poly(u, any, nme::AS_INSTANCE_OF, any_bounds, |u, x0| u.types.intern(*x0));
     let type_cast = poly(u, any, nme::AS_INSTANCE_OF_PM, any_bounds, |u, x0| u.types.intern(*x0));
-    u.set_flags(type_cast, u.symbol(type_cast).flags.with(ARTIFACT));
+    u.set_flags(type_cast, u.symbol(type_cast).flags.with(ARTIFACT).with(STABLE));
     let hidden: Vec<SymbolId> = (u.symbol(object).decls.iter().copied())
         .filter(|&d| HIDDEN.contains(&u.symbol(d).name.as_str()))
         .collect();
