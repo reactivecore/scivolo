@@ -99,7 +99,7 @@ pub fn quoted(chars: &[char], at: &mut usize) -> Result<Token, String> {
 }
 
 /// The character of the escape after a backslash at `chars[*at]`.
-fn escape(chars: &[char], at: &mut usize) -> Result<char, String> {
+pub fn escape(chars: &[char], at: &mut usize) -> Result<char, String> {
     let c = *chars.get(*at).ok_or("an unclosed literal")?;
     *at += 1;
     Ok(match c {

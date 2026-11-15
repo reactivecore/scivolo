@@ -2,6 +2,7 @@
 //! parents, generic signatures and descriptors of its members, inner-class entries and
 //! annotations; what the class-file reader enters.
 
+use super::permitted::permitted;
 use super::resolve::{Resolved, Scope, resolve};
 use super::syntax::{Arg, Class, ClassKind, Method, Type, TypeParam};
 use super::{JavaSources, Located};
@@ -14,6 +15,9 @@ pub const OBJECT: &str = "java/lang/Object";
 
 /// The internal name of `java.lang.Enum`, an enum's superclass.
 const ENUM: &str = "java/lang/Enum";
+
+/// The internal name of `java.lang.Record`, a record's superclass.
+const RECORD: &str = "java/lang/Record";
 
 /// The internal name of `java.lang.annotation.Annotation`, an annotation type's parent.
 const ANNOTATION: &str = "java/lang/annotation/Annotation";
@@ -34,11 +38,8 @@ pub fn class_info(u: &mut Universe, sources: &JavaSources, at: &Located) -> Resu
         scope: Scope { at, vars: Vec::new(), in_header: true },
         erased_vars: Vec::new(),
     };
-    if class.access & ACC_STATIC == 0 && at.outer().is_some() {
-        let outer = at.outer().expect("an outer class");
-        if !outer.class().type_params.is_empty() {
-            return Err(format!("inner class `{}` of a generic Java class", class.name));
-        }
+    for outer in generic_outers(at) {
+        s.type_params(u, &outer.class().type_params)?;
     }
     let mut signature = s.type_params(u, &class.type_params)?;
     let superclass = match (class.kind, &class.extends) {
@@ -46,6 +47,7 @@ pub fn class_info(u: &mut Universe, sources: &JavaSources, at: &Located) -> Resu
             let this = Type::Named(vec![(class.name.clone(), Vec::new())]);
             qualified(ENUM, vec![Arg::Type(this)])
         }
+        (ClassKind::Record, _) => qualified(RECORD, Vec::new()),
         (ClassKind::Class, Some(t)) => t.clone(),
         _ => qualified(OBJECT, Vec::new()),
     };
@@ -70,6 +72,7 @@ pub fn class_info(u: &mut Universe, sources: &JavaSources, at: &Located) -> Resu
     });
     let fields = fields.collect::<Result<_, String>>()?;
     let methods = class.methods.iter().map(|m| s.method(u, at, m)).collect::<Result<_, String>>()?;
+    let permitted = permitted(u, &mut s, at)?;
     Ok(ClassInfo {
         access: class.access,
         name: at.internal.clone(),
@@ -80,8 +83,19 @@ pub fn class_info(u: &mut Universe, sources: &JavaSources, at: &Located) -> Resu
         signature: Some(signature),
         annotations,
         inner_classes: inner_classes(at),
+        permitted,
         scala: false,
     })
+}
+
+/// The classes whose type variables are in scope in class `at`: those it is an inner class of,
+/// up to the first static one, outermost first.
+pub fn generic_outers(at: &Located) -> Vec<Located> {
+    let inner = |l: &Located| l.class().access & ACC_STATIC == 0;
+    let mut outers: Vec<Located> =
+        std::iter::successors(Some(at.clone()), |l| l.outer().filter(|_| inner(l))).skip(1).collect();
+    outers.reverse();
+    outers
 }
 
 /// The type of the class of internal name `internal` with type arguments `args`.

@@ -23,10 +23,12 @@ pub enum ClassKind {
     Interface,
     Enum,
     Annotation,
+    Record,
 }
 
-/// A Java class, interface, enum or annotation type: its class-file access flags, type
-/// parameters, parents, members and nested classes.
+/// A Java class, interface, enum, record or annotation type: its class-file access flags, type
+/// parameters, parents, whether it is `sealed` and its `permits` clause, members and nested
+/// classes.
 pub struct Class {
     pub kind: ClassKind,
     pub access: u16,
@@ -34,6 +36,8 @@ pub struct Class {
     pub type_params: Vec<TypeParam>,
     pub extends: Option<Type>,
     pub implements: Vec<Type>,
+    pub sealed: bool,
+    pub permitted: Vec<Type>,
     pub fields: Vec<Field>,
     pub methods: Vec<Method>,
     pub nested: Vec<Class>,

@@ -1,33 +1,32 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/parsing/JavaParsers.scala
 //! The type declarations of a Java source and their members (dotty's `typeDecl`, `typeBody`,
-//! `memberDecl`, `enumDecl`, `annotationDecl`); bodies and initializers skipped.
+//! `memberDecl`, `enumDecl`, `annotationDecl`, `recordDecl`); bodies and initializers skipped.
 
-use super::parser::{DEFAULT, Parser};
+use super::parser::{DEFAULT, Parser, SEALED};
+use super::records::{self, Header, VISIBILITY, constructor};
 use super::scanner::Token;
 use super::syntax::{Annotation, Class, ClassKind, Method, Type};
 use classfile::{
-    ACC_ABSTRACT, ACC_ANNOTATION, ACC_ENUM, ACC_FINAL, ACC_INTERFACE, ACC_PRIVATE, ACC_PROTECTED, ACC_PUBLIC,
-    ACC_STATIC, ACC_VARARGS,
+    ACC_ABSTRACT, ACC_ANNOTATION, ACC_ENUM, ACC_FINAL, ACC_INTERFACE, ACC_PRIVATE, ACC_PUBLIC, ACC_STATIC,
+    ACC_VARARGS,
 };
 use names::nme;
-
-/// The access flags that say who sees a declaration.
-const VISIBILITY: u16 = ACC_PUBLIC | ACC_PROTECTED | ACC_PRIVATE;
 
 /// The words that start a nested type declaration after its modifiers.
 const TYPE_KEYWORDS: [&str; 4] = ["class", "interface", "enum", "record"];
 
 impl Parser {
-    /// Reads a class, interface, enum or annotation type of modifiers `access`, nested in an
-    /// interface if `in_interface`; records are refused.
+    /// Reads a class, interface, enum, record or annotation type of modifiers `access`, nested in
+    /// an interface if `in_interface`.
     pub fn type_decl(
         &mut self,
         access: u16,
         annotations: Vec<Annotation>,
         in_interface: bool,
     ) -> Result<Class, String> {
-        let mut access = access & !DEFAULT;
+        let sealed = access & SEALED != 0;
+        let mut access = access & !(DEFAULT | SEALED);
         if in_interface {
             access |= ACC_PUBLIC | ACC_STATIC;
         }
@@ -45,7 +44,10 @@ impl Parser {
                     access |= ACC_ENUM | ACC_STATIC;
                     ClassKind::Enum
                 }
-                "record" => return Err("a Java record".to_owned()),
+                "record" => {
+                    access |= ACC_FINAL | ACC_STATIC;
+                    ClassKind::Record
+                }
                 w => return Err(format!("a class declaration expected, `{w}` found")),
             }
         };
@@ -54,6 +56,7 @@ impl Parser {
         }
         let name = self.ident()?;
         let type_params = self.type_params()?;
+        let header = if kind == ClassKind::Record { Some(self.params()?) } else { None };
         let mut extends = None;
         let mut implements = Vec::new();
         if self.eat_ident("extends") {
@@ -66,9 +69,8 @@ impl Parser {
         if self.eat_ident("implements") {
             implements = self.types()?;
         }
-        if self.is_ident("permits") {
-            return Err("a sealed Java class (`permits`)".to_owned());
-        }
+        let permitted = if self.eat_ident("permits") { self.types()? } else { Vec::new() };
+        let (fields, methods, nested) = (Vec::new(), Vec::new(), Vec::new());
         let mut class = Class {
             kind,
             access,
@@ -76,9 +78,11 @@ impl Parser {
             type_params,
             extends,
             implements,
-            fields: Vec::new(),
-            methods: Vec::new(),
-            nested: Vec::new(),
+            sealed,
+            permitted,
+            fields,
+            methods,
+            nested,
             annotations,
         };
         self.expect("{")?;
@@ -89,12 +93,15 @@ impl Parser {
             self.member(&mut class)?;
         }
         if kind == ClassKind::Class && !class.methods.iter().any(|m| m.name == nme::CONSTRUCTOR) {
-            class.methods.push(constructor(class.access & VISIBILITY));
+            class.methods.push(constructor(class.access & VISIBILITY, Vec::new()));
+        }
+        if let Some(header) = header {
+            records::complete(&mut class, header);
         }
         Ok(class)
     }
 
-    fn types(&mut self) -> Result<Vec<Type>, String> {
+    pub fn types(&mut self) -> Result<Vec<Type>, String> {
         let mut types = vec![self.ty()?];
         while self.eat(",") {
             types.push(self.ty()?);
@@ -102,8 +109,9 @@ impl Parser {
         Ok(types)
     }
 
-    /// Reads a member of `class`: an initializer, a nested type, a constructor, a method or the
-    /// fields of one declaration, with the modifiers an interface implies.
+    /// Reads a member of `class`: an initializer, a nested type, a constructor, a record's compact
+    /// constructor, a method or the fields of one declaration, with the modifiers an interface
+    /// implies.
     fn member(&mut self, class: &mut Class) -> Result<(), String> {
         if self.eat(";") {
             return Ok(());
@@ -115,15 +123,19 @@ impl Parser {
             return self.skip_balanced("{", "}");
         }
         let (mut access, annotations) = self.modifiers()?;
+        if self.compact_constructor(class)? {
+            return Ok(());
+        }
         let keyword = |w: &String| TYPE_KEYWORDS.contains(&w.as_str());
-        if matches!(self.peek(), Token::Ident(w) if keyword(w)) || self.is("@") {
+        let record = self.is_ident("record") && matches!(self.peek_at(1), Token::Ident(_));
+        if matches!(self.peek(), Token::Ident(w) if keyword(w) && w != "record") || record || self.is("@") {
             let nested = self.type_decl(access, annotations, interface)?;
             class.nested.push(nested);
             return Ok(());
         }
         let type_params = self.type_params()?;
         let is_constructor = self.is_ident(&class.name) && matches!(self.peek_at(1), Token::Op("("));
-        let (name, result) = if is_constructor {
+        let (name, mut result) = if is_constructor {
             self.ident()?;
             (nme::CONSTRUCTOR.to_owned(), Type::Primitive('V'))
         } else {
@@ -142,10 +154,11 @@ impl Parser {
                 access |= ACC_ABSTRACT;
             }
         }
-        let (params, varargs) = self.params()?;
+        let Header { components, varargs } = self.params()?;
         access |= if varargs { ACC_VARARGS } else { 0 };
-        if self.is("[") {
-            return Err(format!("array brackets after the parameters of method `{name}`"));
+        while self.eat("[") {
+            self.expect("]")?;
+            result = Type::Array(Box::new(result));
         }
         if self.eat_ident("throws") {
             self.types()?;
@@ -160,43 +173,8 @@ impl Parser {
             self.expect(";")?;
         }
         let access = access & !DEFAULT;
+        let params = components.into_iter().map(|(_, t)| t).collect();
         class.methods.push(Method { access, name, type_params, params, result, annotation_default });
         Ok(())
     }
-
-    /// Reads a parameter list: the parameter types, and whether the last is a varargs one.
-    fn params(&mut self) -> Result<(Vec<Type>, bool), String> {
-        self.expect("(")?;
-        let mut params = Vec::new();
-        let mut varargs = false;
-        while !self.eat(")") {
-            self.modifiers()?;
-            let mut t = self.ty()?;
-            if self.eat("...") {
-                varargs = true;
-                t = Type::Array(Box::new(t));
-            }
-            let name = self.ident()?;
-            if name == "this" {
-                return Err("a receiver parameter".to_owned());
-            }
-            while self.eat("[") {
-                self.expect("]")?;
-                t = Type::Array(Box::new(t));
-            }
-            params.push(t);
-            if !self.eat(",") {
-                self.expect(")")?;
-                break;
-            }
-        }
-        Ok((params, varargs))
-    }
-}
-
-/// A constructor of access flags `access` without parameters.
-fn constructor(access: u16) -> Method {
-    let name = nme::CONSTRUCTOR.to_owned();
-    let (type_params, params, result) = (Vec::new(), Vec::new(), Type::Primitive('V'));
-    Method { access, name, type_params, params, result, annotation_default: false }
 }

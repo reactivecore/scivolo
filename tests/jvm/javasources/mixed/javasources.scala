@@ -19,3 +19,16 @@ import java.util.Arrays
   println(c.compareTo(built))
   println(s"${Circle.NEGATED} ${Circle.SIZES} ${Circle.NONE} ${Circle.first[Integer, Integer](1, 2)}")
   println(classOf[Point].getAnnotation(classOf[Tag]).value())
+  val p = Pair.of("p")
+  val counts: List[Int] = p.counts().toList
+  println(s"${p.name()} $counts ${p.total()} ${p.compareTo(Pair("q", 5))} ${Pair.made()}")
+  println(p.toString().replaceAll("@[0-9a-f]+", ""))
+  print(Pair.BLOCK.replace(' ', '_'))
+  val animals: List[Animal] = List(Animal.Cat(), Dog())
+  println(animals.map {
+    case c: Animal.Cat => "cat " + c.sound()
+    case a => "other " + a.sound()
+  })
+  val t = Tree[String]()
+  val n = t.root("r")
+  println(s"${n.value} ${t.leaf("l").value} ${n.tree() eq t} ${t.sizes(java.util.List.of("a"))(0)(0)}")

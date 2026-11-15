@@ -1,9 +1,10 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/parsing/JavaParsers.scala
-//! Types and type parameters as a Java source writes them (dotty's `typ`, `typeArgs`,
-//! `typeParams`).
+//! Types, type parameters and parameters as a Java source writes them (dotty's `typ`,
+//! `typeArgs`, `typeParams`, `formalParams`).
 
 use super::parser::Parser;
+use super::records::Header;
 use super::scanner::Token;
 use super::syntax::{Arg, Type, TypeParam};
 
@@ -69,6 +70,36 @@ impl Parser {
             t = Type::Array(Box::new(t));
         }
         Ok(t)
+    }
+
+    /// Reads a parameter list or record header: the names and types, and whether the last is a
+    /// varargs one (dotty's `formalParams`); the refusal of a receiver parameter `C this`.
+    pub fn params(&mut self) -> Result<Header, String> {
+        self.expect("(")?;
+        let mut components = Vec::new();
+        let mut varargs = false;
+        while !self.eat(")") {
+            self.modifiers()?;
+            let mut t = self.ty()?;
+            if self.eat("...") {
+                varargs = true;
+                t = Type::Array(Box::new(t));
+            }
+            let name = self.ident()?;
+            if name == "this" {
+                return Err("a receiver parameter".to_owned());
+            }
+            while self.eat("[") {
+                self.expect("]")?;
+                t = Type::Array(Box::new(t));
+            }
+            components.push((name, t));
+            if !self.eat(",") {
+                self.expect(")")?;
+                break;
+            }
+        }
+        Ok(Header { components, varargs })
     }
 
     fn type_args(&mut self) -> Result<Vec<Arg>, String> {

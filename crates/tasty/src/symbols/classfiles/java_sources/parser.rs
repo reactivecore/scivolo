@@ -10,8 +10,8 @@ use classfile::{ACC_ABSTRACT, ACC_FINAL, ACC_NATIVE, ACC_PRIVATE, ACC_PROTECTED,
 /// The access flag the parser gives a `default` method, outside the class-file flags.
 pub const DEFAULT: u16 = 0x8000;
 
-/// The refusal of a `sealed` or `non-sealed` modifier.
-const SEALED: &str = "a sealed Java class (`sealed`, `non-sealed`)";
+/// The access flag the parser gives a `sealed` class, which no source sets as `ACC_SYNTHETIC`.
+pub const SEALED: u16 = classfile::ACC_SYNTHETIC;
 
 /// Parses Java source `text` into its declarations (dotty's `compilationUnit`); the refusal of a
 /// construct the parser does not read, by name.
@@ -139,8 +139,8 @@ impl Parser {
         Ok(())
     }
 
-    /// Reads modifiers and annotations: the class-file access flags with `DEFAULT`, and the
-    /// annotations; `sealed` and `non-sealed` are refused.
+    /// Reads modifiers and annotations: the class-file access flags with `DEFAULT` and `SEALED`,
+    /// and the annotations; `non-sealed` is skipped.
     pub fn modifiers(&mut self) -> Result<(u16, Vec<Annotation>), String> {
         let mut access = 0;
         let mut annotations = Vec::new();
@@ -160,8 +160,11 @@ impl Parser {
                 "native" => ACC_NATIVE,
                 "default" if !matches!(self.peek_at(1), Token::Op(":")) => DEFAULT,
                 "synchronized" | "transient" | "volatile" | "strictfp" => 0,
-                "sealed" if matches!(self.peek_at(1), Token::Ident(_)) => return Err(SEALED.to_owned()),
-                "non" if self.peek_at(1) == &Token::Op("-") => return Err(SEALED.to_owned()),
+                "sealed" if matches!(self.peek_at(1), Token::Ident(_)) => SEALED,
+                "non" if self.peek_at(1) == &Token::Op("-") => {
+                    self.at += 2;
+                    0
+                }
                 _ => break,
             };
             self.at += 1;

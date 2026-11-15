@@ -12,3 +12,9 @@ green!
 1
 -97 {} null 1
 untagged
+p List(1, 2) 3 -1 2
+Pair[name=p, counts=[I]
+two	linesA__
+__indented_joined
+List(cat meow, other woof)
+r l true 1

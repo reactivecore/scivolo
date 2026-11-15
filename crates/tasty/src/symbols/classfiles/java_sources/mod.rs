@@ -9,9 +9,12 @@ mod fields;
 mod literals;
 mod members;
 mod parser;
+mod permitted;
+mod records;
 mod resolve;
 mod scanner;
 mod syntax;
+mod text_blocks;
 mod type_signatures;
 mod written_types;
 
@@ -98,6 +101,13 @@ impl JavaSources {
         let (unit, path) = self.classes.get(internal)?;
         let (unit, path, internal) = (self.units[*unit].clone(), path.clone(), internal.to_owned());
         Some(Located { unit, path, internal })
+    }
+
+    /// The classes of unit `unit`, nested ones included, by internal name.
+    pub fn unit_classes(&self, unit: &Rc<Unit>) -> Vec<Located> {
+        let mut names: Vec<&String> = self.classes.keys().collect();
+        names.sort();
+        names.into_iter().filter_map(|n| self.located(n)).filter(|l| Rc::ptr_eq(&l.unit, unit)).collect()
     }
 
     /// Builds the class file of class `internal` of the sources; the refusal of a name not found.

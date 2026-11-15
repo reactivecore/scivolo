@@ -1,3 +1,5 @@
 package refused;
 
-public record Point(int x, int y) {}
+public class Point {
+    public int x(Point this) { return 1; }
+}

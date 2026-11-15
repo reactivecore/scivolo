@@ -13,8 +13,6 @@ pub enum Token {
     Double(f64),
     Char(char),
     Str(String),
-    /// A text block (`"""…"""`), whose value this scanner does not compute.
-    TextBlock,
     Op(&'static str),
     Eof,
 }
@@ -95,7 +93,8 @@ impl Scanner {
             return super::literals::number(&self.chars, &mut self.at);
         }
         if self.starts("\"\"\"") {
-            return self.text_block();
+            self.at += 3;
+            return super::text_blocks::text_block(&self.chars, &mut self.at);
         }
         if c == '"' || c == '\'' {
             return super::literals::quoted(&self.chars, &mut self.at);
@@ -128,15 +127,5 @@ impl Scanner {
                 return Ok(());
             }
         }
-    }
-
-    fn text_block(&mut self) -> Result<Token, String> {
-        self.at += 3;
-        while !self.starts("\"\"\"") {
-            let c = self.peek(0).ok_or("an unclosed text block")?;
-            self.at += if c == '\\' { 2 } else { 1 };
-        }
-        self.at += 3;
-        Ok(Token::TextBlock)
     }
 }
