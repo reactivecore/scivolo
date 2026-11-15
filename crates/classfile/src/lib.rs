@@ -1,5 +1,6 @@
 //! JVM class files (JVMS §4): a class with its constant pool, fields, methods and their code.
 
+mod annotations;
 mod attributes;
 mod code;
 mod frames;
@@ -12,6 +13,7 @@ mod read;
 mod references;
 mod writer;
 
+pub use annotations::{AnnotationValue, ElementValue};
 use attributes::Attribute;
 pub use attributes::{InnerClass, Last};
 pub use code::{Code, FieldOp, Invoke, Label, method_slots, split_method, value_slots};

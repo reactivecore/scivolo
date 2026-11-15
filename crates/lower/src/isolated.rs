@@ -11,11 +11,13 @@ use typer::inlining::Macros;
 use typer::pickle::Pickled;
 use typer::tpd::TNodeId;
 
-/// The output of the files a unit accepts, its warnings and the refusals of the others.
+/// The output of the files a unit accepts, its warnings, the refusals of the others and the
+/// number of times the unit was typed.
 pub struct Isolated<R> {
     pub out: R,
     pub diags: Diagnostics,
     pub refused: Vec<FileRefusal>,
+    pub typings: usize,
 }
 
 /// A source file left out of a unit and why.
@@ -53,12 +55,14 @@ pub fn compile_isolated<R>(
     let mut kept: Vec<SourceFile> = files.iter().map(|f| with_text(f, f.text.clone())).collect();
     let mut left_out = vec![false; files.len()];
     let mut refused = Vec::new();
+    let mut typings = 0;
     loop {
+        typings += 1;
         let mut u = open();
         let generate = (backend, &mut generate);
         let lent = macros.as_deref_mut().map(|m| m as &mut dyn Macros);
         match compile_attributed(&mut u, &kept, cfg, lent, generate) {
-            Ok((out, diags)) => return Ok(Isolated { out, diags, refused }),
+            Ok((out, diags)) => return Ok(Isolated { out, diags, refused, typings }),
             Err(mut refusals) => {
                 let before = refused.len();
                 for Attributed { refusal, files: at } in std::mem::take(&mut refusals) {

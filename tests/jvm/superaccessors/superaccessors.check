@@ -1,3 +1,4 @@
 C1 T1 C2
 2
 3
+public <B> scala.collection.immutable.List<B> C5.T5$$super$concat(scala.collection.IterableOnce<B>)

@@ -33,6 +33,9 @@ impl ClassFile {
                 Attribute::InnerClasses(cs) => {
                     classes.extend(cs.iter().flat_map(|c| std::iter::once(&c.inner).chain(&c.outer)).cloned())
                 }
+                Attribute::Annotations(_, annotations) => {
+                    annotations.iter().for_each(|a| a.descriptors(&mut texts))
+                }
                 _ => {}
             }
         }

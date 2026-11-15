@@ -53,6 +53,8 @@ object Jdkclasses {
     val names = new Names[String] { def name(cls: Class[?]): String = cls.getSimpleName }
     println(new names.Cache().get(classOf[Point]))
     println(classOf[sun.misc.Unsafe].getDeclaredField("theUnsafe").getType == classOf[sun.misc.Unsafe])
+    val version: Runtime.Version = Runtime.Version.parse("17.0.1")
+    println(version.feature() + " " + (Runtime.version().feature() >= 17))
   }
 }
 

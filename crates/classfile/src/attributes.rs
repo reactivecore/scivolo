@@ -1,6 +1,6 @@
 //! Attributes of classes and members besides `Code` (JVMS §4.7).
 
-use crate::{ClassFile, Pool};
+use crate::{AnnotationValue, ClassFile, Pool};
 
 /// A member of the `InnerClasses` attribute: the class, its outer class and simple name (none
 /// for a local or anonymous class), and its flags.
@@ -31,8 +31,8 @@ pub enum Attribute {
     Signature(String),
     SourceFile(String),
     Deprecated,
-    /// Annotations without elements, by their types' descriptors; visible at run time or not.
-    Annotations(bool, Vec<String>),
+    /// Annotations, visible at run time or not.
+    Annotations(bool, Vec<AnnotationValue>),
     /// Each parameter's name and flags.
     MethodParameters(Vec<(String, u16)>),
     /// An attribute the JVM does not define.
@@ -81,12 +81,8 @@ impl Attribute {
             }
             Attribute::Signature(s) | Attribute::SourceFile(s) => put(pool.utf8(s)),
             Attribute::Deprecated => {}
-            Attribute::Annotations(_, descriptors) => {
-                put(descriptors.len() as u16);
-                for d in descriptors {
-                    put(pool.utf8(d));
-                    put(0);
-                }
+            Attribute::Annotations(_, annotations) => {
+                out.extend(crate::annotations::encode(pool, annotations))
             }
             Attribute::MethodParameters(params) => {
                 out.push(params.len() as u8);
@@ -154,9 +150,9 @@ impl ClassFile {
     }
 
     /// The `RuntimeVisibleAnnotations` attribute, else `RuntimeInvisibleAnnotations`, of the class
-    /// or of the last member: annotations without elements, by their types' descriptors.
-    pub fn annotations(&mut self, last: Option<Last>, visible: bool, descriptors: &[String]) {
-        let a = Attribute::Annotations(visible, descriptors.to_vec());
+    /// or of the last member.
+    pub fn annotations(&mut self, last: Option<Last>, visible: bool, annotations: &[AnnotationValue]) {
+        let a = Attribute::Annotations(visible, annotations.to_vec());
         match last {
             Some(last) => self.member_attribute(last, a),
             None => self.attributes.push(a),

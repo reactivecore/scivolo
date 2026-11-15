@@ -8,20 +8,28 @@ use super::{Refusal, TreePickler};
 use crate::defn::type_ref;
 use crate::tpd::{List, TNodeId, Tree};
 use names::nme;
-use tasty::TypeId;
 use tasty::tags::{ANNOTATEDtpt, ANNOTATEDtype, APPLY, NEW, REFINEDtpt, SELECTin};
+use tasty::{Type, TypeId};
 
 impl TreePickler<'_> {
     /// Type `annotated`, `parent` annotated with class type `annot`: with the annotation tree an
     /// annotated expression of the file gave it, else `new annot()`; told from the others by its
     /// tree when keyed. Refuses a type several annotated expressions gave, outside their type trees
-    /// and the type trees derived from or inferred from one of them (`AnnotationOrigins`), and a
-    /// type of a derived type tree with several annotated type trees of `annot` it may come from.
+    /// and the type trees derived from or inferred from one of them (`AnnotationOrigins`), a type
+    /// of a derived type tree with several annotated type trees of `annot` it may come from, and a
+    /// type traced back to one of several annotation trees of the file where that one has
+    /// arguments.
     pub fn annotated(&mut self, annotated: TypeId, parent: TypeId, annot: TypeId) -> Result<(), Refusal> {
         let several = "an annotated type of several annotation trees";
         let tree = match self.tpt_annotation(annotated) {
             Some(tree) => Some(tree),
             None => match self.origin_annotation(annotated, annot) {
+                Some(Some(tree))
+                    if self.tpd.type_annotation(annotated) == Some(None)
+                        && self.has_arguments(tree, annot) =>
+                {
+                    return Err("an annotated type traced to one of several annotation trees with arguments");
+                }
                 Some(origin) => Some(origin.ok_or(several)?),
                 None => self.tpd.type_annotation(annotated).map(|t| t.ok_or(several)).transpose()?,
             },
@@ -59,10 +67,18 @@ impl TreePickler<'_> {
     /// from gave, `Some(None)` if several may have; marks the type keyed as told by its place.
     fn origin_annotation(&mut self, annotated: TypeId, annot: TypeId) -> Option<Option<TNodeId>> {
         let tpt = self.type_tree?;
-        let origins = self.origins.get_or_insert_with(|| AnnotationOrigins::new(self.tpd, self.root));
-        let tree = origins.of_type_tree(self.tpd, tpt, annotated, annot)?;
+        let origins = self.origins.get_or_insert_with(|| AnnotationOrigins::new(self.u, self.tpd, self.root));
+        let tree = origins.of_type_tree(self.u, self.tpd, tpt, annotated, annot)?;
         self.keyed_by_place = true;
         Some(tree)
+    }
+
+    /// Whether annotation tree `tree` of class type `annot` is other than `new C()`: it has value
+    /// or type arguments.
+    fn has_arguments(&self, tree: TNodeId, annot: TypeId) -> bool {
+        let Tree::Apply { fun, args } = *self.tpd.tree(tree) else { return true };
+        let simple_new = matches!(self.tpd.tree(fun), Tree::Select { .. });
+        !self.tpd.items(args).is_empty() || !simple_new || matches!(self.u.ty(annot), Type::Applied(..))
     }
 
     /// The annotation tree of type tree `tpt`, if an annotated expression or type gave its type.

@@ -134,7 +134,8 @@ impl TypeOps<'_> {
                 let variances = self.u.constructor_variances(tycon);
                 for i in 0..self.u.types_of(args).len() {
                     let a = self.u.types_of(args)[i];
-                    go(self, a, v * variances.get(i).copied().unwrap_or(0));
+                    let wildcard = matches!(self.u.ty(a), Type::Bounds(..));
+                    go(self, a, if wildcard { v } else { v * variances.get(i).copied().unwrap_or(0) });
                 }
                 go(self, tycon, v);
             }

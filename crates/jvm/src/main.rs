@@ -91,11 +91,14 @@ fn main() {
     let macros = runner.as_mut().map(|r| r as &mut dyn Macros);
     let backend = (lower::Backend::Jvm, jvmgen::unit);
     let message = |e: &lower::Refusal| e.what.replace("\n  ", " ");
-    let Isolated { out: classes, refused, .. } =
+    let Isolated { out: classes, refused, typings, .. } =
         lower::compile_isolated(&mut open, &sources, config, macros, backend)
             .unwrap_or_else(|e| fail(&message(&e)));
     if refused.is_empty() || leave_out_refused {
         write(&out, &entries(&classes), main_class.as_deref());
+    }
+    if leave_out_refused {
+        eprintln!("typings: {typings}");
     }
     for r in &refused {
         eprintln!("{}: {}", r.file, message(&r.refusal));
