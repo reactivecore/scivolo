@@ -1,6 +1,6 @@
 //! Attributes of classes and members besides `Code` (JVMS §4.7).
 
-use crate::{Attribute, ClassFile};
+use crate::{AnnotationValue, Attribute, ClassFile};
 
 /// A member of the `InnerClasses` attribute: the class, its outer class and simple name (none
 /// for a local or anonymous class), and its flags.
@@ -96,13 +96,9 @@ impl ClassFile {
     }
 
     /// The `RuntimeVisibleAnnotations` attribute, else `RuntimeInvisibleAnnotations`, of the class
-    /// or of the last member: annotations without elements, by their types' descriptors.
-    pub fn annotations(&mut self, last: Option<Last>, visible: bool, descriptors: &[String]) {
-        let mut bytes = (descriptors.len() as u16).to_be_bytes().to_vec();
-        for d in descriptors {
-            bytes.extend(self.pool.utf8(d).to_be_bytes());
-            bytes.extend(0u16.to_be_bytes());
-        }
+    /// or of the last member.
+    pub fn annotations(&mut self, last: Option<Last>, visible: bool, annotations: &[AnnotationValue]) {
+        let bytes = crate::annotations::encode(&mut self.pool, annotations, &mut self.annotation_descriptors);
         let name = if visible { "RuntimeVisibleAnnotations" } else { "RuntimeInvisibleAnnotations" };
         match last {
             Some(last) => self.member_attribute(last, name, bytes),

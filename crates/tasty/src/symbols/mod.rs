@@ -125,6 +125,8 @@ pub struct Universe {
     classfile_descriptors: FxHashMap<SymbolId, String>,
     /// The retention of each annotation class entered from them.
     classfile_annotations: FxHashMap<SymbolId, classfiles::Retention>,
+    /// Their elements that have a default value.
+    annotation_defaults: FxHashSet<SymbolId>,
     /// The library's classes the JDK's class files were asked for the members they lack.
     jdk_member_classes: FxHashSet<SymbolId>,
     /// The library's members of JDK classes checked against the JDK's class files.

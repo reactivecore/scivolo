@@ -169,6 +169,9 @@ impl Typer<'_> {
             safe &= self.is_pure_expr(arg);
             typed.push(arg);
         }
+        if method.is_some_and(|m| self.is_java_annotation_constructor(m)) {
+            return Ok((f, self.named_java_annotation_args(params, typed), defs));
+        }
         let given = aligned.iter().rposition(Option::is_some).map_or(0, |i| i + 1);
         let in_order = given == args.len() && aligned[..given].iter().zip(args).all(|(a, b)| *a == Some(*b));
         if !in_order && !safe {

@@ -28,6 +28,9 @@ impl Typer<'_> {
         args_typed: bool,
         ctx: Ctx,
     ) -> Result<TNodeId, &'static str> {
+        if let Some(underscore) = self.java_annotation_default(f, (method, n)) {
+            return underscore;
+        }
         let mut clauses = Vec::new();
         let mut mref = f;
         let mut leading = false;
