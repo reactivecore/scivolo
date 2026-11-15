@@ -7,7 +7,7 @@
 use super::names::inline_accessor_name;
 use super::{QuoteSource, Refusal, TreePickler};
 use crate::tpd::{TNodeId, Tree as T};
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 use syntax::ast::Span;
 use tasty::write::{Addr, PositionsBuffer};
 
@@ -36,8 +36,11 @@ impl TreePickler<'_> {
         // anew it is in, if any, and whether it is in an inline accessor at a loaded member's span.
         let mut todo: Vec<_> = self.type_annots.iter().rev().map(|&a| (a, None, None, None, false)).collect();
         todo.push((root, None, None, None, false));
-        let mut nodes: Vec<usize> =
-            self.buf.trees().filter(|&(id, _)| id < SYNTHETIC).map(|(_, a)| a.0).collect();
+        let in_type_annots = self.type_annot_addrs(root);
+        let mut nodes: Vec<usize> = (self.buf.trees().filter(|&(id, _)| id < SYNTHETIC))
+            .map(|(_, a)| a.0)
+            .filter(|a| !in_type_annots.contains(a))
+            .collect();
         nodes.sort_unstable();
         // Each tree without a node, in the order dotty writes them, before the node pickled next
         // or after the node given.
@@ -152,6 +155,26 @@ impl TreePickler<'_> {
             call = fun;
         }
         self.u.source_path(self.tpd.sym(call)?)
+    }
+
+    /// The addresses of the trees of the annotations pickled in types that lie outside `root`
+    /// (another class's member's), whose positions follow the root's.
+    fn type_annot_addrs(&self, root: TNodeId) -> FxHashSet<usize> {
+        let mut inside = FxHashSet::default();
+        let mut stack = if self.type_annots.is_empty() { Vec::new() } else { vec![root] };
+        while let Some(t) = stack.pop() {
+            inside.insert(t);
+            stack.extend(self.tpd.children(t));
+        }
+        let mut todo: Vec<TNodeId> =
+            self.type_annots.iter().copied().filter(|t| !inside.contains(t)).collect();
+        let mut addrs = FxHashSet::default();
+        while let Some(t) = todo.pop() {
+            let key = self.tpd.copy_of(t).unwrap_or(t).index() as u32;
+            addrs.extend(self.buf.addr_of_tree(key).map(|a| a.0));
+            todo.extend(self.tpd.children(t));
+        }
+        addrs
     }
 
     /// Whether `t` is an inline accessor at the span of a loaded member, its offsets pickled in

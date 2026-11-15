@@ -91,6 +91,8 @@ pub struct TreePickler<'a> {
     /// The span of each super accessor's definition, its call's point, and the point of its
     /// member's definition if pickled.
     accessor_spans: FxHashMap<SymbolId, (Span, Span)>,
+    /// The annotated type trees of the signature of each super accessor's member, if defined here.
+    accessor_tpts: FxHashMap<SymbolId, Vec<TNodeId>>,
     /// The trees pickled that have no node, by the id they are registered under, their spans, and
     /// the node whose position theirs follows if not the node pickled next.
     synthetic: Vec<(u32, Span, Option<TNodeId>)>,
@@ -99,7 +101,8 @@ pub struct TreePickler<'a> {
     /// `Apply` and `New`, and the type tree.
     type_tree: Option<TNodeId>,
     annots: Vec<(u32, u32, TNodeId)>,
-    /// The type trees of the case patterns and pattern variables enclosing the tree pickled now.
+    /// The type trees of the case patterns and pattern variables enclosing the tree pickled now,
+    /// or of the member of the super accessor pickled now.
     typed_tpts: Vec<TNodeId>,
     /// The selector of the match whose case is pickled next, and of the pattern pickled now.
     scrutinee: Option<TNodeId>,
@@ -171,6 +174,7 @@ fn pickle<'a>(
         accessor_names: FxHashMap::default(),
         accessor_targets: FxHashMap::default(),
         accessor_spans: FxHashMap::default(),
+        accessor_tpts: FxHashMap::default(),
         synthetic: Vec::new(),
         accessors: Vec::new(),
         type_tree: None,

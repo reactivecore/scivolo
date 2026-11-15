@@ -28,8 +28,15 @@ pub fn accessor_info(u: &mut Universe, member: SymbolId, info: TypeId) -> TypeId
 }
 
 impl TreePickler<'_> {
-    /// Super accessor `acc`, declared without a body.
+    /// Super accessor `acc`, declared without a body, its types with the annotation trees of its
+    /// member's signature.
     pub fn super_accessor_def(&mut self, acc: SymbolId) -> Result<(), Refusal> {
+        let tpts = self.accessor_tpts.get(&acc).cloned().unwrap_or_default();
+        self.with_typed_tpts(tpts, &mut |p| p.accessor_def(acc))
+    }
+
+    /// Super accessor `acc`, declared without a body.
+    fn accessor_def(&mut self, acc: SymbolId) -> Result<(), Refusal> {
         self.defs.entry(acc).or_insert(None);
         self.register_def(acc);
         let name = self.accessor_name(acc).ok_or("a super accessor without a name")?;
