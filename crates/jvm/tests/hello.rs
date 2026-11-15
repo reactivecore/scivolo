@@ -185,6 +185,11 @@ fn jdk_classes_javalib_lacks_run_on_the_jvm() {
 }
 
 #[test]
+fn classes_implementing_java_annotations_run_on_the_jvm() {
+    runs_on_the_jvm("annotationimpls", "Annotationimpls");
+}
+
+#[test]
 fn signature_polymorphic_calls_run_on_the_jvm() {
     runs_on_the_jvm("sigpoly", "Sigpoly");
 }

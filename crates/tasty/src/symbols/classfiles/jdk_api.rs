@@ -72,6 +72,20 @@ impl Universe {
         term && !trait_init && !string_add && !self.classfile_descriptors.contains_key(&m)
     }
 
+    /// Determines the declarations of class `c` as looking each up by name gives them: those of
+    /// its JDK class file in place of the library's the JDK lacks (`Annotation.annotationType`,
+    /// javalib's of another type).
+    pub fn jdk_viewed_decls(&mut self, c: SymbolId) -> Vec<SymbolId> {
+        if self.jdk_class_of(c).is_some() {
+            let decls = self.symbol(c).decls.iter();
+            let names: Vec<String> = decls.map(|&d| self.symbol(d).name.clone()).collect();
+            for name in &names {
+                let _ = self.decl(c, name);
+            }
+        }
+        self.symbol(c).decls.clone()
+    }
+
     /// Reads the type of member `m` of a `java.*` or `javax.*` class of the library from that
     /// class's JDK class file (`Comparator.thenComparing[U <: Comparable[? >: U]]` where javalib
     /// has `U <: Comparable[U]`), the JDK class's type parameters standing for the library
