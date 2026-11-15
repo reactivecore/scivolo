@@ -116,7 +116,9 @@ impl Typer<'_> {
         self.instantiate_var_as(v, from_below, false)
     }
 
-    /// `instantiate_var`, `forced` as `instance_type` takes it.
+    /// `instantiate_var`, `forced` as `instance_type` takes it; a forced instance is dealiased,
+    /// keeping its annotations, as the constraint entry `isFullyDefined` leaves
+    /// (`OrderingConstraint.replace`).
     fn instantiate_var_as(&mut self, v: VarId, from_below: bool, forced: bool) -> Result<(), &'static str> {
         let inst = self.instance_type(v, (from_below, forced))?;
         let hi = self.constraint.bounds(v).1;
@@ -142,6 +144,8 @@ impl Typer<'_> {
         {
             return Err("type variable instantiated to an intersection or union of type constructors");
         }
+
+        let inst = if forced { self.u.replacement(inst) } else { inst };
         self.constraint.instantiate(v, inst);
         Ok(())
     }

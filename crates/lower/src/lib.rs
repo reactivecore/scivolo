@@ -20,6 +20,7 @@ pub use isolated::{FileRefusal, Isolated, compile_isolated, compile_sources_isol
 pub use options::Options;
 pub use output::NirFile;
 pub use phases::adapt::erased_type;
+pub use phases::java_enums::derives_from_java_enum;
 pub use phases::sam::abstract_methods;
 use rustc_hash::{FxHashMap, FxHashSet};
 pub use symbols::{is_erased, is_jdk_object};

@@ -11,6 +11,13 @@ class Names {
 object Javaannotations {
   @Documented def kept = 3
   @SuppressWarnings(Array("unused")) def quiet = 4
+  @Deprecated def old = 5
+  @Deprecated(since = "9", forRemoval = true) def older = 6
+
+  def deprecation(name: String): String = {
+    val d = Class.forName("Javaannotations").getMethod(name).getAnnotation(classOf[Deprecated])
+    s"[${d.since()}] ${d.forRemoval()}"
+  }
 
   def main(args: Array[String]): Unit = {
     val inc: Inc = x => x + 1
@@ -25,5 +32,6 @@ object Javaannotations {
     val forwarder = Class.forName("Javaannotations").getMethod("kept")
     println(forwarder.isAnnotationPresent(classOf[Documented]))
     println(quiet)
+    println(deprecation("old") + " " + deprecation("older"))
   }
 }

@@ -11,7 +11,7 @@ pub use attributes::Annotation;
 pub use jdk::Jdk;
 
 /// A field or method of a class read: its flags, name, descriptor, generic signature and a
-/// field's constant value.
+/// field's constant value, and whether an annotation element has a default value.
 #[derive(Clone)]
 pub struct MemberInfo {
     pub access: u16,
@@ -19,6 +19,7 @@ pub struct MemberInfo {
     pub descriptor: String,
     pub signature: Option<String>,
     pub constant: Option<ConstantValue>,
+    pub annotation_default: bool,
 }
 
 /// A class read from a class file; names are internal names.
@@ -158,8 +159,8 @@ fn members(b: &mut Bytes, c: &Constants) -> Result<Vec<MemberInfo>, String> {
         .map(|_| {
             let access = b.u2()?;
             let (name, descriptor) = (c.utf8(b.u2()?)?, c.utf8(b.u2()?)?);
-            let Attributes { signature, constant, .. } = attributes(b, c)?;
-            Ok(MemberInfo { access, name, descriptor, signature, constant })
+            let Attributes { signature, constant, annotation_default, .. } = attributes(b, c)?;
+            Ok(MemberInfo { access, name, descriptor, signature, constant, annotation_default })
         })
         .collect()
 }

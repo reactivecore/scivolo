@@ -114,10 +114,13 @@ impl Purity<'_> {
         }
     }
 
+    /// Determines the purity of reference `t` (dotty's `refPurity`): a pure path for a method
+    /// with parameters, a constant or a stable value.
     pub fn ref_purity(&mut self, t: TNodeId) -> u8 {
         let Some(tpe) = self.tpd.get(t).tpe else { return IMPURE };
         let widened = self.u.widen(tpe);
-        if matches!(self.u.ty(widened), Type::Method { .. } | Type::Poly { .. })
+        let monomorphic = self.u.strip_poly(widened);
+        if matches!(self.u.ty(monomorphic), Type::Method { .. })
             || matches!(self.u.ty(tpe), Type::Constant(..) | Type::Str(_))
         {
             return PURE_PATH;
