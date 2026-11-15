@@ -41,7 +41,7 @@ pub fn accessor_def(t: &mut Typer<'_>, host: SymbolId, access: Access, span: Spa
         info
     };
 
-    let at = accessor_span(t, accessed, span);
+    let at = accessor_span(t, host, accessed, span);
     let target = accessed_ref(t, host, accessed, at);
     let mut rhs = t.ast.node(Tree::TypeTree);
     t.splices.insert(rhs, target);
@@ -157,11 +157,25 @@ fn accessor_name(u: &Universe, access: Access, host: SymbolId) -> String {
     if access.setter { format!("{name}_=") } else { name }
 }
 
-/// Determines where the accessors of `accessed` are defined: at its definition's point, else at
-/// the point of `span`, the reference that needs them.
-pub fn accessor_span(t: &mut Typer<'_>, accessed: SymbolId, span: Span) -> Span {
+/// Determines where the accessors of `accessed` in class `host` are defined: at its definition's
+/// point; for a loaded member, which has no span, at the end of `host`'s template as its envelope
+/// places them (dotty's `Positioned.envelope`); else at the point of `span`, the reference that
+/// needs them.
+pub fn accessor_span(t: &Typer<'_>, host: SymbolId, accessed: SymbolId, span: Span) -> Span {
     match t.syms.def_trees.get(&accessed) {
         Some(&d) => Span::at(t.ast.span(d).point()),
-        None => t.u.pickled_point(accessed).map_or(Span::at(span.point()), |p| Span::at(p).in_other_source()),
+        None => template_end(t, host).unwrap_or(Span::at(span.point())),
     }
+}
+
+/// The end of the union of the spans of the parts of `host`'s template, if it has one.
+fn template_end(t: &Typer<'_>, host: SymbolId) -> Option<Span> {
+    let &def = t.syms.def_trees.get(&host)?;
+    let Tree::TypeDef { rhs, .. } = *t.ast.tree(def) else { return None };
+    let Tree::Template { constr, parents_or_derived, self_, body, .. } = *t.ast.tree(rhs) else {
+        return None;
+    };
+    let parts = t.ast.items(parents_or_derived).iter().chain(self_.as_ref()).chain(t.ast.items(body));
+    let span = parts.fold(t.ast.span(constr), |s, &n| s.union(t.ast.span(n)));
+    span.exists().then(|| span.end_pos())
 }

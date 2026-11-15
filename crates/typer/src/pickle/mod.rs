@@ -9,6 +9,7 @@ mod applies;
 mod cases;
 mod defs;
 mod kept_annotations;
+mod member_tpts;
 mod names;
 mod packages;
 mod positions;
@@ -105,9 +106,9 @@ pub struct TreePickler<'a> {
     /// `Apply` and `New`, and the type tree.
     type_tree: Option<TNodeId>,
     annots: Vec<(u32, u32, TNodeId)>,
-    /// The type trees of the case patterns and pattern variables enclosing the tree pickled now,
-    /// or of the member of the super accessor pickled now.
-    typed_tpts: Vec<TNodeId>,
+    /// The type trees of the case patterns, typed patterns and pattern variables enclosing the
+    /// tree pickled now, or of the member of the super accessor pickled now, outermost first.
+    typed_tpts: Vec<Vec<TNodeId>>,
     /// The selector of the match whose case is pickled next, and of the pattern pickled now.
     scrutinee: Option<TNodeId>,
     pattern_selector: Option<TNodeId>,

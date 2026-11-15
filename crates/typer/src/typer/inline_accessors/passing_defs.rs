@@ -22,11 +22,13 @@ const SETTER_RECEIVER: &str = "x$0$receiver";
 /// The names and types of one value parameter clause.
 type Params = Vec<(tasty::NameId, TypeId)>;
 
-/// Makes `def name[Ls](x$0: R)(ps): T = x$0.m(ps)` for `access` of member `m` and receivers of
-/// type `R` over the inline method's types `Ls`, or `def name[Ls](x$0: R)(x$0: T): Unit =
-/// x$0.m = x$0` for a setter; `None`, reported at `span`, for a polymorphic or implicit method.
+/// Makes `def name[Ls](x$0: R)(ps): T = x$0.m(ps)` in class `host` for `access` of member `m`
+/// and receivers of type `R` over the inline method's types `Ls`, or `def name[Ls](x$0: R)(x$0:
+/// T): Unit = x$0.m = x$0` for a setter; `None`, reported at `span`, for a polymorphic or
+/// implicit method.
 pub fn passing_def(
     t: &mut Typer<'_>,
+    host: tasty::SymbolId,
     name: &str,
     access: Access,
     receiver: &Receiver,
@@ -38,7 +40,7 @@ pub fn passing_def(
     let info = dealiased(t.u, info);
     let (mut clauses, info) = value_clauses(t, info, setter, span)?;
 
-    let at = accessor_span(t, accessed, span);
+    let at = accessor_span(t, host, accessed, span);
     let mut defs = Vec::new();
     if !locals.is_empty() {
         let mut tparams = Vec::new();

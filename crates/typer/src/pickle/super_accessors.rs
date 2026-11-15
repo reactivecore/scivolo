@@ -5,6 +5,7 @@
 //! (`transformSuperSelect`, `superAccessorCall`): in a trait without `M`, or in a class nested in
 //! `C`; declared without a body, each call a selection of its accessor on `C.this`.
 
+use super::member_tpts::member_tpts;
 use super::names::expanded_prefix_name;
 use super::super_accessor_defs::accessor_info;
 use super::{Refusal, TreePickler};
@@ -168,29 +169,12 @@ impl TreePickler<'_> {
             self.accessor_targets.insert(acc, tasty_name(self.u, &t));
             defined = def.map_or(Span::NONE, |d| Span::at(self.tpd.span(d).point()));
         }
-        if let Some(d) = def
-            && let T::DefDef { tpt, .. } = *self.tpd.tree(d)
-        {
-            let params =
-                self.tpd.children(d).into_iter().filter(|&c| matches!(self.tpd.tree(c), T::ValDef { .. }));
-            let tpts = params.chain([tpt]).map(|t| self.subtree(t)).collect();
+        if let Some(tpts) = def.and_then(|d| member_tpts(self.tpd, d)) {
             self.accessor_tpts.insert(acc, tpts);
         }
         self.accessor_spans.insert(acc, (Span::at(self.tpd.span(sel).point()), defined));
         self.accessors.push((class, name));
         acc
-    }
-
-    /// The typed trees of `t` and its descendants.
-    fn subtree(&self, t: TNodeId) -> Vec<TNodeId> {
-        let (mut todo, mut trees) = (vec![t], Vec::new());
-        while let Some(t) = todo.pop() {
-            if self.tpd.get(t).tpe.is_some() {
-                trees.push(t);
-            }
-            todo.extend(self.tpd.children(t));
-        }
-        trees
     }
 
     /// The name of super accessor `s`, if it is one.

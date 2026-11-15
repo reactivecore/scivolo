@@ -30,14 +30,16 @@ impl TreePickler<'_> {
     /// and its match's selector.
     pub fn case_def(&mut self, pat: TNodeId, guard: Option<TNodeId>, body: TNodeId) -> Result<(), Refusal> {
         let selector = self.scrutinee.take();
-        let mut tpts: Vec<TNodeId> = (selector.map(|s| self.tpd.tree(s)))
+        let ascribed: Vec<TNodeId> = (selector.map(|s| self.tpd.tree(s)))
             .and_then(|t| if let Tree::Typed { tpt, .. } = *t { Some(tpt) } else { None })
             .into_iter()
             .collect();
-        tpts.extend(self.annotated_tpts(pat));
+        let tpts = self.annotated_tpts(pat);
         self.with_length(CASEDEF, &mut |p| {
             let outer = std::mem::replace(&mut p.pattern_selector, selector);
-            let pickled = p.with_typed_tpts(tpts.clone(), &mut |p| p.tree(pat));
+            let pickled = p.with_typed_tpts(ascribed.clone(), &mut |p| {
+                p.with_typed_tpts(tpts.clone(), &mut |p| p.tree(pat))
+            });
             p.pattern_selector = outer;
             pickled?;
             [Some(body), guard].into_iter().flatten().try_for_each(|t| p.tree(t))
@@ -94,5 +96,28 @@ impl TreePickler<'_> {
             p.ty(tpe, false)?;
             patterns.iter().try_for_each(|&t| p.tree(t))
         })
+    }
+
+    /// The type trees of the typed patterns in pattern `t`, and the annotated type trees in them.
+    pub fn annotated_tpts(&self, t: TNodeId) -> Vec<TNodeId> {
+        let mut tpts = match *self.tpd.tree(t) {
+            Tree::Typed { tpt, .. } => vec![tpt],
+            Tree::Annotated { .. } => vec![t],
+            _ => Vec::new(),
+        };
+        tpts.extend(self.tpd.children(t).into_iter().flat_map(|c| self.annotated_tpts(c)));
+        tpts
+    }
+
+    /// Pickles `pickle` inside the pattern or super accessor parameter of type trees `tpts`.
+    pub fn with_typed_tpts(
+        &mut self,
+        tpts: Vec<TNodeId>,
+        pickle: &mut dyn FnMut(&mut Self) -> Result<(), Refusal>,
+    ) -> Result<(), Refusal> {
+        self.typed_tpts.push(tpts);
+        let pickled = pickle(self);
+        self.typed_tpts.pop();
+        pickled
     }
 }

@@ -4,7 +4,6 @@
 //! The positions of a quote (dotty's `picklePositions`): the span of each tree pickled that its
 //! children's spans do not give.
 
-use super::names::inline_accessor_name;
 use super::{QuoteSource, Refusal, TreePickler};
 use crate::tpd::{TNodeId, Tree as T};
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -33,9 +32,9 @@ impl TreePickler<'_> {
         let mut paths = vec![source.path.clone()];
         // Each tree with the index in `paths` of its parent's source, if any, of the source of
         // the inline expansion it is in, if any, and the definition whose annotation pickled
-        // anew it is in, if any, and whether it is in an inline accessor at a loaded member's span.
-        let mut todo: Vec<_> = self.type_annots.iter().rev().map(|&a| (a, None, None, None, false)).collect();
-        todo.push((root, None, None, None, false));
+        // anew it is in, if any.
+        let mut todo: Vec<_> = self.type_annots.iter().rev().map(|&a| (a, None, None, None)).collect();
+        todo.push((root, None, None, None));
         let in_type_annots = self.type_annot_addrs(root);
         let mut nodes: Vec<usize> = (self.buf.trees().filter(|&(id, _)| id < SYNTHETIC))
             .map(|(_, a)| a.0)
@@ -59,20 +58,17 @@ impl TreePickler<'_> {
             .iter()
             .filter_map(|&(id, s, after)| Some((after?, (self.buf.addr_of_tree(id)?, s))))
             .collect();
-        while let Some((t, current, library, copy_owner, in_accessor)) = todo.pop() {
+        while let Some((t, current, library, copy_owner)) = todo.pop() {
             let span = self.tpd.span(t);
             let other = span.exists() && span.without_inlined_call().is_in_other_source();
-            let foreign = other && library.is_none() && self.at_foreign_span(t);
-            let foreign_scope = in_accessor || foreign;
             let own = match other && self.file.is_some() {
-                true if foreign => current,
                 true => library,
                 false => match source.unit_file(span) {
                     Some(path) => Some(path_index(&mut paths, path)),
                     None => Some(0),
                 },
             };
-            let in_library = own.is_some_and(|i| i > 0) || (other && foreign_scope);
+            let in_library = own.is_some_and(|i| i > 0);
             let key = self.tpd.copy_of(t).unwrap_or(t).index() as u32;
             let at = self.buf.addr_of_tree(key).map(|a| a.0);
             while let Some(&(_, addr, span)) = synthetic.last().filter(|&&(next, _, _)| Some(next) == at) {
@@ -102,7 +98,6 @@ impl TreePickler<'_> {
             let current = if span.exists() { own } else { current };
             let library = match self.inline_source(t) {
                 Some(path) => Some(path_index(&mut paths, path)),
-                None if foreign => own,
                 None => library,
             };
             let hole_args = self.holes.get(&t).map(|(_, args)| args.clone()).unwrap_or_default();
@@ -117,7 +112,7 @@ impl TreePickler<'_> {
             let children = annots.chain(own).collect::<Vec<_>>();
             for (c, owner) in children.into_iter().rev() {
                 let read = self.tpd.read_from(c).map(|_| path_index(&mut paths, String::new()));
-                todo.push((c, current, read.or(library), owner, foreign_scope));
+                todo.push((c, current, read.or(library), owner));
             }
         }
         while let Some((_, addr, span)) = synthetic.pop() {
@@ -175,13 +170,6 @@ impl TreePickler<'_> {
             todo.extend(self.tpd.children(t));
         }
         addrs
-    }
-
-    /// Whether `t` is an inline accessor at the span of a loaded member, its offsets pickled in
-    /// the current source (dotty's `accessed.span`).
-    fn at_foreign_span(&self, t: TNodeId) -> bool {
-        matches!(self.tpd.tree(t), T::DefDef { .. })
-            && self.tpd.sym(t).is_some_and(|s| inline_accessor_name(self.u, s).is_some())
     }
 
     /// The span enclosing `t`'s children, synthetic, else an inlined tree's call's (dotty's
