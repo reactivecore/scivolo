@@ -329,6 +329,30 @@ fn any_val_of_a_unit_of_several_files_is_left_out() {
 }
 
 #[test]
+fn a_tuple_class_of_the_unit_extends_its_generic_tuple() {
+    let tuple2 = "package scala\nimport scala.language.`2.13`\n\
+                  final case class Tuple2[+T1, +T2](_1: T1, _2: T2) extends Product2[T1, T2]\n";
+    let user =
+        "object Use { def t: Tuple = Tuple2(1, \"a\"); def p: Int *: String *: EmptyTuple = (1, \"a\") }\n";
+    let sources = written("tupleunit", &[("Tuple2.scala", tuple2), ("use.scala", user)]);
+    let unit = root().join("tmp/jvm-test/tupleunit-out");
+    let _ = std::fs::remove_dir_all(&unit);
+    let run = Command::new(env!("CARGO_BIN_EXE_scivolo-jvm"))
+        .args(["--scalalib", "-d"])
+        .arg(&unit)
+        .args(&sources)
+        .output()
+        .expect("running scivolo-jvm");
+    assert!(run.status.success(), "{}", String::from_utf8_lossy(&run.stderr));
+    let (alone, compiled) = compile("tupleunit-alone", &sources[1]);
+    assert!(compiled.status.success(), "{}", String::from_utf8_lossy(&compiled.stderr));
+    for name in ["Use.class", "Use$.class", "Use.tasty"] {
+        let bytes = |out: &Path| std::fs::read(out.join(name)).expect("a class file");
+        assert!(bytes(&unit) == bytes(&alone), "{name} differs");
+    }
+}
+
+#[test]
 fn a_class_extending_a_namesake_with_statements_of_another_file_compiles() {
     let sources = written(
         "localdummyunit",
