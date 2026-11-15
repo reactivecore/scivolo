@@ -12,8 +12,8 @@ impl Typer<'_> {
     /// Adjusts the parents `parents` of a library class `cls` defined by `tree` as dotty does when
     /// it completes it: `scala.TupleN[T1, …, Tn]` extends `T1 *: … *: Tn *: EmptyTuple` in place
     /// of `Object`, and `scala.runtime.BoxedUnit` does not extend `java.io.Serializable` (dotty's
-    /// `Definitions.adjustForTuple` and `adjustForBoxedUnit`). Refuses a tuple class without
-    /// `*:` or `EmptyTuple` on the classpath or in the unit.
+    /// `Definitions.adjustForTuple` and `adjustForBoxedUnit`). Refuses a tuple class that extends
+    /// a class, and one without `*:` or `EmptyTuple` on the classpath or in the unit.
     pub fn adjust_synthetic_parents(
         &mut self,
         cls: SymbolId,
@@ -36,12 +36,13 @@ impl Typer<'_> {
             return parents;
         }
 
+        if parents.first().and_then(|&p| self.u.class_symbol(p)) != Some(self.defn.object) {
+            self.unsupported(tree, "a tuple class with a class parent");
+            return parents;
+        }
         let elems: Vec<TypeId> = tparams.into_iter().map(|p| crate::defn::type_ref(self.u, p)).collect();
         match self.nested_pairs(&elems) {
-            Ok(pairs) => {
-                let object = parents.len().min(1);
-                parents.splice(..object, [pairs]);
-            }
+            Ok(pairs) => parents[0] = pairs,
             Err(what) => {
                 self.unsupported(tree, what);
             }
