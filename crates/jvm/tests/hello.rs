@@ -59,6 +59,15 @@ fn several_files_run_on_the_jvm() {
 }
 
 #[test]
+fn a_super_accessor_of_a_capturing_type_refused() {
+    let source = root().join("tests/jvm/refused/supercaptures.scala");
+    let (_, compiled) = compile("supercaptures", &source);
+    let stderr = String::from_utf8_lossy(&compiled.stderr);
+    let refusal = "does not support pickling an annotated type of a generic annotation class";
+    assert!(!compiled.status.success() && stderr.contains(refusal), "{stderr}");
+}
+
+#[test]
 fn a_file_of_a_unit_compiles_as_alone() {
     let dir = root().join("tests/jvm/units");
     let mut sources: Vec<PathBuf> = std::fs::read_dir(&dir)
@@ -361,6 +370,75 @@ fn any_val_of_a_unit_of_several_files_is_left_out() {
     assert!(stderr.contains("AnyVal.scala: ") && !stderr.contains("v.scala: "), "{stderr}");
     let companion = std::fs::read(out.join("V$.class")).expect("V$.class");
     assert!(companion.windows(15).any(|w| w == b"twice$extension"), "{stderr}");
+}
+
+#[test]
+fn a_tuple_class_of_the_unit_extends_its_generic_tuple() {
+    let tuple2 = "package scala\nimport scala.language.`2.13`\n\
+                  final case class Tuple2[+T1, +T2](_1: T1, _2: T2) extends Product2[T1, T2]\n";
+    let user =
+        "object Use { def t: Tuple = Tuple2(1, \"a\"); def p: Int *: String *: EmptyTuple = (1, \"a\") }\n";
+    let main = "object Main {\n\
+                \x20 def main(args: Array[String]): Unit = {\n\
+                \x20   val tup2: Tuple = 1 *: 2 *: Tuple()\n\
+                \x20   tup2 match\n\
+                \x20     case Tuple() => println(\"empty\")\n\
+                \x20     case (1, 2) => println(\"pair\")\n\
+                \x20   val any: Any = (3, 4)\n\
+                \x20   println(any.isInstanceOf[NonEmptyTuple])\n\
+                \x20   any match\n\
+                \x20     case h *: t => println(s\"cons $h $t\")\n\
+                \x20     case _ => println(\"other\")\n\
+                \x20 }\n\
+                }\n";
+    let sources =
+        written("tupleunit", &[("Tuple2.scala", tuple2), ("use.scala", user), ("main.scala", main)]);
+    let unit = root().join("tmp/jvm-test/tupleunit-out");
+    let _ = std::fs::remove_dir_all(&unit);
+    let run = Command::new(env!("CARGO_BIN_EXE_scivolo-jvm"))
+        .args(["--scalalib", "-d"])
+        .arg(&unit)
+        .args(&sources)
+        .output()
+        .expect("running scivolo-jvm");
+    assert!(run.status.success(), "{}", String::from_utf8_lossy(&run.stderr));
+    let (alone, compiled) = compile("tupleunit-alone", &sources[1]);
+    assert!(compiled.status.success(), "{}", String::from_utf8_lossy(&compiled.stderr));
+    for name in ["Use.class", "Use$.class", "Use.tasty"] {
+        let bytes = |out: &Path| std::fs::read(out.join(name)).expect("a class file");
+        assert!(bytes(&unit) == bytes(&alone), "{name} differs");
+    }
+    let class = std::fs::read(unit.join("scala/Tuple2.class")).expect("Tuple2.class");
+    let has = |s: &str| class.windows(s.len()).any(|w| w == s.as_bytes());
+    assert!(!has("$times$colon") && has("productIterator"), "Tuple2.class extends *: or lacks forwarders");
+    if Command::new("java").arg("-version").output().is_err() {
+        return;
+    }
+    let classpath =
+        format!("{}:{}", root().join("ref/libs/scala-library-3.9.0.jar").display(), unit.display());
+    let run = Command::new("java")
+        .args(["-Xverify:all", "-cp", &classpath, "Main"])
+        .output()
+        .expect("running java");
+    assert!(run.status.success(), "{}", String::from_utf8_lossy(&run.stderr));
+    assert_eq!(String::from_utf8_lossy(&run.stdout), "pair\ntrue\ncons 3 (4)\n");
+}
+
+#[test]
+fn an_alias_of_the_unit_a_library_class_refers_to_is_completed() {
+    let package = "package object scala { type Iterator[+A] = scala.collection.Iterator[A] }\n";
+    let user = "package scala.collection\nobject Use { def s(it: Iterator[Int]) = \
+                new convert.impl.IntIteratorStepper(it) }\n";
+    let sources = written("aliasunit", &[("use.scala", user), ("package.scala", package)]);
+    let out = root().join("tmp/jvm-test/aliasunit-out");
+    let _ = std::fs::remove_dir_all(&out);
+    let run = Command::new(env!("CARGO_BIN_EXE_scivolo-jvm"))
+        .args(["--scalalib", "-d"])
+        .arg(&out)
+        .args(&sources)
+        .output()
+        .expect("running scivolo-jvm");
+    assert!(run.status.success(), "{}", String::from_utf8_lossy(&run.stderr));
 }
 
 #[test]

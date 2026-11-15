@@ -4,6 +4,7 @@
 //! expected there and adapted to it (`adapt.rs`).
 
 mod calls;
+pub(super) mod class_parents;
 pub(super) mod erased_defs;
 mod generic_arrays;
 mod members;

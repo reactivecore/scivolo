@@ -7,7 +7,8 @@ use super::class_bytes::scala_markers;
 use super::descriptors::{class_descriptor, method_descriptor};
 use super::{ClassBytes, Gen, method_name, unsupported};
 use classfile::{
-    ACC_FINAL, ACC_PUBLIC, ACC_STATIC, ACC_SUPER, ACC_SYNTHETIC, ClassFile, Code, FieldOp, Invoke, Last,
+    ACC_FINAL, ACC_PUBLIC, ACC_STATIC, ACC_SUPER, ACC_SYNTHETIC, ACC_VARARGS, ClassFile, Code, FieldOp,
+    Invoke, Last,
 };
 use lower::Result;
 use names::{name_kinds, nme};
@@ -66,10 +67,11 @@ impl Gen<'_, '_> {
             }
             code.invoke(Invoke::Virtual, &mut cf.pool, &module_name, &method, &desc);
             code.ret(result);
-            let flags = ACC_PUBLIC | ACC_STATIC | if synthetic { ACC_SYNTHETIC } else { 0 };
+            let target = self.l.mixed_in_from(m).unwrap_or(m);
+            let varargs = if self.l.is_varargs_forwarder(target) { ACC_VARARGS } else { 0 };
+            let flags = ACC_PUBLIC | ACC_STATIC | varargs | if synthetic { ACC_SYNTHETIC } else { 0 };
             cf.method(flags, &method, &desc, Some(code));
             self.emit_method_annotations(cf, m);
-            let target = self.l.mixed_in_from(m).unwrap_or(m);
             let this = self.l.u.this_type(module);
             let unflattened = self.l.unflattened_info(target);
             let info = unflattened.unwrap_or_else(|| self.l.u.member_info(this, target));
