@@ -433,7 +433,9 @@ the optimizer (1883 of its 3134 classes dotty also writes differ in code from do
 `just jvm-lib-jar scalalib` packs those class files and TASTy into a library jar laid out as the
 published one (ADR 0123): the classes scala3's build takes from Scala 2.13 and javac's come from
 the published jar, a refused file's from dotty's run; `just dotty-jvm-report "" run
-tmp/lib-jvm/scalalib/libs` types and runs tests/run against it.
+tmp/lib-jvm/scalalib/libs` types and runs tests/run against it, `just dotty-jvm-report "" run
+tmp/lib-jvm/scalalib/libs/scala-library-3.9.0.jar` types them against the published jar and runs
+them on ours.
 
 ### com-lihaoyi libraries from source
 

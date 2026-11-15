@@ -1,11 +1,10 @@
 """dotty's tests/run through the Rust frontend and the JVM backend, run on `java -Xverify:all`.
 
 Writes jvm-report.md and jvm-results.tsv under tmp/dotty/<versions> (another directory DIR of
-dotty's tests: jvm-report-DIR.md, jvm-results-DIR.tsv; with a directory LIBS of library jars, the
-last group is typed and run against its scala-library jar, into jvm-report[-DIR]-library.md and
-jvm-results[-DIR]-library.tsv). Earlier compilation groups are compiled
-by scala-cli for the JVM; the last group by scivolo-jvm, which sees their TASTy and, for a macro
-call, runs the macro in the VM over their Scala Native build (ADR 0112).
+dotty's tests: jvm-report-DIR.md, jvm-results-DIR.tsv; LIBS a directory of library jars: typed and
+run against its scala-library jar, suffix -library; a jar: run on it, suffix -library-run). Earlier
+groups are compiled by scala-cli for the JVM; the last group by scivolo-jvm, which sees their TASTy
+and, for a macro call, runs the macro in the VM over their Scala Native build (ADR 0112).
 `scripts/DottyRun.java` calls `Test.main` through reflection, as dotty's test runner does.
 """
 import collections
@@ -22,9 +21,8 @@ LIBRARY = shared(f"ref/libs/scala-library-{SCALA}.jar")
 LAUNCHER = WORK / "jvm-launcher"
 JOBS = max(2, (os.cpu_count() or 4) // 2)
 TIMEOUT = int(os.environ.get("SCIVOLO_TIMEOUT", "60"))
-OUTCOMES = ["passed", "wrong output", "verify error", "linkage error", "crashed", "timeout", "jvm refused",
-            "lowering refused", "typer refused", "macro refused", "parser refused", "frontend crashed", "earlier groups failed",
-            "skipped"]
+OUTCOMES = ["passed", "wrong output", "verify error", "linkage error", "crashed", "timeout", "jvm refused", "lowering refused",
+            "typer refused", "macro refused", "parser refused", "frontend crashed", "earlier groups failed", "skipped"]
 GROUPED = ["jvm refused", "verify error", "linkage error", "crashed", "frontend crashed", "lowering refused",
            "typer refused", "macro refused", "earlier groups failed"]
 LINKAGE = re.compile(r"java\.lang\.(NoSuch\w+Error|AbstractMethodError|IncompatibleClassChangeError"
@@ -134,8 +132,7 @@ def one(name, groups, check, reason, dir):
         out, cp = compiled(name, [*groups[:-1], quoted, rest], dir, using_options(groups[-1]))
     if isinstance(out, tuple):
         return out
-    library = os.path.join(os.environ.get("SCIVOLO_LIBS", LIBRARY.parent), LIBRARY.name)
-    classpath = os.pathsep.join(map(str, [out, *cp, library, LAUNCHER]))
+    classpath = os.pathsep.join(map(str, [out, *cp, os.environ.get("SCIVOLO_RUN_LIBRARY", LIBRARY), LAUNCHER]))
     cmd = ["java", "-Xverify:all", "-Duser.language=en", "-Duser.country=US", "-cp", classpath, "DottyRun"]
     code, stdout, err = run(cmd, TIMEOUT, cwd=out)
     (WORK / "jvm-logs" / out.name).write_text(stdout + "\n--- stderr ---\n" + err)
@@ -164,7 +161,10 @@ def group(detail):
 
 
 def jvm(filter_, dir="run", libs=""):
+    run_only = libs.endswith(".jar")
     if libs:
+        os.environ["SCIVOLO_RUN_LIBRARY"] = os.path.abspath(libs if run_only else os.path.join(libs, LIBRARY.name))
+    if libs and not run_only:
         os.environ["SCIVOLO_LIBS"] = os.path.abspath(libs)
     (WORK / "jvm-logs").mkdir(parents=True, exist_ok=True)
     code, _, err = run(["javac", "-d", str(LAUNCHER), str(ROOT / "scripts/DottyRun.java")], TIMEOUT)
@@ -178,7 +178,7 @@ def jvm(filter_, dir="run", libs=""):
         todo.append((name, groups, check, None if reason == "jvm-only api" else reason))
     with concurrent.futures.ThreadPoolExecutor(JOBS) as pool:
         results = list(pool.map(lambda t: one(*t, dir), todo))
-    suffix = ("" if dir == "run" else f"-{dir}") + ("-library" if libs else "")
+    suffix = ("" if dir == "run" else f"-{dir}") + ("" if not libs else "-library-run" if run_only else "-library")
     write(WORK / f"jvm-results{suffix}.tsv", WORK / f"jvm-report{suffix}.md", filter_,
           {t[0]: r for t, r in zip(todo, results)})
 

@@ -330,7 +330,8 @@ dotty-lower-report filter="" dir="run": release
 # jvm-report.md and jvm-results.tsv under tmp/dotty. `dir` another directory of dotty's tests
 # (run-macros: `just dotty-macros`), reported in jvm-report-<dir>.md and jvm-results-<dir>.tsv.
 # `libs` a directory of library jars (`just jvm-lib-jar`'s tmp/lib-jvm/scalalib/libs): typed and
-# run against its scala-library jar, reported with the suffix `-library`.
+# run against its scala-library jar, reported with the suffix `-library`; a jar: only run on it,
+# suffix `-library-run`.
 dotty-jvm-report filter="" dir="run" libs="":
     cargo build -q --release -p scivolo-jvm
     python3 scripts/dotty-tests.py jvm '{{ filter }}' '{{ dir }}' '{{ libs }}'

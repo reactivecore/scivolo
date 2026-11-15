@@ -23,7 +23,9 @@ compiled by javac. `just jvm-lib-compile` compiles each `.scala` file alone.
   jar.
 - `jar.tsv` lists each entry's origin; the counts are printed.
 - `just dotty-jvm-report "" run tmp/lib-jvm/scalalib/libs` types the last group against our jar
-  and runs it on it; earlier groups stay compiled by scala-cli against the published jar.
+  and runs it on it; earlier groups stay compiled by scala-cli against the published jar. Given
+  the jar itself, the last group is typed against the published jar and run on ours, which tells
+  differences of our class files from those of our TASTy.
 
 ## Consequences
 - The jar is equivalent to the published one in which classes are dotty's and which 2.13's, so
