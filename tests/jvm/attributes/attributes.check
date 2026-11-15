@@ -14,3 +14,4 @@ scala.Function0<A>
 List(class ByName$In)
 5
 List(Summing.sum, Counting$.count, Counting$.sum, Counting.count, Counting.sum)
+List(abstractly[IOException][java.io.IOException], field[][java.io.IOException], field_$eq[][], later[IOException][java.io.IOException], method[IOException][java.io.IOException], plain[][])
