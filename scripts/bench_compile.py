@@ -44,6 +44,7 @@ COMPILER = "org.scala-lang:scala3-compiler_3:3.9.0"
 COMPILER_DEPS = ["org.scala-lang:tasty-core_3:3.9.0", "org.scala-lang:scala3-interfaces:3.9.0",
                  "org.scala-lang.modules:scala-asm:9.9.0-scala-1", "org.scala-sbt:compiler-interface:1.12.0",
                  "org.scala-sbt:util-interface:1.11.5"]
+SJS_IR = "dotty/tools/sjs/"
 # The options of the compiler's sbt build.
 COMPILER_OPTIONS = ["-feature", "-deprecation", "-unchecked", "-language:implicitConversions", "-Yexplicit-nulls",
                     "-Wsafe-init"]
@@ -103,20 +104,21 @@ def javalib():
 
 
 def compiler():
-    """Scala 3's compiler without its own jar: its Java sources' classes taken from the jar."""
+    """Scala 3's compiler without its own jar: the classes of its Java sources and of the Scala.js IR
+    its build generates sources for (SJS_IR) taken from the jar."""
     root = ROOT / "ref/scala3/compiler/src"
     java = sorted(str(f.relative_to(root)) for f in root.rglob("*.java"))
-    classes = WORK / "compiler/java-classes"
+    classes = WORK / "compiler/jar-classes"
     if not (classes / ".done").exists():
         stems = tuple(j.removesuffix(".java") for j in java)
         with zipfile.ZipFile(coursier("--intransitive", COMPILER)[0]) as z:
-            z.extractall(classes, [n for n in z.namelist() if n.endswith(".class") and
-                                   re.sub(r"[$.].*", "", n) in stems])
+            z.extractall(classes, [n for n in z.namelist() if n.startswith(SJS_IR) and not n.endswith("/") or
+                                   n.endswith(".class") and re.sub(r"[$.].*", "", n) in stems])
         (classes / ".done").touch()
     jars = [coursier("--intransitive", j)[0] for j in COMPILER_DEPS]
     jvm = [a for j in [*jars, str(classes)] for a in ("--cp", j)]
     return Codebase(root, scala_files(root), [*jvm, *(f"--scalac-option={o}" for o in COMPILER_OPTIONS)],
-                    scalac=["-classpath", ":".join([str(LIBRARY), *jars]), *COMPILER_OPTIONS, *java])
+                    scalac=["-classpath", ":".join([str(LIBRARY), *jars, str(classes)]), *COMPILER_OPTIONS, *java])
 
 
 def compiler_accepted(part=1):
