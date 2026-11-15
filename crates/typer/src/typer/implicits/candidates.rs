@@ -11,6 +11,9 @@ use names::nme;
 use syntax::ast::Span;
 use tasty::{SymbolId, Type, TypeId};
 
+/// The refusal of a reference to an implicit a package object inherits, through its package.
+pub const INHERITED_THROUGH_PACKAGE: &str = "implicit a package object inherits, through its package";
+
 /// An implicit value or method and the prefix it is referenced through.
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct Candidate {
@@ -162,7 +165,7 @@ pub fn candidate_ref(t: &mut Typer<'_>, c: Candidate, span: Span, ctx: Ctx) -> R
     if let (Some(Type::Package(p)), Some(owner)) = (&prefix, owner)
         && crate::defn::inheriting_package_object(t.u, *p, owner).is_some()
     {
-        return Err("implicit a package object inherits, through its package");
+        return Err(INHERITED_THROUGH_PACKAGE);
     }
     let tpe = match (prefix, package_object) {
         (_, Some(o)) if through_object(t, prefix, o) => {
