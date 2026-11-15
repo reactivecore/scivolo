@@ -90,6 +90,8 @@ pub struct Units {
     /// Where and why the last unit was refused, the first refusal first: at most one per file and
     /// stage, and per definition the inline calls of which do not expand.
     pub refused: Vec<(Span, String)>,
+    /// The type errors of the last unit if it was refused for a construct it does not support.
+    pub errors: Diagnostics,
 }
 
 impl Units {
@@ -115,6 +117,7 @@ impl Units {
         macros: Option<&mut dyn Macros>,
     ) -> Result<Typed, Fallback> {
         self.refused.clear();
+        self.errors = Diagnostics::default();
         let mut typer = Typer::new(u, (ast, root), (names, fresh), cfg, &mut self.syms)
             .map_err(|what| Fallback::Unsupported { at: Span::NONE, what })?;
         typer.macros = macros.map(|m| m as &mut dyn Macros);
@@ -150,6 +153,7 @@ impl Units {
         let with_code: Vec<&SourceUnit> =
             units.iter().zip(&file_roots).filter(|(_, roots)| !roots.is_empty()).map(|(u, _)| u).collect();
         self.refused = typer::source_versions(ast, &with_code);
+        self.errors = Diagnostics::default();
         if let Some((at, what)) = self.refused.first().cloned() {
             return Err(Fallback::Unsupported { at, what });
         }

@@ -7,6 +7,7 @@ use crate::pickle::{FileAttributes, Pickled, QuoteSource, Refusal, pickle_file};
 use crate::tpd::TNodeId;
 use crate::{Fallback, Typed, Units};
 use syntax::ast::Span;
+use syntax::diag::{Diagnostic, Level};
 
 /// Adds the synthetic members of the classes of typed unit `root`, its files starting at the
 /// offsets given but the first (dotty's `SyntheticMembers` as PostTyper runs it), or why it cannot.
@@ -61,6 +62,9 @@ impl Units {
             return Err(Fallback::Errors(typer.diags));
         }
         if let Some((at, what)) = self.refused.first().cloned() {
+            if typer.diags.has_errors() {
+                self.errors = typer.diags;
+            }
             return Err(Fallback::Unsupported { at, what });
         }
         if typer.diags.has_errors() {
@@ -105,15 +109,15 @@ impl Units {
         self.refused.extend(typer.unsupported.take());
     }
 
-    /// The top-level trees among `files` of the files no refusal lies in, none if there are type
-    /// errors, a refusal in no file or no such file.
+    /// The top-level trees among `files` of the files no refusal or type error lies in, none if a
+    /// refusal or type error lies in no file, or there is no such file.
     fn kept_files(&self, typer: &Typer, files: &[TNodeId]) -> Option<Vec<TNodeId>> {
-        if typer.diags.has_errors() {
-            return None;
-        }
         let in_file =
             |&(at, _): &(Span, String)| (at.exists() && !at.is_in_other_source()).then(|| typer.file_of(at));
-        let refused = self.refused.iter().map(in_file).collect::<Option<Vec<usize>>>()?;
+        let mut refused = self.refused.iter().map(in_file).collect::<Option<Vec<usize>>>()?;
+        let errors = typer.diags.items.iter().filter(|d| d.level == Level::Error);
+        let error_file = |d: &Diagnostic| d.offset.map(|o| typer.file_starts.partition_point(|&s| s <= o));
+        refused.extend(errors.map(error_file).collect::<Option<Vec<usize>>>()?);
         let kept: Vec<TNodeId> =
             files.iter().copied().filter(|&f| !refused.contains(&typer.file_of(typer.tpd.span(f)))).collect();
         (!kept.is_empty()).then_some(kept)
