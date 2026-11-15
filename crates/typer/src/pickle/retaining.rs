@@ -12,14 +12,12 @@ use tasty::{Kind, SymbolId, Type, TypeId, Universe};
 impl TreePickler<'_> {
     /// Type `parent @annot` if `annot` is a capture-set annotation class type whose capture set
     /// refers to static definitions only, as `parent` and the type `annot`, `retains[C]` of
-    /// capture set `C`; `None` for another annotation or capture set. Refuses a source version
+    /// capture set `C`; `None` for another annotation or capture set, and under a source version
     /// below 3.9, whose TASTy has the annotation's tree.
     pub fn retaining(&mut self, parent: TypeId, annot: TypeId) -> Option<Result<(), Refusal>> {
-        if !is_retains_like(self.u, annot) || !is_static_capture_set(self.u, annot) {
+        let compact = self.file.is_none_or(|f| f.attributes.compact_annotations);
+        if !compact || !is_retains_like(self.u, annot) || !is_static_capture_set(self.u, annot) {
             return None;
-        }
-        if self.file.is_some_and(|f| !f.attributes.compact_annotations) {
-            return Some(Err("a capture-set annotation under a source version below 3.9"));
         }
         Some(self.with_length(ANNOTATEDtype, &mut |p| {
             p.ty(parent, false)?;
@@ -31,13 +29,15 @@ impl TreePickler<'_> {
     /// tree is synthetic, as a class parameter's field, and has the info's type without its
     /// capture-set annotations: `label: Label[T]^{}` of `class Break[T](val label: Label[T]^{})`.
     /// Refuses such an info with a capture set that refers to other than static definitions, as
-    /// `b: B^{a}` of `class C(val a: A^, val b: B^{a})`.
+    /// `b: B^{a}` of `class C(val a: A^, val b: B^{a})`. Leaves the type tree alone under a source
+    /// version below 3.9.
     pub fn keep_captures(&mut self, sym: SymbolId, tpt: TNodeId) -> Result<(), Refusal> {
         let (Tree::TypeTree { inferred: false }, Some(tpe)) = (self.tpd.tree(tpt), self.tpd.get(tpt).tpe)
         else {
             return Ok(());
         };
-        if !matches!(self.u.symbol(sym).kind, Kind::Val | Kind::Param) {
+        let compact = self.file.is_none_or(|f| f.attributes.compact_annotations);
+        if !compact || !matches!(self.u.symbol(sym).kind, Kind::Val | Kind::Param) {
             return Ok(());
         }
         let info = self.u.info(sym);
