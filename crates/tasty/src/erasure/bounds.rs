@@ -39,8 +39,8 @@ impl Universe {
     }
 
     /// Whether `a` comes before `b` in dotty's order for intersections: value classes, arrays
-    /// (by element), primitives, classes, traits, `Object`; subclasses before their bases, then
-    /// by name.
+    /// (by element), primitives, classes, traits, `Object`; `Nothing`, then `Null` before other
+    /// classes, subclasses before their bases, then by name.
     fn glb_prefers(&mut self, a: TypeId, b: TypeId) -> bool {
         let (ea, eb) = (self.erase(a), self.erase(b));
         if ea == eb {
@@ -56,6 +56,13 @@ impl Universe {
         let (ra, rb) = (self.glb_rank(a, &ea), self.glb_rank(b, &eb));
         if ra != rb {
             return ra < rb;
+        }
+        match (&ea, &eb) {
+            (Erased::Nothing, _) => return true,
+            (_, Erased::Nothing) => return false,
+            (Erased::Null, _) => return true,
+            (_, Erased::Null) => return false,
+            _ => {}
         }
         if let (Some(ca), Some(cb)) = (self.side_class(a, &ea), self.side_class(b, &eb)) {
             if self.derives_from(ca, cb) {
