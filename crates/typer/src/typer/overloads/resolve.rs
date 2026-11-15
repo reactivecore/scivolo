@@ -4,6 +4,7 @@
 //! Choosing among overloaded alternatives by their arguments (dotty's `resolveOverloaded`,
 //! `compare`).
 
+use super::by_result::ParamRefs;
 use super::named::applicable_to_proto;
 use super::{AMBIGUOUS, NO_APPLICABLE, Resolution, UNDECIDED, Unchosen, applicability};
 use crate::ctx::Ctx;
@@ -72,7 +73,8 @@ impl Resolution {
                 let fits = applicable_to_proto(t, alt, self.prefix, (proto, &arg_types), views, ctx);
                 let fits = match (fits, t.protos[proto].pt) {
                     (Some(true), Pt::Type(pt)) if t.protos[proto].deep => {
-                        Some(t.result_conforms(alt, self.prefix, pt, (views, ctx)) != Some(false))
+                        let refs = ParamRefs::TypeVars;
+                        Some(self.result_conforms(t, alt, pt, (views, ctx), refs) != Some(false))
                     }
                     _ => fits,
                 };

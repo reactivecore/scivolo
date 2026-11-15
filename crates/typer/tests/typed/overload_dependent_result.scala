@@ -5,4 +5,8 @@ trait Ops {
   final def addString(b: SB): b.type = addString(b, "")
   def widened(b: SB): SB = addString(b, "")
   def other(b: SB, c: SB): c.type = addString(c, "", "", "")
+  def tied(b: SB, i: Int): b.type = b
+  def tied(b: SC, i: Any): String = ""
+  def deep(c: SC): c.type = tied(c, 1)
 }
+class SC extends SB
