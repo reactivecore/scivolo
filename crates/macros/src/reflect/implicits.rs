@@ -77,9 +77,8 @@ impl Host {
         if imports || types.into_iter().any(|s| self.inherited_givens(s)) {
             return None;
         }
-        let mut found = Vec::new();
-        typer::inlining::implicit_defs_at(&self.tpd, &self.u, (root, hole), &mut found);
-        Some(found)
+        let scopes = typer::inlining::implicit_scopes_at(&self.tpd, &self.u, (root, hole));
+        Some(scopes.into_iter().flatten().rev().flatten().collect())
     }
 
     /// The givens and implicits of `s` and its owners up to the splice owner: the parameters of

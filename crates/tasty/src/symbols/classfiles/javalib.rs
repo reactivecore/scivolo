@@ -2,12 +2,12 @@
 //! that class (ADR 0108).
 
 use super::super::{Kind, SymbolId, Universe};
-use super::annotation;
 use super::class::{Owners, member};
 use super::signatures::{Sig, bounded_by_object};
+use super::{annotation, classpath};
 use crate::tags::OBJECT;
 use crate::types::Type;
-use classfile::{ACC_ANNOTATION, ACC_PROTECTED, ACC_PUBLIC, ACC_STATIC, ClassInfo, MemberInfo};
+use classfile::{ACC_ANNOTATION, ACC_PRIVATE, ACC_PROTECTED, ACC_PUBLIC, ACC_STATIC, ClassInfo, MemberInfo};
 use names::nme;
 use rustc_hash::FxHashSet;
 use std::rc::Rc;
@@ -41,6 +41,28 @@ impl Universe {
     pub fn enter_jdk_named(&mut self, c: SymbolId, name: &str) {
         let Some(info) = self.jdk_class_of(c) else { return };
         self.enter_jdk_where(c, &info, |m| m.name == name);
+    }
+
+    /// Enters into library class `c` (an object's class for a static one) the public or protected
+    /// class of its JDK class file nested in it and named `name` (`C` or its object `C$`), as
+    /// `Runtime.Version`, if `c` lacks it: the declarations named `name` entered.
+    pub fn enter_jdk_nested(&mut self, c: SymbolId, name: &str) -> Vec<SymbolId> {
+        let Some(info) = self.jdk_class_of(c) else { return Vec::new() };
+        let statics = self.symbol(c).flags.has(OBJECT);
+        let simple = name.strip_suffix('$').unwrap_or(name);
+        let nested = info.inner_classes.iter().find(|n| {
+            n.outer.as_deref() == Some(info.name.as_str())
+                && n.name.as_deref() == Some(simple)
+                && (n.flags & ACC_STATIC != 0) == statics
+                && n.flags & (ACC_PUBLIC | ACC_PROTECTED) != 0
+        });
+        let Some(nested) = nested.cloned() else { return Vec::new() };
+        let Some(inner) = self.jdk.as_mut().and_then(|j| j.class(&nested.inner).cloned()) else {
+            return Vec::new();
+        };
+        let access = inner.access & !(ACC_PUBLIC | ACC_PROTECTED | ACC_PRIVATE) | nested.flags;
+        let entered = classpath::enter(self, c, simple, &inner, access);
+        entered.into_iter().filter(|&d| self.symbol(d).name == name).collect()
     }
 
     /// Enters, once, into library class `c` the constructor and retention of its JDK class file

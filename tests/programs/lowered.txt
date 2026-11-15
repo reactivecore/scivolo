@@ -89,6 +89,7 @@ protectedaccess
 protectedpackages
 localtraits
 casts
+intersectioncasts
 genericarrays
 typetests
 formats

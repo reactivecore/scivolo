@@ -65,6 +65,8 @@ object Attributes:
     println(IntOrd.getClass.getMethod("mkOrderingOps", classOf[Object]).getGenericReturnType)
     println(classOf[ByName[?]].getDeclaredField("elem").getGenericType)
     println(classOf[ByName[?]].getDeclaredMethods.filter(_.getName.startsWith("loc")).map(_.getGenericReturnType).toList)
+    println(Counting.count("a") + Counting.sum(1, 2) + Counting.plain("b"))
+    println(List(classOf[Summing], Counting.getClass, Class.forName("Counting")).flatMap(Varargs.show))
 
 class ByName[A](elem: => A):
   class In
@@ -72,6 +74,17 @@ class ByName[A](elem: => A):
   def lifted: In =
     def loc(): In = In()
     loc()
+
+trait Summing:
+  @scala.annotation.varargs def sum(xs: Int*): Int = xs.sum
+
+object Counting extends Summing:
+  @scala.annotation.varargs def count(xs: String*): Int = xs.length
+  def plain(xs: String*): Int = xs.length
+
+object Varargs:
+  def show(c: Class[?]): List[String] =
+    c.getDeclaredMethods.toList.filter(_.isVarArgs).map(m => s"${c.getName}.${m.getName}").sorted
 
 object IntOrd extends Ordering[Int]:
   def compare(x: Int, y: Int): Int = x - y

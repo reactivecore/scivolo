@@ -3,8 +3,9 @@
 //! Applying one conversion candidate to the tree of a view search (dotty's `typedImplicit` of a
 //! view).
 
+use super::super::super::widening::widens;
 use super::super::super::{Pt, Typer};
-use super::super::candidates::{Candidate, candidate_ref};
+use super::super::candidates::{Candidate, INHERITED_THROUGH_PACKAGE, candidate_ref};
 use super::view_kinds::{ViewKind, view_kind};
 use super::{Goal, ViewSearch};
 use crate::tpd::TNodeId;
@@ -33,7 +34,13 @@ impl ViewSearch<'_> {
         }
         t.history.budget -= 1;
         let span = t.tpd.span(tree);
-        let (fun, from) = (candidate_ref(t, c, span.start_pos(), ctx)?, t.constraint.count());
+        let fun = match candidate_ref(t, c, span.start_pos(), ctx) {
+            Err(INHERITED_THROUGH_PACKAGE) if never_applies(t, c, t.tpd.tpe(tree), goal) => {
+                return Err("conversion of another type");
+            }
+            fun => fun?,
+        };
+        let from = t.constraint.count();
         let mut fun = t.with_type_vars(fun)?;
         if kind == ViewKind::Value {
             fun = t.viewing(c, |t| self.conversion_apply(t, fun, from))?;
@@ -144,4 +151,21 @@ impl ViewSearch<'_> {
         let target = t.u.intern_applied(conversion, &[t.tpd.tpe(self.tree), pt]);
         t.gadt_adapted(fun, target)
     }
+}
+
+/// Whether conversion method `c` cannot convert a tree of type `arg` to fit `goal`: its result
+/// cannot (`may_view`), or its parameter is of a class that the class of `arg`, neither `Null`
+/// nor `Nothing`, does not derive from nor widen to, as `Seq[T]` and `Array[String]`.
+fn never_applies(t: &mut Typer<'_>, c: Candidate, arg: TypeId, goal: Goal) -> bool {
+    let info = t.u.info(c.sym);
+    let info = t.u.poly(info).map_or(info, |p| p.result);
+    let Some(Binding { params, .. }) = t.u.method(info) else { return false };
+    let [(_, param)] = params[..] else { return false };
+    let param = t.u.by_name(param).unwrap_or(param);
+    let arg = t.u.widen(arg);
+    let (Some(p), Some(a)) = (t.u.class_symbol(param), t.u.class_symbol(arg)) else { return false };
+    let builtins = t.u.defn();
+    let bottom = a == builtins.nothing || a == builtins.null;
+    let widened = widens(&t.u.full_name(a), &t.u.full_name(p));
+    !t.may_view(c.sym, a, goal) || !bottom && !widened && !t.u.derives_from(a, p)
 }

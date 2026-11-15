@@ -221,10 +221,12 @@ fn recast(l: &mut Lower, t: TNodeId, expr: TNodeId, boxed: TNodeId) -> TNodeId {
     t
 }
 
-/// `{ expr; throw new ClassCastException("Cannot cast to scala.Nothing") }`, at `expr`.
+/// `{ expr; throw new ClassCastException("Cannot cast to scala.Nothing") }`, at `expr` as erasure
+/// sees it.
 fn throw_class_cast(l: &mut Lower, expr: TNodeId) -> TNodeId {
     let throw = class_cast_exception(l, Some("Cannot cast to scala.Nothing"));
-    let span = l.tpd.span(expr);
+    let span = crate::phases::drop_inlined::span_before_erasure(l, expr);
+    l.with_span(throw, span.end_pos().to_synthetic());
     let block = l.block(&[expr], throw, Span::NONE);
     l.with_span(block, span)
 }

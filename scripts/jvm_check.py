@@ -2,8 +2,8 @@
 """Compare the class files of REF_DIR (scalac's) with those of OUT_DIR (ours) through javap.
 
 For each class file: `javap -p -s -c` without constant pool indexes and with members sorted, and
-from `javap -v` each member's flags, attributes and line numbers (sorted by member), the class's
-attributes, unknown ones by name, and the flags of its `InnerClasses` entries. Prints a unified diff per class that differs; fails if any does or is missing.
+from `javap -v` each member's flags, attributes, line numbers and local variables (sorted by
+member), the class's attributes, unknown ones by name and length, and the flags of its `InnerClasses` entries. Prints a unified diff per class that differs; fails if any does or is missing.
 """
 
 import difflib
@@ -20,8 +20,7 @@ CLASS_ATTRIBUTES = {
     "flags", "Signature", "InnerClasses", "EnclosingMethod", "RuntimeVisibleAnnotations", "Deprecated",
     "SourceFile",
 }
-LINES = {"LineNumberTable"}
-UNCOMPARED = {"Scala3InlineInfo"}
+LINES = {"LineNumberTable", "LocalVariableTable"}
 
 
 UNKNOWN = re.compile(r"^\s*\w+: length = \w+ \(unknown attribute\)")
@@ -51,10 +50,9 @@ def sections(lines, indent, keep):
     for l in lines:
         depth = len(l) - len(l.lstrip())
         if UNKNOWN.match(l):
-            name = l.strip().split(":")[0]
-            at_class = indent == 0 and depth == 2 and name not in UNCOMPARED
+            at_class = indent == 0 and depth == 2
             if (depth == indent or at_class) and keep is not LINES:
-                out.append([name + ": (unknown attribute)"])
+                out.append([l.strip()])
             on = False
         elif depth == indent and l.strip():
             name = l.strip().split(":")[0]

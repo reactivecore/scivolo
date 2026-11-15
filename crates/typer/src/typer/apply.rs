@@ -61,7 +61,7 @@ impl Typer<'_> {
                 let g = self.inlined_transparent(g, Pt::Fun(proto), fun_ctx).unwrap_or(g);
                 self.with_apply(g, Pt::Fun(proto), fun_ctx)
             }
-            other => other,
+            other => other.and_then(|f| self.signature_polymorphic_call(f, proto)),
         };
         let f = match f {
             Ok(f) if self.is_pending_dynamic(f) => return self.dynamic_apply(id, f, proto, pt, fun_ctx),
@@ -112,7 +112,7 @@ impl Typer<'_> {
             self.arg_name(a).is_some_and(|n| names.last().is_some_and(|&l| self.u.name(l) == n))
         });
         let unnamed = &arg_ids[..arg_ids.len() - usize::from(named_seq)];
-        let aligned = match self.aligned_args(unnamed, &params, repeated.is_some()) {
+        let aligned = match self.aligned_args(unnamed, &params, repeated.and(names.last().copied())) {
             Ok(aligned) => aligned,
             Err(what) => return self.unsupported(id, what),
         };

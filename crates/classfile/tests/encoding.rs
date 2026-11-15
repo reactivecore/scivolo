@@ -15,8 +15,8 @@ fn choice(lub: &mut classfile::Lub) -> Result<Vec<u8>, String> {
     code.load("L", 2);
     code.place(end);
     code.ret("L");
-    cf.method(ACC_STATIC, "choice", "(ZLa/A;La/B;)Ljava/lang/Object;", Some(code), lub);
-    cf.bytes()
+    cf.method(ACC_STATIC, "choice", "(ZLa/A;La/B;)Ljava/lang/Object;", Some(code));
+    cf.bytes(lub)
 }
 
 #[test]

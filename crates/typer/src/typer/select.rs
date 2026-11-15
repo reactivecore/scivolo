@@ -26,6 +26,12 @@ impl Typer<'_> {
         if self.is_error(qual) {
             return self.error_tree(self.ast.span(id));
         }
+        if self.is_signature_polymorphic_call(qual) {
+            if text == nme::AS_INSTANCE_OF {
+                return self.unsupported(id, "cast of a signature polymorphic call");
+            }
+            self.signature_polymorphic_selected(qual);
+        }
         let (mut converted, mut widened, mut tupled, mut defined, mut healed) =
             (false, false, false, false, false);
         let scala2 = self.u.scala2_lookups();

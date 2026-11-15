@@ -8,11 +8,13 @@ mod constant;
 mod inner;
 mod javalib;
 mod jdk_api;
+mod signature_polymorphic;
 mod signatures;
 mod visibility;
 
 pub use annotation::Retention;
 pub use classpath::JavaClasses;
+pub use signature_polymorphic::SignaturePolymorphic;
 
 use super::{Kind, SymbolId, Universe};
 use crate::Erased;
