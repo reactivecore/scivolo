@@ -434,6 +434,13 @@ fn a_tuple_class_of_the_unit_extends_its_generic_tuple() {
 }
 
 #[test]
+fn a_tuple_class_with_a_class_parent_is_refused() {
+    let code = "package scala\nimport scala.language.`2.13`\nabstract class Base\n\
+                final case class Tuple2[+T1, +T2](_1: T1, _2: T2) extends Base with Product2[T1, T2]\n";
+    refuses("tupleclassparent", code, "a tuple class with a class parent");
+}
+
+#[test]
 fn an_alias_of_the_unit_a_library_class_refers_to_is_completed() {
     let package = "package object scala { type Iterator[+A] = scala.collection.Iterator[A] }\n";
     let user = "package scala.collection\nobject Use { def s(it: Iterator[Int]) = \

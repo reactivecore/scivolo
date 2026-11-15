@@ -1,3 +1,4 @@
+@throws[java.io.IOException]
 abstract class Throwing:
   @throws[java.io.IOException]
   lazy val later: Int = 1
@@ -10,6 +11,7 @@ abstract class Throwing:
   @throws[java.io.IOException]
   def method: Int = 3
 
+@throws[java.io.IOException]
 object Throws:
   def show(c: Class[?]): List[String] =
     c.getDeclaredMethods.toList.filterNot(_.getName.contains("lzy")).sortBy(_.getName).map { m =>
