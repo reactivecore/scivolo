@@ -55,8 +55,11 @@ impl Gen<'_, '_> {
     }
 
     /// Adds to the method of `cf` added last the `Exceptions` attribute of method `sym`, if it has
-    /// `@throws` annotations (dotty's `getExceptions`).
+    /// `@throws` annotations (dotty's `getExceptions`); a value's getter has none.
     pub fn exceptions(&mut self, cf: &mut ClassFile, sym: SymbolId) {
+        if self.l.u.symbol(sym).kind != tasty::Kind::Def {
+            return;
+        }
         let thrown = self.thrown(sym);
         if !thrown.is_empty() {
             let classes: Vec<String> = thrown.iter().map(|&t| class_internal(&self.l.u.erase(t))).collect();
@@ -119,10 +122,11 @@ impl Gen<'_, '_> {
     }
 
     /// Refuses the Java annotations of `sym`, defined at `at`, that `kept_annotations` refuses, and
-    /// `@throws` on a symbol other than a method of the unit.
+    /// `@throws` on a method whose thrown classes are not known; on a class, object or value it is
+    /// ignored, as dotty does.
     pub fn check_annotations(&mut self, sym: SymbolId, at: Span) -> Result<()> {
         let method = self.l.u.symbol(sym).kind == tasty::Kind::Def;
-        if self.l.u.is_annotated(sym, "scala.throws") && !(method && !self.thrown(sym).is_empty()) {
+        if method && self.l.u.is_annotated(sym, "scala.throws") && self.thrown(sym).is_empty() {
             return unsupported(at, "@throws (the Exceptions attribute) on the JVM");
         }
         let source_only = ["java.lang.Override", "java.lang.SuppressWarnings"];
