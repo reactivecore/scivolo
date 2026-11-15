@@ -1,4 +1,5 @@
-//! Completion of the unit's classes before a base class test or an erasure.
+//! Completion of the unit's classes and type members before a base class test, a conformance
+//! test or an erasure.
 
 use super::Typer;
 use crate::symbols::Completion;
