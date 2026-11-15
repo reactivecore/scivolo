@@ -54,7 +54,7 @@ pub fn is_class_of(l: &Lower, s: tasty::SymbolId) -> bool {
 }
 
 /// The erased type of `t` as erasure leaves it: a call's erased result type, a value's erased
-/// declared type, an ascription's erasure, else the erasure of its type.
+/// declared type, an ascription's or a cast's target's erasure, else the erasure of its type.
 pub fn erased_type(l: &mut Lower, t: TNodeId) -> Erased {
     let sym = l.tpd.sym(t);
     match *l.tpd.tree(t) {
@@ -64,7 +64,10 @@ pub fn erased_type(l: &mut Lower, t: TNodeId) -> Erased {
             (None, None, Some(_)) => l.u.erase_boxed(l.tpd.tpe(t)),
             _ => l.u.erase_value(l.tpd.tpe(t)),
         },
-        Tree::TypeApply { .. } if is_cast(l, t) => l.u.erase_boxed(l.tpd.tpe(t)),
+        Tree::TypeApply { args, .. } if is_cast(l, t) => {
+            let target = l.tpd.tpe(l.tpd.items(args)[0]);
+            l.u.erase_boxed(target)
+        }
         Tree::New { .. } => l.u.erase_boxed(l.tpd.tpe(t)),
         Tree::Block { expr, .. } => erased_type(l, expr),
         Tree::If { .. } | Tree::Try { .. } if l.boxed_types.contains(&t) => l.u.erase_boxed(l.tpd.tpe(t)),
