@@ -238,13 +238,13 @@ The VM fixes javalib bugs in its library overlay (`overlay/src`, ADR 0009).
 
 | Outcome | tests/programs | tests/pos | tests/neg |
 |---|---:|---:|---:|
-| passed | 262 | 2491 | 1277 |
-| differ | 35 | 113 | 0 |
+| passed | 262 | 2495 | 1277 |
+| differ | 35 | 112 | 0 |
 | warnings differ | 0 | 9 | 0 |
 | accepted (neg) | 0 | 0 | 21 |
-| unsupported | 1 | 412 | 0 |
+| unsupported | 1 | 409 | 0 |
 | crashed | 0 | 0 | 0 |
-| skipped | 34 | 351 | 496 |
+| skipped | 36 | 351 | 496 |
 
 ## M4: dotty `tests/run`
 
@@ -311,8 +311,8 @@ Results:
 
 - **Typer refused:** one each for a local type escaping through a type variable (`Parser`), an
   inline expansion of a type referring to a binding (`i13332shapeless`), adaptation, source versions other than 3.7 to 3.9, a context
-  function result of an extension method, a context bound of a type without parameters, implicit search with local implicits of
-  an inline body, `Printer.TypeReprStructure` of a type the frontend does not print, the
+  function result of an extension method, a context bound of a type without parameters, a member
+  not found (`i13332intersection`), `Printer.TypeReprStructure` of a type the frontend does not print, the
   unresolved name `AnyNamedTuple`, `typeChecks` of a non-constant string. `Runtime.totalMemory`,
   `maxMemory` and `freeMemory`, which Scala Native's javalib lacks and the overlay adds (ADR
   0008), are typed through `libs/jdk-stubs/JdkMemberDeclarations.scala`.
@@ -362,7 +362,7 @@ Results:
 
 | Outcome | tests/run | tests/run-macros |
 |---|---:|---:|
-| passed | 1603 | 307 |
+| passed | 1607 | 308 |
 | wrong output | 0 | 0 |
 | verify error | 0 | 0 |
 | linkage error | 0 | 0 |
@@ -371,14 +371,14 @@ Results:
 | frontend crashed | 0 | 0 |
 | jvm refused | 0 | 0 |
 | lowering refused | 0 | 0 |
-| typer refused | 16 | 7 |
+| typer refused | 12 | 6 |
 | skipped | 91 | 7 |
 | **total** | **1711** | **321** |
 
-- **Typer refused (run):** members not found (2), default getters (2), TASTy pickling (`lst`),
-  `Printer.TypeReprStructure` (`i22649`), the rest singles.
-- **Typer refused (run-macros):** `-Xread-docs` (2), a concrete class with an unimplemented member,
-  `SuppressWarnings`, adaptation, `Symbol.newClass` with a self type, a source version.
+- **Typer refused (run):** the ten of the VM's report, TASTy pickling of a type lambda's bounds
+  (`enum-values`) and a protected member through a path (`protectedacc`).
+- **Typer refused (run-macros):** `-Xread-docs` (2), adaptation, `Printer.TreeCode` of a class
+  tree (`i9206`), `Symbol.newClass` with a self type, a source version.
 - **Crash:** `lambda-serialization-gc` casts the application class loader to `URLClassLoader`,
   which fails for scalac's class files too, as the runner does not load tests through one.
 - **Difference from dotty (open, not accepted):** a macro runs from its Scala Native build in the VM, so a
@@ -393,13 +393,13 @@ Results:
 
 | Outcome | Programs |
 |---|---:|
-| passed | 291 |
+| passed | 296 |
 | wrong output | 6 |
 | linkage error | 13 |
 | crashed | 3 |
 | jvm refused | 1 |
-| typer refused | 5 |
-| **total** | **319** |
+| typer refused | 2 |
+| **total** | **321** |
 
 - **As scalac's class files on the JVM** (platform differences): wrong output `bottomarrays`,
   `universaljoins`, `exprforms` (array class names), `classtags` (`ClassTag` of a nested array),
@@ -408,10 +408,9 @@ Results:
   (no resource directory on the classpath); linkage error `protectedaccess` (`NoSuchMethodError`
   of `Copies.clone()`, an `invokeinterface` of `Object`'s protected `clone`).
 - **Scala Native APIs:** 12 linkage errors (`scala.scalanative.unsafe`, `meta.LinktimeInfo`,
-  `runtime.LLVMIntrinsics`), `overflow` (a `scalanative.unsafe` macro call),
+  `runtime.LLVMIntrinsics`), `overflow` (typer refused: a `scalanative.unsafe` macro call),
   `Ni26intrinsics` (JVM refused: an ordering of references).
-- **Typer refused:** TASTy pickling (`mirrorproxies`, `scala2mirrors`, `quotecc`), `hkerasure`
-  (no implicit argument, as on Scala Native).
+- **Typer refused:** `hkerasure` (no implicit argument, as on Scala Native).
 
 Scala's library (#222, ADR 0110): each of the 649 `.scala` files of `scala-library-3.9.0`'s
 sources jar is compiled alone by `scivolo-jvm --scalalib` and its class files compared through
@@ -422,16 +421,19 @@ the optimizer (1883 of its 3134 classes dotty also writes differ in code from do
 
 | Outcome | Files | Classes |
 |---|---:|---:|
-| same | 529 | 2895 |
-| attributes differ | 12 | 27 |
-| code differs | 97 | 179 |
-| refused | 11 | |
+| same | 573 | 3071 |
+| attributes differ | 37 | 43 |
+| code differs | 34 | 67 |
+| refused | 5 | |
 
-- **Refused:** TASTy pickling of an annotated type of several annotation trees (11).
+- **Refused:** named or default arguments of a repeated method, or wrong arity (2), TASTy
+  pickling of a capture set that refers to other than static definitions (2), a static member of
+  a qualifier with effects.
 - **Code differs**, by first differing line: branch offsets after dotty's dead second `athrow`
   following an inlined `.nn` (`if_icmpne`, `ifeq`, `ifnonnull`,
   `goto`; the library oracle inlines from source, dotty compiling against the jar writes ours).
-- **Attributes differ:** mostly line numbers.
+- **Attributes differ:** line numbers, and a `LocalVariableTable` of the constructors of the
+  value classes (`scala.Boolean`, `Byte`, `Char`, …).
 
 `just jvm-lib-jar scalalib` packs those class files and TASTy into a library jar laid out as the
 published one (ADR 0123): the classes scala3's build takes from Scala 2.13 and javac's come from
@@ -469,16 +471,18 @@ own 35 files have no scala-cli oracle (Scala 3.9 reports cyclic references in `A
 | Module | Files lowered | NIR same | var-order | differ |
 |---|---:|---:|---:|---:|
 | javalib | 601 of 601 | 3,413 | 82 | 1 |
-| nativelib | 103 of 103 | 707 | 9 | 3 |
-| auxlib | 15 of 15 | 80 | | 5 |
+| nativelib | 103 of 103 | 706 | 9 | 4 |
+| auxlib | 15 of 15 | 84 | | 1 |
 | clib | 21 of 21 | 114 | | 1 |
 | posixlib | 67 of 67 | 270 | | |
 | windowslib | 34 | 130 | | |
-| scalalib | 649 of 649 | 4,379 | 17 | 13 |
+| scalalib | 647 of 649 | 4,317 | 17 | 13 |
 
 clib, posixlib and scalalib pass Scala Native's unit tests on our jars (`just lib-jar-report`).
 `unsafe/package{,$}` in nativelib differ only as a joint compilation with `UnsafePackageCompat`
-does.
+does; `UnsafePackageCompat` differs in the positions of its inline accessors (the template's
+end, Scala Native's build: the inline method's). scalalib's `IterableOnce` and `StringOps` are
+refused: named or default arguments of a repeated method, or wrong arity.
 
 `just lib-compile scalalib` lowers each file of Scala Native's scalalib alone against Scala's
 library, its `LazyVals` replaced by Scala Native's (`scripts/scalalib_sources.py`). As in Scala
