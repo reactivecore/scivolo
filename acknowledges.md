@@ -70,7 +70,9 @@ colors (fansi).
   model of symbols and types loaded lazily from TASTy (phase 3).
 - **ASM** ([asm.ow2.io](https://asm.ow2.io/)), BSD-3-Clause: stack map frames by a dataflow over
   the bytecode with verifier types, and unreachable code replaced by `nop`s and `athrow`
-  (`MethodWriter.computeAllFrames`, `Frame`), behind `crates/classfile/src/frames/`.
+  (`MethodWriter.computeAllFrames`, `Frame`), behind `crates/classfile/src/frames/`; the order
+  of constant-pool entries and attributes (`SymbolTable`, `ClassWriter.toByteArray`), behind
+  `crates/classfile/src/layout/`.
 - **OpenJDK's jimage** ([openjdk/jdk](https://github.com/openjdk/jdk)): the layout of the
   run-time image `lib/modules` (`BasicImageReader`, `ImageLocation`), read by
   `crates/classfile/src/read/jimage.rs` ([ADR 0106](docs/adr/0106-jvm-jdk-classes-from-jimage-or-ct-sym.md)).

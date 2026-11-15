@@ -76,8 +76,11 @@ impl OverrideChecks {
         if class.flags.has(ABSTRACT) || class.flags.has(TRAIT) {
             return;
         }
-        if t.macros.is_some() && has_macro_annotation(t.u, self.cls) {
-            return t.macro_annotated.push(self);
+        if has_macro_annotation(t.u, self.cls) {
+            return match t.macros {
+                Some(_) => t.macro_annotated.push(self),
+                None => t.unsupported_at(self.span, "macro call"),
+            };
         }
         if let Some(what) = self.unimplemented(t, false) {
             t.unsupported_at(self.span, what);

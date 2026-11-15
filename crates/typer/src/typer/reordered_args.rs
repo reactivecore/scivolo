@@ -21,19 +21,24 @@ impl Typer<'_> {
 
     /// `args` aligned with `params`, the non-repeated parameters, if some are named or parameters
     /// are left to defaults, `None` if they are positional and as many as the parameters take;
-    /// `Err` for named or missing arguments of a method with a `repeated` parameter.
+    /// those of a method with a parameter named `repeated` also where each named one is at its
+    /// parameter's position, as `f(a = 1, xs = 2, 3)`, else `Err` for named or missing ones.
     pub fn aligned_args(
         &self,
         args: &[NodeId],
         params: &[(NameId, TypeId)],
-        repeated: bool,
+        repeated: Option<NameId>,
     ) -> Result<Option<Aligned>, &'static str> {
         let named = args.iter().any(|&a| self.arg_name(a).is_some());
-        let fits = if repeated { args.len() >= params.len() } else { args.len() == params.len() };
-        if !named && fits {
+        let fits = if repeated.is_some() { args.len() >= params.len() } else { args.len() == params.len() };
+        let names: Vec<&str> =
+            params.iter().map(|&(n, _)| n).chain(repeated).map(|n| self.u.name(n)).collect();
+        let in_place = (args.iter().enumerate())
+            .all(|(i, &a)| self.arg_name(a).is_none_or(|n| names.get(i).is_some_and(|&p| p == n)));
+        if fits && (!named || repeated.is_some() && in_place) {
             return Ok(None);
         }
-        if repeated || !named && args.len() > params.len() {
+        if repeated.is_some() || !named && args.len() > params.len() {
             return Err("named or default arguments of a repeated method, or wrong arity");
         }
         let names: Vec<String> = params.iter().map(|&(n, _)| self.u.name(n).to_owned()).collect();

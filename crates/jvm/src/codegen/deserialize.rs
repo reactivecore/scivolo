@@ -36,6 +36,6 @@ impl Gen<'_, '_> {
             code.ret("L");
         }
         let flags = ACC_PRIVATE | ACC_STATIC | ACC_SYNTHETIC;
-        cf.method(flags, "$deserializeLambda$", SERIALIZED_LAMBDA, Some(code), &mut |_, _| None);
+        cf.method(flags, "$deserializeLambda$", SERIALIZED_LAMBDA, Some(code));
     }
 }

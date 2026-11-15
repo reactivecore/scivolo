@@ -82,9 +82,10 @@ impl Universe {
         if !s.flags.has(MODULE) {
             return s.target.clone();
         }
+        let owner = s.owner.filter(|&o| self.may_declare_targets(o))?;
         let name = module_name(&s.name)?;
         let synthetic = s.flags.has(SYNTHETIC);
-        let decls = &self.symbol(s.owner?).decls;
+        let decls = &self.symbol(owner).decls;
         let carrier = decls.iter().map(|&d| self.symbol(d)).find(|d| {
             d.name == name && d.kind == if synthetic { Kind::Class } else { Kind::Val } && d.target.is_some()
         });

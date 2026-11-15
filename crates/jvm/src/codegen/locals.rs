@@ -7,10 +7,11 @@
 use super::body::Body;
 use super::descriptors::descriptor;
 use super::{Gen, unsupported};
+use classfile::Label;
 use lower::Result;
 use names::nme;
 use syntax::ast::constant::Constant;
-use tasty::tags::MUTABLE;
+use tasty::tags::{MUTABLE, SYNTHETIC};
 use tasty::{Erased, SymbolId};
 use typer::tpd::{TNodeId, Tree};
 
@@ -38,6 +39,7 @@ impl Gen<'_, '_> {
             rest = tail;
         }
         let class_body = self.is_primary_constructor(b.method);
+        b.code.open_block();
         for &s in rest {
             match class_body {
                 true => self.stat(b, s)?,
@@ -46,11 +48,59 @@ impl Gen<'_, '_> {
         }
         let synthetic_unit = matches!(self.l.tpd.tree(expr), Tree::Literal { value: Constant::Unit })
             && self.l.tpd.span(expr) == self.l.tpd.span(rhs);
-        if synthetic_unit && result == "V" {
-            b.code.ret("V");
-            return Ok(());
+        match synthetic_unit && result == "V" {
+            true => b.code.ret("V"),
+            false => self.expr_ret(b, expr, result)?,
         }
-        self.expr_ret(b, expr, result)
+        b.code.close_block();
+        Ok(())
+    }
+
+    /// Names local `sym` in `slot` of descriptor `desc` from here to the end of its block unless
+    /// synthetic (dotty's `varsInScope`).
+    pub fn name_block_local(&mut self, b: &mut Body, sym: SymbolId, desc: &str, slot: u16) {
+        if !self.l.u.symbol(sym).flags.has(SYNTHETIC) {
+            let name = tasty::encode(&self.l.u.symbol(sym).name.clone());
+            b.code.block_local(&name, desc, slot);
+        }
+    }
+
+    /// Names the receiver in slot 0 by `this`, none in a static method, and parameters `params`
+    /// from `start` to here (dotty's `emitNormalMethodBody`).
+    pub fn name_this_and_params(
+        &mut self,
+        b: &mut Body,
+        start: Label,
+        this: Option<&str>,
+        params: &[SymbolId],
+    ) {
+        if let Some((this, class)) = this.zip(b.this_class.clone()) {
+            let end = b.code.mark();
+            b.code.local_var(this, &format!("L{class};"), (start, end), 0);
+        }
+        for &p in params {
+            if let Some(&(_, slot, ref desc)) = b.locals.iter().find(|l| l.0 == p) {
+                let desc = desc.clone();
+                self.name_local(b, p, (&desc, slot), start, true);
+            }
+        }
+    }
+
+    /// Names local `sym` in `slot` of descriptor `desc` from `start` to here unless synthetic
+    /// and not `force` (dotty's `emitLocalVarScope`).
+    pub fn name_local(
+        &mut self,
+        b: &mut Body,
+        sym: SymbolId,
+        (desc, slot): (&str, u16),
+        start: Label,
+        force: bool,
+    ) {
+        if force || !self.l.u.symbol(sym).flags.has(SYNTHETIC) {
+            let name = tasty::encode(&self.l.u.symbol(sym).name.clone());
+            let end = b.code.mark();
+            b.code.local_var(&name, desc, (start, end), slot);
+        }
     }
 
     /// Local definition `t` with value `rhs`, a `BoxedUnit` for a `Unit` local.
@@ -62,6 +112,7 @@ impl Gen<'_, '_> {
         self.expr_as(b, rhs, classfile::value_slots(&desc))?;
         self.cast_to_null(b, rhs, &desc);
         b.code.store(&desc, slot);
+        self.name_block_local(b, sym, &desc, slot);
         Ok(0)
     }
 

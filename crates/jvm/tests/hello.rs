@@ -194,6 +194,21 @@ fn jdk_classes_javalib_lacks_run_on_the_jvm() {
 }
 
 #[test]
+fn classes_implementing_java_annotations_run_on_the_jvm() {
+    runs_on_the_jvm("annotationimpls", "Annotationimpls");
+}
+
+#[test]
+fn named_arguments_of_repeated_methods_run_on_the_jvm() {
+    runs_on_the_jvm("namedvarargs", "Namedvarargs");
+}
+
+#[test]
+fn signature_polymorphic_calls_run_on_the_jvm() {
+    runs_on_the_jvm("sigpoly", "Sigpoly");
+}
+
+#[test]
 fn jdk_members_under_explicit_nulls_run_on_the_jvm() {
     runs_on_the_jvm("explicitnulls", "Explicitnulls");
 }
@@ -272,6 +287,10 @@ fn a_definition_the_tasty_pickler_lacks_is_refused() {
     let code = "import scala.annotation.unchecked.uncheckedVariance as uV\n\
                 class C[+A](val m: Map[A @uV, A @uV])";
     refuses("refusedaccessor", code, "an annotated type of several annotation trees");
+    let code = "class ann(x: String) extends scala.annotation.StaticAnnotation\n\
+                class Box[A](val v: (A, Int @ann(\"a\")))\n\
+                object M { def b: Box[Int @ann(\"b\")] = ???; val r = b.v }";
+    refuses("refusedtraced", code, "traced to one of several annotation trees with arguments");
 }
 
 /// Writes `files`, each a name and its code, into tmp/jvm-test/`name`.
@@ -431,7 +450,11 @@ fn a_refused_file_refuses_the_unit() {
 }
 
 #[test]
-fn a_signature_polymorphic_method_is_refused() {
-    let code = "object R { def f = java.lang.invoke.MethodHandles.identity(classOf[String]).invoke(\"a\") }";
-    refuses("refusedpolymorphic", code, "member not found");
+fn a_cast_signature_polymorphic_call_is_refused() {
+    if Command::new("java").arg("-version").output().is_err() {
+        eprintln!("no java on the PATH: skipped");
+        return;
+    }
+    let code = "object R { def f = java.lang.invoke.MethodHandles.identity(classOf[String]).invoke(\"a\").asInstanceOf[String] }";
+    refuses("refusedpolymorphic", code, "cast of a signature polymorphic call");
 }

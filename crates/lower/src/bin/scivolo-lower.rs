@@ -124,7 +124,12 @@ fn main() {
     let (lowered, refused) = match &sources[..] {
         [one] => (lower::compile_with(&mut open(), one, cfg, macros), Vec::new()),
         many => match lower::compile_sources_isolated(&mut open, many, cfg, macros) {
-            Ok(Isolated { out, diags, refused }) => (Ok((out, diags)), refused),
+            Ok(Isolated { out, diags, refused, typings }) => {
+                if leave_out_refused {
+                    eprintln!("typings: {typings}");
+                }
+                (Ok((out, diags)), refused)
+            }
             Err(e) => (Err(e), Vec::new()),
         },
     };
