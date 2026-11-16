@@ -155,13 +155,7 @@ impl Host {
 
     /// Argument `found` of an earlier run's search with local candidates `earlier`, referring
     /// to `now`'s instead, at its span.
-    fn relocated(
-        &mut self,
-        found: TNodeId,
-        earlier: &[Vec<SymbolId>],
-        now: &[Vec<SymbolId>],
-    ) -> Fallible<TNodeId> {
-        let (earlier, now) = (earlier.concat(), now.concat());
+    fn relocated(&mut self, found: TNodeId, earlier: &[SymbolId], now: &[SymbolId]) -> Fallible<TNodeId> {
         if let Some(i) = self.tpd.sym(found).and_then(|s| earlier.iter().position(|&l| l == s))
             && matches!(self.tpd.tree(found), T::Ident { .. } | T::Select { .. })
         {
@@ -189,7 +183,7 @@ impl Host {
         let at = self.typer.searched.iter().position(|(s, _)| self.same_search(s, &search));
         let answered = match at.map(|k| self.typer.searched[k].clone()) {
             Some((earlier, Some(t))) => {
-                let t = self.relocated(t, &earlier.locals, &search.locals)?;
+                let t = self.relocated(t, &earlier.locals.concat(), &search.locals.concat())?;
                 self.typer.searched[at.expect("found")].1 = Some(t);
                 Some(Some(t))
             }

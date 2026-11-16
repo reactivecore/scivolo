@@ -85,10 +85,9 @@ impl Inlining<'_> {
         self.has_implicit_def(rhs)
     }
 
-    /// Whether tree `t` defines a given or implicit term in scope of a search in it that `scopes`
-    /// does not track: other than by a block statement or a case's pattern, outside the cases of
-    /// inline matches, which count once their match selects them. The parameters of a method are
-    /// in no scope while it is retyped (dotty's `InlineTyper.index` enters block statements only).
+    /// Whether tree `t` defines a given or implicit term that `scopes` does not track (a block
+    /// statement, a case's pattern) and a search in it may see: not a method's parameter (dotty's
+    /// `InlineTyper.index`) nor in an inline match's cases, which count once selected.
     pub fn has_implicit_def(&self, t: TNodeId) -> bool {
         self.is_implicit_def(t) || self.defines_inside(t)
     }
@@ -102,11 +101,10 @@ impl Inlining<'_> {
             T::DefDef { rhs, .. } => has(rhs),
             T::CaseDef { guard, body, .. } => has(guard) || has(Some(body)),
             T::Block { stats, expr } => {
-                let stats = self.tpd.items(stats);
-                stats
-                    .iter()
-                    .any(|&s| if self.is_implicit_def(s) { self.defines_inside(s) } else { has(Some(s)) })
-                    || has(Some(expr))
+                let stat = |&s: &TNodeId| {
+                    if self.is_implicit_def(s) { self.defines_inside(s) } else { has(Some(s)) }
+                };
+                self.tpd.items(stats).iter().any(stat) || has(Some(expr))
             }
             _ => self.tpd.children(t).into_iter().any(|c| self.has_implicit_def(c)),
         }
@@ -120,10 +118,8 @@ impl Inlining<'_> {
         let mut defined = Vec::new();
         match *self.tpd.tree(t) {
             T::Block { stats, .. } => {
-                let stats = self.tpd.items(stats);
-                let defs =
-                    stats.iter().filter(|&&s| self.is_implicit_def(s)).filter_map(|&s| self.tpd.sym(s));
-                defined.extend(defs);
+                let defs = self.tpd.items(stats).iter().filter(|&&s| self.is_implicit_def(s));
+                defined.extend(defs.filter_map(|&s| self.tpd.sym(s)));
             }
             T::CaseDef { pat, .. } => self.implicit_defs(pat, &mut defined),
             _ => {}
