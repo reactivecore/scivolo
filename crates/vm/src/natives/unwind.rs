@@ -190,3 +190,20 @@ fn method_name(sig: &str) -> String {
     let len: usize = rest[..digits].parse().unwrap_or(0);
     rest.get(digits..digits + len).unwrap_or(sig).to_owned()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::element_ip_index;
+
+    const OWNER: &str = "scala.scalanative.runtime.StackTrace$";
+
+    #[test]
+    fn the_ip_of_with_name_from_unwind_is_found_in_both_parameter_orders() {
+        let published = "D20withNameFromUnwind$1jL44scala.scalanative.runtime.StackTrace$ContextL22java.lang.StackTraceElementEPT44scala.scalanative.runtime.StackTrace$";
+        let scala39 = "D20withNameFromUnwind$1L44scala.scalanative.runtime.StackTrace$ContextjL22java.lang.StackTraceElementEPT44scala.scalanative.runtime.StackTrace$";
+        assert_eq!(element_ip_index(OWNER, published), Some(1));
+        assert_eq!(element_ip_index(OWNER, scala39), Some(2));
+        assert_eq!(element_ip_index(OWNER, "D20withNameFromUnwind$1L16java.lang.ObjectEO"), None);
+        assert_eq!(element_ip_index("scala.Predef$", published), None);
+    }
+}
