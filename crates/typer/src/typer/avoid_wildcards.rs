@@ -6,7 +6,7 @@ use tasty::{ANY, Kind, NOTHING, Type, TypeId, Universe};
 
 impl TypeOps<'_> {
     /// `t` at variance `v` with each wildcard replaced by its upper bound where it occurs
-    /// covariantly, its lower bound contravariantly and a wildcard argument of both as an
+    /// covariantly, its lower bound, taken at the opposite variance, contravariantly and a wildcard argument of both as an
     /// invariant type argument, a type with one `Nothing` at a negative variance (dotty's
     /// `AvoidWildcardsMap`).
     ///
@@ -19,7 +19,7 @@ impl TypeOps<'_> {
             Type::Wildcard(bounds) => {
                 let (lo, hi) = bounds.and_then(|b| self.u.bounds(b)).unwrap_or((NOTHING, ANY));
                 match v {
-                    -1 => self.avoid_wildcards(lo, -1)?,
+                    -1 => self.avoid_wildcards(lo, 1)?,
                     _ => self.avoid_wildcards(hi, 1)?,
                 }
             }
