@@ -102,16 +102,12 @@ impl Tpd {
     /// Appends the direct subtrees of `t` to `out`, in order.
     #[inline]
     pub fn extend_children(&self, t: TNodeId, out: &mut impl Extend<TNodeId>) {
-        for &slot in self.tree(t).slots().iter() {
-            match slot {
-                Slot::Node(c) => out.extend([c]),
-                Slot::Opt(c) => out.extend(c),
-                Slot::List(l) => out.extend(self.items(l).iter().copied()),
-                Slot::Clauses(cs) => {
-                    self.clause_items(cs).iter().for_each(|&l| out.extend(self.items(l).iter().copied()))
-                }
-            }
-        }
+        self.tree(t).each_slot(|slot| match slot {
+            Slot::Node(c) => out.extend([c]),
+            Slot::Opt(c) => out.extend(c),
+            Slot::List(l) => out.extend(self.items(l).iter().copied()),
+            Slot::Clauses(cs) => self.clause_items(cs).iter().for_each(|&l| out.extend(self.items(l).iter().copied())),
+        });
     }
 
     /// Appends the subtrees `traversed` gives of `t` to `out`.

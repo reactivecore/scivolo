@@ -19,14 +19,6 @@ pub struct Slots {
     len: usize,
 }
 
-impl Slots {
-    #[inline]
-    fn of(slots: &[Slot]) -> Slots {
-        let mut items = [Slot::Opt(None); 4];
-        items[..slots.len()].copy_from_slice(slots);
-        Slots { items, len: slots.len() }
-    }
-}
 
 impl Deref for Slots {
     type Target = [Slot];
@@ -47,8 +39,19 @@ impl Tree {
     /// The subtree fields of the tree, in the order of `Tree::fields`.
     #[inline]
     pub fn slots(&self) -> Slots {
+        let mut out = Slots { items: [Slot::Opt(None); 4], len: 0 };
+        self.each_slot(|slot| {
+            out.items[out.len] = slot;
+            out.len += 1;
+        });
+        out
+    }
+
+    /// Calls `f` on each subtree field of the tree, in the order of `Tree::fields`.
+    #[inline(always)]
+    pub fn each_slot(&self, mut f: impl FnMut(Slot)) {
         use Slot::{List as L, Node as N, Opt as O};
-        let s = Slots::of;
+        let mut s = |slots: &[Slot]| slots.iter().for_each(|&slot| f(slot));
         match *self {
             Tree::Ident { name: _ }
             | Tree::Literal { value: _ }
