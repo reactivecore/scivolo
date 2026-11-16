@@ -56,6 +56,9 @@ impl Typer<'_> {
         if wildcard && raw_default.is_some() {
             self.unsupported(rhs, "wildcard in the inferred type of a default");
         }
+        if inherited.is_none() && self.keeps_rhs_type(sym) && self.is_java_enum_value(tpe) {
+            return tpe;
+        }
         let widened = self.widen_rhs(sym, tpe);
         let widened = self.simplified_inferred_as(widened, raw_default.is_some());
         if self.keeps_rhs_type(sym) && matches!(self.u.ty(widened), Type::Constant(..) | Type::Str(_)) {
@@ -85,6 +88,17 @@ impl Typer<'_> {
             self.unsupported(rhs, what);
             t
         })
+    }
+
+    /// Whether `t` is the singleton type of a constant of a Java enum of a class file or the JDK
+    /// (dotty's `isJavaEnumValue`).
+    fn is_java_enum_value(&mut self, t: TypeId) -> bool {
+        let Type::Sym(_, s) = *self.u.ty(t) else { return false };
+        let sym = self.u.symbol(s);
+        let object = sym.owner.filter(|_| sym.kind == Kind::Val);
+        let class = object.and_then(|o| self.u.companion_class(o));
+        let java = |u: &tasty::Universe, c| u.is_java_defined(c) || crate::protected_access::is_jdk(u, c);
+        class.is_some_and(|c| java(self.u, c) && self.derives_from_java_enum(c))
     }
 
     /// The type inferred for definition `sym` from its right-hand side's type `t` (dotty's

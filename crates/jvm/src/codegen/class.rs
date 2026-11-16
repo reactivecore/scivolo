@@ -6,6 +6,7 @@
 use super::class_bytes::scala_markers;
 use super::clinit::StaticInit;
 use super::descriptors::{class_descriptor, class_internal, internal};
+use super::java_annotations::Holder;
 use super::{ClassBytes, Gen, java_flags, unsupported};
 use classfile::{ACC_FINAL, ACC_PUBLIC, ACC_STATIC, ACC_VOLATILE, ClassFile, Last};
 use lower::Result;
@@ -106,7 +107,7 @@ impl Gen<'_, '_> {
         if self.is_deprecated(sym) {
             cf.deprecated();
         }
-        self.emit_annotations(&mut cf, None, sym);
+        self.emit_annotations(&mut cf, None, Holder::own(sym));
         let source = self.source_name(td);
         cf.source_file(&source);
         let mut declared: Vec<SymbolId> = nested.iter().filter_map(|&n| self.l.tpd.sym(n)).collect();

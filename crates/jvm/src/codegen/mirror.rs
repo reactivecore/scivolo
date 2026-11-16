@@ -5,6 +5,7 @@
 
 use super::class_bytes::scala_markers;
 use super::descriptors::{class_descriptor, method_descriptor};
+use super::java_annotations::Holder;
 use super::{ClassBytes, Gen, method_name, unsupported};
 use classfile::{
     ACC_FINAL, ACC_PUBLIC, ACC_STATIC, ACC_SUPER, ACC_SYNTHETIC, ACC_VARARGS, ClassFile, Code, FieldOp,
@@ -31,7 +32,7 @@ impl Gen<'_, '_> {
     ) -> Result<()> {
         let name = module_name.strip_suffix('$').unwrap_or(module_name);
         let mut cf = ClassFile::new(ACC_PUBLIC | ACC_FINAL | ACC_SUPER, name, "java/lang/Object", &[]);
-        self.emit_annotations(&mut cf, None, module);
+        self.emit_annotations(&mut cf, None, Holder::own(module));
         self.add_forwarders(&mut cf, module, None);
         let source = self.source_name(td);
         cf.source_file(&source);
