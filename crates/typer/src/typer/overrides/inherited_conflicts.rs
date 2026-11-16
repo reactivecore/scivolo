@@ -6,6 +6,7 @@
 use super::super::Typer;
 use super::{OverrideChecks, overridable};
 use crate::case_members::is_synthesized_override;
+use crate::symbols::Completion;
 use names::nme;
 use syntax::ast::flags as f;
 use tasty::tags::{CASE, OVERRIDE, TRAIT};
@@ -30,7 +31,7 @@ impl OverrideChecks {
                     .filter(|&m| t.is_concrete(m))
                     .collect();
                 for &m in &concrete {
-                    t.complete(m);
+                    complete_pending(t, m);
                 }
                 let Some((&winner, rest)) = concrete.split_first() else { continue };
                 let Some(winner_owner) = t.u.symbol(winner).owner else { continue };
@@ -74,10 +75,17 @@ impl OverrideChecks {
         common.into_iter().any(|c| {
             let members = overridable(t.u, c, &name);
             members.into_iter().any(|o| {
-                t.complete(o);
+                complete_pending(t, o);
                 t.same_member(self.site, m, o)
             })
         })
+    }
+}
+
+/// Completes member `m` unless its completion has started.
+fn complete_pending(t: &mut Typer<'_>, m: SymbolId) {
+    if matches!(t.syms.completions.get(&m), Some(Completion::Pending { .. })) {
+        t.complete(m);
     }
 }
 
