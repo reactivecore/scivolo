@@ -3,9 +3,9 @@
 //! Static forwarders to the methods of a top-level object, in its companion class or in a mirror
 //! class (dotty's `genMirrorClass`, `addForwarders`, `addForwarder`).
 
+use super::annotation_holders::Holder;
 use super::class_bytes::scala_markers;
 use super::descriptors::{class_descriptor, method_descriptor};
-use super::java_annotations::Holder;
 use super::{ClassBytes, Gen, method_name, unsupported};
 use classfile::{
     ACC_FINAL, ACC_PUBLIC, ACC_STATIC, ACC_SUPER, ACC_SYNTHETIC, ACC_VARARGS, ClassFile, Code, FieldOp,

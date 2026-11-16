@@ -90,7 +90,9 @@ impl Attribute {
             }
             Attribute::ParameterAnnotations(_, params) => {
                 out.push(params.len() as u8);
-                params.iter().for_each(|annotations| out.extend(crate::annotations::encode(pool, annotations)));
+                params
+                    .iter()
+                    .for_each(|annotations| out.extend(crate::annotations::encode(pool, annotations)));
             }
             Attribute::MethodParameters(params) => {
                 out.push(params.len() as u8);

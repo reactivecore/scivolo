@@ -7,3 +7,13 @@ false
 true
 4
 [] false [9] true
+Deprecated Inherited Documented
+Deprecated Inherited Documented
+Documented Inherited Deprecated
+Documented Inherited Deprecated
+Documented Deprecated
+Documented Deprecated, Deprecated Inherited Documented
+Deprecated Documented, Deprecated Documented
+00
+@java.lang.annotation.Retention(RUNTIME)
+4
