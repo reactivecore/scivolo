@@ -640,7 +640,7 @@ split-fixture name:
 
 # Compile the macro library tests/macros/lib with Scala Native into tests/macros/lib/macros.jar:
 # NIR and TASTy, as a `--dep` jar holds them, and the class files dotty's oracle runs (javac's of
-# its Java annotation).
+# its Java sources).
 macro-fixture:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -648,8 +648,8 @@ macro-fixture:
     scala-cli --power compile --quiet --native --native-version 0.5.12 --scala 3.9.0 --server=false \
         --scalac-option -sourceroot --scalac-option {{ justfile_directory() }} \
         --workspace tmp/macro-fixture/ws -d tmp/macro-fixture/out tests/macros/lib/Macros.scala \
-        tests/macros/lib/JavaAnnot.java
-    javac --release 17 -d tmp/macro-fixture/out tests/macros/lib/JavaAnnot.java
+        tests/macros/lib/*.java
+    javac --release 17 -d tmp/macro-fixture/out tests/macros/lib/*.java
     rm -f tests/macros/lib/macros.jar
     (cd tmp/macro-fixture/out && zip -q -X -r {{ justfile_directory() }}/tests/macros/lib/macros.jar . -i '*/' '*.nir' '*.tasty' '*.class')
 

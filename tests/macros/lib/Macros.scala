@@ -580,5 +580,12 @@ object Searches:
     import quotes.reflect.*
     Expr(TypeRepr.of[T].typeSymbol.annotations.map(_.show).mkString(", "))
 
+  inline def paramsOf[T](inline name: String): String = ${ paramsOfImpl[T]('name) }
+  def paramsOfImpl[T: Type](name: Expr[String])(using Quotes): Expr[String] =
+    import quotes.reflect.*
+    val m = TypeRepr.of[T].typeSymbol.methodMember(name.valueOrAbort).head
+    val (first, again) = (m.paramSymss.flatten, m.paramSymss.flatten)
+    val decls = TypeRepr.of[T].typeSymbol.declarations.count(d => first.contains(d))
+    Expr(s"${first.map(_.name).mkString(",")} same=${first == again} declared=$decls")
 @JavaAnnot(c = 1, a = 2) class Retired
 @JavaAnnot(a = 2) class Retiring
