@@ -51,6 +51,9 @@ pub type Refusal = &'static str;
 /// Why a tree of an error type is not pickled.
 pub const ERROR_TYPE: Refusal = "an error type";
 
+/// Why a type is not pickled before the library annotation tree it needs is read.
+const UNREAD_ANNOTATION: Refusal = "a library annotation tree not read";
+
 pub struct TreePickler<'a> {
     u: &'a mut Universe,
     tpd: &'a Tpd,
@@ -139,6 +142,8 @@ pub struct TreePickler<'a> {
     origins: Option<annotation_origins::AnnotationOrigins>,
     /// Whether the type keyed has an annotation tree told by the type tree pickled.
     keyed_by_place: bool,
+    /// The library annotation tree a refusal needs read first.
+    unread: Option<tasty::AnnotationTree>,
 }
 
 /// The TASTy of quote `root`, `holes` its term holes, without positions (dotty's `pickleQuote`).
@@ -219,9 +224,15 @@ fn pickle<'a>(
         origins: None,
         keyed_by_place: false,
         refused_at: None,
+        unread: None,
     };
     let at = |p: &TreePickler| p.refused_at.unwrap_or_else(|| p.tpd.span(root));
-    if let Err(refusal) = p.tree(root) {
+    let pickled = p.tree(root);
+    if let (Some(file), Some(tree)) = (file, p.unread) {
+        file.unread.set(Some(tree));
+        return Err((at(&p), UNREAD_ANNOTATION));
+    }
+    if let Err(refusal) = pickled {
         return Err((at(&p), refusal));
     }
     if !p.forward.is_empty() {

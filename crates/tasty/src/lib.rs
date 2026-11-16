@@ -30,8 +30,8 @@ pub use symbols::{
     package_table_version, symbol_table,
 };
 pub use types::{
-    Binder, Binding, Highlight, NameId, ParamList, Type, TypeId, TypeList, Types, VarId, escape,
-    param_tree_clauses,
+    AnnotationTree, Binder, Binding, Highlight, NameId, ParamList, Type, TypeId, TypeList, Types, VarId,
+    escape, param_tree_clauses,
 };
 
 pub use cursor::{Cursor, Error, Result};

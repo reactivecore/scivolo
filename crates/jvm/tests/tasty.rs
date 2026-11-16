@@ -134,6 +134,40 @@ fn probes_pickle_as_dotty_s() {
     }
 }
 
+/// The annotated types of tests/jvm/tastylib/annotlib.jar, dotty's classes of annotlib/, keep
+/// their library's annotation trees in the TASTy of libraryannotations.scala as in dotty's; one
+/// whose tree refers to a parameter, which dotty maps, is refused.
+#[test]
+fn library_annotations_pickle_as_dotty_s() {
+    let out = root().join("tmp/jvm-test/libraryannotations");
+    let _ = std::fs::remove_dir_all(&out);
+    std::fs::create_dir_all(&out).expect("tmp/jvm-test/libraryannotations");
+    let compile = |source: &str| {
+        Command::new(env!("CARGO_BIN_EXE_scivolo-jvm"))
+            .current_dir(root())
+            .args(["--cp", "tests/jvm/tastylib/annotlib.jar", "-d"])
+            .arg(&out)
+            .arg(source)
+            .output()
+            .expect("running scivolo-jvm")
+    };
+    let run = compile("tests/jvm/tastylib/libraryannotations.scala");
+    assert!(run.status.success(), "{}", String::from_utf8_lossy(&run.stderr));
+    let ours = std::fs::read(out.join("scala/probe/Uses.tasty")).expect("our TASTy");
+    let theirs =
+        std::fs::read(root().join("tests/jvm/tastylib/libraryannotations-Uses.tasty")).expect("dotty's");
+    assert!(trees_and_flags(&ours) == trees_and_flags(&theirs), "Uses.tasty differs from dotty's");
+
+    let source = out.join("dependent.scala");
+    std::fs::write(&source, "class D(b: annotlib.Box[Int]) { def d = b.dependent(2) }").expect("writing");
+    let run = compile(source.to_str().expect("a path"));
+    let stderr = String::from_utf8_lossy(&run.stderr);
+    assert!(
+        !run.status.success() && stderr.contains("referring to other than static definitions"),
+        "{stderr}"
+    );
+}
+
 /// scala-cli 3.9.0 compiles tests/jvm/tastylib/user.scala against the jar, and the result runs
 /// on `java -Xverify:all`, when both are on the PATH.
 #[test]

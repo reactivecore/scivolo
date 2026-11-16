@@ -11,10 +11,11 @@ use super::{QuoteSource, Refusal, TreePickler, pickle};
 use crate::defn::type_ref;
 use crate::tpd::{List, TNodeId, Tpd, Tree as T};
 use rustc_hash::FxHashMap;
+use std::cell::Cell;
 use syntax::ast::Span;
 use syntax::names::Names;
 use tasty::tags::{IDENTtpt, INLINED};
-use tasty::{Kind, SymbolId, Universe};
+use tasty::{AnnotationTree, Kind, SymbolId, Universe};
 
 const SCALA2STANDARDLIBRARY: u8 = 1;
 const EXPLICITNULLS: u8 = 2;
@@ -47,13 +48,17 @@ pub struct File<'a> {
     pub annotations: &'a FxHashMap<SymbolId, Vec<TNodeId>>,
     /// The top-level class pickled (dotty's `rootCls`).
     pub root_class: SymbolId,
+    /// The library annotation tree the pickling needs read before it is pickled again.
+    pub unread: &'a Cell<Option<AnnotationTree>>,
 }
 
 /// The TASTy of the top-level classes of package clause `root` of `source`, but of the
 /// object classes whose companion class is among them; `annotations` holds the annotation
-/// trees of each definition, in order. A refusal carries the span of the tree refused.
+/// trees of each definition, in order. The library annotation trees of annotated types pickled
+/// are read on demand, the class pickled again after each. A refusal carries the span of the tree
+/// refused.
 pub fn pickle_file(
-    (u, tpd, names): (&mut Universe, &mut Tpd, &Names),
+    (u, tpd, names): (&mut Universe, &mut Tpd, &mut Names),
     root: TNodeId,
     source: &QuoteSource,
     (attributes, annotations): (FileAttributes, &FxHashMap<SymbolId, Vec<TNodeId>>),
@@ -69,8 +74,14 @@ pub fn pickle_file(
     let mut out = Vec::new();
     for class in classes {
         let Some(sliced) = slice(u, tpd, root, class) else { continue };
-        let file = File { attributes, annotations, root_class: class };
-        let (tasty, super_accessors) = pickle((u, &*tpd, names), sliced, &[], Some(source), Some(&file))?;
+        let unread = Cell::new(None);
+        let file = File { attributes, annotations, root_class: class, unread: &unread };
+        let (tasty, super_accessors) = loop {
+            let pickled = pickle((u, &*tpd, &*names), sliced, &[], Some(source), Some(&file));
+            let Some(tree) = unread.take() else { break pickled? };
+            let read = crate::unpickle::type_annotation(u, tpd, names, tree);
+            tpd.set_library_annotation(tree, read);
+        };
         let parsed = tasty::Tasty::parse(&tasty).ok();
         let trees = parsed.as_ref().and_then(|t| tasty::Ast::parse(t.section("ASTs")?.bytes).ok());
         trees.ok_or((tpd.span(sliced), "trees whose TASTy does not read back"))?;

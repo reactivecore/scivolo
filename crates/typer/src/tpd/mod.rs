@@ -53,6 +53,8 @@ pub struct Tpd {
     fresh_types: FxHashSet<TNodeId>,
     /// The type with capture-set annotations of each inferred type tree whose type lost them.
     captured_types: FxHashMap<TNodeId, TypeId>,
+    /// Each annotation tree of a library's annotated type read, or why it was not.
+    library_annotations: FxHashMap<tasty::AnnotationTree, Result<TNodeId, &'static str>>,
 }
 
 /// What an anonymous class the typer made for a mirror becomes (dotty's
@@ -209,6 +211,21 @@ impl Tpd {
     /// expressions gave it, `None` if none did.
     pub fn type_annotation(&self, annotated: TypeId) -> Option<Option<TNodeId>> {
         self.type_annotations.get(&annotated).copied()
+    }
+
+    /// Records `read`, annotation tree `tree` of a library's annotated type read into a typed tree
+    /// or why it was not.
+    pub fn set_library_annotation(
+        &mut self,
+        tree: tasty::AnnotationTree,
+        read: Result<TNodeId, &'static str>,
+    ) {
+        self.library_annotations.insert(tree, read);
+    }
+
+    /// Annotation tree `tree` of a library's annotated type as read, `None` if not read yet.
+    pub fn library_annotation(&self, tree: tasty::AnnotationTree) -> Option<Result<TNodeId, &'static str>> {
+        self.library_annotations.get(&tree).copied()
     }
 
     /// The annotation tree of the type of type tree `tpt`, if an annotated expression gave it.
