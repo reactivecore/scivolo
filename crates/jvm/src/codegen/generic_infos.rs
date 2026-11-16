@@ -144,8 +144,14 @@ impl Gen<'_, '_> {
         }
         match owner {
             Some(o) => {
-                let this = self.l.u.this_type(o);
                 let member = self.mixed_origin(sym).unwrap_or(sym);
+                let this = match member == sym {
+                    true => self.l.u.this_type(o),
+                    false => {
+                        let class = self.l.u.intern_type(tasty::Type::Sym(None, o));
+                        self.l.u.intern_type(tasty::Type::This(class))
+                    }
+                };
                 self.l.u.member_info(this, member)
             }
             None => self.l.u.info(sym),
