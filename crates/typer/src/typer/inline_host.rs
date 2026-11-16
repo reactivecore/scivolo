@@ -189,10 +189,15 @@ impl Typer<'_> {
             self.swap_lent((&mut *u, &mut *tpd, &mut *names, &mut *fresh));
             typed.unwrap_or_else(|panic| resume_unwind(panic));
         }
-        let expanded = match self.macros.as_deref_mut() {
+        let mut expanded = match self.macros.as_deref_mut() {
             Some(macros) => run(macros, (u, tpd, names, fresh), &self.syms.annotations),
             None => Err(MacroError::Unsupported("macro call".into())),
         };
+        if let Ok(e) = &mut expanded {
+            for (cls, annots) in std::mem::take(&mut e.annotations) {
+                self.syms.annotations.entry(cls).or_default().extend(annots);
+            }
+        }
         if let Err(MacroError::Unsupported(what)) = &expanded {
             self.unsupported_at(span, what);
         }

@@ -7,11 +7,12 @@
 
 use crate::ctx::Ctx;
 use crate::typer::Typer;
+use crate::typer::patterns::MAX_ALIAS_STEPS;
 use names::nme;
 use syntax::ast::constant::Constant;
 use syntax::ast::flags as f;
 use syntax::ast::{NodeId, Tree};
-use tasty::{Kind, SymbolId};
+use tasty::{Kind, SymbolId, TypeId};
 
 /// The annotation classes refused: those whose meaning dotty's later phases implement and the
 /// lowering does not. A backend's own annotations are its code generator's to read or refuse.
@@ -78,12 +79,31 @@ impl Typer<'_> {
         let typed = self.typed_type(tpt, ctx);
         let mut tpe = self.tpd.tpe(typed);
         let mut metas = Vec::new();
-        while let Some((inner, meta)) = self.u.annotated(tpe) {
-            metas.extend(self.u.class_symbol(meta));
-            tpe = inner;
+        for _ in 0..MAX_ALIAS_STEPS {
+            while let Some((inner, meta)) = self.u.annotated(tpe) {
+                metas.extend(self.u.class_symbol(meta));
+                tpe = inner;
+            }
+            match self.alias_step(tpe) {
+                next if next == tpe => break,
+                next => tpe = next,
+            }
         }
         let tpe = self.dealiased(tpe);
         Some((self.u.class_symbol(tpe)?, metas))
+    }
+
+    /// Follows the alias `t` refers to, also that of a script symbol, once, keeping the
+    /// annotations of its right-hand side; `t` if it is no alias.
+    fn alias_step(&mut self, t: TypeId) -> TypeId {
+        let next = self.u.dealias_step(t);
+        if next != t {
+            return next;
+        }
+        let Some(s) = self.u.sym_of(t).filter(|&s| self.u.symbol(s).kind == Kind::Type) else { return t };
+        self.complete(s);
+        let info = self.u.info(s);
+        self.u.type_alias(info).unwrap_or(t)
     }
 
     /// Gives method or value `sym` the run-time name of `@targetName` annotation `annot`, whose

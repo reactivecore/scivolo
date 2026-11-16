@@ -22,6 +22,7 @@ impl Host {
     /// but for `ParamAccessor`, `NoInits` and `StableRealizable`.
     pub fn flags(&mut self, s: SymbolId) -> u64 {
         let deferred = if self.is_deferred(s) { 1 << DEFERRED } else { 0 };
+        let java = if self.u.is_java_defined(s) { 1 << JAVA_DEFINED } else { 0 };
         let sym = self.u.symbol(s);
         let has = |tag: u8| sym.flags.has(tag);
         let bit = |tag: u8| 1u64 << tag;
@@ -37,6 +38,7 @@ impl Host {
         }
         let in_class = sym.owner.is_some_and(|o| self.u.symbol(o).kind == Kind::Class);
         bits | deferred
+            | java
             | match sym.kind {
                 Kind::Class if self.u.is_scala2(s) => 1 << SCALA2X,
                 Kind::Def => 1 << METHOD,
@@ -45,6 +47,14 @@ impl Host {
                 Kind::Param | Kind::TypeParam => 1 << PARAM,
                 _ => 0,
             }
+    }
+
+    /// Determines whether `flags` gives all of dotty's flags of `s`: those of a method of a Java
+    /// class read from a class file, which has neither `NoInits` nor `StableRealizable`.
+    pub fn flags_known(&mut self, s: SymbolId) -> bool {
+        let sym = self.u.symbol(s);
+        let Some(owner) = sym.owner.filter(|_| sym.kind == Kind::Def) else { return false };
+        self.u.is_from_classfile(owner) && !self.u.symbol(owner).flags.has(OBJECT)
     }
 
     /// Whether `s` is a value or method member of a class without a definition, but for a

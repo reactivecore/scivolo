@@ -13,8 +13,8 @@ use tasty::{Type, TypeId};
 
 impl TreePickler<'_> {
     /// Type `annotated`, `parent` annotated with class type `annot`: a capture set as
-    /// `retaining`'s, else with the annotation tree an
-    /// annotated expression of the file gave it, else `new annot()`; told from the others by its
+    /// `retaining`'s, else with the annotation tree an annotated expression of the file or a super
+    /// accessor's member gave it, else `new annot()`; told from the others by its
     /// tree when keyed. Refuses a type several annotated expressions gave, outside their type trees
     /// and the type trees derived from or inferred from one of them (`AnnotationOrigins`), a type
     /// of a derived type tree with several annotated type trees of `annot` it may come from, and a
@@ -25,8 +25,12 @@ impl TreePickler<'_> {
             return pickled;
         }
         let several = "an annotated type of several annotation trees";
-        let tree = match self.tpt_annotation(annotated) {
-            Some(tree) => Some(tree.ok_or(several)?),
+        let tpt = match self.tpt_annotation(annotated) {
+            Some(tree) => Some(Ok(tree)),
+            None => self.member_annotation(parent, annot),
+        };
+        let tree = match tpt {
+            Some(tree) => Some(tree?.ok_or(several)?),
             None => match self
                 .selector_annotation(annotated)
                 .or_else(|| self.origin_annotation(annotated, annot))
@@ -42,13 +46,12 @@ impl TreePickler<'_> {
             },
         };
         if let Some(tree) = tree {
-            if !self.keying {
-                self.type_annots.push(tree);
-            }
             return self.with_length(ANNOTATEDtype, &mut |p| {
                 p.ty(parent, false)?;
                 if !p.keying {
-                    return p.tree(tree);
+                    p.tree(tree)?;
+                    p.type_annots.push(tree);
+                    return Ok(());
                 }
                 let key = p.tree_key(tree);
                 p.buf.buf.write_bytes(&key.to_le_bytes());
@@ -116,7 +119,7 @@ impl TreePickler<'_> {
 
     /// Whether annotation tree `tree` of class type `annot` is other than `new C()`: it has value
     /// or type arguments.
-    fn has_arguments(&self, tree: TNodeId, annot: TypeId) -> bool {
+    pub fn has_arguments(&self, tree: TNodeId, annot: TypeId) -> bool {
         let Tree::Apply { fun, args } = *self.tpd.tree(tree) else { return true };
         let simple_new = matches!(self.tpd.tree(fun), Tree::Select { .. });
         !self.tpd.items(args).is_empty() || !simple_new || matches!(self.u.ty(annot), Type::Applied(..))

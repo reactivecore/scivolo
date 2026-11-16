@@ -79,14 +79,14 @@ impl<'a> Inlining<'a> {
                 let is_def = |t: &T| matches!(t, T::ValDef { .. } | T::DefDef { .. } | T::TypeDef { .. });
                 let defs = self.tpd.items(stats).iter().filter(|&&s| is_def(self.tpd.tree(s)));
                 let defs: Vec<SymbolId> = defs.filter_map(|&s| self.tpd.sym(s)).collect();
-                self.fresh_symbols(m, &defs);
+                self.fresh_symbols(m, &defs, hook)?;
             }
             T::CaseDef { pat, .. } => {
                 let vars = self.pattern_vars(pat);
-                self.fresh_symbols(m, &vars);
+                self.fresh_symbols(m, &vars, hook)?;
             }
             T::TypeDef { .. } if sym.is_some_and(|s| self.u.symbol(s).kind == Kind::TypeParam) => {
-                self.fresh_symbol(m, sym.expect("a type parameter"));
+                self.fresh_symbols(m, &[sym.expect("a type parameter")], hook)?;
             }
             T::RefinedTypeTree { refinements, .. } => {
                 for s in self.tpd.items(refinements).iter().filter_map(|&r| self.tpd.sym(r)) {
@@ -95,7 +95,7 @@ impl<'a> Inlining<'a> {
             }
             T::ValDef { .. } | T::DefDef { .. } | T::Bind { .. } | T::TypeDef { .. } => {
                 if let Some(s) = sym {
-                    self.fresh_symbol(m, s);
+                    self.fresh_symbols(m, &[s], hook)?;
                 }
             }
             _ => {}
@@ -146,24 +146,25 @@ impl<'a> Inlining<'a> {
         own.into_iter().chain(inner).collect()
     }
 
-    /// The fresh symbol of local definition `s` in `m`, made if it is not yet: owned by what
-    /// replaces its owner, of its type mapped.
-    fn fresh_symbol(&mut self, m: &mut TreeTypeMap, s: SymbolId) {
-        self.fresh_symbols(m, &[s]);
-    }
-
-    /// Fresh symbols of local definitions `syms` not yet in `m`, all made before their types are
-    /// mapped (dotty's `mapSymbols`).
-    fn fresh_symbols(&mut self, m: &mut TreeTypeMap, syms: &[SymbolId]) {
+    /// Fresh symbols of local definitions `syms` not yet in `m`, owned by what replaces their
+    /// owners, all made before their types are mapped and their annotations copied through `m`
+    /// and `hook` (dotty's `mapSymbols`).
+    fn fresh_symbols(
+        &mut self,
+        m: &mut TreeTypeMap,
+        syms: &[SymbolId],
+        hook: &mut Hook<'_, 'a>,
+    ) -> Result<(), Unsupported> {
         let mut made = Vec::new();
         for &s in syms {
             if !m.syms.contains_key(&s) {
                 self.declared_fresh_with_members(m, s, &mut made);
             }
         }
-        for (s, n) in made {
+        for &(s, n) in &made {
             self.complete_fresh(m, s, n);
         }
+        self.copy_annotations(m, &made, hook)
     }
 
     /// A fresh symbol of `s` recorded in `m`, its type not yet set.

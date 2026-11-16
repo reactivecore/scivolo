@@ -170,6 +170,7 @@ fn pickle_one(
     source.others = sources.iter().filter(|(_, b)| b != base).map(|(f, b)| (f, *b)).collect();
     let annotations = typer.with_child_annotations(f).map_err(|r| (at, r))?;
     let cx = (&mut *typer.u, &mut typer.tpd, &*typer.names);
-    out.extend(pickle_file(cx, f, &source, (attributes, &annotations)).map_err(|r| (at, r))?);
+    let pickled = pickle_file(cx, f, &source, (attributes, &annotations));
+    out.extend(pickled.map_err(|(span, r)| (if typer.file_of(span) == index { span } else { at }, r))?);
     Ok(())
 }
