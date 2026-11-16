@@ -43,7 +43,8 @@ impl Universe {
             };
             return self.join(next);
         }
-        let common = self.or_base_classes(t)?;
+        let mut common = self.or_base_classes(t)?;
+        common.retain(|&c| self.is_class_accessible_here(c));
         let mut doms: Vec<SymbolId> = Vec::new();
         for (i, &c) in common.iter().enumerate() {
             if !doms.iter().any(|&d| self.derives_from(d, c)) {
