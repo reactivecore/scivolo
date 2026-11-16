@@ -3,11 +3,11 @@
 //! Calls of the signature polymorphic methods of `MethodHandle` and `VarHandle`, typed by the
 //! types at the call (dotty's `simpleApply` on a signature polymorphic method).
 
-use super::type_ops::TypeOps;
+use super::avoid_wildcards::has_part;
 use super::{Pt, Typer};
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::Tree;
-use tasty::{ANY, Kind, NOTHING, Type, TypeId, Universe};
+use tasty::{ANY, Type, TypeId};
 
 impl Typer<'_> {
     /// Retypes `f`, the method of an application to the arguments of `proto`, if it is
@@ -136,74 +136,4 @@ impl Typer<'_> {
         self.tpd.get_mut(t).tpe = Some(result);
         Ok(())
     }
-}
-
-impl TypeOps<'_> {
-    /// `t` at variance `v` with each wildcard replaced by its upper bound where it occurs
-    /// covariantly, its lower bound contravariantly and a wildcard argument of both as an
-    /// invariant type argument (dotty's `AvoidWildcardsMap`).
-    ///
-    /// Refuses a wildcard in a type other than an applied class type, an intersection or a union.
-    pub fn avoid_wildcards(&mut self, t: TypeId, v: i8) -> Result<TypeId, &'static str> {
-        if !self.has_wildcard(t) {
-            return Ok(t);
-        }
-        Ok(match *self.u.ty(t) {
-            Type::Wildcard(bounds) => {
-                let (lo, hi) = bounds.and_then(|b| self.u.bounds(b)).unwrap_or((NOTHING, ANY));
-                match v {
-                    1 => self.avoid_wildcards(hi, 1)?,
-                    -1 => self.avoid_wildcards(lo, -1)?,
-                    _ => {
-                        let (lo, hi) = (self.avoid_wildcards(lo, -1)?, self.avoid_wildcards(hi, 1)?);
-                        self.u.intern_type(Type::Bounds(lo, hi))
-                    }
-                }
-            }
-            Type::Applied(tycon, args) => {
-                let Some(c) = self.u.sym_of(tycon).filter(|&c| self.u.symbol(c).kind == Kind::Class) else {
-                    return Err("signature polymorphic call expected to be of a type with a wildcard");
-                };
-                let variances = self.u.variances(c);
-                let mut avoided = Vec::new();
-                for (i, a) in self.u.types_of(args).to_vec().into_iter().enumerate() {
-                    avoided.push(match variances.get(i).copied().unwrap_or(0) {
-                        0 if self.has_wildcard(a) => {
-                            let (lo, hi) = (self.avoid_wildcards(a, -1)?, self.avoid_wildcards(a, 1)?);
-                            let lo = self.u.bounds(lo).map_or(lo, |(l, _)| l);
-                            let hi = self.u.bounds(hi).map_or(hi, |(_, h)| h);
-                            self.u.intern_type(Type::Bounds(lo, hi))
-                        }
-                        0 => a,
-                        av => self.avoid_wildcards(a, av * v)?,
-                    });
-                }
-                self.u.intern_applied(tycon, &avoided)
-            }
-            Type::And(a, b) => {
-                let (a, b) = (self.avoid_wildcards(a, v)?, self.avoid_wildcards(b, v)?);
-                self.u.intern_type(Type::And(a, b))
-            }
-            Type::Or(a, b, soft) => {
-                let (a, b) = (self.avoid_wildcards(a, v)?, self.avoid_wildcards(b, v)?);
-                self.u.intern_type(Type::Or(a, b, soft))
-            }
-            _ => return Err("signature polymorphic call expected to be of a type with a wildcard"),
-        })
-    }
-
-    /// Whether `t` mentions a wildcard.
-    fn has_wildcard(&mut self, t: TypeId) -> bool {
-        has_part(self.u, t, |u, part| matches!(u.ty(part), Type::Wildcard(_)))
-    }
-}
-
-/// Whether `t` has a part `is` holds of.
-fn has_part(u: &mut Universe, t: TypeId, is: impl Fn(&Universe, TypeId) -> bool) -> bool {
-    let mut found = false;
-    u.map_type(t, &mut |u, part| {
-        found |= is(u, part);
-        None
-    });
-    found
 }

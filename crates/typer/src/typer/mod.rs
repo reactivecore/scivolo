@@ -20,6 +20,7 @@ mod assign;
 mod auto_apply;
 mod avoid;
 mod avoid_captures;
+mod avoid_wildcards;
 mod base_completion;
 mod by_name_repeated;
 mod call_types;
