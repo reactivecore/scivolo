@@ -90,6 +90,7 @@ ops! {
     "classParents" => class_parents(cls: Sym, parents: Rest<Ty>) -> Fallible<()>;
     "classConstructor" => class_constructor(cls: Sym, info: Ty) -> Fallible<Vec<i32>>;
     "classSelfType" => class_self_type(cls: Sym, self_type: Ty) -> ();
+    "classAnnotations" => class_annotations(cls: Sym, annots: Rest<Tree>) -> Fallible<()>;
     "enterDecls" => enter_decls(cls: Sym, decls: Rest<Sym>) -> Fallible<()>;
     "classDef" => class_def(cls: Sym, n: Num, trees: Rest<Tree>) -> Fallible<TNodeId>;
     "typeIdent" => type_ident(s: Sym) -> Fallible<TNodeId>;

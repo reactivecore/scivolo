@@ -32,7 +32,7 @@ impl Inlining<'_> {
     }
 
     /// Completes fresh symbol `n` of `s`: a class's parents and self type, else its type, mapped
-    /// through `m`, and whether it is abstract.
+    /// through `m`, whether it is abstract, and its annotations.
     pub fn complete_fresh(&mut self, m: &TreeTypeMap, s: SymbolId, n: SymbolId) {
         if self.u.symbol(s).kind == Kind::Class {
             let parents = self.u.parents(s).into_iter().map(|p| self.map_type(m, p)).collect();
@@ -57,6 +57,9 @@ impl Inlining<'_> {
             for arg in self.u.annotation_strings(s, c).to_vec() {
                 self.u.annotate_string(n, c, arg);
             }
+        }
+        for annot in self.tpd.annotations(s).to_vec() {
+            self.tpd.annotate(n, annot);
         }
     }
 
