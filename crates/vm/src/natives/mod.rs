@@ -26,7 +26,7 @@ pub use quotes::{Expansions, Hole, MacroArg, QuoteHost, Reflected};
 pub use resources::{Resources, embedded_content, embedded_resources};
 pub use services::{constructible, is_load, provider_error, provider_names};
 pub use threads::interrupt_thread;
-pub use unwind::{StackWalk, element_names, element_position, is_element_method, may_build_throwable};
+pub use unwind::{StackWalk, element_ip_index, element_names, element_position, may_build_throwable};
 
 use crate::interp::Flow;
 use crate::interp::code::Num;

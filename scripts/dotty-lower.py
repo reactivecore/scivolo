@@ -21,7 +21,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from dotty_sources import compile_groups, tests, using_options
+from dotty_sources import compile_groups, quoted_files, tests, using_options
 
 SCALA, NATIVE = "3.9.0", "0.5.12"
 ROOT = Path(__file__).resolve().parent.parent
@@ -65,7 +65,7 @@ def one(name, groups, check, reason, baseline, dir):
     if dir == "run" and baseline != "passed":
         return "fails in the VM", baseline
     outcome = lowered(name, groups, check, dir)
-    quoted = [s for s in groups[-1] if "scala.quoted" in s.read_text(errors="replace")]
+    quoted = quoted_files(groups[-1])
     if outcome[0] == "typer refused" and 0 < len(quoted) < len(groups[-1]):
         rest = [s for s in groups[-1] if s not in quoted]
         return lowered(name, [*groups[:-1], quoted, rest], check, dir, using_options(groups[-1]))

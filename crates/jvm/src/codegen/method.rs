@@ -40,9 +40,10 @@ impl Gen<'_, '_> {
             params.filter(|&&p| matches!(self.l.tpd.tree(p), Tree::ValDef { .. })).copied().collect();
         let param_syms: Vec<SymbolId> =
             params.iter().map(|&p| self.l.tpd.sym(p).expect("a parameter's symbol")).collect();
-        if self.has_kept_param_annotations(&param_syms) {
-            return unsupported(self.l.tpd.span(dd), "Java annotations of parameters on the JVM");
-        }
+        let param_holders = match self.param_holders(sym, &param_syms) {
+            Ok(holders) => holders,
+            Err(what) => return unsupported(self.l.tpd.span(dd), what),
+        };
         let mixed_setter = self.l.mixed_in_from(sym).is_some()
             && name.ends_with("_$eq")
             && !name.contains(name_kinds::TRAIT_SETTER_SEPARATOR);
@@ -54,6 +55,7 @@ impl Gen<'_, '_> {
             self.exceptions(cf, sym);
             self.method_attributes(cf, (sym, deprecated), &desc, &param_syms, (erased, false));
             self.emit_method_annotations(cf, sym);
+            self.emit_param_annotations(cf, &param_holders);
             return Ok(());
         };
         let mut b = Body::new(&mut cf.pool, None, u16::from(!static_ || trait_init));
@@ -80,6 +82,7 @@ impl Gen<'_, '_> {
         self.method_attributes(cf, (sym, deprecated), &desc, &param_syms, (erased, trait_init));
         if !trait_init {
             self.emit_method_annotations(cf, sym);
+            self.emit_param_annotations(cf, &param_holders);
         }
         let line = self.line_of(class_def);
         self.trait_forwarder(cf, (sym, flags), (&desc, &param_syms), line);

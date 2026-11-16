@@ -85,41 +85,47 @@ impl Inlining<'_> {
         self.has_implicit_def(rhs)
     }
 
-    /// Whether tree `t` defines a given or implicit term other than by a block statement, which
-    /// `scopes` tracks, outside the cases of inline matches, which count once their
-    /// match selects them.
+    /// Whether tree `t` defines a given or implicit term that `scopes` does not track (a block
+    /// statement, a case's pattern) and a search in it may see: not a method's parameter (dotty's
+    /// `InlineTyper.index`) nor in an inline match's cases, which count once selected.
     pub fn has_implicit_def(&self, t: TNodeId) -> bool {
-        match *self.tpd.tree(t) {
-            T::Match { selector, kind: MatchKind::Inline, .. } => {
-                return selector.is_some_and(|s| self.has_implicit_def(s));
-            }
-            T::Block { stats, expr } => {
-                let stats = self.tpd.items(stats);
-                let inner = |s: TNodeId| self.tpd.children(s).into_iter().any(|c| self.has_implicit_def(c));
-                return stats
-                    .iter()
-                    .any(|&s| if self.is_implicit_def(s) { inner(s) } else { self.has_implicit_def(s) })
-                    || self.has_implicit_def(expr);
-            }
-            _ => {}
-        }
-        self.is_implicit_def(t) || self.tpd.children(t).into_iter().any(|c| self.has_implicit_def(c))
+        self.is_implicit_def(t) || self.defines_inside(t)
     }
 
-    /// Adds the scope of the implicits the statements of `t` define to `scopes` if it is a block
-    /// that defines any; the number of scopes before.
-    pub fn enter_block_implicits(&mut self, t: TNodeId) -> usize {
-        let mark = self.scopes.len();
-        if let T::Block { stats, .. } = *self.tpd.tree(t) {
-            let stats = self.tpd.items(stats).to_vec();
-            let defined: Vec<SymbolId> = stats
-                .into_iter()
-                .filter(|&s| self.is_implicit_def(s))
-                .filter_map(|s| self.tpd.sym(s))
-                .collect();
-            if !defined.is_empty() {
-                self.scopes.push(Scope::Implicits(defined));
+    /// Whether a part of `t` other than its parameters or pattern defines a term that
+    /// `has_implicit_def` counts.
+    fn defines_inside(&self, t: TNodeId) -> bool {
+        let has = |t: Option<TNodeId>| t.is_some_and(|t| self.has_implicit_def(t));
+        match *self.tpd.tree(t) {
+            T::Match { selector, kind: MatchKind::Inline, .. } => has(selector),
+            T::DefDef { rhs, .. } => has(rhs),
+            T::CaseDef { guard, body, .. } => has(guard) || has(Some(body)),
+            T::Block { stats, expr } => {
+                let stat = |&s: &TNodeId| {
+                    if self.is_implicit_def(s) { self.defines_inside(s) } else { has(Some(s)) }
+                };
+                self.tpd.items(stats).iter().any(stat) || has(Some(expr))
             }
+            _ => self.tpd.children(t).into_iter().any(|c| self.has_implicit_def(c)),
+        }
+    }
+
+    /// Adds the scope of the implicits that the statements of block `t` define, or the pattern
+    /// of case `t` binds, to `scopes` if there are any; the number of scopes before (dotty's
+    /// `InlineTyper.index`, `Typer.indexPattern`).
+    pub fn enter_implicits(&mut self, t: TNodeId) -> usize {
+        let mark = self.scopes.len();
+        let mut defined = Vec::new();
+        match *self.tpd.tree(t) {
+            T::Block { stats, .. } => {
+                let defs = self.tpd.items(stats).iter().filter(|&&s| self.is_implicit_def(s));
+                defined.extend(defs.filter_map(|&s| self.tpd.sym(s)));
+            }
+            T::CaseDef { pat, .. } => self.implicit_defs(pat, &mut defined),
+            _ => {}
+        }
+        if !defined.is_empty() {
+            self.scopes.push(Scope::Implicits(defined));
         }
         mark
     }

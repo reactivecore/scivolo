@@ -35,7 +35,7 @@ pub fn applicable_to_proto(
     }
 
     let names: Vec<String> = params.into_iter().map(|(n, _)| t.u.name(n).to_owned()).collect();
-    let Ok(aligned) = t.ordered_args(&args, &names) else { return Some(false) };
+    let Ok(aligned) = t.ordered_args(&args, &names, false) else { return Some(false) };
     let slots: Vec<Option<TypeId>> = aligned
         .iter()
         .map(|slot| slot.and_then(|a| args.iter().position(|&b| b == a)).map(|i| arg_types[i]))

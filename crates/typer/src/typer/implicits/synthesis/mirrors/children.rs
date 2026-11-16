@@ -85,7 +85,8 @@ pub fn child_type(
     }
     let mark = t.constraint.mark();
     let vars: Vec<TypeId> = params.iter().map(|_| t.constraint.fresh(t.u)).collect();
-    let bounded = bound_child_vars(t, &params, &vars);
+    let seen_from = t.u.sym_ref(raw).and_then(|(p, _)| p).zip(t.u.symbol(c).owner);
+    let bounded = bound_child_vars(t, (&params, &vars), seen_from);
     let applied = t.u.intern_applied(raw, &vars);
     let before = t.constraint.mark();
     if !t.conforms(applied, target) {
@@ -116,13 +117,21 @@ fn reachable_ref(u: &mut Universe, s: SymbolId) -> TypeId {
     }
 }
 
-/// Constrains `vars` by the declared bounds of type parameters `params` (dotty's `constrained` of
-/// the primary constructor's type); `false` if they contradict.
-fn bound_child_vars(t: &mut Typer<'_>, params: &[SymbolId], vars: &[TypeId]) -> bool {
+/// Constrains `vars` by the declared bounds of type parameters `params`, as seen from the
+/// child's prefix in its owner if `seen_from` (dotty's `constrained` of the primary constructor's
+/// type); `false` if they contradict.
+fn bound_child_vars(
+    t: &mut Typer<'_>,
+    (params, vars): (&[SymbolId], &[TypeId]),
+    seen_from: Option<(TypeId, SymbolId)>,
+) -> bool {
     let mut ok = true;
     for (&p, &v) in params.iter().zip(vars) {
         t.complete(p);
-        let info = t.u.info(p);
+        let mut info = t.u.info(p);
+        if let Some((prefix, owner)) = seen_from {
+            info = t.u.as_seen_from(info, prefix, owner);
+        }
         let Some((lo, hi)) = t.u.bounds(info) else { continue };
         let subst = |u: &mut Universe, x: TypeId| {
             u.map_type(x, &mut |u, x| {

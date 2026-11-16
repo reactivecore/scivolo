@@ -91,6 +91,16 @@ def using_options(sources):
     return [o for t in texts for m in re.finditer(r"^//> using options (.*)$", t, re.M) for o in m[1].split()]
 
 
+def quoted_files(sources):
+    """The files of `sources` that mention `scala.quoted`, else, if that is all of them, those
+    importing it: the macro definitions a split compiles first, as dotty suspends their callers."""
+    texts = {s: s.read_text(errors="replace") for s in sources}
+    quoted = [s for s in sources if "scala.quoted" in texts[s]]
+    if len(quoted) == len(sources):
+        quoted = [s for s in sources if "import scala.quoted" in texts[s]] or quoted
+    return quoted
+
+
 def compile_groups(name, groups, out, timeout=None, options=()):
     """Compiles the groups in order into directory `out`, each seeing the output before it and
     given `options`; the exit code of the last compile (None on timeout) and the compilers' output."""

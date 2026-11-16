@@ -78,9 +78,10 @@ impl Gen<'_, '_> {
             }
             Tree::Ident { .. } | Tree::Select { .. } => {
                 let sym = self.l.tpd.sym(arg).ok_or(UNSUPPORTED)?;
-                let class = self.java_enum_of(sym).ok_or(UNSUPPORTED)?;
+                let constant = self.aliased_enum_constant(sym).unwrap_or(sym);
+                let class = self.java_enum_of(constant).ok_or(UNSUPPORTED)?;
                 let descriptor = class_descriptor(&self.class_name(class));
-                Ok(ElementValue::Enum(descriptor, self.l.u.symbol(sym).name.clone()))
+                Ok(ElementValue::Enum(descriptor, self.l.u.symbol(constant).name.clone()))
             }
             Tree::Apply { fun, args } => match self.array_apply_args(fun, args)? {
                 Some(elems) => {
@@ -104,6 +105,19 @@ impl Gen<'_, '_> {
         let class = self.l.u.companion_class(statics)?;
         let value = self.l.u.symbol(sym).kind == Kind::Val;
         (value && lower::derives_from_java_enum(self.l, class)).then_some(class)
+    }
+
+    /// The Java enum constant whose singleton type is the result type of `sym`, an alias such as
+    /// `final val R = RetentionPolicy.RUNTIME` (dotty's `emitArgument`).
+    fn aliased_enum_constant(&mut self, sym: SymbolId) -> Option<SymbolId> {
+        let info = self.l.u.info(sym);
+        let result = self.l.u.result_type(info);
+        let constant = match *self.l.u.ty(result) {
+            Type::Sym(_, s) => s,
+            Type::TermRef(..) => self.l.u.resolve_ref(result)?,
+            _ => return None,
+        };
+        self.java_enum_of(constant).is_some().then_some(constant)
     }
 
     /// The elements of call `fun(args)` if it applies `Array.apply`, its implicit `ClassTag`

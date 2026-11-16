@@ -3,6 +3,7 @@
 use super::Gen;
 use nir::{Pos, PosId};
 use syntax::ast::Span;
+use syntax::source::{Offset, SourceFile};
 use tasty::SymbolId;
 
 impl Gen<'_, '_> {
@@ -26,10 +27,32 @@ impl Gen<'_, '_> {
             }
             false => self.l.sources.locate(span.point()),
         };
+        Some(self.pos_in(src, point))
+    }
+
+    /// The position of offset `point` of source `src`, past its end as on its last line.
+    fn pos_in(&mut self, src: &SourceFile, point: Offset) -> PosId {
         let line = src.offset_to_line(point) as u32;
         let column = src.column(point) as u32;
         let file = self.str(&src.name);
-        Some(PosId(self.pool.positions.intern(Pos { file, line, column })))
+        PosId(self.pool.positions.intern(Pos { file, line, column }))
+    }
+
+    /// The position of `span`'s point taken as an offset in the source of class `class`, as
+    /// nscplugin positions the forwarder of a member defined in another file of the unit.
+    pub fn pos_in_source_of(&mut self, span: Span, class: SymbolId) -> PosId {
+        if span.is_in_other_source() {
+            return self.pos_or(span, self.no_pos);
+        }
+        let (src, point) = self.l.sources.locate(span.point());
+        let units = src.text.get(..point as usize).map_or(0, |t| t.encode_utf16().count());
+        self.offset_in_source_of(class, units).unwrap_or_else(|| self.pos_or(span, self.no_pos))
+    }
+
+    /// The position `units` UTF-16 units into the source of class `class` of this unit.
+    pub fn offset_in_source_of(&mut self, class: SymbolId, units: usize) -> Option<PosId> {
+        let src = self.l.sources.locate(self.spans.get(&class)?.point()).0;
+        Some(self.pos_in(src, src.advance_utf16(0, units)))
     }
 
     /// The position of `span`, or `or` if it has none.

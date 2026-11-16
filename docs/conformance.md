@@ -233,6 +233,13 @@ The VM fixes javalib bugs in its library overlay (`overlay/src`, ADR 0009).
       the run gets type `97` while javac stores `-97`.
     - A Scala `J.N` is inlined as `97`.
     - Fix: no constant for a negated character. Frontend: does so, `J.N` reads the field.
+24. **A default getter of a repeated method re-evaluates the prefix** (dotty 3.9.0,
+    `compiler/src/dotty/tools/dotc/typer/Applications.scala:589`, `needLiftFun`).
+    - `needLiftFun` counts the repeated argument as one for a fixed parameter, so
+      `obj().h(xs = "o", a = 2)` with `def h(a: Int = 7, b: String = "b", xs: String*)` types
+      `obj().h$default$2` before the reordering lifts `obj()`: `obj()` runs twice, where SLS
+      6.6.1 evaluates the prefix once.
+    - Fix: count the fixed parameters' arguments only. Frontend: evaluates `obj()` once.
 
 ## Own frontend: parser, symbols, typer
 
@@ -329,11 +336,16 @@ Results:
   alphanumeric infix calls, types and extractor patterns not declared `infix`, which it warns
   about otherwise, and checks no other `future` rule.
 - **Capture checking:** typed as dotty's typer types it (`ImpureFunctionN`, `@retains` trees);
-  types drop `@retains`, `@retainsCap` and `@retainsByName` as unpickled ones do (case 1: the
-  annotations are not refining and erase away). TASTy keeps a capture set of static definitions
-  in the field of a class parameter, as dotty a type `retains[C]` or below source 3.9
-  `new retains[C]()`, and refuses one of other references there and in pickled types; other
-  inferred and synthetic type trees drop it (e.g. `_1` of a case class). The capture checker,
+  the typer's types drop `@retains`, `@retainsCap` and `@retainsByName` (the annotations are not
+  refining and erase away; class files as dotty's). TASTy keeps a capture set of static
+  definitions in the field of a class parameter, as dotty a type `retains[C]` or below source 3.9
+  `new retains[C]()`, and refuses one of other references there and in pickled types. An inferred
+  type tree keeps the capture sets of the type it is inferred from, emptied as dotty's
+  `CleanupRetains` does (a type `T^` whole, so refused if `T` names other than static
+  definitions), where that type is a function value's expected parameter type or the
+  declared type of what its right-hand side refers to or calls without type arguments; other
+  inferred types drop them, a difference left (#276: e.g. of a generic call, a conditional, an
+  inferred type argument or an overriding member). The capture checker,
   which runs after the typer and leaves the NIR unchanged, is not run (#168). dotty pickles quotes before the capture
   checker, so their TASTy is the typer's: ours as dotty's, with the inferred type arguments of
   inline methods annotated `@caps.internal.inferred` (`PostTyper.markInferred`). Since the
@@ -493,10 +505,21 @@ own 35 files have no scala-cli oracle (Scala 3.9 reports cyclic references in `A
 | windowslib | 34 | 130 | | |
 | scalalib | 649 of 649 | 4,379 | 17 | 13 |
 
-clib, posixlib and scalalib pass Scala Native's unit tests on our jars (`just lib-jar-report`).
-`unsafe/package{,$}` in nativelib differ only as a joint compilation with `UnsafePackageCompat`
-does; `UnsafePackageCompat` differs in the positions of its inline accessors (the template's
-end, Scala Native's build: the inline method's).
+clib, posixlib, scalalib, javalib and nativelib pass Scala Native's unit tests on our jars as on
+the published ones (`just lib-jar-report`). `lib-compile` lowers javalib's `WindowsPath.scala`
+and `WindowsPathParser.scala` as one unit, as Scala Native's build does: alone, the join of
+`PathType`'s case objects read from TASTy also has their `Mirror.Singleton` parent and erases to
+it, as in dotty's separate compilation. Left in nativelib, whose `scala-3` sources are a unit of
+their own:
+
+- `unsafe/package{,$}`: as dotty compiles them against `UnsafePackageCompat`'s TASTy, without
+  the call of its empty `$init$` that Scala Native's joint build has (case 3, upstream bug 10).
+- `UnsafePackageCompat`: the position of its inline accessor `inline$rawptr$i1` (open, not
+  accepted): ours the template's end, Scala Native's 11:19 inside a doc comment, an offset of
+  another file of its joint build taken in the trait's source. dotty positions the accessor of a
+  member defined in another file of the run at that member's point taken as an offset in the
+  accessor owner's source (`AccessProxies.accessorDef`, nscplugin's `fromSpan`); ours, in the
+  member's own file (`inline_accessors::accessor_span`).
 
 `just lib-compile scalalib` lowers each file of Scala Native's scalalib alone against Scala's
 library, its `LazyVals` replaced by Scala Native's (`scripts/scalalib_sources.py`). As in Scala

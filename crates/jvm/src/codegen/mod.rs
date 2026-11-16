@@ -4,12 +4,14 @@
 
 mod access;
 mod adapt;
+mod annotation_holders;
 mod annotation_values;
 mod arrays;
 mod body;
 mod callee;
 mod class;
 mod class_bytes;
+mod classfile_class_flags;
 mod clinit;
 mod closures;
 mod concat;
