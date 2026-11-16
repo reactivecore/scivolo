@@ -87,8 +87,10 @@ pub struct Method {
     pub annotation_default: bool,
 }
 
-/// An annotation: its type's name and the enum constants of its arguments by element.
+/// An annotation: its type's name, the enum constants of its arguments by element and the class
+/// names of its class literal arguments by element.
 pub struct Annotation {
     pub name: Vec<String>,
     pub enum_elements: Vec<(String, String)>,
+    pub class_elements: Vec<(String, Vec<String>)>,
 }

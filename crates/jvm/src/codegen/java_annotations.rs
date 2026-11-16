@@ -4,8 +4,18 @@
 
 use super::Gen;
 use super::annotation_holders::Holder;
-use classfile::{AnnotationValue, ClassFile, Last};
+use super::descriptors::class_descriptor;
+use classfile::{AnnotationValue, ClassFile, ElementValue, Last};
 use tasty::{Retention, SymbolId};
+
+/// The element of a container annotation that holds the repeated annotations.
+const VALUE: &str = "value";
+
+/// The refusal of a repeated Java annotation that is not `@Repeatable` (dotty's error).
+const NOT_REPEATABLE: &str = "a repeated Java annotation that is not repeatable";
+
+/// The refusal of repeated Java annotations beside their container (dotty's error).
+const CONTAINER_PRESENT: &str = "repeated Java annotations beside their container annotation";
 
 /// A Java annotation a class file keeps: its class, its class file form and whether it is kept
 /// at run time.
@@ -36,7 +46,45 @@ impl Gen<'_, '_> {
         if self.l.u.symbol(sym).tree.is_none() {
             kept.reverse();
         }
-        Ok(kept)
+        self.aggregated(kept)
+    }
+
+    /// Replaces the repeated annotations of a `@Repeatable` class in `kept` by one of its
+    /// container class at the place of the first (dotty's `RepeatableAnnotations`). Refuses, as
+    /// dotty does, a repeated annotation of a class that is not repeatable or whose container
+    /// is present too.
+    fn aggregated(&mut self, kept: Vec<Kept>) -> Result<Vec<Kept>, &'static str> {
+        let mut groups: Vec<Vec<Kept>> = Vec::new();
+        for k in kept {
+            match groups.iter_mut().find(|g| g[0].class == k.class) {
+                Some(group) => group.push(k),
+                None => groups.push(vec![k]),
+            }
+        }
+        let descriptors: Vec<String> = groups.iter().map(|g| g[0].value.descriptor.clone()).collect();
+
+        let mut aggregated = Vec::new();
+        for group in groups {
+            if group.len() == 1 {
+                aggregated.extend(group);
+                continue;
+            }
+            let class = group[0].class;
+            let container = self.l.u.repeatable_container(class).ok_or(NOT_REPEATABLE)?.to_owned();
+            let descriptor = class_descriptor(&container);
+            if descriptors.contains(&descriptor) {
+                return Err(CONTAINER_PRESENT);
+            }
+            let retention = self.l.u.annotation_retention(&container).unwrap_or(Retention::Class);
+            if retention == Retention::Source {
+                continue;
+            }
+            let values = group.into_iter().map(|k| ElementValue::Annotation(k.value)).collect();
+            let elements = vec![(VALUE.to_owned(), ElementValue::Array(values))];
+            let value = AnnotationValue { descriptor, elements };
+            aggregated.push(Kept { class, value, visible: retention == Retention::Runtime });
+        }
+        Ok(aggregated)
     }
 
     /// Adds to method `m`, added last to `cf`, the Java annotations it keeps.

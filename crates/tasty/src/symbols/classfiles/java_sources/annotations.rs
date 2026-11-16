@@ -1,7 +1,7 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/parsing/JavaParsers.scala
-//! Annotations of a Java source (dotty's `annotation`): the name and the enum constants of the
-//! arguments, the other arguments skipped.
+//! Annotations of a Java source (dotty's `annotation`): the name and the enum constants and class
+//! literals of the arguments, the other arguments skipped.
 
 use super::parser::Parser;
 use super::scanner::Token;
@@ -26,7 +26,7 @@ impl Parser {
     pub fn annotation(&mut self) -> Result<Annotation, String> {
         self.expect("@")?;
         let name = self.qualified()?;
-        let mut enum_elements = Vec::new();
+        let (mut enum_elements, mut class_elements) = (Vec::new(), Vec::new());
         if self.eat("(") {
             loop {
                 let named =
@@ -44,7 +44,9 @@ impl Parser {
                         _ => {}
                     }
                 }
-                if let Some(Token::Ident(c)) = self.enum_constant(start) {
+                if let Some(class) = self.class_literal(start) {
+                    class_elements.push((element, class));
+                } else if let Some(Token::Ident(c)) = self.enum_constant(start) {
                     enum_elements.push((element, c.clone()));
                 }
                 if !self.eat(",") {
@@ -53,7 +55,23 @@ impl Parser {
             }
             self.expect(")")?;
         }
-        Ok(Annotation { name, enum_elements })
+        Ok(Annotation { name, enum_elements, class_elements })
+    }
+
+    /// The class name of the tokens from `start` to the cursor if they are a class literal
+    /// `p.X.C.class`.
+    fn class_literal(&self, start: usize) -> Option<Vec<String>> {
+        let value = self.tokens.get(start..self.at)?;
+        let [names @ .., Token::Op("."), Token::Ident(class)] = value else { return None };
+        if class != "class" || names.len() % 2 == 0 {
+            return None;
+        }
+        let dots = names.iter().skip(1).step_by(2).all(|t| *t == Token::Op("."));
+        let idents = names.iter().step_by(2).map(|t| match t {
+            Token::Ident(n) => Some(n.clone()),
+            _ => None,
+        });
+        idents.collect::<Option<Vec<String>>>().filter(|_| dots)
     }
 
     /// The last name of the tokens from `start` to the cursor if they are a name `p.X.C` or `C`.

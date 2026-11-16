@@ -54,9 +54,7 @@ impl Typer<'_> {
             let typed = match typed_trees.get(&annot) {
                 Some(&t) => t,
                 None => {
-                    let new = self.annotation_new(annot);
-                    self.annotation_news.insert(new);
-                    let typed = self.in_file_of(annot, |t| t.typed(annot, Pt::Any, ctx));
+                    let typed = self.in_file_of(annot, |t| t.typed_annotation(annot, ctx));
                     let t = (!self.is_error(typed) && self.check_annot_class(annot, typed)).then_some(typed);
                     if t.is_some() {
                         self.check_annot_args(typed);
@@ -73,6 +71,16 @@ impl Typer<'_> {
             self.tpd.annotate(sym, typed);
         }
         self.syms.annotation_trees.clear();
+    }
+
+    /// Types annotation tree `annot`, the `new`s within a Java annotation unchecked.
+    pub fn typed_annotation(&mut self, annot: NodeId, ctx: Ctx) -> TNodeId {
+        let new = self.annotation_new(annot);
+        self.annotation_news.insert(new);
+        let outer = std::mem::replace(&mut self.in_java_annotation, false);
+        let typed = self.typed(annot, Pt::Any, ctx);
+        self.in_java_annotation = outer;
+        typed
     }
 
     /// The `new` of annotation tree `annot`, the tree itself if it has none.
