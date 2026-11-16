@@ -180,7 +180,9 @@ impl Tpd {
         let (mut x, mut todo) = (x, vec![t]);
         while let Some(t) = todo.pop() {
             x = f(x, t);
-            todo.extend(self.children(t).into_iter().rev());
+            let start = todo.len();
+            self.extend_children(t, &mut todo);
+            todo[start..].reverse();
         }
         x
     }
