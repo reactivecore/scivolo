@@ -38,13 +38,25 @@ fn scivolo(dir: &str) -> Option<(Command, PathBuf)> {
 
 #[test]
 fn scala_and_java_sources_that_use_each_other_compile_and_run() {
-    let Some((mut scivolo, out)) = scivolo("mixed") else { return };
+    runs_as_checked("mixed", "mixed.javasources", "javasources.check");
+}
+
+/// Java text blocks with Java's whitespace, meta-annotations through type aliases, and members of
+/// package-private Java classes through public subclasses.
+#[test]
+fn java_text_blocks_alias_meta_annotations_and_package_private_receivers_run() {
+    runs_as_checked("access", "Access", "access.check");
+}
+
+/// Compiles tests/jvm/javasources/`dir`, runs `main` on `java -Xverify:all` and compares its
+/// output with tests/jvm/javasources/`check`.
+fn runs_as_checked(dir: &str, main: &str, check: &str) {
+    let Some((mut scivolo, out)) = scivolo(dir) else { return };
     run(&mut scivolo);
     let library = root().join("ref/libs/scala-library-3.9.0.jar");
     let classpath = format!("{}:{}", out.display(), library.display());
-    let stdout = run(Command::new("java").args(["-Xverify:all", "-cp", &classpath, "mixed.javasources"]));
-    let check =
-        std::fs::read_to_string(root().join("tests/jvm/javasources/javasources.check")).expect("the check");
+    let stdout = run(Command::new("java").args(["-Xverify:all", "-cp", &classpath, main]));
+    let check = std::fs::read_to_string(root().join("tests/jvm/javasources").join(check)).expect("the check");
     assert_eq!(stdout, check);
 }
 
