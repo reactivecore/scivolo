@@ -78,6 +78,12 @@ public class Box<T> {
 
     public static class Crate extends Shelf {}
 
+    public enum Mode {
+        ON, OFF;
+
+        public static final java.util.List<Mode> ALL = java.util.List.of(ON, OFF);
+    }
+
     @Retention(RetentionPolicy.RUNTIME)
     public @interface Tag {
         String value();
