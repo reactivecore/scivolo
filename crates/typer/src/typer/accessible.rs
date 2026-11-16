@@ -163,8 +163,9 @@ impl Typer<'_> {
 
     /// Refuses protected `sym` selected from a path of type `qual_tpe` other than `this` or
     /// `super`, outside its access boundary, from a class not deriving from its owner, a class,
-    /// unless the path derives from the class hosting its accessor or it is a constructor of a parent of the class whose parent calls `ctx` is in and `new`
-    /// the qualifier (dotty's `ProtectedAccessors.needsAccessor`).
+    /// unless the path derives from the class hosting its accessor, or it is a constructor of a
+    /// parent of the class whose parent calls `ctx` is in and `new` the qualifier (dotty's
+    /// `ProtectedAccessors.needsAccessor`).
     pub fn check_protected_path(
         &mut self,
         sym: SymbolId,
