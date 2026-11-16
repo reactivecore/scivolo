@@ -213,6 +213,7 @@ ops! {
     "fullName" => full_name(s: Sym) -> String;
     "info" => info(s: Sym) -> TypeId;
     "flags" => flags(s: Sym) -> u64;
+    "flagsKnown" => flags_known(s: Sym) -> bool;
     "kind" => symbol_kind(s: Sym) -> i32;
     "moduleClass" => module_class(s: Sym) -> Option<SymbolId>;
     // positions

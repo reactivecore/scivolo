@@ -70,10 +70,15 @@ trait ReflectFlags extends reflectModule { self: reflect.type =>
   abstract class FlagsMethodsImpl extends FlagsMethods {
     extension (self: Flags) {
       def is(that: Flags): Boolean = (FlagsImpl.bits(self) & FlagsImpl.bits(that)) == FlagsImpl.bits(that)
-      def |(that: Flags): Flags = new FlagsImpl(FlagsImpl.bits(self) | FlagsImpl.bits(that)).asInstanceOf[Flags]
-      def &(that: Flags): Flags = new FlagsImpl(FlagsImpl.bits(self) & FlagsImpl.bits(that)).asInstanceOf[Flags]
-      def show: String = throw new Unsupported("Flags.show")
+      def |(that: Flags): Flags =
+        new FlagsImpl(FlagsImpl.bits(self) | FlagsImpl.bits(that), known(self) && known(that)).asInstanceOf[Flags]
+      def &(that: Flags): Flags =
+        new FlagsImpl(FlagsImpl.bits(self) & FlagsImpl.bits(that), known(self) || known(that)).asInstanceOf[Flags]
+      def show: String =
+        if (!known(self)) throw new Unsupported("Flags.show of a symbol whose flags the frontend does not know")
+        else FlagsImpl.show(FlagsImpl.bits(self))
     }
+    private def known(flags: Flags): Boolean = flags.asInstanceOf[FlagsImpl].known
   }
 
   object defn extends defnModule {
@@ -137,7 +142,8 @@ trait ReflectFlags extends reflectModule { self: reflect.type =>
 }
 }
 
-final class FlagsImpl(val bits: Long) {
+/** Flags of `bits`; `known` unless they are a symbol's that may lack flags dotty's has. */
+final class FlagsImpl(val bits: Long, val known: Boolean = true) {
   override def equals(that: Any): Boolean = that match {
     case f: FlagsImpl => f.bits == bits
     case _            => false
@@ -148,4 +154,24 @@ final class FlagsImpl(val bits: Long) {
 
 object FlagsImpl {
   def bits(f: Any): Long = f.asInstanceOf[FlagsImpl].bits
+
+  /** The flags `Flags.show` names with their bits, in its order (dotty's `Extractors.showFlags`),
+   *  but for `NoInits`, which no known flags hold.
+   */
+  private val shown: List[(String, List[Int])] = List("Abstract" -> List(9), "Artifact" -> List(24),
+    "Case" -> List(12), "CaseAccessor" -> List(27), "Contravariant" -> List(29), "Covariant" -> List(28),
+    "Deferred" -> List(53), "Enum" -> List(21), "Erased" -> List(34), "Exported" -> List(39),
+    "ExtensionMethod" -> List(36), "FieldAccessor" -> List(26), "Final" -> List(10), "Given" -> List(37),
+    "HasDefault" -> List(31), "Implicit" -> List(13), "Infix" -> List(43), "Inline" -> List(17),
+    "JavaDefined" -> List(50), "JavaStatic" -> List(18), "Lazy" -> List(14), "Local" -> List(22),
+    "Macro" -> List(33), "Method" -> List(2), "Module" -> List(19), "Mutable" -> List(25),
+    "Override" -> List(15), "Package" -> List(3), "Param" -> List(4), "ParamAccessor" -> List(38),
+    "Private" -> List(6), "PrivateLocal" -> List(6, 22), "Protected" -> List(8), "Scala2x" -> List(51),
+    "Sealed" -> List(11), "StableRealizable" -> List(32), "Synthetic" -> List(23), "Trait" -> List(20),
+    "Transparent" -> List(42))
+
+  /** Shows flags of `bits` as `Flags.show` does. */
+  def show(bits: Long): String = shown.collect {
+    case (name, tags) if tags.forall(t => (bits & 1L << t) != 0) => s"Flags.$name"
+  }.mkString(" | ")
 }

@@ -115,7 +115,10 @@ trait ReflectSymbols extends reflectModule, ReflectDeclarations { self: reflect.
       def owner: Symbol = sym(ReflectOps.one("owner", ReflectOps.id(self)))
       def name: String = if (ReflectOps.id(self) < 0) "<none>" else ReflectOps.text("name", ReflectOps.id(self))
       def fullName: String = ReflectOps.text("fullName", ReflectOps.id(self))
-      def flags: Flags = ReflectOps.flags(ReflectOps.id(self)).asInstanceOf[Flags]
+      def flags: Flags = {
+        val id = ReflectOps.id(self)
+        new FlagsImpl(ReflectOps.flags(id).bits, ReflectOps.one("flagsKnown", id) != 0).asInstanceOf[Flags]
+      }
       def moduleClass: Symbol = sym(ReflectOps.one("moduleClass", ReflectOps.id(self)))
       def companionClass: Symbol = sym(ReflectOps.one("companionClass", ReflectOps.id(self)))
       def typeRef: TypeRef =
