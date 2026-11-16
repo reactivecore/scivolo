@@ -137,7 +137,7 @@ pub struct Types {
     names: NameTable,
     lists: ListTable<TypeId>,
     params: ListTable<(NameId, TypeId)>,
-    annotation_trees: FxHashMap<TypeId, Option<AnnotationTree>>,
+    annotation_trees: FxHashMap<TypeId, Option<annotation_trees::Recorded>>,
 }
 
 impl Types {

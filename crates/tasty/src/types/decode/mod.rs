@@ -98,7 +98,7 @@ impl<'a> Decoder<'a> {
             && !matches!(self.types.get(class), Type::Other(_))
         {
             let tree = super::AnnotationTree { file: self.file, node: tree };
-            self.types.record_annotation_tree(annotated, tree, self.ast);
+            self.types.record_annotation_tree(annotated, tree, (self.ast, self.names));
         }
         annotated
     }
