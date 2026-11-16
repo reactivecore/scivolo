@@ -27,9 +27,10 @@ impl TreePickler<'_> {
     }
 
     /// What identifies type `t` as dotty shares types: its bytes without sharing, the `this` of a
-    /// package told from the package's reference, definitions and names by identity.
+    /// package told from the package's reference, definitions and names by identity; inside a
+    /// super accessor's parameter or result, its member's annotation trees too.
     fn key(&mut self, t: TypeId, rich: bool) -> Result<Vec<u8>, Refusal> {
-        let own_tree = self.tpt_annotation(t).is_some();
+        let own_tree = self.tpt_annotation(t).is_some() || !self.member_tpts.is_empty();
         if let Some(k) = self.keys.get(&t).filter(|_| !own_tree) {
             return Ok(k.clone());
         }

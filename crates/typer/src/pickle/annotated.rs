@@ -27,7 +27,7 @@ impl TreePickler<'_> {
         let several = "an annotated type of several annotation trees";
         let tpt = match self.tpt_annotation(annotated) {
             Some(tree) => Some(Ok(tree)),
-            None => self.member_annotation(annot),
+            None => self.member_annotation(parent, annot),
         };
         let tree = match tpt {
             Some(tree) => Some(tree?.ok_or(several)?),
@@ -46,13 +46,12 @@ impl TreePickler<'_> {
             },
         };
         if let Some(tree) = tree {
-            if !self.keying {
-                self.type_annots.push(tree);
-            }
             return self.with_length(ANNOTATEDtype, &mut |p| {
                 p.ty(parent, false)?;
                 if !p.keying {
-                    return p.tree(tree);
+                    p.tree(tree)?;
+                    p.type_annots.push(tree);
+                    return Ok(());
                 }
                 let key = p.tree_key(tree);
                 p.buf.buf.write_bytes(&key.to_le_bytes());
