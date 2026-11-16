@@ -19,7 +19,6 @@ pub struct Slots {
     len: usize,
 }
 
-
 impl Deref for Slots {
     type Target = [Slot];
 

@@ -82,7 +82,9 @@ fn walk<C: AsRef<Tpd> + ?Sized>(
                 let start = todo.len();
                 match walk {
                     Walk::Children => tpd.push_owned_children(t, owner, &mut todo),
-                    Walk::Within(inner) => tpd.extend_children(t, &mut Entering { todo: &mut todo, owner: inner }),
+                    Walk::Within(inner) => {
+                        tpd.extend_children(t, &mut Entering { todo: &mut todo, owner: inner })
+                    }
                     _ => {}
                 }
                 todo[start..].reverse();
@@ -124,7 +126,8 @@ impl Tpd {
         self.extend_children(t, &mut Entering { todo, owner: inner });
         let Tree::Template { constr, parents, body, .. } = *self.tree(t) else { return };
         let (constr, dummy) = (self.sym(constr).unwrap_or(owner), self.sym(t).unwrap_or(owner));
-        let (parents, stats) = (start + 1..start + 1 + self.items(parents).len(), todo.len() - self.items(body).len());
+        let (parents, stats) =
+            (start + 1..start + 1 + self.items(parents).len(), todo.len() - self.items(body).len());
         for (i, step) in todo.iter_mut().enumerate().skip(start) {
             let Step::Enter(c, owner) = step else { continue };
             if parents.contains(&i) {
@@ -137,7 +140,10 @@ impl Tpd {
 
     /// Whether `t` is a definition or an import.
     fn is_def(&self, t: TNodeId) -> bool {
-        matches!(self.tree(t), Tree::ValDef { .. } | Tree::DefDef { .. } | Tree::TypeDef { .. } | Tree::Import { .. })
+        matches!(
+            self.tree(t),
+            Tree::ValDef { .. } | Tree::DefDef { .. } | Tree::TypeDef { .. } | Tree::Import { .. }
+        )
     }
 
     /// The children of `t`, a tree owned by `owner`, each with its owner: `t`'s symbol if `t` is

@@ -106,7 +106,9 @@ impl Tpd {
             Slot::Node(c) => out.extend([c]),
             Slot::Opt(c) => out.extend(c),
             Slot::List(l) => out.extend(self.items(l).iter().copied()),
-            Slot::Clauses(cs) => self.clause_items(cs).iter().for_each(|&l| out.extend(self.items(l).iter().copied())),
+            Slot::Clauses(cs) => {
+                self.clause_items(cs).iter().for_each(|&l| out.extend(self.items(l).iter().copied()))
+            }
         });
     }
 
