@@ -9,7 +9,7 @@ use crate::defn::type_ref;
 use crate::tpd::{TNodeId, Tree as T};
 use names::nme;
 use syntax::ast::TName;
-use tasty::tags::{ABSTRACT, FINAL, OBJECT, PARAMsetter, TRAIT};
+use tasty::tags::{ABSTRACT, FINAL, LOCAL, OBJECT, PARAMsetter, PRIVATE, TRAIT};
 use tasty::{Flags, Kind, Symbol, SymbolId, TypeId};
 
 impl Reflect<'_> {
@@ -96,53 +96,26 @@ impl Reflect<'_> {
         }
         stats.extend_from_slice(body);
         let (parents, body) = (self.tpd.list(parents), self.tpd.list(&stats));
-        let template = self.tpd.node(T::Template { constr, parents, self_: None, body }, span, None, dummy);
+        let self_ = self.self_def(cls)?;
+        let template = self.tpd.node(T::Template { constr, parents, self_, body }, span, None, dummy);
         let name = TName { name: self.names.intern(&self.u.symbol(cls).name), is_type: true };
         let tpe = type_ref(self.u, cls);
         Ok(self.tpd.node(T::TypeDef { name, rhs: template }, span, Some(tpe), Some(cls)))
     }
 
-    /// Makes the parents of class definition `class_def` constructor calls as `parent_call` does
-    /// (dotty's `ExplicitOuter`).
-    pub fn call_parents(&mut self, class_def: TNodeId) -> Result<(), &'static str> {
-        let T::TypeDef { rhs, .. } = *self.tpd.tree(class_def) else { return Ok(()) };
-        let T::Template { constr, parents, self_, body } = *self.tpd.tree(rhs) else { return Ok(()) };
-        if self.tpd.sym(class_def).is_none_or(|cls| self.u.is_trait(cls)) {
-            return Ok(());
+    /// The self definition `_: S & C` of class `C` with given self type `S`, none without one
+    /// (dotty's `tpd.ClassDef` with `newSelfSym`).
+    fn self_def(&mut self, cls: SymbolId) -> Result<Option<TNodeId>, &'static str> {
+        if self.u.given_self_type(cls).is_none() {
+            return Ok(None);
         }
-        let mut called = self.tpd.items(parents).to_vec();
-        for p in &mut called {
-            *p = self.parent_call(*p)?;
-        }
-        let parents = self.tpd.list(&called);
-        self.tpd.get_mut(rhs).tree = T::Template { constr, parents, self_, body };
-        Ok(())
-    }
-
-    /// Parent tree `p`: a constructor call or a trait's type tree as it is, a class's type tree
-    /// as a call of its constructor without arguments, in a class other than a trait.
-    fn parent_call(&mut self, p: TNodeId) -> Result<TNodeId, &'static str> {
+        let info = self.u.self_type(cls);
+        let flags = Flags::default().with(PRIVATE).with(LOCAL);
+        let sym = self.define(nme::WILDCARD, Kind::Val, cls, flags);
+        self.u.set_info(sym, info);
+        let tpt = self.type_tree(info);
         let span = self.span;
-        let tpe = self.tpd.tpe(p);
-        let c = self.u.class_symbol(tpe).ok_or("ClassDef.apply with a parent other than a class type")?;
-        let type_tree =
-            matches!(self.tpd.tree(p), T::TypeTree { .. } | T::Ident { .. } | T::AppliedTypeTree { .. })
-                || matches!(self.tpd.tree(p), T::Select { name, .. } if name.is_type);
-        if self.u.is_trait(c) || !type_tree {
-            return Ok(p);
-        }
-        let ctors = self.u.decls_named(c, nme::CONSTRUCTOR);
-        let no_args = |r: &mut Self, k: SymbolId| {
-            let info = r.u.info(k);
-            r.u.method(info).is_some_and(|m| m.params.is_empty() && r.u.method(m.result).is_none())
-        };
-        let ctor = ctors.into_iter().find(|&k| no_args(self, k));
-        let ctor =
-            ctor.ok_or("ClassDef.apply with a parent class without a constructor without arguments")?;
-        let new = self.tpd.node(T::New { tpt: p }, span, Some(tpe), None);
-        let mut b = self.build()?;
-        let select = b.select(new, ctor, span);
-        Ok(b.apply(select, &[], tpe, span))
+        Ok(Some(self.build()?.val_def(sym, tpt, None, span)))
     }
 
     /// `TypeIdent(sym)`.

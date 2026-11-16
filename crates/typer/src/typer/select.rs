@@ -27,10 +27,11 @@ impl Typer<'_> {
             return self.error_tree(self.ast.span(id));
         }
         if self.is_signature_polymorphic_call(qual) {
-            if text == nme::AS_INSTANCE_OF {
-                return self.unsupported(id, "cast of a signature polymorphic call");
+            if text != nme::AS_INSTANCE_OF {
+                self.signature_polymorphic_selected(qual);
+            } else if let Err(what) = self.signature_polymorphic_cast(qual, pt) {
+                return self.unsupported(id, what);
             }
-            self.signature_polymorphic_selected(qual);
         }
         let (mut converted, mut widened, mut tupled, mut defined, mut healed) =
             (false, false, false, false, false);

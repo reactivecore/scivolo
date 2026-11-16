@@ -1,4 +1,5 @@
-import java.lang.annotation.Documented
+import java.lang.annotation.{Documented, Inherited, Retention, RetentionPolicy}
+import scala.annotation.meta.{getter, setter}
 
 @FunctionalInterface
 trait Inc { def apply(x: Int): Int }
@@ -6,6 +7,27 @@ trait Inc { def apply(x: Int): Int }
 class Names {
   @java.lang.SafeVarargs final def count(xs: String*): Int = xs.length
   @Documented val size = 2
+}
+
+object Policies {
+  final val Runtime = RetentionPolicy.RUNTIME
+}
+
+trait Mixed {
+  @Documented @Inherited @Deprecated def m(@Documented @Deprecated a: Int) = a
+}
+
+@Documented @Inherited @Deprecated
+class Several(@Documented @Deprecated p: Int, @Documented @Deprecated val q: Int) extends Mixed {
+  @Documented @Inherited @Deprecated def three = p
+  @Documented @Inherited @Deprecated val f3 = 4
+  def params(@Deprecated @Documented a: Int, @Documented @Inherited @Deprecated b: Int) = a + b
+  @Retention(Policies.Runtime) def aliased = 6
+}
+
+class Targets(@(Deprecated @getter) val p: Int) {
+  @(Deprecated @getter) @Documented val g = 1
+  @(Deprecated @setter) var s = 2
 }
 
 object Javaannotations {
@@ -33,5 +55,27 @@ object Javaannotations {
     println(forwarder.isAnnotationPresent(classOf[Documented]))
     println(quiet)
     println(deprecation("old") + " " + deprecation("older"))
+    several()
+  }
+
+  def names(as: Array[java.lang.annotation.Annotation]): String =
+    as.map(_.annotationType.getSimpleName).mkString(" ")
+
+  def several(): Unit = {
+    val c = classOf[Several]
+    println(names(c.getAnnotations))
+    println(names(c.getMethod("three").getAnnotations))
+    println(names(c.getDeclaredField("f3").getAnnotations))
+    println(names(c.getMethod("m", classOf[Int]).getAnnotations))
+    println(c.getMethod("m", classOf[Int]).getParameterAnnotations.map(names).mkString(", "))
+    println(c.getMethod("params", classOf[Int], classOf[Int]).getParameterAnnotations.map(names).mkString(", "))
+    println(c.getConstructors.head.getParameterAnnotations.map(names).mkString(", "))
+    println(c.getDeclaredFields.filter(f => f.getName == "p" || f.getName == "q").map(_.getAnnotations.length).mkString)
+    println(c.getMethod("aliased").getAnnotations.mkString)
+    println(new Several(1, 2).three + new Several(1, 2).params(1, 2))
+    val t = classOf[Targets]
+    val getters = names(t.getMethod("p").getAnnotations) + ", " + names(t.getMethod("g").getAnnotations)
+    val setter = names(t.getMethod("s_$eq", classOf[Int]).getAnnotations)
+    println(getters + ", " + names(t.getDeclaredField("g").getAnnotations) + ", " + setter)
   }
 }

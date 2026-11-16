@@ -78,6 +78,11 @@ package java.util {
   }
 
   trait Enumeration[E] { def asIterator(): Iterator[E] = null }
+
+  final class Formatter {
+    def format(format: String, args: Object*): Formatter = this
+    def format(l: Locale, format: String, args: Object*): Formatter = this
+  }
 }
 
 package java.util {
