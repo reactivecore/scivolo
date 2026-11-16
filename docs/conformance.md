@@ -252,12 +252,12 @@ The VM fixes javalib bugs in its library overlay (`overlay/src`, ADR 0009).
 | Outcome | tests/programs | tests/pos | tests/neg |
 |---|---:|---:|---:|
 | passed | 262 | 2495 | 1277 |
-| differ | 35 | 112 | 0 |
+| differ | 35 | 113 | 0 |
 | warnings differ | 0 | 9 | 0 |
 | accepted (neg) | 0 | 0 | 21 |
-| unsupported | 1 | 409 | 0 |
+| unsupported | 1 | 408 | 0 |
 | crashed | 0 | 0 | 0 |
-| skipped | 36 | 351 | 496 |
+| skipped | 37 | 351 | 496 |
 
 ## M4: dotty `tests/run`
 
@@ -309,12 +309,12 @@ Results:
 
 | Outcome | Tests |
 |---|---:|
-| passed | 1496 |
+| passed | 1497 |
 | wrong output | 0 |
 | crashed | 0 |
 | timeout | 0 |
 | lowering refused | 0 |
-| typer refused | 10 |
+| typer refused | 9 |
 | parser refused | 0 |
 | macro refused | 0 |
 | frontend crashed | 0 |
@@ -323,15 +323,16 @@ Results:
 | **total** | **1711** |
 
 - **Typer refused:** one each for a local type escaping through a type variable (`Parser`), an
-  inline expansion of a type referring to a binding (`i13332shapeless`), adaptation, source versions other than 3.7 to 3.9, a context
-  function result of an extension method, a context bound of a type without parameters, a member
-  not found (`i13332intersection`), `Printer.TypeReprStructure` of a type the frontend does not print, the
-  unresolved name `AnyNamedTuple`, `typeChecks` of a non-constant string. `Runtime.totalMemory`,
+  inline expansion of a type referring to a binding (`i13332shapeless`), adaptation, source
+  versions other than 3.7 to 3.9, a divergence check through a conversion (`errorhandling`), a
+  context bound companion (`given-disambiguation`), `Printer.TypeReprStructure` of a type the
+  frontend does not print, the unresolved name `AnyNamedTuple`, `typeChecks` of a non-constant
+  string. `Runtime.totalMemory`,
   `maxMemory` and `freeMemory`, which Scala Native's javalib lacks and the overlay adds (ADR
   0008), are typed through `libs/jdk-stubs/JdkMemberDeclarations.scala`.
-- **`tests/run-macros`** (`just dotty-lower-report "" run-macros`): 308 of 321
-  pass; the typer refuses 5 (`-Xread-docs` (2), the unresolved name `SuppressWarnings`, a member
-  not found, a source version other than 3.7 to 3.9), 8 are skipped.
+- **`tests/run-macros`** (`just dotty-lower-report "" run-macros`): 310 of 321
+  pass; the typer refuses 3 (the unresolved name `SuppressWarnings`, a member not found
+  (`f-interpolator-tests`), a source version other than 3.7 to 3.9), 8 are skipped.
 - **`-source future`:** typed as 3.9 with the parser's new-syntax rules; the typer refuses
   alphanumeric infix calls, types and extractor patterns not declared `infix`, which it warns
   about otherwise, and checks no other `future` rule.
@@ -373,32 +374,41 @@ dotty's test runner calls it, on `java -Xverify:all`; its output is compared wit
 file (run-macros: the one recorded in `tests/dotty-checks` where that exists), compiled from the
 directory that holds `tests/`. Earlier compilation groups are compiled by scala-cli for the JVM;
 for a macro call also for Scala Native, whose NIR the macro runs from in the VM (ADR 0112).
-Skipped as in the VM's report, but for APIs Scala Native's javalib lacks. Failures are grouped by
-the refusal or the first exception line.
+Skipped: tests for another platform or compiled partly by another compiler; Java sources are
+compiled (#242). Failures are grouped by the refusal or the first exception line.
 
 Results:
 
 | Outcome | tests/run | tests/run-macros |
 |---|---:|---:|
-| passed | 1607 | 308 |
-| wrong output | 0 | 0 |
+| passed | 1668 | 316 |
+| wrong output | 2 | 0 |
 | verify error | 0 | 0 |
-| linkage error | 0 | 0 |
-| crashed | 1 | 0 |
+| linkage error | 5 | 0 |
+| crashed | 2 | 0 |
 | timeout | 0 | 0 |
-| frontend crashed | 0 | 0 |
+| frontend crashed | 3 | 0 |
 | jvm refused | 0 | 0 |
-| lowering refused | 0 | 0 |
-| typer refused | 12 | 6 |
-| skipped | 91 | 7 |
+| lowering refused | 1 | 0 |
+| typer refused | 16 | 4 |
+| skipped | 14 | 1 |
 | **total** | **1711** | **321** |
 
-- **Typer refused (run):** the ten of the VM's report, TASTy pickling of a type lambda's bounds
-  (`enum-values`) and a protected member through a path (`protectedacc`).
-- **Typer refused (run-macros):** `-Xread-docs` (2), adaptation, `Printer.TreeCode` of a class
-  tree (`i9206`), `Symbol.newClass` with a self type, a source version.
+- **Typer refused (run):** the nine of the VM's report, TASTy pickling of a type lambda's bounds
+  (`enum-values`), and in tests with Java sources a Java type not found (`t3452e`, `t6138`,
+  `t6138-2`, `i17255`), `@BeanProperty` (`i15318`) and adaptation (`i19619`).
+- **Typer refused (run-macros):** the annotations of a symbol defined outside the unit
+  (`annot-arg-value-in-java`), `Flags.show` (`i20052`), `Symbol.newClass` with annotations, a
+  source version.
+- **Tests with Java sources:** wrong output for meta-annotated targets of Java annotations
+  (`i12492`) and trailing blanks of a Java text block (`t12290`); linkage errors for
+  package-private Java classes (`i8661`, `i16474`, `java-package-protected`), a sealed Java
+  interface (`i23479`) and long class names (`java-longnames`); the frontend crashes on
+  instantiating a Java annotation (`java-ann-super-class`, `-separate`, `repeatable`); the
+  lowering refuses varargs forwarders of generic element types (`varargs-abstract`).
 - **Crash:** `lambda-serialization-gc` casts the application class loader to `URLClassLoader`,
-  which fails for scalac's class files too, as the runner does not load tests through one.
+  which fails for scalac's class files too, as the runner does not load tests through one;
+  `java-package-private-bridge` finds a bridge of a package-private Java method.
 - **Difference from dotty (open, not accepted):** a macro runs from its Scala Native build in the VM, so a
   macro implementation that reads the platform (`System.getProperty`, `scala.util.Properties`,
   runtime class names) sees Scala Native's; what it reflects on (`Symbol`s, types) is the JVM
@@ -411,13 +421,13 @@ Results:
 
 | Outcome | Programs |
 |---|---:|
-| passed | 296 |
+| passed | 297 |
 | wrong output | 6 |
 | linkage error | 13 |
 | crashed | 3 |
 | jvm refused | 1 |
 | typer refused | 2 |
-| **total** | **321** |
+| **total** | **322** |
 
 - **As scalac's class files on the JVM** (platform differences): wrong output `bottomarrays`,
   `universaljoins`, `exprforms` (array class names), `classtags` (`ClassTag` of a nested array),
@@ -439,14 +449,13 @@ the optimizer (1883 of its 3134 classes dotty also writes differ in code from do
 
 | Outcome | Files | Classes |
 |---|---:|---:|
-| same | 573 | 3071 |
-| attributes differ | 37 | 43 |
-| code differs | 34 | 67 |
-| refused | 5 | |
+| same | 597 | 3167 |
+| attributes differ | 28 | 36 |
+| code differs | 22 | 38 |
+| refused | 2 | |
 
-- **Refused:** named or default arguments of a repeated method, or wrong arity (2), TASTy
-  pickling of a capture set that refers to other than static definitions (2), a static member of
-  a qualifier with effects.
+- **Refused:** TASTy pickling of a capture set that refers to other than static definitions
+  (`LazyListIterable`), a static member of a qualifier with effects (`TrieMap`).
 - **Code differs:** the static forwarders `from` of `immutable.IndexedSeq`, `LinearSeq` and `Seq`
   to the bridges of `SeqFactory.Delegate`, which the published jar has too: dotty sees those
   bridges only when `Delegate` is compiled in the same run, ours never. The pickled quotes of
@@ -457,7 +466,9 @@ the optimizer (1883 of its 3134 classes dotty also writes differ in code from do
   (`StreamConverters`), Scala 2's `@inline` `Enumeration.Value` inlined (`RoundingMode`), the
   erased type of an inferred local (`ArrayOps.stepper`), and branches of pattern matches and
   inlined `.nn` (`StepperHasParStream`, `CollisionProofHashMap`, `BasicIO`; dotty compiling those
-  files alone differs from ours too).
+  files alone differs from ours too); the generic signature of `lazyZip` over an inner class
+  (`SeqView`, `SortedMap`, `mutable.SortedMap`), and `ArrayBuffer`, `ExecutionContextImpl` and
+  `Regex`.
 - **Attributes differ:** mostly line numbers (of extension method calls and implicit
   conversions, of the `()` ending a secondary constructor); `InnerClasses` entries, a
   `LocalVariableTable` entry, a `Deprecated` attribute and a method's flags.
@@ -497,10 +508,10 @@ own 35 files have no scala-cli oracle (Scala 3.9 reports cyclic references in `A
 
 | Module | Files lowered | NIR same | var-order | differ |
 |---|---:|---:|---:|---:|
-| javalib | 601 of 601 | 3,413 | 82 | 1 |
-| nativelib | 103 of 103 | 706 | 9 | 4 |
-| auxlib | 15 of 15 | 84 | | 1 |
-| clib | 21 of 21 | 114 | | 1 |
+| javalib | 601 of 601 | 3,414 | 82 | |
+| nativelib | 103 of 103 | 706 | 10 | 3 |
+| auxlib | 15 of 15 | 85 | | |
+| clib | 21 of 21 | 115 | | |
 | posixlib | 67 of 67 | 270 | | |
 | windowslib | 34 | 130 | | |
 | scalalib | 649 of 649 | 4,379 | 17 | 13 |
