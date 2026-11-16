@@ -37,15 +37,13 @@ package p {
   }
 }
 
-object Test {
-  def main(args: Array[String]): Unit = {
-    val c = new p.b.C
-    new c.Inner().run()
-    val x = new p.b.X {}
-    val i = new x.Inner {
-      def node = new Node {}
-      def other = this
-    }
-    println(new i.InnerInner {}.run())
+@main def protectedpaths(): Unit = {
+  val c = new p.b.C
+  new c.Inner().run()
+  val x = new p.b.X {}
+  val i = new x.Inner {
+    def node = new Node {}
+    def other = this
   }
+  println(new i.InnerInner {}.run())
 }
