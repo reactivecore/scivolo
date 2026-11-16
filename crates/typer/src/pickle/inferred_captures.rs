@@ -8,6 +8,7 @@ use super::TreePickler;
 use crate::tpd::{TNodeId, Tpd, Tree};
 use crate::typer::capture_types::{has_captures, is_retains_like};
 use crate::typer::seen_from::{resolve_class_params, resolve_class_params_keeping_captures};
+use names::nme;
 use tasty::{Kind, SymbolId, Type, TypeId, Universe};
 
 impl TreePickler<'_> {
@@ -15,8 +16,9 @@ impl TreePickler<'_> {
     /// type it was inferred from has capture sets and is its type but for them: that type with
     /// each capture set but `retainsCap`'s empty, `B^{}` of `y` in `def g(b: B^{a}) = { val y =
     /// b; .. }`. The type inferred from is the one the typer recorded (a function value's
-    /// parameter's), else, unless definition `sym` is a member that may inherit its type, the
-    /// info of the definition that its right-hand side `rhs` refers to or calls.
+    /// parameter's), else, unless definition `sym` is a closure's method or a member that may
+    /// inherit its type, the info of the definition that its right-hand side `rhs` refers to or
+    /// calls.
     pub fn empty_captures(&mut self, sym: SymbolId, tpt: TNodeId, rhs: Option<TNodeId>) {
         if !self.file.is_some_and(|f| f.attributes.features.capture_checking()) {
             return;
@@ -25,7 +27,8 @@ impl TreePickler<'_> {
         else {
             return;
         };
-        let rhs = rhs.filter(|_| !may_inherit(self.u, sym));
+        let closure = self.u.symbol(sym).name == nme::ANON_FUN;
+        let rhs = rhs.filter(|_| !closure && !may_inherit(self.u, sym));
         let from = self.tpd.captured_type(tpt);
         let Some(from) = from.or_else(|| rhs.and_then(|r| rhs_type(self.u, self.tpd, r))) else { return };
         if !has_captures(self.u, from) {
@@ -81,9 +84,19 @@ fn rhs_type(u: &mut Universe, tpd: &Tpd, rhs: TNodeId) -> Option<TypeId> {
         info = u.method(info)?.result;
     }
     match *u.ty(info) {
-        Type::ByName(r) => Some(r),
+        Type::ByName(r) => match u.annotated(r) {
+            Some((inner, annot)) if is_by_name_captures(u, annot) => Some(inner),
+            _ => Some(r),
+        },
         _ => u.method(info).is_none().then_some(info),
     }
+}
+
+/// Whether annotation class type `annot` is `retainsByName`, a by-name parameter's capture set,
+/// which a reference to the parameter drops.
+fn is_by_name_captures(u: &mut Universe, annot: TypeId) -> bool {
+    is_retains_like(u, annot)
+        && u.class_symbol(annot).is_some_and(|c| u.symbol(c).name == nme::RETAINS_BY_NAME)
 }
 
 /// `t` with the capture set of each capture-checking annotation but `retainsCap` empty,
