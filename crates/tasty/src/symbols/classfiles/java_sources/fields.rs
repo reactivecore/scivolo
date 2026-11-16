@@ -27,7 +27,7 @@ impl Parser {
                 class.fields.append(&mut maybe);
                 self.field(class, access, &ty, name)?;
             } else if self.is(",") {
-                maybe.push(Field { access, name, ty: ty.clone(), constant: None });
+                maybe.push(Field { access, name, ty: ty.clone(), constant: None, annotations: None });
             } else {
                 maybe.clear();
                 self.skip_to_comma_or_semi()?;
@@ -51,7 +51,7 @@ impl Parser {
             }
             self.skip_to_comma_or_semi()?;
         }
-        class.fields.push(Field { access, name, ty, constant });
+        class.fields.push(Field { access, name, ty, constant, annotations: None });
         Ok(())
     }
 }

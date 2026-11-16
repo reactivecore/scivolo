@@ -21,7 +21,7 @@ pub struct Header {
 /// A constructor of access flags `access` with parameters `params`.
 pub fn constructor(access: u16, params: Vec<Type>) -> Method {
     let (name, type_params, result) = (nme::CONSTRUCTOR.to_owned(), Vec::new(), Type::Primitive('V'));
-    Method { access, name, type_params, params, result, annotation_default: false }
+    Method { access, name, type_params, params, result, annotation_default: false, annotations: None }
 }
 
 impl Parser {
@@ -55,9 +55,16 @@ pub fn complete(class: &mut Class, header: Header) {
                 params: Vec::new(),
                 result,
                 annotation_default: false,
+                annotations: None,
             });
         }
-        class.fields.push(Field { access: ACC_PRIVATE | ACC_FINAL, name, ty, constant: None });
+        class.fields.push(Field {
+            access: ACC_PRIVATE | ACC_FINAL,
+            name,
+            ty,
+            constant: None,
+            annotations: None,
+        });
     }
     let canonical = class.methods.iter().any(|m| m.name == nme::CONSTRUCTOR && same_types(&m.params, &types));
     if !canonical {

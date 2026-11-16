@@ -64,7 +64,7 @@ use std::io;
 
 pub use bodies::BodyInfo;
 pub use builtin::{ANY, NOTHING};
-pub use classfiles::{JavaSources, Retention};
+pub use classfiles::{JavaSources, Retention, SourceAnnotation, SourceArg};
 pub use companions::{module_class_name, module_name};
 pub use defn::Defn;
 pub use encoded_names::{decode, encode};

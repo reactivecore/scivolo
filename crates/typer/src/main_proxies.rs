@@ -58,7 +58,8 @@ impl Typer<'_> {
         id
     }
 
-    fn splice_ref(&mut self, sym: SymbolId) -> NodeId {
+    /// An untyped tree standing for a reference to member `sym` seen from its owner's `this`.
+    pub fn splice_ref(&mut self, sym: SymbolId) -> NodeId {
         let owner = self.u.symbol(sym).owner.expect("a member");
         let prefix = owner_prefix(self.u, owner);
         let tpe = self.u.intern_type(Type::Sym(Some(prefix), sym));

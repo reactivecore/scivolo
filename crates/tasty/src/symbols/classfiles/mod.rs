@@ -16,7 +16,7 @@ mod visibility;
 
 pub use annotation::Retention;
 pub use classpath::JavaClasses;
-pub use java_sources::JavaSources;
+pub use java_sources::{JavaSources, SourceAnnotation, SourceArg};
 pub use signature_polymorphic::SignaturePolymorphic;
 
 use super::{Kind, SymbolId, Universe};
