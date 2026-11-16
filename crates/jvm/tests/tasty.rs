@@ -138,7 +138,8 @@ fn probes_pickle_as_dotty_s() {
 
 /// The annotated types of tests/jvm/tastylib/annotlib.jar, dotty's classes of annotlib/, keep
 /// their library's annotation trees in the TASTy of libraryannotations.scala as in dotty's; one
-/// whose tree refers to a parameter, which dotty maps, is refused.
+/// whose tree refers to a parameter, which dotty maps, is refused, as is one with arguments in a
+/// quote.
 #[test]
 fn library_annotations_pickle_as_dotty_s() {
     let out = root().join("tmp/jvm-test/libraryannotations");
@@ -166,6 +167,17 @@ fn library_annotations_pickle_as_dotty_s() {
     let stderr = String::from_utf8_lossy(&run.stderr);
     assert!(
         !run.status.success() && stderr.contains("referring to other than static definitions"),
+        "{stderr}"
+    );
+
+    let source = out.join("quoted.scala");
+    let quote = "import scala.quoted.*\n\
+        def tags(l: Expr[annotlib.Lib])(using Quotes): Expr[Int] = '{ val t = $l.tags; t.size }";
+    std::fs::write(&source, quote).expect("writing");
+    let run = compile(source.to_str().expect("a path"));
+    let stderr = String::from_utf8_lossy(&run.stderr);
+    assert!(
+        !run.status.success() && stderr.contains("annotation tree with arguments in a quote"),
         "{stderr}"
     );
 }
