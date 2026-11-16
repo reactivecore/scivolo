@@ -484,10 +484,18 @@ own 35 files have no scala-cli oracle (Scala 3.9 reports cyclic references in `A
 | windowslib | 34 | 130 | | |
 | scalalib | 649 of 649 | 4,379 | 17 | 13 |
 
-clib, posixlib and scalalib pass Scala Native's unit tests on our jars (`just lib-jar-report`).
-`unsafe/package{,$}` in nativelib differ only as a joint compilation with `UnsafePackageCompat`
-does; `UnsafePackageCompat` differs in the positions of its inline accessors (the template's
-end, Scala Native's build: the inline method's).
+clib, posixlib, scalalib, javalib and nativelib pass Scala Native's unit tests on our jars as on
+the published ones (`just lib-jar-report`). `lib-compile` lowers javalib's `WindowsPath.scala`
+and `WindowsPathParser.scala` as one unit, as Scala Native's build does: alone, the join of
+`PathType`'s case objects read from TASTy also has their `Mirror.Singleton` parent and erases to
+it, as in dotty's separate compilation. Left in nativelib, whose `scala-3` sources are a unit of
+their own:
+
+- `unsafe/package{,$}`: as dotty compiles them against `UnsafePackageCompat`'s TASTy, without
+  the call of its empty `$init$` that Scala Native's joint build has (case 3, upstream bug 10).
+- `UnsafePackageCompat`: the positions of its inline accessors (case 1): ours the template's
+  end; Scala Native's joint build takes the span of `package.scala`'s parent
+  `unsafe.UnsafePackageCompat` in the trait's source.
 
 `just lib-compile scalalib` lowers each file of Scala Native's scalalib alone against Scala's
 library, its `LazyVals` replaced by Scala Native's (`scripts/scalalib_sources.py`). As in Scala
