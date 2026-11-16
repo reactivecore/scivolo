@@ -64,8 +64,7 @@ pub fn implement(l: &mut Lower, td: TNodeId, class: SymbolId, classes: &[TNodeId
         let span = Span::NONE;
         let prefix = prefix(l, class, m, outer);
         let rhs = path(l, class, prefix, span).map_err(|e| Unsupported { at: l.tpd.span(td), ..e })?;
-        let result = result_type(l, class, outer, prefix);
-        let name = outer_accessor_name(l, m);
+        let result = result_type(l, class, outer, prefix);        let name = outer_accessor_name(l, m);
         let sym = l.u.define(symbol(&name, Kind::Def, class, Flags::default().with(FINAL)));
         let info = method_type(l, result);
         l.u.set_info(sym, info);
@@ -153,14 +152,18 @@ fn prefix(l: &mut Lower, class: SymbolId, m: SymbolId, outer: SymbolId) -> TypeI
 }
 
 /// The result type of the implementation in `class` of an accessor of an instance of `outer`:
-/// `outer`'s type where the class enclosing `class` derives from it, else the prefix's.
+/// the base type of `outer` of the class enclosing `class` where it derives from `outer`, else
+/// the prefix's type.
 fn result_type(l: &mut Lower, class: SymbolId, outer: SymbolId, prefix: TypeId) -> TypeId {
     let mut enclosing = l.u.symbol(class).owner;
     while let Some(e) = enclosing.filter(|&e| l.u.symbol(e).kind.is_term()) {
         enclosing = l.u.symbol(e).owner;
     }
     match enclosing.filter(|&e| l.u.is_class(e)) {
-        Some(e) if l.u.derives_from(e, outer) => type_ref(l.u, outer),
+        Some(e) if l.u.derives_from(e, outer) => {
+            let this = l.u.this_type(e);
+            l.u.base_type(this, outer).unwrap_or_else(|| type_ref(l.u, outer))
+        }
         _ => l.u.widen(prefix),
     }
 }

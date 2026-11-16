@@ -133,7 +133,13 @@ impl Gen<'_, '_> {
             if let tasty::Erased::Class(outer) = result
                 && let Some(Some(c)) = self.classes.get(&internal(&outer)).copied()
             {
-                return self.l.u.this_type(c);
+                let info = self.l.u.info(sym);
+                let declared = self.l.u.result_type(info);
+                let tycon = self.l.u.applied(declared).map(|(t, _)| t);
+                return match tycon.and_then(|t| self.l.u.class_symbol(t)) {
+                    Some(d) if d == c => declared,
+                    _ => self.l.u.this_type(c),
+                };
             }
         }
         match owner {
