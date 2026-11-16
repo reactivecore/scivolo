@@ -104,7 +104,8 @@ fn method_clauses(u: &Universe, info: &mut TypeId) -> Vec<Clause> {
 }
 
 /// A reference to `accessed` from the `this` of `host`: an identifier for a member of a
-/// static object or a parameter accessor outside traits, else a selection (dotty's `ref`).
+/// static object, for a member of an inherited class from a static object, or for a parameter
+/// accessor outside traits, else a selection (dotty's `ref` and `prefixIsElidable`).
 fn accessed_ref(t: &mut Typer<'_>, host: SymbolId, accessed: SymbolId, at: Span) -> TNodeId {
     let owner = t.u.symbol(accessed).owner.expect("a member");
     if t.u.is_static_owner(owner) {
@@ -112,7 +113,7 @@ fn accessed_ref(t: &mut Typer<'_>, host: SymbolId, accessed: SymbolId, at: Span)
     }
     let host_type = crate::defn::type_ref(t.u, host);
     let param = t.syms.flags.get(&accessed).is_some_and(|fl| fl.is_one_of(f::PARAM.or(f::PARAM_ACCESSOR)));
-    if param && !t.u.is_trait(host) && !t.u.is_trait(owner) {
+    if t.u.is_static_owner(host) || param && !t.u.is_trait(host) && !t.u.is_trait(owner) {
         let this = t.u.intern_type(Type::This(host_type));
         let tpe = t.u.intern_type(Type::Sym(Some(this), accessed));
         return t.build().ident(accessed, tpe, at);
