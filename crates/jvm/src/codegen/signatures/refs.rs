@@ -189,7 +189,7 @@ impl Sig<'_> {
     }
 
     /// Replaces a reference to a parameter of the method by its bounds in `t`, also in the parts
-    /// of a union such as `T | Null`.
+    /// of a union such as `T | Null` and as the upper bound of a wildcard such as `? <: T`.
     fn with_param_bounds(&mut self, t: TypeId) -> TypeId {
         if let Some((_, bounds)) = self.u.param_ref(t).and_then(|(b, i)| self.poly_param(b, i)) {
             return bounds;
@@ -198,6 +198,11 @@ impl Sig<'_> {
             Type::Or(a, b, soft) => {
                 let (a, b) = (self.with_param_bounds(a), self.with_param_bounds(b));
                 self.u.intern_type(Type::Or(a, b, soft))
+            }
+            Type::Bounds(lo, hi) => {
+                let hi = self.with_param_bounds(hi);
+                let hi = self.u.bounds(hi).map_or(hi, |(_, hi)| hi);
+                self.u.intern_type(Type::Bounds(lo, hi))
             }
             _ => t,
         }
