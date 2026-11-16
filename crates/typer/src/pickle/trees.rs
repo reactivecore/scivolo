@@ -18,8 +18,18 @@ impl TreePickler<'_> {
         first.index() as u32
     }
 
-    /// Tree `id`, a `SHAREDterm` if pickled before and not to be pickled anew.
+    /// Tree `id`, a `SHAREDterm` if pickled before and not to be pickled anew; a refusal marks
+    /// the span of the innermost tree refused that has one.
     pub fn tree(&mut self, id: TNodeId) -> Result<(), Refusal> {
+        let pickled = self.tree_once(id);
+        let span = self.tpd.span(id);
+        if pickled.is_err() && self.refused_at.is_none() && span.exists() {
+            self.refused_at = Some(span);
+        }
+        pickled
+    }
+
+    fn tree_once(&mut self, id: TNodeId) -> Result<(), Refusal> {
         let at = match self.anew.remove(&id) {
             Some(owner) => {
                 let key = ANEW + self.anew_at.len() as u32;

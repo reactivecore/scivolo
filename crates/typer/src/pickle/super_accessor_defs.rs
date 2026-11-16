@@ -127,7 +127,8 @@ impl TreePickler<'_> {
         while let Some(t) = todo.pop() {
             if let Some(tpe) = self.tpd.get(t).tpe {
                 self.u.map_type(tpe, &mut |u, x| {
-                    let is_param = matches!(u.sym_ref(x), Some((_, s)) if u.symbol(s).kind == Kind::TypeParam);
+                    let is_param =
+                        matches!(u.sym_ref(x), Some((_, s)) if u.symbol(s).kind == Kind::TypeParam);
                     found |= is_param || matches!(u.ty(x), Type::Param(..));
                     None
                 });
