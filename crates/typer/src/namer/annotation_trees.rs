@@ -76,11 +76,15 @@ impl Typer<'_> {
     /// Types annotation tree `annot`, the `new`s within a Java annotation unchecked.
     pub fn typed_annotation(&mut self, annot: NodeId, ctx: Ctx) -> TNodeId {
         let new = self.annotation_new(annot);
-        self.annotation_news.insert(new);
-        let outer = std::mem::replace(&mut self.in_java_annotation, false);
-        let typed = self.typed(annot, Pt::Any, ctx);
-        self.in_java_annotation = outer;
-        typed
+        self.annotation_news.insert(new, annot);
+        self.typed(annot, Pt::Any, ctx)
+    }
+
+    /// Marks the `new`s in annotation tree `annot` of a Java annotation class unchecked
+    /// (dotty's `PostTyper.inJavaAnnot`).
+    pub fn uncheck_java_annotation_news(&mut self, annot: NodeId) {
+        let news = self.ast.subtrees(annot, &|a, n| matches!(a.tree(n), S::New { .. }));
+        self.java_annotation_news.extend(news);
     }
 
     /// The `new` of annotation tree `annot`, the tree itself if it has none.

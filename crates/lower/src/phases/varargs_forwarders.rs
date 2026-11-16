@@ -3,13 +3,13 @@
 //! dotty's `ElimRepeated.addVarArgsForwarder`: a method with `@varargs` or overriding a Java
 //! varargs method gets a forwarder taking an array, which calls it with the array wrapped.
 
-use super::array_wraps::{array_of, wrap_array};
+use super::array_wraps::{vararg_array, wrap_array};
 use super::repeated::java_array;
 use crate::definitions::symbol;
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
 use tasty::tags::{ARTIFACT, OVERRIDE, PRIVATE};
-use tasty::{Binder, Erased, Flags, Kind, NameId, SymbolId, Type, TypeId};
+use tasty::{Binder, Flags, Kind, NameId, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
 /// Adds the forwarders to class definition `td`, each after its method.
@@ -121,20 +121,6 @@ fn forwarder(
         *rhs = None;
     }
     Ok(l.positioned(def))
-}
-
-/// The array type of a forwarder's parameter for repeated `elem` of a method with type
-/// parameters `bounds`, and the element type that chooses its wrapper: `Array[elem]` if `elem`
-/// is a primitive or a reference type, else `Array[elem & Object]` wrapped as `Object`s (dotty's
-/// `varargArrayType`).
-fn vararg_array(l: &mut Lower, elem: TypeId, bounds: &[(Binder, Vec<TypeId>)]) -> (TypeId, TypeId) {
-    let object = l.u.class_ref(tasty::defn::OBJECT);
-    let upper = l.u.upper_bound(elem, bounds);
-    if matches!(l.u.erase(elem), Erased::Prim(_)) || l.u.is_subtype(upper, object) {
-        return (array_of(l, elem), elem);
-    }
-    let bounded = l.u.intern_type(Type::And(elem, object));
-    (array_of(l, bounded), object)
 }
 
 /// Whether `member` overriding `other` is left to `member`'s forwarder: its repeated parameter

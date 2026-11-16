@@ -8,7 +8,7 @@
 use crate::{Lower, Result, unsupported};
 use names::nme;
 use syntax::ast::Span;
-use tasty::{Kind, TypeId};
+use tasty::{Binder, Erased, Kind, Type, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
 /// The classes whose arrays `ScalaRunTime` wraps by their own method.
@@ -71,6 +71,30 @@ pub fn wrap_array(l: &mut Lower, array: TNodeId, elem: TypeId, tpe: TypeId, span
     let qual = l.ident(module, span);
     let fun = l.select(qual, wrap, span);
     Ok(l.apply(fun, &[array], tpe, span))
+}
+
+/// Determines the array type of a varargs forwarder's parameter for repeated `elem` of a method
+/// with type parameters `bounds`, and the element type that chooses its wrapper, from `elem`'s
+/// upper bound `U`: `Array[elem]` wrapped by `U` if `elem` is a primitive or a reference type,
+/// else `Array[elem & Object]` wrapped by `U` if it is primitive, as `Object`s if `Object`
+/// derives from `U`'s class, generically otherwise (dotty's `varargArrayType`, and `wrapArray`
+/// of its element's bounds).
+pub fn vararg_array(l: &mut Lower, elem: TypeId, bounds: &[(Binder, Vec<TypeId>)]) -> (TypeId, TypeId) {
+    let object = l.u.class_ref(tasty::defn::OBJECT);
+    let upper = l.u.upper_bound(elem, bounds);
+    if matches!(l.u.erase(elem), Erased::Prim(_)) || l.u.is_subtype(upper, object) {
+        return (array_of(l, elem), upper);
+    }
+
+    let bounded = l.u.intern_type(Type::And(elem, object));
+    let object_class = l.u.class_symbol(object).expect("class Object");
+    let wraps_objects = l.u.class_symbol(upper).is_some_and(|c| l.u.derives_from(object_class, c));
+    let wrapped = match l.u.erase(upper) {
+        Erased::Prim(_) => upper,
+        _ if wraps_objects => object,
+        _ => bounded,
+    };
+    (array_of(l, bounded), wrapped)
 }
 
 pub fn array_of(l: &mut Lower, elem: TypeId) -> TypeId {
