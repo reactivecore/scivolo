@@ -151,7 +151,7 @@ mod paths;
 mod pattern_alternatives;
 mod pattern_bounds;
 mod pattern_tpts;
-mod patterns;
+pub(crate) mod patterns;
 mod plain_trees;
 mod poly_context_bounds;
 mod poly_function_values;

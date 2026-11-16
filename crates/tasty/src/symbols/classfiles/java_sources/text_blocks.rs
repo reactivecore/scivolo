@@ -28,7 +28,7 @@ pub fn text_block(chars: &[char], at: &mut usize) -> Result<Token, String> {
         let (mut trailing, mut joined) = (0, false);
         while i < end && !is_break(chars[i]) && !joined {
             let c = chars[i];
-            trailing = if c.is_whitespace() { trailing + 1 } else { 0 };
+            trailing = if is_java_whitespace(c) { trailing + 1 } else { 0 };
             i += 1;
             if c != '\\' {
                 value.push(c);
@@ -67,7 +67,7 @@ fn extent(chars: &[char], start: usize) -> Result<(usize, usize), String> {
                 common = common.min(indent);
             }
             (indent, blank) = (0, true);
-        } else if blank && c.is_whitespace() {
+        } else if blank && is_java_whitespace(c) {
             i += 1;
             indent += 1;
         } else {
@@ -76,6 +76,12 @@ fn extent(chars: &[char], start: usize) -> Result<(usize, usize), String> {
             i += if c == '\\' && !escaped_break { 2 } else { 1 };
         }
     }
+}
+
+/// Tells whether Java's `Character.isWhitespace` holds for `c`.
+fn is_java_whitespace(c: char) -> bool {
+    let no_break = matches!(c, '\u{85}' | '\u{a0}' | '\u{2007}' | '\u{202f}');
+    (c.is_whitespace() && !no_break) || matches!(c, '\u{1c}'..='\u{1f}')
 }
 
 fn is_break(c: char) -> bool {
