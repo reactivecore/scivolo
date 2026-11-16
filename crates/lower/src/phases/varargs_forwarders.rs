@@ -67,7 +67,7 @@ fn forwarder(
         return unsupported(span, "varargs forwarders of curried methods");
     };
     if !l.u.param_clauses(result).is_empty() {
-        return unsupported(span, "varargs forwarders of polymorphic or curried methods");
+        return unsupported(span, "varargs forwarders of curried methods");
     }
     let params = l.u.params_of(params).to_vec();
     let Some(&(_, repeated)) = params.last().filter(|&&(_, p)| l.u.is_class_named(p, tasty::defn::REPEATED))
