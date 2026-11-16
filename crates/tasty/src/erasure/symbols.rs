@@ -10,8 +10,9 @@ use crate::{Kind, SymbolId, Universe};
 
 impl Universe {
     /// The erasure of member `s` of `prefix`: of alias `s` seen from the prefix, of the info a
-    /// refinement of the prefix's type gives abstract type `s`, of the alias by which the prefix's class overrides it, of the argument
-    /// the prefix's type gives class type parameter `s`, else of `s`.
+    /// refinement of the prefix's type gives abstract type `s`, of the alias by which the prefix's
+    /// class overrides it, of abstract type `s`'s bounds seen from the prefix, of the argument the
+    /// prefix's type gives class type parameter `s`, else of `s`.
     pub fn erase_member(&mut self, prefix: TypeId, s: SymbolId) -> Erased {
         if let Some(arg) = self.arg_for_param(prefix, s) {
             return self.erase(arg);
@@ -28,6 +29,10 @@ impl Universe {
             }
             if let Some(a) = self.overriding_alias(prefix, s) {
                 return self.erase(a);
+            }
+            if self.opaque_alias(s).is_none() {
+                let info = self.member_info(prefix, s);
+                return self.erase(info);
             }
         }
         self.erase_symbol(s)
