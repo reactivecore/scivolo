@@ -96,7 +96,7 @@ impl Gen<'_, '_> {
         let extension = holder != sym && self.l.mixed_in_from(sym).is_none();
         let extended = extension.then(|| self.l.u.symbol(holder).owner).flatten();
         let top = self.original_top(sym);
-        Member { sym, origin, extended, top }
+        Member { sym, origin, extended, top, forwarder: false }
     }
 
     /// Determines the top-level class `sym` is in before local classes were lifted (dotty's

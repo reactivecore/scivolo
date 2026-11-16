@@ -55,12 +55,14 @@ pub struct Member {
     pub extended: Option<SymbolId>,
     /// The top-level class `sym` is in, before local classes were lifted.
     pub top: SymbolId,
+    /// Whether `sym` is called by a static forwarder whose signature this is.
+    pub forwarder: bool,
 }
 
 /// Builds the generic signature of `m` of type `info`, descriptor `desc` and thrown exception
 /// types `thrown`; none if it equals `desc`.
 pub fn member(u: &mut Universe, m: Member, info: TypeId, desc: &str, thrown: &[TypeId]) -> Option<String> {
-    if !needed::may_need(u, info) {
+    if !needed::may_need(u, info, m.forwarder) {
         return None;
     }
     let method = desc.starts_with('(');
