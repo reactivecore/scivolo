@@ -93,6 +93,16 @@ fn top_level_definitions_are_found_in_package_objects() {
 }
 
 #[test]
+fn impure_function_aliases_declare_their_variances() {
+    let Some(mut u) = stdlib() else { return };
+    let scala = u.package("scala").unwrap();
+    let f2 = one(&mut u, scala, "ImpureFunction2", Kind::Type);
+    assert_eq!(u.variances(f2), [-1, -1, 1]);
+    let c1 = one(&mut u, scala, "ImpureContextFunction1", Kind::Type);
+    assert_eq!(u.variances(c1), [-1, 1]);
+}
+
+#[test]
 fn every_file_enters_into_its_package() {
     let Some(mut u) = stdlib() else { return };
     let (mut done, mut stack) = (Vec::new(), vec![u.root()]);

@@ -83,6 +83,9 @@ object Scopes:
     val before = compiletime.summonInline[Show[Int]].show(3)
     import Instances.given
     before + " " + compiletime.summonInline[Show[Int]].show(4)
+  inline def matched(v: Any): String = v match
+    case given Show[Int] => compiletime.summonInline[Show[Int]].show(5)
+    case _ => "none"
   inline def inClass(n: Int): Int =
     class C:
       import Instances.twice

@@ -29,6 +29,7 @@ fn run() -> Result<(), String> {
         let expected = std::fs::read_to_string(input.with_extension("check")).expect("a .check file");
         let text = std::fs::read_to_string(&input).expect("a test input");
         let mut u = Universe::open(&tasty).map_err(|e| e.to_string())?;
+        u.use_java_classfiles(&[tasty.len() - 1]).map_err(|e| e.to_string())?;
         let source = SourceFile::new(input.to_string_lossy(), text.as_str());
         let sources = vec![SourceFile::new(source.name.clone(), text.as_str())];
         let mut runner = VmMacros { vm: &mut vm, sources, settings: Default::default() };

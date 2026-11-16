@@ -574,3 +574,11 @@ object Searches:
     val to = TypeRepr.of[PartialFunction[Int, Int] => Option[Int]]
     val sel = Select.overloaded('{ Searches }.asTerm, "pick", Nil, List(Literal(IntConstant(1))), to)
     Apply(sel, List(f.asTerm)).asExprOf[Option[Int]]
+
+  inline def annotationsOf[T]: String = ${ annotationsOfImpl[T] }
+  def annotationsOfImpl[T: Type](using Quotes): Expr[String] =
+    import quotes.reflect.*
+    Expr(TypeRepr.of[T].typeSymbol.annotations.map(_.show).mkString(", "))
+
+@JavaAnnot(c = 1, a = 2) class Retired
+@JavaAnnot(a = 2) class Retiring

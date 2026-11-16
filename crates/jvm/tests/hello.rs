@@ -240,6 +240,11 @@ fn arrays_of_type_members_cast_as_dotty_on_the_jvm() {
 }
 
 #[test]
+fn private_objects_keep_their_names_on_the_jvm() {
+    runs_on_the_jvm("privateobjects", "Privateobjects");
+}
+
+#[test]
 fn a_macro_call_runs_over_the_macro_classpath() {
     if Command::new("java").arg("-version").output().is_err() {
         eprintln!("no java on the PATH: skipped");
@@ -358,6 +363,12 @@ fn an_annotated_type_inferred_from_another_file_with_its_own_tree_is_refused() {
     let (_, compiled) = compile_all("annotatedfrom-out", &sources);
     let stderr = String::from_utf8_lossy(&compiled.stderr);
     assert!(stderr.contains("b.scala: ") && stderr.contains("several annotation trees"), "{stderr}");
+}
+
+#[test]
+fn a_use_of_a_well_known_class_the_unit_removes_is_refused() {
+    let code = "package scala { object Unit }\npackage p { class U { def t = () } }\n";
+    refuses("unitremoved", code, "a reference to a library symbol a definition of the unit replaces");
 }
 
 #[test]
