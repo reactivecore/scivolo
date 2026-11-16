@@ -354,14 +354,20 @@ fn an_annotated_type_inferred_from_another_file_with_its_own_tree_is_refused() {
 }
 
 #[test]
-fn a_definition_of_scala_unit_is_refused() {
+fn a_definition_of_scala_unit_is_the_well_known_unit() {
+    let source = root().join("tmp/jvm-test/unitdefined.scala");
+    std::fs::create_dir_all(source.parent().expect("a directory")).expect("tmp/jvm-test");
     let code = "package scala { final abstract class Unit private extends AnyVal }\n\
                 package p { class U { def t = summon[scala.reflect.ClassTag[Unit]] } }\n";
-    refuses("unitdefined", code, "a definition replacing a well-known library symbol");
+    std::fs::write(&source, code).expect("writing");
+    let (out, compiled) = compile("unitdefined", &source);
+    assert!(compiled.status.success(), "{}", String::from_utf8_lossy(&compiled.stderr));
+    let u = std::fs::read(out.join("p/U.class")).expect("p/U.class");
+    assert!(u.windows(12).any(|w| w == b"UnitManifest"), "ClassTag.Unit not referred to");
 }
 
 #[test]
-fn any_val_of_a_unit_of_several_files_is_left_out() {
+fn any_val_of_a_unit_of_several_files_is_the_well_known_any_val() {
     let any_val = "package scala\nimport scala.language.`2.13`\n\
                    transparent abstract class AnyVal extends Any, Matchable {\n\
                    def getClass(): Class[? <: AnyVal] = null.asInstanceOf[Class[? <: AnyVal]]\n}\n";
@@ -376,7 +382,7 @@ fn any_val_of_a_unit_of_several_files_is_left_out() {
         .output()
         .expect("running scivolo-jvm");
     let stderr = String::from_utf8_lossy(&run.stderr);
-    assert!(stderr.contains("AnyVal.scala: ") && !stderr.contains("v.scala: "), "{stderr}");
+    assert!(!stderr.contains("AnyVal.scala: ") && !stderr.contains("v.scala: "), "{stderr}");
     let companion = std::fs::read(out.join("V$.class")).expect("V$.class");
     assert!(companion.windows(15).any(|w| w == b"twice$extension"), "{stderr}");
 }
