@@ -90,8 +90,9 @@ impl Typer<'_> {
             }
             let mut arg_defs = Vec::new();
             typed = self.lift_args(&mut arg_defs, params, &typed, complex, ctx);
-            let position =
-                |i: usize| aligned.get(i).copied().flatten().and_then(|a| args.iter().position(|&b| b == a));
+            let seq = varargs.and_then(|v| v.seq).filter(|_| aligned.len() == fixed);
+            let slot = |i: usize| aligned.get(i).copied().flatten().or(seq.filter(|_| i == fixed));
+            let position = |i: usize| slot(i).and_then(|a| args.iter().position(|&b| b == a));
             arg_defs.sort_by_key(|&(i, _)| position(i).unwrap_or(args.len()));
             defs.extend(arg_defs.into_iter().map(|(_, d)| d));
         }

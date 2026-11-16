@@ -16,3 +16,7 @@ eval 4
 eval r
 eval q
 1
+7 b [p,q]
+eval t
+eval s
+7 t [s]

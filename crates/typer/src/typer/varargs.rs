@@ -5,6 +5,7 @@ use super::harmonize::Before;
 use super::{Pt, Typer};
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
+use syntax::ast::NodeId;
 use tasty::{SymbolId, TypeId};
 
 /// The repeated parameter of a call, whose arguments become one sequence literal.
@@ -17,12 +18,16 @@ pub struct Varargs {
     pub result: TypeId,
     /// Whether the elements are by-name, `=> T*`.
     pub by_name: bool,
+    /// The sequence argument `xs = ys*` of a call with named or default arguments, passed instead
+    /// of elements.
+    pub seq: Option<NodeId>,
 }
 
 impl Typer<'_> {
     /// Packs the typed arguments `elems` of repeated parameter `v`, given after tree `before`,
     /// into a sequence literal (dotty's `makeVarArg`), harmonized if the call's result type is
-    /// open, with the constraint reset to `typed`, taken before the first element was typed.
+    /// open, with the constraint reset to `typed`, taken before the first element was typed;
+    /// gives `v`'s sequence argument typed instead if it has one.
     pub fn packed_varargs(
         &mut self,
         elems: Vec<TNodeId>,
@@ -30,6 +35,11 @@ impl Typer<'_> {
         v: &Varargs,
         ctx: Ctx,
     ) -> Result<TNodeId, &'static str> {
+        if let Some(seq) = v.seq {
+            let elem = self.from_java_object(v.meth, v.elem);
+            return Ok(self.named_sequence_arg(seq, elem, ctx));
+        }
+
         let elems = match self.is_open(v.result) {
             true => self.harmonic(elems, Pt::Type(v.elem), typed, ctx)?,
             false => elems,

@@ -16,3 +16,6 @@ object Namedvarargs:
     println(h(b = say("v"), xs = say("u"), a = num(4)))
     println(h())
     println(g(rest = say("r"), first = say("q")))
+    val ys = List("p", "q")
+    println(h(xs = ys*))
+    println(h(b = say("t"), xs = List(say("s"))*))

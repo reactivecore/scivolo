@@ -106,13 +106,14 @@ impl Typer<'_> {
         if repeated.is_some() {
             params.pop();
         }
-        let seq_arg = arg_ids
-            .last()
-            .copied()
-            .filter(|&a| repeated.is_some() && arg_ids.len() == params.len() + 1 && self.is_sequence_arg(a));
-        let named_seq = seq_arg.is_some_and(|a| {
-            self.arg_name(a).is_some_and(|n| names.last().is_some_and(|&l| self.u.name(l) == n))
+        let names_repeated = |t: &Self, a: NodeId| {
+            t.arg_name(a).is_some_and(|n| names.last().is_some_and(|&l| t.u.name(l) == n))
+        };
+        let seq_arg = arg_ids.last().copied().filter(|&a| {
+            let placed = arg_ids.len() == params.len() + 1 || names_repeated(self, a);
+            repeated.is_some() && placed && self.is_sequence_arg(a)
         });
+        let named_seq = seq_arg.is_some_and(|a| names_repeated(self, a));
         let unnamed = &arg_ids[..arg_ids.len() - usize::from(named_seq)];
         let aligned = match self.aligned_args(unnamed, &params, repeated.and(names.last().copied())) {
             Ok(aligned) => aligned,
@@ -140,7 +141,8 @@ impl Typer<'_> {
         if super::wildcard_members::is_bounds_like(self.u, result) {
             return self.unsupported(id, "result type of a wildcard argument");
         }
-        let varargs = repeated.map(|elem| Varargs { elem, meth, result, by_name: by_name_repeated });
+        let seq = seq_arg.filter(|_| aligned.is_some());
+        let varargs = repeated.map(|elem| Varargs { elem, meth, result, by_name: by_name_repeated, seq });
         let aligned_args = aligned.as_ref().map(|a| {
             let call = (f, method, varargs.as_ref());
             self.typed_aligned_args(call, (&arg_ids, a, pretyped.as_deref()), (&all_params, &formals), ctx)
@@ -149,8 +151,9 @@ impl Typer<'_> {
             _ if !outer.is_empty() && aligned.is_some() => {
                 return self.unsupported(id, "named or default arguments after a lifted call");
             }
-            _ if seq_arg.is_some() && aligned.is_some() => {
-                return self.unsupported(id, "named or default arguments with a sequence argument");
+            _ if seq.is_some() && pretyped.is_some() => {
+                return self
+                    .unsupported(id, "sequence argument of an overload with named or default arguments");
             }
             Some(Err(what)) => return self.unsupported(id, what),
             Some(Ok(parts)) => parts,
@@ -271,8 +274,9 @@ impl Typer<'_> {
         }
     }
 
-    /// Sequence argument `a`, named or not, passed to a repeated parameter of element type `elem`.
-    fn named_sequence_arg(&mut self, a: NodeId, elem: TypeId, ctx: Ctx) -> TNodeId {
+    /// Types sequence argument `a`, named or not, passed to a repeated parameter of element type
+    /// `elem`.
+    pub fn named_sequence_arg(&mut self, a: NodeId, elem: TypeId, ctx: Ctx) -> TNodeId {
         let Tree::NamedArg { name, arg } = *self.ast.tree(a) else {
             return self.sequence_arg(a, Some(elem), ctx);
         };
