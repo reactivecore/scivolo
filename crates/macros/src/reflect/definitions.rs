@@ -47,6 +47,19 @@ impl Host {
         }
     }
 
+    /// Determines `Symbol.docstring`: the raw doc comment of a symbol read from TASTy, none
+    /// without `-Xread-docs`. Refuses a symbol defined in the unit, whose comment the parser
+    /// drops, and one of a TASTy file without comments, which the frontend may have written.
+    pub fn docstring(&mut self, s: SymbolId) -> Fallible<Option<String>> {
+        if self.definition(s).is_some() || self.u.symbol(s).tree.is_none() {
+            return Err("Symbol.docstring of a symbol not read from TASTy");
+        }
+        if !self.settings.read_docs {
+            return Ok(None);
+        }
+        self.u.pickled_comment(s).ok_or("Symbol.docstring of a TASTy file without comments")
+    }
+
     pub fn class_body(&mut self, t: TNodeId) -> Fallible<Vec<TNodeId>> {
         let T::TypeDef { rhs, .. } = *self.tpd.tree(t) else { return Err(NO_CLASS) };
         let T::Template { body, .. } = *self.tpd.tree(rhs) else { return Err(NO_CLASS) };

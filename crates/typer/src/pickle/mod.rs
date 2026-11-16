@@ -8,6 +8,7 @@ mod annotation_origins;
 mod applies;
 mod cases;
 mod defs;
+mod inferred_captures;
 mod kept_annotations;
 mod member_tpts;
 mod names;
@@ -82,7 +83,8 @@ pub struct TreePickler<'a> {
     /// The type tree of each parameter pickled.
     param_tpts: FxHashMap<SymbolId, TNodeId>,
     /// The type of each synthetic type tree pickled with the capture-set annotations its
-    /// definition's info has (`retaining::keep_captures`).
+    /// definition's info has (`retaining::keep_captures`), and of each inferred one with the
+    /// emptied capture sets of the type it was inferred from (`inferred_captures`).
     kept_captures: FxHashMap<TNodeId, TypeId>,
     /// Whether the source version keeps capture-set annotations as types (dotty's
     /// `enablesCompactAnnotation`).

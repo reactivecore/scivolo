@@ -61,6 +61,7 @@ ops! {
     // definitions
     "annotations" => annotations(s: Sym, cls: OptSym) -> Fallible<Vec<TNodeId>>;
     "symbolTree" => symbol_tree(s: Sym) -> Fallible<Option<TNodeId>>;
+    "docstring" => docstring(s: Sym) -> Fallible<Option<String>>;
     "classBody" => class_body(t: Tree) -> Fallible<Vec<TNodeId>>;
     "defClauses" => def_clauses(t: Tree) -> Fallible<Vec<i32>>;
     "classParts" => class_parts(t: Tree) -> Answer;
@@ -88,6 +89,7 @@ ops! {
     "newModule" => new_module(owner: Sym, name: Name) -> [SymbolId; 2];
     "classParents" => class_parents(cls: Sym, parents: Rest<Ty>) -> Fallible<()>;
     "classConstructor" => class_constructor(cls: Sym, info: Ty) -> Fallible<Vec<i32>>;
+    "classSelfType" => class_self_type(cls: Sym, self_type: Ty) -> ();
     "enterDecls" => enter_decls(cls: Sym, decls: Rest<Sym>) -> Fallible<()>;
     "classDef" => class_def(cls: Sym, n: Num, trees: Rest<Tree>) -> Fallible<TNodeId>;
     "typeIdent" => type_ident(s: Sym) -> Fallible<TNodeId>;

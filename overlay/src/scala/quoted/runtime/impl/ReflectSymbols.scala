@@ -40,13 +40,13 @@ trait ReflectSymbols extends reflectModule, ReflectDeclarations { self: reflect.
         selfType: Option[TypeRepr], clsFlags: Flags, clsPrivateWithin: Symbol, clsAnnotations: List[Term],
         conMethodType: TypeRepr => MethodOrPoly, conFlags: Flags, conPrivateWithin: Symbol,
         conParamFlags: List[List[Flags]], conParamPrivateWithins: List[List[Symbol]]): Symbol = {
-      if (selfType.nonEmpty) refused("Symbol.newClass with a self type")
       if (clsAnnotations.nonEmpty) refused("Symbol.newClass with annotations")
       val within = clsPrivateWithin :: conPrivateWithin :: conParamPrivateWithins.flatten
       if (within.exists(ReflectOps.id(_) >= 0)) refused("Symbol.newClass with privateWithin")
       if ((conFlags :: conParamFlags.flatten).exists(bits(_) != 0)) refused("Symbol.newClass with constructor or parameter flags")
       ReflectOps.run("newClass", Array(ReflectOps.id(owner), bits(clsFlags).toInt, (bits(clsFlags) >>> 32).toInt), name)
       val cls = symbol(QuoteHost.result(0))
+      selfType.foreach(t => ReflectOps.run("classSelfType", Array(ReflectOps.id(cls), ReflectOps.id(t)), null))
       val sizes = ReflectOps.results("classConstructor", ReflectOps.id(cls), ReflectOps.id(conMethodType(cls.typeRef)))
       if (sizes.length > conParamFlags.length || sizes.zip(conParamFlags).exists((n, flags) => n != flags.length))
         throw new Exception("Shapes of conMethodType and conParamFlags differ.")

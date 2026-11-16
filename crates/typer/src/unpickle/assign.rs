@@ -120,7 +120,7 @@ impl Unpickler<'_> {
             return Err("application of a value in a library inline body");
         };
         if params.len() != args.len() {
-            return Err("application with missing arguments in a library inline body");
+            return self.defaulted_java_annotation(fun, meth, &params, args);
         }
         let part = self.tpd.meth_part(fun);
         let curried = self.u.method(result).is_some();

@@ -1,8 +1,10 @@
 //! What reading method bodies needs of a loaded file beyond its symbols: the spans of its trees
-//! and the signatures of its signed names, decoded from the file again on first use.
+//! the signatures of its signed names and its doc comments, decoded from the file again on first
+//! use.
 
 use super::{Error, FileId, SymbolId, Universe};
 use crate::Tasty;
+use crate::comments::decode_comments;
 use crate::names::{Name, NameRef, ParamSig};
 use crate::positions::{TastySpan, decode_positions};
 use rustc_hash::FxHashMap;
@@ -12,6 +14,8 @@ pub struct BodyInfo {
     /// The parameter part of each signed name (dotty's `Signature.paramsSig`): the number of
     /// type parameters of a clause, or the erased class name of a value parameter.
     signatures: FxHashMap<u32, Vec<String>>,
+    /// The raw doc comment of each definition that pickled one.
+    comments: FxHashMap<u32, String>,
 }
 
 impl BodyInfo {
@@ -49,6 +53,15 @@ impl Universe {
         let addr = self.file(file).0.node(id).addr;
         self.body_info(file).ok()?.span(addr)
     }
+
+    /// Finds the raw doc comment pickled for the tree defining loaded symbol `s`, if any; none if
+    /// its file pickled no comment at all, as the frontend's files.
+    pub fn pickled_comment(&mut self, s: SymbolId) -> Option<Option<String>> {
+        let (file, id) = self.symbol(s).tree?;
+        let addr = self.file(file).0.node(id).addr;
+        let comments = &self.body_info(file).ok()?.comments;
+        (!comments.is_empty()).then(|| comments.get(&addr).cloned())
+    }
 }
 
 impl BodyInfo {
@@ -72,6 +85,10 @@ impl BodyInfo {
                 _ => None,
             })
             .collect();
-        Ok(BodyInfo { spans, signatures })
+        let comments = match tasty.section("Comments") {
+            Some(s) => decode_comments(s.bytes)?,
+            None => FxHashMap::default(),
+        };
+        Ok(BodyInfo { spans, signatures, comments })
     }
 }

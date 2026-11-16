@@ -6,7 +6,8 @@
 
 use super::{Refusal, TreePickler};
 use crate::tpd::{TNodeId, Tree};
-use crate::typer::seen_from::{is_retains_like, normalized};
+use crate::typer::capture_types::is_retains_like;
+use crate::typer::seen_from::normalized;
 use names::nme;
 use tasty::tags::{ANNOTATEDtype, APPLY, NEW, SELECTin, TYPEAPPLY};
 use tasty::{Kind, SymbolId, Type, TypeId, Universe};

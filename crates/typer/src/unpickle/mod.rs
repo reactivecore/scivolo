@@ -6,6 +6,7 @@
 //! source. Bodies outside the subset read are refused.
 
 mod admitted;
+mod annotation_defaults;
 mod assign;
 mod cases;
 mod class_defs;
