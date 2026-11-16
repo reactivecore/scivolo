@@ -76,6 +76,34 @@ fn scala2_class_files_are_refused_by_name() {
     }
 }
 
+/// tests/jvm/javajar/enumvalues.scala against the jar: the `final val` of a Java enum's constant
+/// keeps its singleton type and that of another static field of the enum is widened (dotty's
+/// `isJavaEnumValue`); the `InnerClasses` entry of the enum has the flags dotty gives it, which
+/// javac's `InnerClasses` entry of the enum does not carry.
+#[test]
+fn java_enum_values_of_a_jar_keep_their_types_and_flags() {
+    let Some(jar) = shapes_jar("javajar-enumvalues") else { return };
+    let out = jar.with_file_name("scala");
+    run(&mut scivolo(&jar, &out, "enumvalues"));
+
+    let bytes = std::fs::read(out.join("shapes/EnumValues.tasty")).expect("our TASTy");
+    let file = tasty::Tasty::parse(&bytes).expect("a TASTy file");
+    let ast = tasty::Ast::parse(file.section("ASTs").expect("trees").bytes).expect("the trees");
+    let printed = tasty::dump(&ast, &file.names);
+    let type_of = |name: &str| {
+        let line = printed.lines().find(|l| l.trim_start().starts_with(&format!("VALDEF {name}@")));
+        line.and_then(|l| l.split_once(": ")).map(|(_, t)| t.to_owned())
+    };
+    assert_eq!(type_of("on").as_deref(), Some("shapes.Box.Mode.ON final"), "{printed}");
+    assert_eq!(type_of("All").as_deref(), Some("java.util.List[shapes.Box.Mode] final"), "{printed}");
+
+    let class = classfile::read(&std::fs::read(out.join("shapes/EnumValues$.class")).unwrap()).unwrap();
+    let mode = class.inner_classes.iter().find(|c| c.inner == "shapes/Box$Mode").expect("Box$Mode's entry");
+    let dotty_s =
+        classfile::ACC_PUBLIC | classfile::ACC_STATIC | classfile::ACC_ABSTRACT | classfile::ACC_ENUM;
+    assert_eq!(mode.flags, dotty_s);
+}
+
 #[test]
 fn inaccessible_java_classes_and_native_classes_are_refused() {
     let Some(jar) = shapes_jar("javajar-refused") else { return };

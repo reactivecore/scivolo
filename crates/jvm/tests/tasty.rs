@@ -93,7 +93,9 @@ const DOTTY_TASTY: &[(&str, &[&str])] = &[
     ("patterndefs", &["scala/probe/Chains"]),
     ("captureproxy", &["scala/probe/Proxy"]),
     ("capturesuper", &["scala/probe/SeqViews"]),
+    ("nestedcaptures", &["scala/probe/Outer"]),
     ("genericsuperaccessors", &["scala/probe/GenericLengths", "scala/probe/GenericSizes"]),
+    ("typeparamannotations", &["scala/probe/TgLengths", "scala/probe/TgGeneric"]),
     (
         "inlineaccessors",
         &["scala/probe/Counter", "scala/probe/Counters", "scala/probe/Outer", "scala/probe/Derived"],
@@ -105,8 +107,8 @@ const DOTTY_TASTY: &[(&str, &[&str])] = &[
 /// field `label: Label[T]^{}` of captures.scala keeps its capture set as a type and, under source
 /// 3.8, as `new retains[Nothing]()`; inferred types of inferredcaptures.scala keep the capture
 /// sets of the types they are inferred from, emptied; annotated types take the annotation tree of their own
-/// origin in match selectors and patterns, inferred types, super accessors and inline accessors;
-/// secondary constructors have their own type parameters and parameters passed on to the
+/// origin in match selectors and patterns, inferred types, super accessors and inline accessors,
+/// in super accessors with their class's type parameters seen from the accessor's class; secondary constructors have their own type parameters and parameters passed on to the
 /// superclass are its parameters' aliases. Needs a JDK (java on the PATH), as dotty's did.
 #[test]
 fn probes_pickle_as_dotty_s() {
@@ -132,6 +134,52 @@ fn probes_pickle_as_dotty_s() {
             assert!(same, "{name}'s {class}.tasty differs from dotty's");
         }
     }
+}
+
+/// The annotated types of tests/jvm/tastylib/annotlib.jar, dotty's classes of annotlib/, keep
+/// their library's annotation trees in the TASTy of libraryannotations.scala as in dotty's; one
+/// whose tree refers to a parameter, which dotty maps, is refused, as is one with arguments in a
+/// quote.
+#[test]
+fn library_annotations_pickle_as_dotty_s() {
+    let out = root().join("tmp/jvm-test/libraryannotations");
+    let _ = std::fs::remove_dir_all(&out);
+    std::fs::create_dir_all(&out).expect("tmp/jvm-test/libraryannotations");
+    let compile = |source: &str| {
+        Command::new(env!("CARGO_BIN_EXE_scivolo-jvm"))
+            .current_dir(root())
+            .args(["--cp", "tests/jvm/tastylib/annotlib.jar", "-d"])
+            .arg(&out)
+            .arg(source)
+            .output()
+            .expect("running scivolo-jvm")
+    };
+    let run = compile("tests/jvm/tastylib/libraryannotations.scala");
+    assert!(run.status.success(), "{}", String::from_utf8_lossy(&run.stderr));
+    let ours = std::fs::read(out.join("scala/probe/Uses.tasty")).expect("our TASTy");
+    let theirs =
+        std::fs::read(root().join("tests/jvm/tastylib/libraryannotations-Uses.tasty")).expect("dotty's");
+    assert!(trees_and_flags(&ours) == trees_and_flags(&theirs), "Uses.tasty differs from dotty's");
+
+    let source = out.join("dependent.scala");
+    std::fs::write(&source, "class D(b: annotlib.Box[Int]) { def d = b.dependent(2) }").expect("writing");
+    let run = compile(source.to_str().expect("a path"));
+    let stderr = String::from_utf8_lossy(&run.stderr);
+    assert!(
+        !run.status.success() && stderr.contains("referring to other than static definitions"),
+        "{stderr}"
+    );
+
+    let source = out.join("quoted.scala");
+    let quote = "import scala.quoted.*\n\
+        def tags(l: Expr[annotlib.Lib])(using Quotes): Expr[Int] = '{ val t = $l.tags; t.size }";
+    std::fs::write(&source, quote).expect("writing");
+    let run = compile(source.to_str().expect("a path"));
+    let stderr = String::from_utf8_lossy(&run.stderr);
+    assert!(
+        !run.status.success() && stderr.contains("annotation tree with arguments in a quote"),
+        "{stderr}"
+    );
 }
 
 /// scala-cli 3.9.0 compiles tests/jvm/tastylib/user.scala against the jar, and the result runs

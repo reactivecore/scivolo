@@ -17,6 +17,17 @@ impl Typer<'_> {
         } else {
             self.copy_annotations(target, fwd, true);
         }
+        if self.u.is_java_defined(target) {
+            self.syms.java_forwarders.push((fwd, target));
+        }
+    }
+
+    /// Gives the export forwarders of members of the Java sources the annotations of their
+    /// targets, typed after the forwarders were entered.
+    pub fn forward_java_source_annotations(&mut self) {
+        for (fwd, target) in std::mem::take(&mut self.syms.java_forwarders) {
+            self.copy_annotations(target, fwd, true);
+        }
     }
 
     /// Gives parameter `to` of an export forwarder the annotations of parameter `from` of its

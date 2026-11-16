@@ -6,5 +6,6 @@ object Test {
   def main(args: Array[String]): Unit = {
     println(Scopes.scoped)
     println(Scopes.inClass(args.length + 1))
+    println(Scopes.matched(summon[inl.Show[Int]]))
   }
 }

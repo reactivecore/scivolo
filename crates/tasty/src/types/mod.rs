@@ -1,6 +1,7 @@
 //! Types, hash-consed in an arena: references by name or to symbols, applied types, bounds,
 //! method and lambda types.
 
+mod annotation_trees;
 mod decode;
 mod flexible;
 mod map;
@@ -19,6 +20,7 @@ mod widen;
 use crate::{FileId, SymbolId};
 use rustc_hash::FxHashMap;
 
+pub use annotation_trees::AnnotationTree;
 pub use decode::{Decoder, param_tree_clauses};
 pub use name_table::NameId;
 use name_table::NameTable;
@@ -135,6 +137,7 @@ pub struct Types {
     names: NameTable,
     lists: ListTable<TypeId>,
     params: ListTable<(NameId, TypeId)>,
+    annotation_trees: FxHashMap<TypeId, Option<annotation_trees::Recorded>>,
 }
 
 impl Types {

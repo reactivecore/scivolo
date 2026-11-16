@@ -56,6 +56,9 @@ Tests stay proportionate to the code they cover: no stub tools, fake
 environments or test harnesses for a few lines of glue. A small fix or
 script may go without a test.
 
+A fixed bug, also one a reviewer finds, gets a regression test that fails without the fix and
+runs in CI (`just ci`); probes in tmp/ and the dotty suite reports do not count.
+
 ## Comments
 
 Minimal. State only what code does, never why — no rationale, history,

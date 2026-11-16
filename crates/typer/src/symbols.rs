@@ -40,6 +40,9 @@ pub struct Syms {
     pub annotation_trees: Vec<(SymbolId, NodeId, Ctx)>,
     /// The typed annotations of the unit's symbols, in order (dotty's `Symbol.annotations`).
     pub annotations: FxHashMap<SymbolId, Vec<TNodeId>>,
+    /// The export forwarders of Java members with their targets, which take the annotations of a
+    /// Java source's member once they are typed.
+    pub java_forwarders: Vec<(SymbolId, SymbolId)>,
     /// The symbol each definition tree defines.
     pub by_tree: FxHashMap<NodeId, SymbolId>,
     /// The definition tree of each method parameter of the unit.

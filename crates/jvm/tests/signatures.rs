@@ -47,6 +47,7 @@ class Sigs[A] {
   def fn(f: Int => A): A = ???
   def nullable(x: List[A] | Null): String | Null = null
   def inter[B <: Comparable[B] & java.io.Serializable](b: B): B = b
+  def interBounded[B <: Comparable[B]](b: B & java.io.Serializable): Unit = ()
   def unit(): Unit = ()
   def nothing: Nothing = ???
   def anyRef(x: AnyRef, y: Any): Object = x
@@ -122,6 +123,7 @@ const METHODS: &[(&str, &str, Option<&str>)] = &[
     ("Sigs", "fn", Some("(Lscala/Function1<Ljava/lang/Object;TA;>;)TA;")),
     ("Sigs", "nullable", Some("(Lscala/collection/immutable/List<TA;>;)Ljava/lang/String;")),
     ("Sigs", "inter", Some("<B::Ljava/io/Serializable;:Ljava/lang/Comparable<TB;>;>(TB;)TB;")),
+    ("Sigs", "interBounded", Some("<B::Ljava/lang/Comparable<TB;>;>(Ljava/io/Serializable;)V")),
     ("Sigs", "unit", None),
     ("Sigs", "nothing", None),
     ("Sigs", "anyRef", None),

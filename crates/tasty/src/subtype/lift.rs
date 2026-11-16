@@ -45,7 +45,12 @@ impl Cmp<'_> {
             }
             Type::Annotated(p, a) => {
                 let q = self.lift_to_this(p);
-                return if q == p { t } else { self.u.intern_type(Type::Annotated(q, a)) };
+                if q == p {
+                    return t;
+                }
+                let lifted = self.u.intern_type(Type::Annotated(q, a));
+                self.u.carry_annotation_tree(t, lifted);
+                return lifted;
             }
             _ => None,
         };

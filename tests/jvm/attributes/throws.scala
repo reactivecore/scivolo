@@ -19,6 +19,14 @@ trait ThrowingTrait:
   @throws[java.io.IOException]
   val inTrait: Int = 5
 
+object InlineThrows:
+  inline def guarded: List[String] =
+    class Oops extends Exception
+    class Lifted:
+      @throws[Oops] def lifted(y: Int): Int = y + 1
+    Throws.show(classOf[Lifted])
+  def use: List[String] = guarded
+
 @throws[java.io.IOException]
 object Throws:
   def show(c: Class[?]): List[String] =

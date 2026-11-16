@@ -7,6 +7,7 @@ mod class_info;
 mod enum_constants;
 mod fields;
 mod literals;
+mod member_annotations;
 mod members;
 mod parser;
 mod permitted;
@@ -17,6 +18,8 @@ mod syntax;
 mod text_blocks;
 mod type_signatures;
 mod written_types;
+
+pub use member_annotations::{SourceAnnotation, SourceArg};
 
 use super::super::Universe;
 use classfile::ClassInfo;
@@ -103,11 +106,16 @@ impl JavaSources {
         Some(Located { unit, path, internal })
     }
 
-    /// The classes of unit `unit`, nested ones included, by internal name.
-    pub fn unit_classes(&self, unit: &Rc<Unit>) -> Vec<Located> {
+    /// The classes of the sources, nested ones included, by internal name.
+    pub fn classes(&self) -> Vec<Located> {
         let mut names: Vec<&String> = self.classes.keys().collect();
         names.sort();
-        names.into_iter().filter_map(|n| self.located(n)).filter(|l| Rc::ptr_eq(&l.unit, unit)).collect()
+        names.into_iter().filter_map(|n| self.located(n)).collect()
+    }
+
+    /// The classes of unit `unit`, nested ones included, by internal name.
+    pub fn unit_classes(&self, unit: &Rc<Unit>) -> Vec<Located> {
+        self.classes().into_iter().filter(|l| Rc::ptr_eq(&l.unit, unit)).collect()
     }
 
     /// Builds the class file of class `internal` of the sources; the refusal of a name not found.

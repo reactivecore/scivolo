@@ -67,6 +67,17 @@ fn a_class_parameter_field_capturing_another_parameter_refused() {
     assert!(!compiled.status.success() && stderr.contains(refusal), "{stderr}");
 }
 
+/// A super accessor through prefix `other.Views` whose capture set names the enclosing
+/// `Outer.this`, which dotty writes as `{other}`, is refused.
+#[test]
+fn a_super_accessor_capturing_an_enclosing_this_through_another_prefix_refused() {
+    let source = root().join("tests/jvm/refused/supercaptures.scala");
+    let (_, compiled) = compile("supercaptures", &source);
+    let stderr = String::from_utf8_lossy(&compiled.stderr);
+    let refusal = "a capture set that refers to other than static definitions";
+    assert!(!compiled.status.success() && stderr.contains(refusal), "{stderr}");
+}
+
 #[test]
 fn a_file_of_a_unit_compiles_as_alone() {
     let dir = root().join("tests/jvm/units");
@@ -229,6 +240,11 @@ fn arrays_of_type_members_cast_as_dotty_on_the_jvm() {
 }
 
 #[test]
+fn private_objects_keep_their_names_on_the_jvm() {
+    runs_on_the_jvm("privateobjects", "Privateobjects");
+}
+
+#[test]
 fn a_macro_call_runs_over_the_macro_classpath() {
     if Command::new("java").arg("-version").output().is_err() {
         eprintln!("no java on the PATH: skipped");
@@ -347,6 +363,12 @@ fn an_annotated_type_inferred_from_another_file_with_its_own_tree_is_refused() {
     let (_, compiled) = compile_all("annotatedfrom-out", &sources);
     let stderr = String::from_utf8_lossy(&compiled.stderr);
     assert!(stderr.contains("b.scala: ") && stderr.contains("several annotation trees"), "{stderr}");
+}
+
+#[test]
+fn a_use_of_a_well_known_class_the_unit_removes_is_refused() {
+    let code = "package scala { object Unit }\npackage p { class U { def t = () } }\n";
+    refuses("unitremoved", code, "a reference to a library symbol a definition of the unit replaces");
 }
 
 #[test]

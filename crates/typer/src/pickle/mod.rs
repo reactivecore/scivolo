@@ -10,6 +10,7 @@ mod cases;
 mod defs;
 mod inferred_captures;
 mod kept_annotations;
+mod library_annotations;
 mod member_tpts;
 mod names;
 mod packages;
@@ -91,6 +92,12 @@ pub struct TreePickler<'a> {
     capture_classes: FxHashMap<TNodeId, SymbolId>,
     /// The class of the super accessor pickled now, whose `this` its type's capture sets may name.
     accessor_class: Option<SymbolId>,
+    /// The class of each super accessor's member, by accessor.
+    accessor_owners: FxHashMap<SymbolId, SymbolId>,
+    /// The prefix and class the types of the annotation trees of the super accessor pickled now
+    /// are seen from, and of the annotation tree pickled now (dotty's `Annotation.mapWith`).
+    accessor_seen: Option<(TypeId, SymbolId)>,
+    annotation_seen: Option<(TypeId, SymbolId)>,
     /// Whether the source version keeps capture-set annotations as types (dotty's
     /// `enablesCompactAnnotation`).
     compact_annotations: bool,
@@ -139,6 +146,8 @@ pub struct TreePickler<'a> {
     origins: Option<annotation_origins::AnnotationOrigins>,
     /// Whether the type keyed has an annotation tree told by the type tree pickled.
     keyed_by_place: bool,
+    /// The library annotation tree a refusal needs read first.
+    unread: Option<tasty::AnnotationTree>,
 }
 
 /// The TASTy of quote `root`, `holes` its term holes, without positions (dotty's `pickleQuote`).
@@ -195,6 +204,9 @@ fn pickle<'a>(
         kept_captures: FxHashMap::default(),
         capture_classes: FxHashMap::default(),
         accessor_class: None,
+        accessor_owners: FxHashMap::default(),
+        accessor_seen: None,
+        annotation_seen: None,
         compact_annotations: file
             .map_or(source.is_none_or(|s| s.compact_annotations), |f| f.attributes.compact_annotations),
         file,
@@ -219,9 +231,15 @@ fn pickle<'a>(
         origins: None,
         keyed_by_place: false,
         refused_at: None,
+        unread: None,
     };
     let at = |p: &TreePickler| p.refused_at.unwrap_or_else(|| p.tpd.span(root));
-    if let Err(refusal) = p.tree(root) {
+    let pickled = p.tree(root);
+    if let (Some(file), Some(tree)) = (file, p.unread) {
+        file.unread.set(Some(tree));
+        return Err((at(&p), library_annotations::UNREAD_ANNOTATION));
+    }
+    if let Err(refusal) = pickled {
         return Err((at(&p), refusal));
     }
     if !p.forward.is_empty() {

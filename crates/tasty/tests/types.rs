@@ -79,6 +79,38 @@ fn annotated_types_keep_the_annotation_class() {
     assert!(classes.contains(&unchecked), "{shown}: {classes:?}");
 }
 
+/// An annotated type of a library's TASTy that a type map rebuilds from one without annotation
+/// tree is marked as given by several trees, not left with the library's.
+#[test]
+fn a_rebuilt_annotated_type_does_not_keep_another_s_annotation_tree() {
+    let Some(mut u) = stdlib() else { return };
+    let [m] = members(&mut u, "scala.collection", "IterableOps", "fromSpecific")[..] else {
+        panic!("one fromSpecific")
+    };
+    let info = u.info(m);
+    let param = u.method(info).expect("a method").params[0].1;
+    let (mut todo, mut found) = (vec![param], None);
+    while let Some(t) = todo.pop() {
+        match *u.types().get(t) {
+            Type::Annotated(_, a) if u.types().annotation_tree(t).is_some() => found = Some((t, a)),
+            Type::Annotated(inner, _) => todo.push(inner),
+            Type::Applied(tycon, args) => {
+                todo.push(tycon);
+                todo.extend(u.types_of(args));
+            }
+            _ => {}
+        }
+    }
+    let (library, annot) = found.expect("an annotated type with a library tree");
+    assert!(matches!(u.types().annotation_tree(library), Some(Some(_))));
+
+    let int = u.class_ref("scala.Int");
+    let own = u.intern_type(Type::Annotated(int, annot));
+    assert_eq!(u.types().annotation_tree(own), None);
+    u.carry_annotation_tree(own, library);
+    assert_eq!(u.types().annotation_tree(library), Some(None));
+}
+
 #[test]
 fn erasure_of_aliases_arrays_and_type_parameters() {
     let Some(mut u) = stdlib() else { return };

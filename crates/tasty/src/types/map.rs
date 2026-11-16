@@ -62,7 +62,15 @@ impl Universe {
                 }
                 Type::Or(x, y, soft)
             }
-            Type::Annotated(a, annot) => Type::Annotated(m(self, a), annot),
+            Type::Annotated(a, annot) => {
+                let mapped = m(self, a);
+                if mapped == a {
+                    return t;
+                }
+                let annotated = self.intern_type(Type::Annotated(mapped, annot));
+                self.carry_annotation_tree(t, annotated);
+                return annotated;
+            }
             Type::Flexible(hi) => {
                 let hi = m(self, hi);
                 return self.flexible(hi);

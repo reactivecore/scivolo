@@ -41,8 +41,9 @@ impl TreePickler<'_> {
     /// The annotation tree of class type `annot` on `parent` of the member type trees of the super
     /// accessor pickled now, whose types are seen from the accessor's class (dotty's `memberInfo`
     /// keeps the member's annotation trees), of those on a type of `parent`'s class if any;
-    /// `Some(None)` if they give several trees, one with arguments. Refuses a tree that refers to
-    /// type parameters, which seeing from the class would map.
+    /// `Some(None)` if they give several trees, one with arguments. The types of the tree are seen
+    /// from the class as it is pickled (dotty's `Annotation.mapWith`). Refuses a tree that refers
+    /// to the member's own type parameters, which the accessor's type parameters replace.
     pub fn member_annotation(
         &mut self,
         parent: TypeId,
@@ -70,19 +71,22 @@ impl TreePickler<'_> {
         if trees.len() > 1 && trees.iter().any(|&t| self.has_arguments(t, annot)) {
             return Some(Ok(None));
         }
-        if self.mentions_type_params(first) {
-            return Some(Err("a super accessor's annotation tree that refers to type parameters"));
+        if self.mentions_method_type_params(first) {
+            return Some(Err(
+                "a super accessor's annotation tree that refers to its method's type parameters",
+            ));
         }
         Some(Ok(Some(first)))
     }
 
-    /// Whether a type of tree `tree` or its descendants refers to a type parameter.
-    fn mentions_type_params(&mut self, tree: TNodeId) -> bool {
+    /// Whether a type of tree `tree` or its descendants refers to a type parameter of a method.
+    fn mentions_method_type_params(&mut self, tree: TNodeId) -> bool {
         let mut found = false;
         for t in subtree(self.tpd, tree) {
             let tpe = self.tpd.tpe(t);
             self.u.map_type(tpe, &mut |u, x| {
-                let is_param = matches!(u.sym_ref(x), Some((_, s)) if u.symbol(s).kind == Kind::TypeParam);
+                let is_param = matches!(u.sym_ref(x), Some((_, s))
+                    if u.symbol(s).kind == Kind::TypeParam && !u.symbol(s).owner.is_some_and(|o| u.is_class(o)));
                 found |= is_param || matches!(u.ty(x), Type::Param(..));
                 None
             });

@@ -162,8 +162,11 @@ impl<'u> Sig<'u> {
             Type::And(..) => {
                 let mut parts = Vec::new();
                 self.and_parts(t, &mut parts);
-                let whole = self.glb_erasure(&parts);
-                let mut reprs = parts.into_iter().filter(|&p| self.u.erase(p) == whole).collect::<Vec<_>>();
+                let bounded: Vec<TypeId> = parts.iter().map(|&p| self.upper_bounded(p)).collect();
+                let whole = self.glb_erasure(&bounded);
+                let erased: Vec<Erased> = bounded.iter().map(|&b| self.u.erase(b)).collect();
+                let mut reprs: Vec<TypeId> =
+                    parts.into_iter().zip(erased).filter(|(_, e)| *e == whole).map(|(p, _)| p).collect();
                 let param = reprs.iter().position(|&p| {
                     let tycon = self.u.applied(p).map_or(p, |(c, _)| c);
                     self.type_param(tycon).is_some()

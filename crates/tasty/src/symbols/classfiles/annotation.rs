@@ -13,6 +13,9 @@ use names::nme;
 /// The descriptor of `java.lang.annotation.Retention`.
 const RETENTION: &str = "Ljava/lang/annotation/Retention;";
 
+/// The descriptor of `java.lang.annotation.Repeatable`.
+const REPEATABLE: &str = "Ljava/lang/annotation/Repeatable;";
+
 /// Where the annotations of an annotation class are kept (`java.lang.annotation.RetentionPolicy`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Retention {
@@ -41,6 +44,11 @@ pub fn enter(u: &mut Universe, class: SymbolId, info: &ClassInfo, members: &[Sym
     if info.access & ACC_ANNOTATION != 0 {
         enter_constructor(u, class, members);
         u.classfile_annotations.insert(class, retention(info));
+        let repeatable = info.annotations.iter().find(|a| a.descriptor == REPEATABLE);
+        let container = repeatable.and_then(|a| a.class_elements.iter().find(|(n, _)| n == "value"));
+        if let Some(internal) = container.and_then(|(_, d)| d.strip_prefix('L')?.strip_suffix(';')) {
+            u.repeatable_containers.insert(class, internal.to_owned());
+        }
         let defaults = info.methods.iter().filter(|m| m.annotation_default).map(|m| m.name.as_str());
         let defaults: Vec<&str> = defaults.collect();
         for &m in members {
@@ -52,6 +60,18 @@ pub fn enter(u: &mut Universe, class: SymbolId, info: &ClassInfo, members: &[Sym
 }
 
 impl Universe {
+    /// The internal name of the container class of annotation class `class` of a class file if
+    /// it is `@Repeatable`.
+    pub fn repeatable_container(&self, class: SymbolId) -> Option<&str> {
+        self.repeatable_containers.get(&class).map(String::as_str)
+    }
+
+    /// Determines the retention of the annotation class of internal name `internal` read from
+    /// its class file.
+    pub fn annotation_retention(&mut self, internal: &str) -> Option<Retention> {
+        self.java_class_info(internal).map(|info| retention(&info))
+    }
+
     /// Determines whether element `name` of annotation class `class` of a class file has a
     /// default value (dotty's `AnnotationDefaultAnnot`).
     pub fn has_annotation_default(&self, class: SymbolId, name: &str) -> bool {

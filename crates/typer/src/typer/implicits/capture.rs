@@ -97,7 +97,9 @@ fn captured(t: &mut Typer<'_>, tpe: TypeId, java_unbounded: bool) -> Option<Type
         }
         Type::Annotated(p, annot) => {
             let p = captured(t, p, java_unbounded)?;
-            return Some(t.u.intern_type(Type::Annotated(p, annot)));
+            let annotated = t.u.intern_type(Type::Annotated(p, annot));
+            t.u.carry_annotation_tree(tpe, annotated);
+            return Some(annotated);
         }
         Type::Refined(p, name, info) => {
             let p = captured(t, p, java_unbounded)?;

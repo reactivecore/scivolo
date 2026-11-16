@@ -14,3 +14,7 @@ object Locals:
   def h(a: A^, b: => B^{a}): Int =
     val y = b
     1
+  val a: A^ = A()
+  def k(b: Label[B^{a}]^): Int =
+    val y = b
+    1

@@ -8,7 +8,7 @@ use crate::Lower;
 use crate::symbols::{beyond_jdk_view, has};
 use names::{name_kinds, nme};
 use rustc_hash::FxHashSet;
-use tasty::tags::{FIELDaccessor, INLINE, PRIVATE, STATIC};
+use tasty::tags::{FIELDaccessor, INLINE, PRIVATE, SEALED, STATIC};
 use tasty::{Erased, Kind, SymbolId, TypeId, Universe};
 
 /// The methods of trait `mixin` that `class` gets forwarders to.
@@ -20,6 +20,7 @@ pub fn forwarded(l: &mut Lower, class: SymbolId, mixin: SymbolId) -> Vec<SymbolI
             has_body(l, meth)
                 && !has(l.u, meth, INLINE)
                 && !beyond_jdk_view(l.u, meth)
+                && permits(l, class, meth)
                 && needs_forwarder(l, class, meth)
                 && (l.force_forwarders || needed_unforced(l, class, mixin, meth))
         })
@@ -55,6 +56,18 @@ fn needs_forwarder(l: &mut Lower, class: SymbolId, meth: SymbolId) -> bool {
         }
     }
     false
+}
+
+/// Whether the owner of `meth` permits `class` as its subclass: unless `meth` is a method of a
+/// sealed Java interface that does not list `class` in its `permits` clause.
+fn permits(l: &mut Lower, class: SymbolId, meth: SymbolId) -> bool {
+    let Some(owner) = l.u.symbol(meth).owner else { return true };
+    if !l.u.is_java_defined(meth) || !has(l.u, owner, SEALED) {
+        return true;
+    }
+    let internal = |u: &Universe, c| u.binary_name(c).replace('.', "/");
+    let Some(info) = l.u.java_class_info(&internal(l.u, owner)) else { return true };
+    info.permitted.contains(&internal(l.u, class))
 }
 
 /// Whether `class` needs a forwarder to method `meth` of trait `mixin` under

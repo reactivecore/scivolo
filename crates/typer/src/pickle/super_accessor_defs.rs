@@ -59,8 +59,12 @@ impl TreePickler<'_> {
         let (span, member) = self.accessor_spans.get(&acc).copied().unwrap_or((Span::NONE, Span::NONE));
         self.synthetic_here(span, None);
         self.accessor_class = self.u.symbol(acc).owner;
+        if let (Some(class), Some(&owner)) = (self.accessor_class, self.accessor_owners.get(&acc)) {
+            let this_ = type_ref(self.u, class);
+            self.accessor_seen = Some((self.u.intern_type(Type::This(this_)), owner));
+        }
         let pickled = self.accessor_def(acc, &name, info, (span, member), &mut member_tpts);
-        self.accessor_class = None;
+        (self.accessor_class, self.accessor_seen) = (None, None);
         pickled
     }
 

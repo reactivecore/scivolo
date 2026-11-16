@@ -25,7 +25,8 @@ impl Parser {
                 self.skip_balanced("{", "}")?;
             }
             let access = ACC_PUBLIC | ACC_STATIC | ACC_FINAL | ACC_ENUM;
-            class.fields.push(Field { access, name, ty: enum_type.clone(), constant: None });
+            let ty = enum_type.clone();
+            class.fields.push(Field { access, name, ty, constant: None, annotations: None });
             if !self.eat(",") {
                 break;
             }
@@ -45,6 +46,7 @@ impl Parser {
                 params,
                 result,
                 annotation_default: false,
+                annotations: Some(Vec::new()),
             });
         }
         Ok(())

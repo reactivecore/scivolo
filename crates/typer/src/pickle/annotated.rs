@@ -42,14 +42,21 @@ impl TreePickler<'_> {
                     return Err("an annotated type traced to one of several annotation trees with arguments");
                 }
                 Some(origin) => Some(origin.ok_or(several)?),
-                None => self.tpd.type_annotation(annotated).map(|t| t.ok_or(several)).transpose()?,
+                None => match (self.tpd.type_annotation(annotated), self.library_annotation(annotated)?) {
+                    (Some(_), Some(_)) => return Err(several),
+                    (own, None) => own.map(|t| t.ok_or(several)).transpose()?,
+                    (None, library) => library,
+                },
             },
         };
         if let Some(tree) = tree {
             return self.with_length(ANNOTATEDtype, &mut |p| {
                 p.ty(parent, false)?;
                 if !p.keying {
-                    p.tree(tree)?;
+                    let outer = std::mem::replace(&mut p.annotation_seen, p.accessor_seen);
+                    let pickled = p.tree(tree);
+                    p.annotation_seen = outer;
+                    pickled?;
                     p.type_annots.push(tree);
                     return Ok(());
                 }

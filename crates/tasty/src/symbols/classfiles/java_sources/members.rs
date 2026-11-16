@@ -146,7 +146,10 @@ impl Parser {
             if interface {
                 access |= ACC_PUBLIC | ACC_STATIC | ACC_FINAL;
             }
-            return self.fields(class, access, result, name);
+            let first = class.fields.len();
+            self.fields(class, access, result, name)?;
+            class.fields[first..].iter_mut().for_each(|f| f.annotations = Some(annotations.clone()));
+            return Ok(());
         }
         if interface && access & ACC_PRIVATE == 0 {
             access |= ACC_PUBLIC;
@@ -174,7 +177,16 @@ impl Parser {
         }
         let access = access & !DEFAULT;
         let params = components.into_iter().map(|(_, t)| t).collect();
-        class.methods.push(Method { access, name, type_params, params, result, annotation_default });
+        let annotations = Some(annotations);
+        class.methods.push(Method {
+            access,
+            name,
+            type_params,
+            params,
+            result,
+            annotation_default,
+            annotations,
+        });
         Ok(())
     }
 }

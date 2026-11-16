@@ -92,7 +92,15 @@ impl<'a> Decoder<'a> {
         self.depth += 1;
         let t = self.decode(id);
         self.depth -= 1;
-        self.types.intern(t)
+        let annotated = self.types.intern(t);
+        if let (Type::Annotated(_, class), &[_, tree]) = (t, self.ast.kids(id))
+            && matches!(self.ast.tag(id), ANNOTATEDtype | ANNOTATEDtpt)
+            && !matches!(self.types.get(class), Type::Other(_))
+        {
+            let tree = super::AnnotationTree { file: self.file, node: tree };
+            self.types.record_annotation_tree(annotated, tree, (self.ast, self.names));
+        }
+        annotated
     }
 
     /// Whether `tycon` is `scala.&` (`true`) or `scala.|` (`false`).

@@ -169,7 +169,7 @@ fn pickle_one(
     let mut source = QuoteSource::of(file.tasty_path().to_owned(), file, *base);
     source.others = sources.iter().filter(|(_, b)| b != base).map(|(f, b)| (f, *b)).collect();
     let annotations = typer.with_child_annotations(f).map_err(|r| (at, r))?;
-    let cx = (&mut *typer.u, &mut typer.tpd, &*typer.names);
+    let cx = (&mut *typer.u, &mut typer.tpd, &mut *typer.names);
     let pickled = pickle_file(cx, f, &source, (attributes, &annotations));
     out.extend(pickled.map_err(|(span, r)| (if typer.file_of(span) == index { span } else { at }, r))?);
     Ok(())

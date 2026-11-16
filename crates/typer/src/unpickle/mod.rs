@@ -21,6 +21,7 @@ mod selections;
 mod splices;
 mod terms;
 mod tpts;
+mod type_annotations;
 
 use crate::tpd::{TNodeId, Tpd, Tree as T};
 use syntax::ast::{Span, TName};
@@ -29,6 +30,7 @@ use tasty::{Ast, FileId, NameRef, NodeId, SymbolId, TypeId, Universe};
 
 pub use quote_patterns::{PatternBody, QuotePattern};
 pub use quotes::{Quote, QuoteHole, Unpickled, quote, quoted_type};
+pub use type_annotations::{is_new_without_arguments, type_annotation};
 
 /// Why a body is outside the subset read.
 pub type Refusal = &'static str;

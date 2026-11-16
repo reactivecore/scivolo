@@ -14,7 +14,7 @@ const ACCESSOR_METAS: [&str; 4] = ["field", "getter", "setter", "param"];
 
 impl Typer<'_> {
     pub fn typed_annotated(&mut self, id: NodeId, arg: NodeId, annot: NodeId, pt: Pt, ctx: Ctx) -> TNodeId {
-        let annot = self.typed(annot, Pt::Any, ctx);
+        let annot = self.typed_annotation(annot, ctx);
         let annot_tpe = self.tpd.tpe(annot);
         if self.u.class_symbol(annot_tpe).is_none() {
             return self.unsupported(id, "annotation of an unknown class");
@@ -42,7 +42,7 @@ impl Typer<'_> {
         let arg = self.typed_type(arg, ctx);
         let retains = self.ast.attrs(annot).contains(Attrs::RETAINS_ANNOT);
         let annot_ctx = if retains { ctx.with_mode(ctx.mode.with(Mode::IN_CAPTURE_SET)) } else { ctx };
-        let annot = self.typed(annot, Pt::Any, annot_ctx);
+        let annot = self.typed_annotation(annot, annot_ctx);
         let annot_tpe = self.tpd.tpe(annot);
         let Some(annot_class) = self.u.class_symbol(annot_tpe) else {
             return self.unsupported(id, "annotated type");
@@ -87,6 +87,8 @@ impl Typer<'_> {
             return inner;
         }
         let inner = self.without_annotation(inner, name);
-        self.u.intern_type(Type::Annotated(inner, annot))
+        let without = self.u.intern_type(Type::Annotated(inner, annot));
+        self.u.carry_annotation_tree(t, without);
+        without
     }
 }
