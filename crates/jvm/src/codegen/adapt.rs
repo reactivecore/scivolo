@@ -6,7 +6,8 @@ use super::body::Body;
 use super::descriptors::{NOTHING, class_descriptor};
 use super::{Gen, unsupported};
 use lower::Result;
-use typer::tpd::{TNodeId, Tree};
+use tasty::Erased;
+use typer::tpd::{List, TNodeId, Tree};
 
 impl Gen<'_, '_> {
     /// Generates `t` leaving `slots` slots: a value dropped, a `BoxedUnit` for none, as many as
@@ -52,12 +53,41 @@ impl Gen<'_, '_> {
     }
 
     /// Whether `t`, or the value of block or typed expression `t`, is an `if`, a match, a labeled
-    /// block or a `try`, whose value of type `Nothing` dotty adapts after its last label.
-    fn is_join(&self, t: TNodeId) -> bool {
+    /// block or a `try` whose erased type is `Nothing`, a value dotty adapts after its last label.
+    fn is_join(&mut self, t: TNodeId) -> bool {
         match *self.l.tpd.tree(t) {
             Tree::Typed { expr, .. } | Tree::Block { expr, .. } => self.is_join(expr),
-            Tree::If { .. } | Tree::Match { .. } | Tree::Labeled { .. } | Tree::Try { .. } => true,
+            Tree::If { .. } | Tree::Match { .. } | Tree::Try { .. } => self.erased_nothing(t),
+            Tree::Labeled { .. } => true,
             _ => false,
         }
+    }
+
+    /// Whether erasure leaves `t` of type `Nothing`: a throw, a return, a call of a method or a
+    /// value of that erased type, or a join of such branches.
+    fn erased_nothing(&mut self, t: TNodeId) -> bool {
+        let branches = match *self.l.tpd.tree(t) {
+            Tree::Typed { expr, .. } | Tree::Block { expr, .. } => vec![expr],
+            Tree::If { thenp, elsep, .. } => vec![thenp, elsep],
+            Tree::Match { cases, .. } => self.case_bodies(cases),
+            Tree::Try { expr, cases, .. } => [vec![expr], self.case_bodies(cases)].concat(),
+            Tree::Return { .. } => return true,
+            Tree::Apply { fun, .. } if !self.is_throw(t) => {
+                return match self.l.tpd.sym(fun) {
+                    Some(m) => self.l.u.erased_method_value(m).1 == Erased::Nothing,
+                    None => self.desc_of(t) == NOTHING,
+                };
+            }
+            _ => return self.desc_of(t) == NOTHING,
+        };
+        branches.into_iter().all(|b| self.erased_nothing(b))
+    }
+
+    fn case_bodies(&self, cases: List) -> Vec<TNodeId> {
+        let bodies = self.l.tpd.items(cases).iter().map(|&c| match *self.l.tpd.tree(c) {
+            Tree::CaseDef { body, .. } => Some(body),
+            _ => None,
+        });
+        bodies.collect::<Option<Vec<_>>>().unwrap_or_default()
     }
 }
