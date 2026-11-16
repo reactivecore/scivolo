@@ -113,8 +113,8 @@ impl Extend<TNodeId> for Entering<'_> {
 }
 
 impl Tpd {
-    /// Appends to `todo` the steps entering the children of `t`, owned by `owner`, in order, with
-    /// the owners of `owned_children`.
+    /// Appends to `todo` the steps entering the children of `t`, a tree owned by `owner`, in order,
+    /// with the owners `owned_children` names.
     fn push_owned_children(&self, t: TNodeId, owner: SymbolId, todo: &mut Vec<Step>) {
         let inner = match *self.tree(t) {
             Tree::ValDef { .. } | Tree::DefDef { .. } | Tree::TypeDef { .. } | Tree::PackageDef { .. } => {
@@ -155,23 +155,11 @@ impl Tpd {
         t: TNodeId,
         owner: SymbolId,
     ) -> impl DoubleEndedIterator<Item = (TNodeId, SymbolId)> + '_ {
-        let children = self.children(t).into_iter();
-        let (mut inner, mut by_inner, mut stats, mut dummy) = (owner, 0..0, usize::MAX, owner);
-        match *self.tree(t) {
-            Tree::ValDef { .. } | Tree::DefDef { .. } | Tree::TypeDef { .. } | Tree::PackageDef { .. } => {
-                (inner, by_inner) = (self.sym(t).unwrap_or(owner), 0..usize::MAX);
-            }
-            Tree::Template { constr, parents, body, .. } => {
-                (inner, by_inner) = (self.sym(constr).unwrap_or(owner), 1..self.items(parents).len() + 1);
-                dummy = self.sym(t).unwrap_or(owner);
-                stats = children.len() - self.items(body).len();
-            }
-            _ => {}
-        }
-        children.enumerate().map(move |(i, c)| match i {
-            _ if by_inner.contains(&i) => (c, inner),
-            _ if i >= stats && !self.is_def(c) => (c, dummy),
-            _ => (c, owner),
+        let mut steps = Vec::new();
+        self.push_owned_children(t, owner, &mut steps);
+        steps.into_iter().map(|step| {
+            let Step::Enter(c, owner) = step else { unreachable!("only entering steps are pushed") };
+            (c, owner)
         })
     }
 
