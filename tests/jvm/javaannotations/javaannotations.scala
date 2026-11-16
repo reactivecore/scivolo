@@ -1,4 +1,5 @@
 import java.lang.annotation.{Documented, Inherited, Retention, RetentionPolicy}
+import scala.annotation.meta.{getter, setter}
 
 @FunctionalInterface
 trait Inc { def apply(x: Int): Int }
@@ -22,6 +23,11 @@ class Several(@Documented @Deprecated p: Int, @Documented @Deprecated val q: Int
   @Documented @Inherited @Deprecated val f3 = 4
   def params(@Deprecated @Documented a: Int, @Documented @Inherited @Deprecated b: Int) = a + b
   @Retention(Policies.Runtime) def aliased = 6
+}
+
+class Targets(@(Deprecated @getter) val p: Int) {
+  @(Deprecated @getter) @Documented val g = 1
+  @(Deprecated @setter) var s = 2
 }
 
 object Javaannotations {
@@ -67,5 +73,9 @@ object Javaannotations {
     println(c.getDeclaredFields.filter(f => f.getName == "p" || f.getName == "q").map(_.getAnnotations.length).mkString)
     println(c.getMethod("aliased").getAnnotations.mkString)
     println(new Several(1, 2).three + new Several(1, 2).params(1, 2))
+    val t = classOf[Targets]
+    val getters = names(t.getMethod("p").getAnnotations) + ", " + names(t.getMethod("g").getAnnotations)
+    val setter = names(t.getMethod("s_$eq", classOf[Int]).getAnnotations)
+    println(getters + ", " + names(t.getDeclaredField("g").getAnnotations) + ", " + setter)
   }
 }

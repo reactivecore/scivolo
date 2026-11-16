@@ -92,6 +92,12 @@ impl Universe {
         }
     }
 
+    /// Reads the class of internal name `internal` from the Java sources, the jars' class files,
+    /// else the JDK.
+    pub fn java_class_info(&mut self, internal: &str) -> Option<Rc<ClassInfo>> {
+        java_class(self, internal).or_else(|| self.jdk.as_mut()?.class(internal).cloned())
+    }
+
     /// Whether the universe uses the jars' Java class files, as a compile for the JVM does.
     pub fn uses_java_classfiles(&self) -> bool {
         self.java_classes.is_some()

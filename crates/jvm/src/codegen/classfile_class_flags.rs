@@ -1,7 +1,7 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/core/classfile/ClassfileParser.scala
 //   compiler/src/dotty/tools/backend/jvm/BCodeUtils.scala
-//! The access flags dotty gives a class it reads from a JDK class file.
+//! The access flags dotty gives a class it reads from a Java class file.
 
 use super::Gen;
 use classfile::{ACC_ABSTRACT, ACC_ANNOTATION, ACC_ENUM, ACC_FINAL, ACC_INTERFACE, ACC_PUBLIC};
@@ -9,15 +9,16 @@ use tasty::SymbolId;
 
 impl Gen<'_, '_> {
     /// Determines the flags of class `d` but `ACC_STATIC` as dotty's `javaFlags` gives them to
-    /// the class it reads from the JDK class file `d` stands for (`ClassfileParser`'s flags):
-    /// an enum with constants abstract and not final, an interface abstract. None for a class
-    /// of no JDK class file and for an annotation interface.
-    pub fn jdk_class_flags(&mut self, d: SymbolId) -> Option<u16> {
+    /// the class it reads from the Java class file `d` stands for, of the JDK, a jar or a Java
+    /// source (`ClassfileParser`'s flags): an enum with constants abstract and not final, an
+    /// interface abstract. None for a class of no Java class file and for an annotation
+    /// interface.
+    pub fn classfile_class_flags(&mut self, d: SymbolId) -> Option<u16> {
         let info = match self.l.u.jdk_class_of(d) {
             Some(info) => info,
             None if self.l.u.is_from_classfile(d) => {
                 let internal = self.class_name(d);
-                self.l.u.jdk_mut()?.class(&internal)?.clone()
+                self.l.u.java_class_info(&internal)?
             }
             None => return None,
         };
