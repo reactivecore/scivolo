@@ -73,7 +73,7 @@ trait ReflectFlags extends reflectModule { self: reflect.type =>
       def |(that: Flags): Flags =
         new FlagsImpl(FlagsImpl.bits(self) | FlagsImpl.bits(that), known(self) && known(that)).asInstanceOf[Flags]
       def &(that: Flags): Flags =
-        new FlagsImpl(FlagsImpl.bits(self) & FlagsImpl.bits(that), known(self) || known(that)).asInstanceOf[Flags]
+        new FlagsImpl(FlagsImpl.bits(self) & FlagsImpl.bits(that), known(self) && known(that)).asInstanceOf[Flags]
       def show: String =
         if (!known(self)) throw new Unsupported("Flags.show of a symbol whose flags the frontend does not know")
         else FlagsImpl.show(FlagsImpl.bits(self))
