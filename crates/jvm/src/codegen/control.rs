@@ -72,8 +72,11 @@ impl Gen<'_, '_> {
             }
             _ => self.expr_as(b, t, slots)?,
         }
-        let call = matches!(self.l.tpd.tree(t), Tree::Apply { .. }) && !self.is_throw(t);
-        if b.code.live() || call && self.desc_of(t) == NOTHING {
+        let sent = match self.l.tpd.tree(t) {
+            Tree::Apply { .. } => !self.is_throw(t) && self.desc_of(t) == NOTHING,
+            tree => matches!(tree, Tree::Try { .. }),
+        };
+        if b.code.live() || sent {
             match dest {
                 Dest::Jump(l) => b.code.jump(classfile::GOTO, l),
                 Dest::Return => {
