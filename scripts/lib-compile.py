@@ -60,6 +60,8 @@ OPTIONS = {
 UNITS = {
     "auxlib": [["scala/collection/concurrent/"],
                ["scala/runtime/BoxedUnit.scala", "scala/scalanative/runtime/BoxedUnit.scala"]],
+    "javalib": [["scala/scalanative/nio/fs/windows/WindowsPath.scala",
+                 "scala/scalanative/nio/fs/windows/WindowsPathParser.scala"]],
 }
 # The option that makes scivolo-jvm and scivolo-lower write the output of a unit's accepted files.
 LEAVE_OUT = "--leave-out-refused"

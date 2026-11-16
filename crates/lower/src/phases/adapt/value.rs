@@ -141,7 +141,8 @@ fn cast_generic(l: &mut Lower, t: TNodeId, class: &str, underlying: &Erased, spa
     super::ascribed(l, c, tpe, span)
 }
 
-/// `null` as a value of erased type `to`: unboxed for a primitive, cast for an array.
+/// `null` as a value of erased type `to`: unboxed for a primitive, cast for an array or an
+/// object.
 fn null_as(l: &mut Lower, null: TNodeId, to: &Erased) -> TNodeId {
     match to {
         Erased::Prim(c) => match l.primitive(*c) {
@@ -156,6 +157,7 @@ fn null_as(l: &mut Lower, null: TNodeId, to: &Erased) -> TNodeId {
             l.null_casts.insert(c);
             c
         }
+        Erased::Class(_) => super::adapt_plain(l, null, &Erased::Null, to),
         _ => null,
     }
 }
