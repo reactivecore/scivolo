@@ -233,6 +233,13 @@ The VM fixes javalib bugs in its library overlay (`overlay/src`, ADR 0009).
       the run gets type `97` while javac stores `-97`.
     - A Scala `J.N` is inlined as `97`.
     - Fix: no constant for a negated character. Frontend: does so, `J.N` reads the field.
+24. **A default getter of a repeated method re-evaluates the prefix** (dotty 3.9.0,
+    `compiler/src/dotty/tools/dotc/typer/Applications.scala:589`, `needLiftFun`).
+    - `needLiftFun` counts the repeated argument as one for a fixed parameter, so
+      `obj().h(xs = "o", a = 2)` with `def h(a: Int = 7, b: String = "b", xs: String*)` types
+      `obj().h$default$2` before the reordering lifts `obj()`: `obj()` runs twice, where SLS
+      6.6.1 evaluates the prefix once.
+    - Fix: count the fixed parameters' arguments only. Frontend: evaluates `obj()` once.
 
 ## Own frontend: parser, symbols, typer
 

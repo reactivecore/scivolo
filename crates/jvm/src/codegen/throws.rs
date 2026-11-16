@@ -9,7 +9,7 @@ use classfile::ClassFile;
 use lower::Result;
 use names::{name_kinds, nme};
 use syntax::ast::Span;
-use tasty::tags::{FIELDaccessor, FINAL, LAZY};
+use tasty::tags::{FIELDaccessor, LAZY};
 use tasty::{Kind, SymbolId, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
@@ -25,13 +25,18 @@ impl Gen<'_, '_> {
     }
 
     /// The exception types method `sym` declares, last first: those of its `@throws` annotations
-    /// if it is a method or a lazy or abstract value's accessor, none for the getter or setter of
-    /// a field, whose annotations stay on the field (dotty's `Memoize`).
+    /// if it is a method or the accessor of a value without a field, as a lazy, abstract or
+    /// constant `final` value or a trait's value; none for the getter or setter of a field, whose
+    /// annotations stay on the field (dotty's `Memoize`).
     pub fn thrown(&mut self, sym: SymbolId) -> Vec<TypeId> {
         let s = self.l.u.symbol(sym);
         let kept = match s.kind {
             Kind::Def => !self.is_field_setter(sym),
-            Kind::Val => s.flags.has(LAZY) || self.l.u.is_deferred(sym),
+            Kind::Val => {
+                s.flags.has(LAZY)
+                    || self.l.u.is_deferred(sym)
+                    || !self.l.has_field(sym) && !self.l.is_getterless_field(sym)
+            }
             _ => false,
         };
         if kept { self.annotated_thrown(sym) } else { Vec::new() }
@@ -49,13 +54,12 @@ impl Gen<'_, '_> {
         s.kind == Kind::Def && s.flags.has(FIELDaccessor) && s.name.ends_with(name_kinds::SETTER_SUFFIX)
     }
 
-    /// Refuses `@throws` on method `sym`, defined at `at`, whose thrown classes are not known, and
-    /// on a final value; on a class, object or other value it is ignored, as dotty does.
+    /// Refuses `@throws` on method `sym`, defined at `at`, whose thrown classes are not known; on
+    /// a class, object or other value it is ignored, as dotty does.
     pub fn check_throws(&mut self, sym: SymbolId, at: Span) -> Result<()> {
-        let s = self.l.u.symbol(sym);
-        let (method, final_val) = (s.kind == Kind::Def, s.kind == Kind::Val && s.flags.has(FINAL));
+        let method = self.l.u.symbol(sym).kind == Kind::Def;
         let throws = self.l.u.is_annotated(sym, "scala.throws");
-        if throws && (final_val || method && self.annotated_thrown(sym).is_empty()) {
+        if throws && method && self.annotated_thrown(sym).is_empty() {
             return unsupported(at, "@throws (the Exceptions attribute) on the JVM");
         }
         Ok(())
