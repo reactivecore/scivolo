@@ -43,7 +43,7 @@ impl Typer<'_> {
         let old = self.replaced_well_known.swap_remove(i);
         self.defn.replace(old, sym);
         self.u.replace_defn(old, sym);
-        self.replaced_by.push((old, sym));
+        self.replaced_by.push(old);
         self.replace_root_imports(old, sym);
     }
 
@@ -57,7 +57,7 @@ impl Typer<'_> {
         for node in (0..self.tpd.len()).map(TNodeId::new) {
             let class = self.tpd.get(node).tpe.and_then(|t| self.u.class_symbol(t));
             let sym = self.tpd.sym(node);
-            if replaced.iter().any(|&(old, _)| sym == Some(old) || class == Some(old)) {
+            if replaced.iter().any(|&old| sym == Some(old) || class == Some(old)) {
                 let span = self.tpd.span(node);
                 self.unsupported_at(
                     span,

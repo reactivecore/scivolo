@@ -395,8 +395,8 @@ pub struct Typer<'a> {
     pub file_cfgs: Vec<Config>,
     /// The well-known symbols a definition of the unit replaces, not yet defined.
     pub replaced_well_known: Vec<SymbolId>,
-    /// The well-known symbols a definition of the unit replaced, each with that definition.
-    pub replaced_by: Vec<(SymbolId, SymbolId)>,
+    /// The well-known symbols a definition of the unit replaced.
+    pub replaced_by: Vec<SymbolId>,
     /// The index of the source file whose settings are in use.
     pub file: usize,
     /// What runs macro implementations; without it, macro calls are refused.
