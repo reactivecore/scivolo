@@ -101,7 +101,7 @@ impl Tpd {
 
     /// Appends the direct subtrees of `t` to `out`, in order.
     #[inline]
-    fn extend_children(&self, t: TNodeId, out: &mut impl Extend<TNodeId>) {
+    pub fn extend_children(&self, t: TNodeId, out: &mut impl Extend<TNodeId>) {
         for &slot in self.tree(t).slots().iter() {
             match slot {
                 Slot::Node(c) => out.extend([c]),
