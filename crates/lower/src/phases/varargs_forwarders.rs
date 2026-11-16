@@ -9,7 +9,7 @@ use crate::definitions::symbol;
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
 use tasty::tags::{ARTIFACT, OVERRIDE, PRIVATE};
-use tasty::{Erased, Flags, Kind, NameId, SymbolId, Type, TypeId};
+use tasty::{Binder, Erased, Flags, Kind, NameId, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
 /// Adds the forwarders to class definition `td`, each after its method.
@@ -59,8 +59,12 @@ fn forwarder(
 ) -> Result<TNodeId> {
     let span = l.tpd.span(def);
     let info = l.u.info(meth);
+    let (poly, info) = match *l.u.ty(info) {
+        Type::Poly { binder, params, result } => (Some((binder, params)), result),
+        _ => (None, info),
+    };
     let Type::Method { params, result, implicit, contextual, .. } = *l.u.ty(info) else {
-        return unsupported(span, "varargs forwarders of polymorphic or curried methods");
+        return unsupported(span, "varargs forwarders of curried methods");
     };
     if !l.u.param_clauses(result).is_empty() {
         return unsupported(span, "varargs forwarders of polymorphic or curried methods");
@@ -71,20 +75,28 @@ fn forwarder(
         return unsupported(span, "@varargs on a method whose last parameter is not repeated");
     };
     let Some((_, elems)) = l.u.applied(repeated) else { unreachable!("`<repeated>[T]`") };
-    let elem = elems[0];
-    let array = array_of(l, elem);
-    if !matches!(l.u.erase(array), Erased::Array(_)) {
-        return unsupported(span, "varargs forwarders of generic element types");
-    }
-    let Tree::DefDef { paramss, .. } = *l.tpd.tree(def) else { unreachable!("a method definition") };
-    let clause = l.tpd.clause_items(paramss).first().map(|&c| l.tpd.items(c).to_vec()).unwrap_or_default();
+    let bounds: Vec<(Binder, Vec<TypeId>)> = poly
+        .map(|(binder, params)| (binder, l.u.params_of(params).iter().map(|&(_, b)| b).collect()))
+        .into_iter()
+        .collect();
+    let (array, elem) = vararg_array(l, elems[0], &bounds);
+    let Tree::DefDef { paramss, rhs, .. } = *l.tpd.tree(def) else { unreachable!("a method definition") };
+    let deferred = rhs.is_none();
+    let clauses = l.tpd.clause_items(paramss).to_vec();
+    let clause = (clauses.into_iter())
+        .map(|c| l.tpd.items(c).to_vec())
+        .find(|ps| ps.first().is_none_or(|&p| !matches!(l.tpd.tree(p), Tree::TypeDef { .. })))
+        .unwrap_or_default();
     let names: Vec<Option<NameId>> =
         clause.iter().map(|&p| l.tpd.sym(p).map(|s| l.u.interned_name(s))).collect();
     let mut fparams: Vec<(NameId, TypeId)> =
         params.iter().zip(names).map(|(&(n, t), m)| (m.unwrap_or(n), t)).collect();
     fparams.last_mut().expect("a repeated parameter").1 = array;
     let binder = l.u.fresh_binder();
-    let finfo = l.u.intern_method(binder, &fparams, result, implicit, contextual);
+    let mut finfo = l.u.intern_method(binder, &fparams, result, implicit, contextual);
+    if let Some((binder, params)) = poly {
+        finfo = l.u.intern_type(Type::Poly { binder, params, result: finfo });
+    }
     let name = l.u.symbol(meth).name.clone();
     if conflicts(l, class, &name, finfo, java) {
         return unsupported(span, "a varargs forwarder conflicting with a member of its signature");
@@ -103,7 +115,26 @@ fn forwarder(
         let fun = l.select(this, meth, at);
         l.apply(fun, &args, result, at)
     });
+    if let Tree::DefDef { ref mut rhs, .. } = l.tpd.get_mut(def).tree
+        && deferred
+    {
+        *rhs = None;
+    }
     Ok(l.positioned(def))
+}
+
+/// The array type of a forwarder's parameter for repeated `elem` of a method with type
+/// parameters `bounds`, and the element type that chooses its wrapper: `Array[elem]` if `elem`
+/// is a primitive or a reference type, else `Array[elem & Object]` wrapped as `Object`s (dotty's
+/// `varargArrayType`).
+fn vararg_array(l: &mut Lower, elem: TypeId, bounds: &[(Binder, Vec<TypeId>)]) -> (TypeId, TypeId) {
+    let object = l.u.class_ref(tasty::defn::OBJECT);
+    let upper = l.u.upper_bound(elem, bounds);
+    if matches!(l.u.erase(elem), Erased::Prim(_)) || l.u.is_subtype(upper, object) {
+        return (array_of(l, elem), elem);
+    }
+    let bounded = l.u.intern_type(Type::And(elem, object));
+    (array_of(l, bounded), object)
 }
 
 /// Whether `member` overriding `other` is left to `member`'s forwarder: its repeated parameter
