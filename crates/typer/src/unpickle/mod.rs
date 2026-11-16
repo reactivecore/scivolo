@@ -30,7 +30,7 @@ use tasty::{Ast, FileId, NameRef, NodeId, SymbolId, TypeId, Universe};
 
 pub use quote_patterns::{PatternBody, QuotePattern};
 pub use quotes::{Quote, QuoteHole, Unpickled, quote, quoted_type};
-pub use type_annotations::type_annotation;
+pub use type_annotations::{is_new_without_arguments, type_annotation};
 
 /// Why a body is outside the subset read.
 pub type Refusal = &'static str;

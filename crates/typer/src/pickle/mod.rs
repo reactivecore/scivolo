@@ -10,6 +10,7 @@ mod cases;
 mod defs;
 mod inferred_captures;
 mod kept_annotations;
+mod library_annotations;
 mod member_tpts;
 mod names;
 mod packages;
@@ -50,9 +51,6 @@ pub type Refusal = &'static str;
 
 /// Why a tree of an error type is not pickled.
 pub const ERROR_TYPE: Refusal = "an error type";
-
-/// Why a type is not pickled before the library annotation tree it needs is read.
-const UNREAD_ANNOTATION: Refusal = "a library annotation tree not read";
 
 pub struct TreePickler<'a> {
     u: &'a mut Universe,
@@ -239,7 +237,7 @@ fn pickle<'a>(
     let pickled = p.tree(root);
     if let (Some(file), Some(tree)) = (file, p.unread) {
         file.unread.set(Some(tree));
-        return Err((at(&p), UNREAD_ANNOTATION));
+        return Err((at(&p), library_annotations::UNREAD_ANNOTATION));
     }
     if let Err(refusal) = pickled {
         return Err((at(&p), refusal));

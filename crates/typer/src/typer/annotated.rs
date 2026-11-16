@@ -87,6 +87,8 @@ impl Typer<'_> {
             return inner;
         }
         let inner = self.without_annotation(inner, name);
-        self.u.intern_type(Type::Annotated(inner, annot))
+        let without = self.u.intern_type(Type::Annotated(inner, annot));
+        self.u.carry_annotation_tree(t, without);
+        without
     }
 }

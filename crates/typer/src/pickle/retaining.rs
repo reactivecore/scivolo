@@ -23,7 +23,7 @@ impl TreePickler<'_> {
             return None;
         }
         let own = self.type_tree.and_then(|t| self.capture_classes.get(&t).copied()).or(self.accessor_class);
-        if !is_static_capture_set(self.u, annot, own) {
+        if !is_static_capture_set(self.u, annot, own, self.accessor_seen) {
             return Some(Err(
                 "an annotated type of a capture set that refers to other than static definitions",
             ));
@@ -92,7 +92,7 @@ impl TreePickler<'_> {
         });
         let class =
             std::iter::successors(Some(sym), |&s| self.u.symbol(s).owner).find(|&s| self.u.is_class(s));
-        if captures.iter().any(|&c| !is_static_capture_set(self.u, c, class)) {
+        if captures.iter().any(|&c| !is_static_capture_set(self.u, c, class, None)) {
             return Err(
                 "a synthetic type tree of a capture set that refers to other than static definitions",
             );
@@ -108,9 +108,15 @@ impl TreePickler<'_> {
 }
 
 /// Whether capture-set annotation type `annot` refers to no `this`, parameter or definition other
-/// than a static one or the `this` of class `own` or of a class enclosing it, which mapping a type
-/// that it annotates leaves alone.
-fn is_static_capture_set(u: &mut Universe, annot: TypeId, own: Option<SymbolId>) -> bool {
+/// than a static one, the `this` of class `own` or of a class enclosing it, which mapping a type
+/// that it annotates leaves alone; of an enclosing class only if seeing it from `seen`, the prefix
+/// and class of a super accessor's member, keeps it (`other.Views` of an inner trait `Views`).
+fn is_static_capture_set(
+    u: &mut Universe,
+    annot: TypeId,
+    own: Option<SymbolId>,
+    seen: Option<(TypeId, SymbolId)>,
+) -> bool {
     let mut is_static = true;
     u.map_type(annot, &mut |u, part| {
         is_static &= match *u.ty(part) {
@@ -118,7 +124,9 @@ fn is_static_capture_set(u: &mut Universe, annot: TypeId, own: Option<SymbolId>)
                 Type::Package(_) | Type::PackageName(_) => true,
                 _ => u.class_symbol(c).is_some_and(|c| {
                     let mut enclosing = std::iter::successors(own, |&o| u.symbol(o).owner);
-                    u.is_static_owner(c) || enclosing.any(|o| o == c)
+                    let kept =
+                        |u: &mut Universe| seen.is_none_or(|(p, o)| u.as_seen_from(part, p, o) == part);
+                    u.is_static_owner(c) || Some(c) == own || (enclosing.any(|o| o == c) && kept(u))
                 }),
             },
             Type::Sym(_, s) => u.is_static_symbol(s),

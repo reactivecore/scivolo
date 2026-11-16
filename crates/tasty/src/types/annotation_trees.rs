@@ -35,9 +35,14 @@ impl Types {
     }
 
     /// Gives `to`, a type mapped from `from`, the annotation tree of `from` if it has one and the
-    /// mapping kept its annotation class.
+    /// mapping kept its annotation class; marks `to` as given by several if only `to` has one.
     pub fn carry_annotation_tree(&mut self, from: TypeId, to: TypeId) {
-        let Some(recorded) = self.annotation_trees.get(&from) else { return };
+        let Some(recorded) = self.annotation_trees.get(&from) else {
+            if let Some(recorded) = self.annotation_trees.get_mut(&to) {
+                *recorded = None;
+            }
+            return;
+        };
         let recorded = recorded.as_ref().map(|r| Recorded { tree: r.tree, print: r.print.clone() });
         match recorded {
             Some(r) => self.record(to, r),

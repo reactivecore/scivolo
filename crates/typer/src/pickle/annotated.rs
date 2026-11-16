@@ -124,23 +124,6 @@ impl TreePickler<'_> {
         Some(tree)
     }
 
-    /// The annotation tree a library's TASTy gave annotated type `annotated`, read; none in a
-    /// quote. Refuses a type several library trees gave and one whose tree is not read yet, which
-    /// `pickle_file` reads before pickling again.
-    fn library_annotation(&mut self, annotated: TypeId) -> Result<Option<TNodeId>, Refusal> {
-        let Some(tree) = self.u.types().annotation_tree(annotated).filter(|_| self.file.is_some()) else {
-            return Ok(None);
-        };
-        let tree = tree.ok_or("an annotated type of several library annotation trees")?;
-        match self.tpd.library_annotation(tree) {
-            Some(read) => read.map(Some),
-            None => {
-                self.unread = Some(tree);
-                Err(super::UNREAD_ANNOTATION)
-            }
-        }
-    }
-
     /// Whether annotation tree `tree` of class type `annot` is other than `new C()`: it has value
     /// or type arguments.
     pub fn has_arguments(&self, tree: TNodeId, annot: TypeId) -> bool {
