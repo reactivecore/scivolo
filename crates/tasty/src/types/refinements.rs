@@ -112,8 +112,20 @@ impl Universe {
 
     /// The info a refinement of `prefix`'s widened type gives term member `name`.
     pub fn term_refinement_named(&mut self, prefix: TypeId, name: NameId) -> Option<TypeId> {
-        let mut t = self.widen(prefix);
-        let mut recs = Vec::new();
+        let t = self.widen(prefix);
+        self.term_refinement_in(t, name, (prefix, Vec::new()))
+    }
+
+    /// The info a refinement of `t`, a part of `prefix`'s widened type inside recursive types
+    /// `recs`, gives term member `name`; of both sides of an intersection, their infos
+    /// intersected, a by-name one widened if the other is not, unless one is a method's (dotty's
+    /// `infoMeet`).
+    fn term_refinement_in(
+        &mut self,
+        mut t: TypeId,
+        name: NameId,
+        (prefix, mut recs): (TypeId, Vec<Binder>),
+    ) -> Option<TypeId> {
         for _ in 0..MAX_STEPS {
             match *self.ty(t) {
                 Type::Refined(_, n, info)
@@ -126,6 +138,21 @@ impl Universe {
                     t = p;
                 }
                 Type::Refined(p, ..) | Type::Annotated(p, _) | Type::Flexible(p) => t = p,
+                Type::And(a, b) => {
+                    let a = self.term_refinement_in(a, name, (prefix, recs.clone()));
+                    let b = self.term_refinement_in(b, name, (prefix, recs));
+                    let (Some(a), Some(b)) = (a, b) else { return a.or(b) };
+                    let method =
+                        |u: &Self, x: TypeId| matches!(u.ty(x), Type::Method { .. } | Type::Poly { .. });
+                    return match (*self.ty(a), *self.ty(b)) {
+                        _ if a == b => Some(a),
+                        _ if method(self, a) || method(self, b) => None,
+                        (Type::ByName(_), Type::ByName(_)) => Some(self.glb(a, b)),
+                        (Type::ByName(x), _) => Some(self.glb(x, b)),
+                        (_, Type::ByName(y)) => Some(self.glb(a, y)),
+                        _ => Some(self.glb(a, b)),
+                    };
+                }
                 _ => match self.dealias(t) {
                     d if d != t => t = d,
                     _ => return None,

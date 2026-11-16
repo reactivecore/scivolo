@@ -186,12 +186,14 @@ pub fn instantiate_poly(
     args: &[TypeId],
     method: Option<SymbolId>,
 ) -> TypeId {
-    let t = u.subst(t, binder, names, args);
-    u.map_type(t, &mut |u, part| match *u.ty(part) {
+    let params: Vec<TypeId> =
+        (0..names.len()).map(|i| u.intern_type(Type::Param(binder, i as u32))).collect();
+    let t = u.map_type(t, &mut |u, part| match *u.ty(part) {
         Type::Sym(_, s) if method.is_some() && u.symbol(s).owner == method => {
             let name = &u.symbol(s).name;
-            names.iter().position(|&n| u.name(n) == name).map(|i| args[i])
+            names.iter().position(|&n| u.name(n) == name).map(|i| params[i])
         }
         _ => None,
-    })
+    });
+    u.subst(t, binder, names, args)
 }

@@ -10,6 +10,14 @@ abstract class Throwing:
   val plain: Int = 2
   @throws[java.io.IOException]
   def method: Int = 3
+  @throws[java.io.IOException]
+  final val constant = 4
+  @throws[java.io.IOException]
+  final val computed: String = "c"
+
+trait ThrowingTrait:
+  @throws[java.io.IOException]
+  val inTrait: Int = 5
 
 @throws[java.io.IOException]
 object Throws:

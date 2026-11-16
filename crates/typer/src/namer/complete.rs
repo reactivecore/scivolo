@@ -27,7 +27,7 @@ impl Typer<'_> {
             _ if self.syms.incomplete.contains(&sym) => {
                 return self.unsupported_at(Span::NONE, "definition left incomplete by a failed unit");
             }
-            _ => return,
+            _ => return self.complete_forwarded(sym),
         };
         self.outside_gadt_cases(ctx.level, |t| t.complete_pending(sym, tree, ctx));
     }

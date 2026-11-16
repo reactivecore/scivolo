@@ -4,6 +4,7 @@ import scala.runtime.IntRef
 class Foo:
   def neg(x: Int): Int = -x
   def greet(s: String): Unit = println(s"hello $s")
+  def tag(s: String): String = s"<$s>"
 
 object Sigpoly:
   def main(args: Array[String]): Unit =
@@ -19,6 +20,11 @@ object Sigpoly:
     catch case _: WrongMethodTypeException => println("object result refused")
     println(neg.invoke(foo, 5).eq(null))
     println(neg.invoke(foo, 6).toString)
+    println(neg.invoke(foo, 7).asInstanceOf[Int])
+    val tag = l.findVirtual(classOf[Foo], "tag", MethodType.methodType(classOf[String], classOf[String]))
+    val tagged: String = tag.invokeExact(foo, "a").asInstanceOf[String]
+    val seq: CharSequence = tag.invoke(foo, "b").asInstanceOf[String]
+    println(tagged + seq + (tag.invoke(foo, "c").asInstanceOf[String]: String).length)
 
     val ref = new IntRef(1)
     val vh = l.findVarHandle(classOf[IntRef], "elem", classOf[Int])

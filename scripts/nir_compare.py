@@ -72,11 +72,12 @@ def align(theirs, ours):
         if len(a) <= SET_SIZE or header not in mine:
             continue
         b = slots(ours, mine[header])
-        if (sorted(s[1:] for s in a) != sorted(s[1:] for s in b) or [s[1:] for s in a] == [s[1:] for s in b]
+        target = method(ours, mine[header])
+        if (sorted(s[1:] for s in a) != sorted(s[1:] for s in b) or method(theirs, i) == target
                 or sorted(s[0] for s in a) != sorted(s[0] for s in b)):
             continue
         mapped = (renumber(theirs, i, ids) for ids in itertools.islice(mappings(a, b), CANDIDATES))
-        first, target = next(mapped), method(ours, mine[header])
+        first = next(mapped)
         theirs = next((m for m in itertools.chain([first], mapped) if method(m, i) == target), first)
         changed = True
     return theirs, changed

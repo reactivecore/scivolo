@@ -139,7 +139,7 @@ pub fn class_defs_inner_first(tpd: &Tpd, root: TNodeId) -> Vec<TNodeId> {
 }
 
 fn ordered_class_defs(tpd: &Tpd, root: TNodeId, inner_first: bool) -> Vec<TNodeId> {
-    let (mut out, mut todo) = (Vec::new(), vec![(root, false)]);
+    let (mut out, mut todo, mut kids) = (Vec::new(), vec![(root, false)], Vec::new());
     while let Some((t, done)) = todo.pop() {
         match *tpd.tree(t) {
             _ if done => {
@@ -151,7 +151,9 @@ fn ordered_class_defs(tpd: &Tpd, root: TNodeId, inner_first: bool) -> Vec<TNodeI
             Tree::TypeDef { .. } => out.push(t),
             _ => {}
         }
-        todo.extend(children(tpd, t).into_iter().rev().map(|c| (c, false)));
+        kids.clear();
+        tpd.extend_traversed(t, &mut kids);
+        todo.extend(kids.iter().rev().map(|&c| (c, false)));
     }
     out
 }

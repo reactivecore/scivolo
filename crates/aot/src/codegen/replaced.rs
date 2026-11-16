@@ -9,7 +9,10 @@ use cranelift_module::Module;
 use nir::{GlobalId, Pool};
 
 pub enum Replaced {
-    Element,
+    /// `StackTrace.withNameFromUnwind`, whose instruction pointer is parameter `ip`.
+    Element {
+        ip: usize,
+    },
     AllClasses,
     /// `ServiceLoader.load`, whose service class is parameter `service`.
     Services {
@@ -29,8 +32,10 @@ pub fn c_replacement(pool: &Pool, g: GlobalId) -> Option<&'static str> {
 /// The body the codegen writes for library method `g`.
 pub fn replaced(pool: &Pool, g: GlobalId) -> Option<Replaced> {
     let (owner, sig) = (pool.top_name(g), pool.member_sig(g)?);
+    if let Some(ip) = vm::element_ip_index(owner, sig) {
+        return Some(Replaced::Element { ip });
+    }
     match owner {
-        _ if vm::is_element_method(owner, sig) => Some(Replaced::Element),
         "scala.scalanative.runtime.LinkedClassesRepository$" if sig.starts_with("D7loadAll") => {
             Some(Replaced::AllClasses)
         }
@@ -47,7 +52,7 @@ impl FnBuilder<'_, '_> {
         self.b.switch_to_block(block);
         let params = self.b.block_params(block).to_vec();
         let result = match replaced {
-            Replaced::Element => self.trace_element(params[1])?,
+            Replaced::Element { ip } => self.trace_element(params[ip])?,
             Replaced::AllClasses => {
                 let gv = self.module.declare_data_in_func(self.decls.all_classes, self.b.func);
                 self.b.ins().symbol_value(self.decls.ptr, gv)

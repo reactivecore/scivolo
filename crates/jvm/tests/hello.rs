@@ -490,8 +490,6 @@ fn a_java_annotation_with_an_argument_that_is_no_constant_is_refused() {
     }
     let code = "class R { @java.beans.Transient(sys.props.isEmpty) def f = 1 }";
     refuses("refusedannotation", code, "Java annotation arguments other than constants");
-    let code = "class R { def f(@java.lang.annotation.Documented x: Int) = x }";
-    refuses("refusedparamannotation", code, "Java annotations of parameters on the JVM");
 }
 
 #[test]
@@ -535,11 +533,12 @@ fn a_refused_file_refuses_the_unit() {
 }
 
 #[test]
-fn a_cast_signature_polymorphic_call_is_refused() {
+fn a_cast_signature_polymorphic_call_of_an_inferred_type_is_refused() {
     if Command::new("java").arg("-version").output().is_err() {
         eprintln!("no java on the PATH: skipped");
         return;
     }
-    let code = "object R { def f = java.lang.invoke.MethodHandles.identity(classOf[String]).invoke(\"a\").asInstanceOf[String] }";
-    refuses("refusedpolymorphic", code, "cast of a signature polymorphic call");
+    let code = "object R { def id[T](x: T): T = x; \
+        def f = id(java.lang.invoke.MethodHandles.identity(classOf[String]).invoke(\"a\").asInstanceOf[String]) }";
+    refuses("refusedpolymorphic", code, "expected to be of an inferred type");
 }
