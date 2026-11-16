@@ -105,13 +105,13 @@ impl Inlining<'_> {
         self.summon_ignoring(pt, at, (&[], &[]))
     }
 
-    /// `summon` with the candidates `ignored` left out, in a scope of the givens and implicits
-    /// `defined` inside the expansion.
+    /// `summon` with the candidates `ignored` left out, in the nested scopes, outermost first, of
+    /// the givens and implicits `defined` inside the expansion.
     pub fn summon_ignoring(
         &mut self,
         pt: TypeId,
         at: Span,
-        (ignored, defined): (&[SymbolId], &[SymbolId]),
+        (ignored, defined): (&[SymbolId], &[Vec<SymbolId>]),
     ) -> Result<Option<TNodeId>, Unsupported> {
         let Some(ctx) = self.ctx else { return Err((at, "implicit search without the call's context")) };
         let outer = std::mem::take(&mut self.outer_implicits);
@@ -121,10 +121,10 @@ impl Inlining<'_> {
             return Err((at, "implicit search in an inline body with local implicits"));
         }
         let mut ctx = ctx;
-        if let Some(owner) = defined.first().and_then(|&d| self.u.symbol(d).owner) {
+        if let Some(owner) = defined.iter().flatten().next_back().and_then(|&d| self.u.symbol(d).owner) {
             ctx = ctx.with_owner(owner);
         }
-        let defined = (!defined.is_empty()).then(|| Scope::Implicits(defined.to_vec()));
+        let defined = defined.iter().filter(|d| !d.is_empty()).map(|d| Scope::Implicits(d.clone()));
         let scopes = self.outer_scopes.iter().chain(&self.scopes).cloned().collect::<Vec<_>>();
         for scope in scopes.into_iter().chain(defined) {
             ctx = self.within_scope(ctx, scope);

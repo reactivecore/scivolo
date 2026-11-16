@@ -83,6 +83,41 @@ impl Defn {
             || resolved.into_iter().chain([self.any_val]).any(|k| k == Some(s))
     }
 
+    /// Replaces well-known symbol `old` by `new`, as a definition of the unit does when the
+    /// library is the unit (dotty's `Definitions` looked up in the run that defines them).
+    pub fn replace(&mut self, old: SymbolId, new: SymbolId) {
+        let first_use = &mut self.on_first_use;
+        let fields = [
+            &mut self.scala,
+            &mut self.java_lang,
+            &mut self.any,
+            &mut self.any_kind,
+            &mut self.matchable,
+            &mut self.nothing,
+            &mut self.null,
+            &mut self.singleton,
+            &mut self.any_ref,
+            &mut self.object,
+            &mut self.from_java_object,
+            &mut self.predef,
+            &mut self.unit,
+            &mut self.string,
+        ];
+        for s in fields.into_iter().filter(|s| **s == old) {
+            *s = new;
+        }
+        let resolved = [
+            &mut self.any_val,
+            &mut first_use.throwable,
+            &mut first_use.array,
+            &mut first_use.main_annot,
+            &mut first_use.command_line_parser,
+        ];
+        for s in resolved.into_iter().filter(|s| **s == Some(old)) {
+            *s = Some(new);
+        }
+    }
+
     pub fn throwable(&mut self, u: &mut Universe) -> Result<SymbolId, String> {
         resolved(&mut self.on_first_use.throwable, u, self.java_lang, "Throwable", Kind::Class)
     }
@@ -123,6 +158,11 @@ impl Universe {
         let string = self.library_member(d.java_lang, "String", Kind::Class)?;
         self.defn = Defn { predef, unit, string, ..d };
         Ok(self.defn)
+    }
+
+    /// Replaces well-known symbol `old` by `new` in the universe's well-known symbols.
+    pub fn replace_defn(&mut self, old: SymbolId, new: SymbolId) {
+        self.defn.replace(old, new);
     }
 
     /// The first declaration `name` of `kind` of `owner`, else why there is none.

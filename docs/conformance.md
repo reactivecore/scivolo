@@ -447,11 +447,20 @@ the optimizer (1883 of its 3134 classes dotty also writes differ in code from do
 - **Refused:** named or default arguments of a repeated method, or wrong arity (2), TASTy
   pickling of a capture set that refers to other than static definitions (2), a static member of
   a qualifier with effects.
-- **Code differs**, by first differing line: branch offsets after dotty's dead second `athrow`
-  following an inlined `.nn` (`if_icmpne`, `ifeq`, `ifnonnull`,
-  `goto`; the library oracle inlines from source, dotty compiling against the jar writes ours).
-- **Attributes differ:** line numbers, and a `LocalVariableTable` of the constructors of the
-  value classes (`scala.Boolean`, `Byte`, `Char`, …).
+- **Code differs:** the static forwarders `from` of `immutable.IndexedSeq`, `LinearSeq` and `Seq`
+  to the bridges of `SeqFactory.Delegate`, which the published jar has too: dotty sees those
+  bridges only when `Delegate` is compiled in the same run, ours never. The pickled quotes of
+  `scala.quoted.ToExpr` and `FromExpr` (strings of TASTy), `@throws` in the signature of `StringOps.split`, a mixin
+  forwarder's signature `T[]` for `T <: AnyRef` that does not erase to its descriptor
+  (`SingletonTypeManifest.newArray`), static forwarders and their signatures of `Nil`, `Vector0`,
+  `Process`, `Tuples`, `*:` and `Tuple`, the higher-kinded bound of a forwarder read from TASTy
+  (`StreamConverters`), Scala 2's `@inline` `Enumeration.Value` inlined (`RoundingMode`), the
+  erased type of an inferred local (`ArrayOps.stepper`), and branches of pattern matches and
+  inlined `.nn` (`StepperHasParStream`, `CollisionProofHashMap`, `BasicIO`; dotty compiling those
+  files alone differs from ours too).
+- **Attributes differ:** mostly line numbers (of extension method calls and implicit
+  conversions, of the `()` ending a secondary constructor); `InnerClasses` entries, a
+  `LocalVariableTable` entry, a `Deprecated` attribute and a method's flags.
 
 `just jvm-lib-jar scalalib` packs those class files and TASTy into a library jar laid out as the
 published one (ADR 0123): the classes scala3's build takes from Scala 2.13 and javac's come from

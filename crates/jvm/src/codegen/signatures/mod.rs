@@ -55,12 +55,14 @@ pub struct Member {
     pub extended: Option<SymbolId>,
     /// The top-level class `sym` is in, before local classes were lifted.
     pub top: SymbolId,
+    /// Whether `sym` is called by a static forwarder whose signature this is.
+    pub forwarder: bool,
 }
 
 /// Builds the generic signature of `m` of type `info`, descriptor `desc` and thrown exception
 /// types `thrown`; none if it equals `desc`.
 pub fn member(u: &mut Universe, m: Member, info: TypeId, desc: &str, thrown: &[TypeId]) -> Option<String> {
-    if !needed::may_need(u, info) {
+    if !needed::may_need(u, info, m.forwarder) {
         return None;
     }
     let method = desc.starts_with('(');
@@ -162,7 +164,11 @@ impl<'u> Sig<'u> {
                 self.and_parts(t, &mut parts);
                 let whole = self.glb_erasure(&parts);
                 let mut reprs = parts.into_iter().filter(|&p| self.u.erase(p) == whole).collect::<Vec<_>>();
-                let param = reprs.iter().position(|&p| self.type_param(p).is_some()).unwrap_or(0);
+                let param = reprs.iter().position(|&p| {
+                    let tycon = self.u.applied(p).map_or(p, |(c, _)| c);
+                    self.type_param(tycon).is_some()
+                });
+                let param = param.unwrap_or(0);
                 match reprs.is_empty() {
                     true => self.erased(t, boxing),
                     false => self.jsig(reprs.swap_remove(param), false, boxing),

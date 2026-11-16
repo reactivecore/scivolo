@@ -6,7 +6,7 @@
 use super::Erased;
 use super::special::{UNBOUNDED, special};
 use crate::types::{Type, TypeId};
-use crate::{Kind, Universe};
+use crate::{Kind, SymbolId, Universe};
 
 /// The kind of JVM array that can hold every value of a type (dotty's `arrayUpperBound`).
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -57,7 +57,7 @@ impl Universe {
             Type::Sym(..) | Type::TypeRef(..) => match self.referenced(t) {
                 _ if let Some(alias) = self.overriding_member(t) => self.is_generic(alias),
                 Some(s) if matches!(self.symbol(s).kind, Kind::Type | Kind::TypeParam) => {
-                    let info = self.opaque_alias(s).unwrap_or_else(|| self.info(s));
+                    let info = self.seen_info(t, s);
                     match *self.ty(info) {
                         Type::Bounds(_, hi) => self.holder(hi) == Holder::None,
                         Type::Lambda { .. } => false,
@@ -132,10 +132,22 @@ impl Universe {
                     };
                 }
                 let Some(s) = self.referenced(t) else { return Holder::None };
-                let info = self.opaque_alias(s).unwrap_or_else(|| self.info(s));
+                let info = self.seen_info(t, s);
                 if self.lambda(info).is_some() { Holder::None } else { self.holder(info) }
             }
             _ => Holder::None,
+        }
+    }
+
+    /// The info of type `s` that reference `t` names: an opaque type's alias, a type member's bounds
+    /// seen from the prefix of `t` (dotty's `translucentSuperType`).
+    fn seen_info(&mut self, t: TypeId, s: SymbolId) -> TypeId {
+        if let Some(alias) = self.opaque_alias(s) {
+            return alias;
+        }
+        match *self.ty(t) {
+            Type::Sym(Some(p), _) if self.symbol(s).kind == Kind::Type => self.member_info(p, s),
+            _ => self.info(s),
         }
     }
 }

@@ -84,6 +84,19 @@ impl Typer<'_> {
         self.levels.push(outer, Level::Import(self.imports.len() - 1))
     }
 
+    /// Makes the root imports of `old` import `new` instead.
+    pub fn replace_root_imports(&mut self, old: SymbolId, new: SymbolId) {
+        let qual = crate::defn::type_ref(self.u, new);
+        for entry in &mut self.imports {
+            if let ImportEntry::Done(info) = entry
+                && info.tree.is_none()
+                && matches!(*self.u.ty(info.qual), tasty::Type::Sym(_, s) if s == old)
+            {
+                info.qual = qual;
+            }
+        }
+    }
+
     /// The term symbol an import's path of type `qual` refers to.
     pub fn import_site(&self, qual: TypeId) -> Option<SymbolId> {
         match *self.u.ty(qual) {

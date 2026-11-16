@@ -1,7 +1,8 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/core/Definitions.scala
 //! The aliases `ImpureFunctionN` and `ImpureContextFunctionN` that dotty's `Definitions` gives the
-//! `scala` package: `FunctionN` and `ContextFunctionN` of the same parameters.
+//! `scala` package: `FunctionN` and `ContextFunctionN` of the same parameters, contravariant in
+//! the parameter types and covariant in the result.
 
 use super::builtin::synthetic;
 use super::{Kind, SymbolId, Universe};
@@ -26,6 +27,9 @@ pub fn enter(u: &mut Universe, scala: SymbolId) {
             let args: Vec<_> = (0..=n).map(|i| u.types.intern(Type::Param(binder, i as u32))).collect();
             let result = u.types.intern_applied(class, &args);
             let info = u.types.intern_lambda(binder, &params, result);
+            let mut variances = vec![-1; n];
+            variances.push(1);
+            u.declare_lambda_variances(binder, variances);
             let alias = synthetic(u, scala, &format!("Impure{base}{n}"), Kind::Type, &[]);
             u.infos.insert(alias, info);
         }

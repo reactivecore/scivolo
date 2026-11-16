@@ -50,6 +50,8 @@ pub struct Body<'p> {
     pub operands: Vec<(i32, i32, Operand)>,
     /// The function of the call whose `Nothing$` value is thrown or returned as it is.
     pub sent_phantom: Option<TNodeId>,
+    /// The operand being generated of a cast to an array type.
+    pub cast_operand: Option<TNodeId>,
 }
 
 impl<'p> Body<'p> {
@@ -70,6 +72,7 @@ impl<'p> Body<'p> {
             emit_cleanup: false,
             operands: Vec::new(),
             sent_phantom: None,
+            cast_operand: None,
         }
     }
 
