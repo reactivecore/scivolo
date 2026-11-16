@@ -15,19 +15,14 @@ const CASES: &[(&str, &str)] = &[
         "constValue of a type that is not constant",
     ),
     (
-        "object O { inline def f: String = { def h(using x: Show[Int]) = summonInline[Show[Int]].show(1); \
-         h(using null) }; def g = f }",
-        "implicit search in an inline body with local implicits",
-    ),
-    (
         "object O { given a: Show[String] = new Show[String] { def show(t: String) = \"\" }; \
          given b: Show[String] = a; inline def f: Boolean = summonFrom { case _: Show[String] => true }; \
          def g = f }",
         "ambiguous implicit arguments",
     ),
     (
-        "object O { given o: Show[Int] = null; inline def f(v: Any): Show[Int] = \
-         v match { case given Show[Int] => summonInline[Show[Int]] }; def g = f(1) }",
+        "object O { inline def f: Int = { class C { given c: Show[Int] = null; def m = summonInline[Show[Int]] }; \
+         1 }; def g = f }",
         "implicit search in an inline body with local implicits",
     ),
     ("object O { def g = codeOf(List(1, 2)) }", "codeOf an argument"),
@@ -88,6 +83,21 @@ const LOCAL_GIVENS: &[(&str, &[&str])] = &[
          transparent inline def t(v: Any): Show[Int] = v match { case (_, given Show[Int]) => s[Int] }; \
          def g = t((1, o)) }",
         &["O$.s#(1)", "O$._$given_Show_Int"],
+    ),
+    (
+        "object O { given o: Show[Int] = null; inline def f(v: Any): Show[Int] = \
+         v match { case given Show[Int] => summonInline[Show[Int]] }; def g = f(1) }",
+        &["CaseDef", "Block", "O$._$given_Show_Int"],
+    ),
+    (
+        "object O { inline def f: String = { def h(using x: Show[Int]) = summonInline[Show[Int]].show(1); \
+         h(using null) }; def g = f }",
+        &["O$._$_$x", "Show$.given_Show_Int"],
+    ),
+    (
+        "object O { inline def s[T]: Show[T] = summonInline[Show[T]]; transparent inline def t: Show[Int] = \
+         { def h(using x: Show[Int]) = s[Int]; h(using null) }; def g = t }",
+        &["O$._$_$x", "O$.s#(1)", "O$._$_$x"],
     ),
 ];
 

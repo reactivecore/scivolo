@@ -50,12 +50,12 @@ pub struct MacroCall {
 
 /// An implicit search of a macro: of an argument of type `pt`, the candidates `ignored` left out
 /// (`Implicits.searchIgnoring`), the givens and implicits `locals` of its quotes and owners in
-/// scope.
+/// scope, by nested scope, outermost first.
 #[derive(Clone, PartialEq, Debug)]
 pub struct Search {
     pub pt: TypeId,
     pub ignored: Vec<SymbolId>,
-    pub locals: Vec<SymbolId>,
+    pub locals: Vec<Vec<SymbolId>>,
 }
 
 /// The call of `transform` of macro annotation `annotation`, a typed `new`, on `definition` and
