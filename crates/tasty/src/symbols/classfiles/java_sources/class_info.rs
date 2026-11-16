@@ -190,6 +190,14 @@ impl Signatures<'_> {
         let Resolved::Class(c) = resolve(u, self.sources, &self.scope, &names)? else {
             return Err(format!("annotation `@{}` of a type variable", names.join(".")));
         };
-        Ok(Annotation { descriptor: format!("L{c};"), enum_elements: a.enum_elements.clone() })
+        let mut class_elements = Vec::new();
+        for (element, class) in &a.class_elements {
+            let names: Vec<&str> = class.iter().map(String::as_str).collect();
+            if let Ok(Resolved::Class(c)) = resolve(u, self.sources, &self.scope, &names) {
+                class_elements.push((element.clone(), format!("L{c};")));
+            }
+        }
+        let enum_elements = a.enum_elements.clone();
+        Ok(Annotation { descriptor: format!("L{c};"), enum_elements, class_elements })
     }
 }

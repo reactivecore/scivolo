@@ -4,7 +4,7 @@
 
 use super::Typer;
 use names::nme;
-use tasty::tags::{ABSTRACT, FINAL, SEALED, TRAIT};
+use tasty::tags::{ABSTRACT, FINAL, PRIVATE, SEALED, TRAIT};
 use tasty::{Binding, Kind, SymbolId, Type, TypeId};
 
 /// A single abstract method type: the method's parameter and result types, the base type of its
@@ -149,7 +149,8 @@ impl Typer<'_> {
     }
 
     /// Whether class `c`, and the first parent of a trait, have exactly one constructor applicable
-    /// to no arguments, one of a repeated parameter too, or none (dotty's `samClass`).
+    /// to no arguments, one of a repeated parameter too, or none (dotty's `samClass`); a private
+    /// constructor of a Java class does not count.
     fn no_args_needed(&mut self, c: SymbolId) -> bool {
         if !self.takes_no_args(c) {
             return false;
@@ -177,7 +178,8 @@ impl Typer<'_> {
                 [(_, p)] => self.repeated_elem(p).is_some(),
                 _ => false,
             };
-            applicable += usize::from(no_args && self.u.method(result).is_none());
+            let java_private = self.u.is_java_defined(ctor) && self.u.symbol(ctor).flags.has(PRIVATE);
+            applicable += usize::from(no_args && self.u.method(result).is_none() && !java_private);
         }
         ctors.is_empty() || applicable == 1
     }

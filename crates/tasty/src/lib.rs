@@ -25,9 +25,9 @@ pub use positions::{TastySpan, decode_positions, line_sizes};
 pub use subtype::{Changes, Mark, NoVars, NullMode, TypeVars};
 pub use symbols::{
     ANY, BodyInfo, Defn, Error as LoadError, FileId, Flags, JavaSources, Kind, MAX_IMPLEMENTED_ARITY,
-    NOTHING, PACKAGE_TABLE, Retention, SYMBOL_TABLE_VERSION, Symbol, SymbolId, Universe, decode,
-    defined_name, defn, encode, is_package_object_name, module_class_name, module_name, package_table,
-    package_table_version, symbol_table,
+    NOTHING, PACKAGE_TABLE, Retention, SYMBOL_TABLE_VERSION, SourceAnnotation, SourceArg, Symbol, SymbolId,
+    Universe, decode, defined_name, defn, encode, is_package_object_name, module_class_name, module_name,
+    package_table, package_table_version, symbol_table,
 };
 pub use types::{
     AnnotationTree, Binder, Binding, Highlight, NameId, ParamList, Type, TypeId, TypeList, Types, VarId,

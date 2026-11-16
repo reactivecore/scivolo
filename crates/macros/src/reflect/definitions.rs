@@ -10,14 +10,17 @@ use tasty::SymbolId;
 use typer::tpd::{TNodeId, Tree as T};
 
 impl Host {
-    /// The annotations of `s`, those of class `cls` if given.
+    /// The annotations of `s`, those of class `cls` if given; a member of a Java source has those
+    /// the typer kept.
     pub fn annotations(&mut self, s: SymbolId, cls: Option<SymbolId>) -> Fallible<Vec<TNodeId>> {
-        let mut trees = match self.definition(s) {
-            Some(_) => self.typer.annotations.get(&s).cloned().unwrap_or_default(),
-            None if self.u.symbol(s).tree.is_some() => {
+        let java = self.u.is_java_defined(s).then(|| self.typer.annotations.get(&s).cloned()).flatten();
+        let mut trees = match (java, self.definition(s)) {
+            (Some(trees), _) => trees,
+            (None, Some(_)) => self.typer.annotations.get(&s).cloned().unwrap_or_default(),
+            (None, None) if self.u.symbol(s).tree.is_some() => {
                 typer::unpickle::annotations(&mut self.u, &mut self.tpd, &mut self.names, s)?
             }
-            None => {
+            (None, None) => {
                 let owner = self.u.symbol(s).owner.map(|o| self.u.full_name(o));
                 let universal = matches!(owner.as_deref(), Some("java.lang.Object" | "scala.Any"));
                 return match cls {

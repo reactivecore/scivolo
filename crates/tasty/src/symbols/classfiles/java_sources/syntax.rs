@@ -69,15 +69,18 @@ pub enum Arg {
     Super(Type),
 }
 
-/// A field with its class-file access flags and constant value.
+/// A field with its class-file access flags, constant value and annotations, none if the parser
+/// does not keep them.
 pub struct Field {
     pub access: u16,
     pub name: String,
     pub ty: Type,
     pub constant: Option<ConstantValue>,
+    pub annotations: Option<Vec<Annotation>>,
 }
 
-/// A method or constructor (named `<init>`) with its class-file access flags.
+/// A method or constructor (named `<init>`) with its class-file access flags and its
+/// annotations, none if the parser does not keep them.
 pub struct Method {
     pub access: u16,
     pub name: String,
@@ -85,10 +88,29 @@ pub struct Method {
     pub params: Vec<Type>,
     pub result: Type,
     pub annotation_default: bool,
+    pub annotations: Option<Vec<Annotation>>,
 }
 
-/// An annotation: its type's name and the enum constants of its arguments by element.
+/// An annotation: its type's name, the enum constants of its arguments by element, the class
+/// names of its class literal arguments by element, and its arguments by element, none if
+/// dotty's parser drops the annotation.
+#[derive(Clone)]
 pub struct Annotation {
     pub name: Vec<String>,
     pub enum_elements: Vec<(String, String)>,
+    pub class_elements: Vec<(String, Vec<String>)>,
+    pub args: Option<Vec<(String, ArgValue)>>,
+}
+
+/// The value of an annotation element as written.
+#[derive(Clone)]
+pub enum ArgValue {
+    /// A literal: a boolean, character, number or string.
+    Literal(classfile::ElementValue),
+    Array(Vec<ArgValue>),
+    /// A possibly qualified name: an enum constant or a constant field.
+    Path(Vec<String>),
+    Annotation(Annotation),
+    /// A class literal `p.C.class`: the class's name.
+    ClassLiteral(Vec<String>),
 }

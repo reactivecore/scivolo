@@ -70,6 +70,11 @@ impl Universe {
         }
     }
 
+    /// The Java sources `use_java_sources` made known, if any.
+    pub fn java_sources(&self) -> Option<JavaSources> {
+        self.java_classes.as_ref().map(|c| c.sources.clone())
+    }
+
     /// Counts the lookups that found a refused class: a jar's Scala 2 class file, whose pickle
     /// this reader does not read (a class `p.C`, or the package object `p.package` of a name `p`
     /// lacks), or a Java source's class of a name not found.

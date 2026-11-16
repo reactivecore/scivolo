@@ -91,7 +91,7 @@ fn superclass(l: &mut Lower, c: SymbolId) -> Option<SymbolId> {
 }
 
 /// Whether non-private `m` is accessible in `class`: inside its qualifier if it has one.
-fn is_accessible(l: &mut Lower, m: SymbolId, class: SymbolId) -> bool {
+pub fn is_accessible(l: &mut Lower, m: SymbolId, class: SymbolId) -> bool {
     if !has(l.u, m, PRIVATEqualified) {
         return true;
     }

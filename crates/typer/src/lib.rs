@@ -178,6 +178,7 @@ impl Units {
             typed.extend(roots.iter().map(|&r| typer.typed(r, typer::Pt::Any, ctx)));
             self.refused.extend(typer.unsupported.take());
         }
+        typer.typed_java_source_annotations(ctx);
         typer.check_well_known_uses();
         self.refused.extend(typer.unsupported.take());
         let unit = finish::root_package(&mut typer, &typed);

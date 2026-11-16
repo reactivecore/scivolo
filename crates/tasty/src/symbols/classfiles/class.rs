@@ -109,7 +109,8 @@ fn class_signature<'a>(
     Ok(Owners { class, statics, params, vars, outer })
 }
 
-/// Enters field or method `m` unless it is private, synthetic, a bridge or a static initializer:
+/// Enters field or method `m` unless it is synthetic, a bridge, a static initializer or private
+/// but a constructor:
 /// the member entered, or the refusal of a signature this reader refuses or of a native varargs
 /// method outside `MethodHandle` and `VarHandle` (dotty's `isSignaturePolymorphic`).
 pub fn member(
@@ -120,7 +121,8 @@ pub fn member(
 ) -> Result<Option<SymbolId>, String> {
     let artifact = m.access & ACC_SYNTHETIC != 0 || method && m.access & ACC_BRIDGE != 0;
     let polymorphic = method && m.access & (ACC_NATIVE | ACC_VARARGS) == ACC_NATIVE | ACC_VARARGS;
-    if m.access & ACC_PRIVATE != 0 || artifact || m.name == nme::STATIC_CONSTRUCTOR {
+    let private = m.access & ACC_PRIVATE != 0 && !(method && m.name == nme::CONSTRUCTOR);
+    if private || artifact || m.name == nme::STATIC_CONSTRUCTOR {
         return Ok(None);
     }
     if polymorphic && !is_signature_polymorphic(u, owners.class, m) {

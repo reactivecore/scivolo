@@ -19,7 +19,7 @@ impl Typer<'_> {
     }
 
     /// The members named `name` of type `t`'s class, or its intersected classes', that are not
-    /// private (dotty's `nonPrivateMember`).
+    /// private, constructors the class's own (dotty's `nonPrivateMember`).
     pub fn non_private_members(&mut self, t: TypeId, name: &str) -> Vec<SymbolId> {
         let mut widened = self.u.widen(t);
         if matches!(self.u.ty(widened), Type::Or(..)) {
@@ -36,6 +36,11 @@ impl Typer<'_> {
         }
         let Some(c) = self.u.class_symbol(widened) else { return Vec::new() };
         let classes = self.completed_linearization(c);
+        if name == nme::CONSTRUCTOR {
+            let mut own = self.u.decls_named(c, name);
+            own.retain(|&s| !self.u.symbol(s).flags.has(tasty::tags::PRIVATE));
+            return own;
+        }
         self.members_of_bases(c, &classes, name, false)
     }
 

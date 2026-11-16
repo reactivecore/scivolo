@@ -64,7 +64,7 @@ use std::io;
 
 pub use bodies::BodyInfo;
 pub use builtin::{ANY, NOTHING};
-pub use classfiles::{JavaSources, Retention};
+pub use classfiles::{JavaSources, Retention, SourceAnnotation, SourceArg};
 pub use companions::{module_class_name, module_name};
 pub use defn::Defn;
 pub use encoded_names::{decode, encode};
@@ -131,6 +131,8 @@ pub struct Universe {
     classfile_descriptors: FxHashMap<SymbolId, String>,
     /// The retention of each annotation class entered from them.
     classfile_annotations: FxHashMap<SymbolId, classfiles::Retention>,
+    /// The internal name of the container class of each `@Repeatable` annotation class of them.
+    repeatable_containers: FxHashMap<SymbolId, String>,
     /// The signature polymorphic methods entered from them, and each instance at a call of one
     /// with the method it instantiates.
     signature_polymorphic: classfiles::SignaturePolymorphic,

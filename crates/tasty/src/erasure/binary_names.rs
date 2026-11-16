@@ -9,7 +9,7 @@ use crate::{Kind, SymbolId, Universe};
 impl Universe {
     /// The binary name of class `c`: `pkg.Name`, `Outer$Inner`, `Object$Inner`; target names encoded,
     /// a JDK class Scala Native renames under its defined name when outer; a nested name
-    /// `compactify`d.
+    /// `compactify`d unless its owner is Java-defined.
     pub fn binary_name(&self, c: SymbolId) -> String {
         self.class_name_with(c, compactify)
     }
@@ -59,7 +59,7 @@ impl Universe {
                 }
                 flat.push_str(simple);
                 outer.truncate(if flat_start > 1 { flat_start } else { 0 });
-                outer.push_str(&compactify(&flat));
+                outer.push_str(&if self.is_java_defined(o) { flat } else { compactify(&flat) });
                 if module.is_some() {
                     outer.push('$');
                 }
