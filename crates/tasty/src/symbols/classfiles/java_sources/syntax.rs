@@ -91,12 +91,14 @@ pub struct Method {
     pub annotations: Option<Vec<Annotation>>,
 }
 
-/// An annotation: its type's name, the enum constants of its arguments by element, and its
-/// arguments by element, none if dotty's parser drops the annotation.
+/// An annotation: its type's name, the enum constants of its arguments by element, the class
+/// names of its class literal arguments by element, and its arguments by element, none if
+/// dotty's parser drops the annotation.
 #[derive(Clone)]
 pub struct Annotation {
     pub name: Vec<String>,
     pub enum_elements: Vec<(String, String)>,
+    pub class_elements: Vec<(String, Vec<String>)>,
     pub args: Option<Vec<(String, ArgValue)>>,
 }
 
@@ -109,5 +111,6 @@ pub enum ArgValue {
     /// A possibly qualified name: an enum constant or a constant field.
     Path(Vec<String>),
     Annotation(Annotation),
-    ClassLiteral,
+    /// A class literal `p.C.class`: the class's name.
+    ClassLiteral(Vec<String>),
 }

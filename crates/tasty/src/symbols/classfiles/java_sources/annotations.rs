@@ -1,7 +1,7 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/parsing/JavaParsers.scala
 //! Annotations of a Java source (dotty's `annotation`): the name, the arguments and the enum
-//! constants among them.
+//! constants and class literals among them.
 
 use super::parser::Parser;
 use super::scanner::Token;
@@ -28,7 +28,7 @@ impl Parser {
     pub fn annotation(&mut self) -> Result<Annotation, String> {
         self.expect("@")?;
         let name = self.qualified()?;
-        let mut enum_elements = Vec::new();
+        let (mut enum_elements, mut class_elements) = (Vec::new(), Vec::new());
         let mut args = Some(Vec::new());
         if self.eat("(") && !self.eat(")") {
             loop {
@@ -39,8 +39,14 @@ impl Parser {
                     self.expect("=")?;
                 }
                 let value = self.arg_value()?;
-                if let Some(ArgValue::Path(path)) = &value {
-                    enum_elements.push((element.clone(), path[path.len() - 1].clone()));
+                match &value {
+                    Some(ArgValue::Path(path)) => {
+                        enum_elements.push((element.clone(), path[path.len() - 1].clone()))
+                    }
+                    Some(ArgValue::ClassLiteral(class)) => {
+                        class_elements.push((element.clone(), class.clone()))
+                    }
+                    _ => {}
                 }
                 match (value, &mut args) {
                     (Some(v), Some(args)) => args.push((element, v)),
@@ -52,7 +58,7 @@ impl Parser {
             }
             self.expect(")")?;
         }
-        Ok(Annotation { name, enum_elements, args })
+        Ok(Annotation { name, enum_elements, class_elements, args })
     }
 
     /// Reads an element value (dotty's `argValue`): none, skipped to the next `,`, `}` or `)`,
@@ -64,9 +70,14 @@ impl Parser {
             _ => match self.constant() {
                 Some(c) => Some(ArgValue::Literal(c)),
                 None if matches!(self.peek(), Token::Ident(_)) => {
-                    let path = self.qualified()?;
-                    let class = self.is_ident("class") && self.tokens[self.at - 1] == Token::Op(".");
-                    Some(if class { ArgValue::ClassLiteral } else { ArgValue::Path(path) })
+                    let mut path = self.qualified()?;
+                    match path.len() > 1 && path[path.len() - 1] == "class" {
+                        true => {
+                            path.pop();
+                            Some(ArgValue::ClassLiteral(path))
+                        }
+                        false => Some(ArgValue::Path(path)),
+                    }
                 }
                 None => None,
             },

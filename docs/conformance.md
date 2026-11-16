@@ -400,13 +400,9 @@ Results:
 - **Typer refused (run-macros):** the annotations of a symbol defined outside the unit
   (`annot-arg-value-in-java`), `Symbol.paramSymss` of a method whose parameters the frontend
   lacks (`i20052`), a source version.
-- **Tests with Java sources:** linkage errors for a sealed Java interface (`i23479`) and long
-  class names (`java-longnames`); the frontend crashes on
-  instantiating a Java annotation (`java-ann-super-class`, `-separate`, `repeatable`); the
-  lowering refuses varargs forwarders of generic element types (`varargs-abstract`).
+- **Tests with Java sources:** all pass but the six the typer refuses (see above).
 - **Crash:** `lambda-serialization-gc` casts the application class loader to `URLClassLoader`,
-  which fails for scalac's class files too, as the runner does not load tests through one;
-  `java-package-private-bridge` finds a bridge of a package-private Java method.
+  which fails for scalac's class files too, as the runner does not load tests through one.
 - **Difference from dotty (open, not accepted):** a macro runs from its Scala Native build in the VM, so a
   macro implementation that reads the platform (`System.getProperty`, `scala.util.Properties`,
   runtime class names) sees Scala Native's; what it reflects on (`Symbol`s, types) is the JVM

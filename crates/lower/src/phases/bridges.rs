@@ -7,6 +7,7 @@
 
 use super::adapt::adapt;
 use super::mixin::{is_jdk, javalib_only_bases, with_java_param_names};
+use super::param_forwarding::is_accessible;
 use super::varargs_forwarders::forwarded;
 use crate::symbols::{has, same_erasure};
 use crate::{Lower, Result};
@@ -33,6 +34,9 @@ pub fn transform(l: &mut Lower, td: TNodeId, deferred: &FxHashSet<SymbolId>) -> 
         if !differ(l, member, other) || forwarded(l, member, other) {
             continue;
         }
+        if l.u.is_java_defined(member) && !is_accessible(l, member, class) {
+            continue;
+        }
         let (params, result) = l.u.erased_method(other);
         let key = (member, params, result);
         if made.contains(&key) {
@@ -42,7 +46,8 @@ pub fn transform(l: &mut Lower, td: TNodeId, deferred: &FxHashSet<SymbolId>) -> 
         if l.u.symbol(other).owner == Some(class) {
             removed.push(other);
         }
-        let own = stats.iter().copied().find(|&s| l.tpd.sym(s) == Some(member) && l.tpd.span(s).exists());
+        let positioned = |l: &Lower, s| l.tpd.span(s).exists() && !l.varargs_forwarders.contains(&member);
+        let own = stats.iter().copied().find(|&s| l.tpd.sym(s) == Some(member) && positioned(l, s));
         let coord = l.coords.get(&member).copied().filter(|c| c.exists());
         let at = coord.unwrap_or_else(|| Span::at(l.tpd.span(own.unwrap_or(td)).point()));
         let depth = |l: &Lower, s| l.context_results.get(&s).map_or(0, |&(_, d)| d);
@@ -208,5 +213,8 @@ fn bridge(l: &mut Lower, class: SymbolId, m: SymbolId, other: SymbolId, span: Sp
         }
     }
     l.bridges.insert(sym);
+    if l.varargs_forwarders.contains(&m) {
+        l.varargs_forwarders.insert(sym);
+    }
     Ok(def)
 }

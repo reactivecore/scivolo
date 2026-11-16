@@ -59,12 +59,20 @@ fn inner_classes(b: &mut Bytes, c: &Constants) -> Result<Vec<InnerClass>, String
         .collect()
 }
 
-/// An annotation of a class: its type's descriptor and the elements whose values are enum
-/// constants, each its name and the constant's name.
+/// An annotation of a class: its type's descriptor, the elements whose values are enum
+/// constants, each its name and the constant's name, and those whose values are class literals,
+/// each its name and the class's return descriptor.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Annotation {
     pub descriptor: String,
     pub enum_elements: Vec<(String, String)>,
+    pub class_elements: Vec<(String, String)>,
+}
+
+/// An element value an `Annotation` keeps.
+enum Kept {
+    Enum(String),
+    Class(String),
 }
 
 /// The annotations of an annotations attribute's bytes.
@@ -74,24 +82,27 @@ fn annotations(b: &mut Bytes, c: &Constants) -> Result<Vec<Annotation>, String> 
 
 fn annotation(b: &mut Bytes, c: &Constants) -> Result<Annotation, String> {
     let descriptor = c.utf8(b.u2()?)?;
-    let mut enum_elements = Vec::new();
+    let (mut enum_elements, mut class_elements) = (Vec::new(), Vec::new());
     for _ in 0..b.u2()? {
         let name = c.utf8(b.u2()?)?;
-        if let Some(constant) = element_value(b, c)? {
-            enum_elements.push((name, constant));
+        match element_value(b, c)? {
+            Some(Kept::Enum(constant)) => enum_elements.push((name, constant)),
+            Some(Kept::Class(class)) => class_elements.push((name, class)),
+            None => {}
         }
     }
-    Ok(Annotation { descriptor, enum_elements })
+    Ok(Annotation { descriptor, enum_elements, class_elements })
 }
 
-/// Skips an element value; the constant's name if it is an enum constant.
-fn element_value(b: &mut Bytes, c: &Constants) -> Result<Option<String>, String> {
+/// Skips an element value; the value if it is an enum constant or a class literal.
+fn element_value(b: &mut Bytes, c: &Constants) -> Result<Option<Kept>, String> {
     let tag = b.take(1)?[0];
     match tag {
-        b'B' | b'C' | b'D' | b'F' | b'I' | b'J' | b'S' | b'Z' | b's' | b'c' => _ = b.u2()?,
+        b'B' | b'C' | b'D' | b'F' | b'I' | b'J' | b'S' | b'Z' | b's' => _ = b.u2()?,
+        b'c' => return c.utf8(b.u2()?).map(|d| Some(Kept::Class(d))),
         b'e' => {
             b.u2()?;
-            return c.utf8(b.u2()?).map(Some);
+            return c.utf8(b.u2()?).map(|n| Some(Kept::Enum(n)));
         }
         b'@' => _ = annotation(b, c)?,
         b'[' => {

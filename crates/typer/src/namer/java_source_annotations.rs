@@ -59,7 +59,7 @@ impl Typer<'_> {
         let class = self.u.intern_type(Type::Sym(None, a.class));
         let tpt = self.splice_type(class);
         let new = self.ast.node(Tree::New { tpt });
-        self.annotation_news.insert(new);
+        self.annotation_news.insert(new, new);
         let init = TName { name: self.name(nme::CONSTRUCTOR), is_type: false };
         let fun = self.ast.node(Tree::Select { qualifier: new, name: init });
         let mut args = Vec::new();

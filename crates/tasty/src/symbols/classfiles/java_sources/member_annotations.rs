@@ -104,7 +104,7 @@ fn arg(u: &mut Universe, sources: &JavaSources, scope: &Scope, v: &ArgValue) -> 
             None => return Err("a nested annotation dotty drops".to_owned()),
         },
         ArgValue::Path(path) => SourceArg::Static(static_field(u, sources, scope.at, path)?),
-        ArgValue::ClassLiteral => return Err("a class literal as Java annotation argument".to_owned()),
+        ArgValue::ClassLiteral(_) => return Err("a class literal as Java annotation argument".to_owned()),
     })
 }
 

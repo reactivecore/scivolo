@@ -4,8 +4,19 @@
 
 use super::Gen;
 use super::annotation_holders::Holder;
-use classfile::{AnnotationValue, ClassFile, Last};
+use super::descriptors::class_descriptor;
+use classfile::{AnnotationValue, ClassFile, ElementValue, Last};
 use tasty::{Retention, SymbolId};
+use typer::tpd::TNodeId;
+
+/// The element of a container annotation that holds the repeated annotations.
+const VALUE: &str = "value";
+
+/// The refusal of a repeated Java annotation that is not `@Repeatable` (dotty's error).
+const NOT_REPEATABLE: &str = "a repeated Java annotation that is not repeatable";
+
+/// The refusal of repeated Java annotations beside their container (dotty's error).
+const CONTAINER_PRESENT: &str = "repeated Java annotations beside their container annotation";
 
 /// A Java annotation a class file keeps: its class, its class file form and whether it is kept
 /// at run time.
@@ -19,24 +30,74 @@ impl Gen<'_, '_> {
     /// Determines the annotations of `sym` of Java annotation classes read from class files that
     /// its class file keeps, those whose retention is not `SOURCE` (dotty's
     /// `shouldEmitAnnotation`), in the order of dotty's `sym.annotations`: the reverse of the
-    /// source's (`Namer.addAnnotations` prepends each), as read for a definition of TASTy.
+    /// source's (`Namer.addAnnotations` prepends each), as read for a definition of TASTy; those
+    /// of a class repeated replaced by one of its container at the first (`container_value`).
     /// Refuses, with what is not supported, an argument `annotation_value` refuses.
     pub fn kept_annotations(&mut self, sym: SymbolId) -> Result<Vec<Kept>, &'static str> {
-        let mut kept = Vec::new();
-        for annot in self.l.tpd.annotations(sym).to_vec() {
+        let mut annots = self.l.tpd.annotations(sym).to_vec();
+        if self.l.u.symbol(sym).tree.is_none() {
+            annots.reverse();
+        }
+        let mut groups: Vec<(SymbolId, Vec<TNodeId>)> = Vec::new();
+        for annot in annots {
             let tpe = self.l.tpd.tpe(annot);
             let Some(c) = self.l.u.class_symbol(tpe) else { continue };
-            let Some(retention) = self.l.u.classfile_retention(c) else { continue };
-            if retention == Retention::Source {
+            if self.l.u.classfile_retention(c).is_none() {
                 continue;
             }
-            let value = self.annotation_value(annot)?;
-            kept.push(Kept { class: c, value, visible: retention == Retention::Runtime });
+            match groups.iter_mut().find(|(class, _)| *class == c) {
+                Some((_, group)) => group.push(annot),
+                None => groups.push((c, vec![annot])),
+            }
         }
-        if self.l.u.symbol(sym).tree.is_none() {
-            kept.reverse();
+        let classes: Vec<String> =
+            groups.iter().map(|&(c, _)| self.l.u.binary_name(c).replace('.', "/")).collect();
+
+        let mut kept = Vec::new();
+        for (class, group) in groups {
+            let (retention, value) = match group[..] {
+                [annot] => {
+                    let retention = self.l.u.classfile_retention(class).expect("a Java annotation");
+                    if retention == Retention::Source {
+                        continue;
+                    }
+                    (retention, self.annotation_value(annot)?)
+                }
+                _ => match self.container_value(class, &group, &classes)? {
+                    Some(kept) => kept,
+                    None => continue,
+                },
+            };
+            kept.push(Kept { class, value, visible: retention == Retention::Runtime });
         }
         Ok(kept)
+    }
+
+    /// Determines the annotation of the container class of repeated annotations `group` of
+    /// `class` that replaces them, with its retention, none if it is `SOURCE` (dotty's
+    /// `RepeatableAnnotations`). Refuses, as dotty does, `class` not `@Repeatable` and a container
+    /// among the internal names `classes` of the annotations beside.
+    fn container_value(
+        &mut self,
+        class: SymbolId,
+        group: &[TNodeId],
+        classes: &[String],
+    ) -> Result<Option<(Retention, AnnotationValue)>, &'static str> {
+        let container = self.l.u.repeatable_container(class).ok_or(NOT_REPEATABLE)?.to_owned();
+        if classes.contains(&container) {
+            return Err(CONTAINER_PRESENT);
+        }
+        let retention = self.l.u.annotation_retention(&container).unwrap_or(Retention::Class);
+        if retention == Retention::Source {
+            return Ok(None);
+        }
+
+        let mut values = Vec::new();
+        for &annot in group {
+            values.push(ElementValue::Annotation(self.annotation_value(annot)?));
+        }
+        let elements = vec![(VALUE.to_owned(), ElementValue::Array(values))];
+        Ok(Some((retention, AnnotationValue { descriptor: class_descriptor(&container), elements })))
     }
 
     /// Adds to method `m`, added last to `cf`, the Java annotations it keeps.
