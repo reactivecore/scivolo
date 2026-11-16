@@ -20,7 +20,7 @@ impl Typer<'_> {
             for d in self.u.decls_named(package, &n) {
                 let tasty = self.u.symbol(d).tree.is_some();
                 if (tasty || self.u.is_library_java_stub(d)) && self.u.symbol(d).name == n {
-                    if self.defn.is_well_known(d) {
+                    if self.defn.is_well_known(d) || self.u.defn().is_well_known(d) {
                         self.replaced_well_known.push(d);
                     }
                     let full = self.u.full_name(d);
@@ -37,8 +37,12 @@ impl Typer<'_> {
     /// universe's and the root imports, as dotty's `Definitions` resolve to the definitions of
     /// the run that compiles the library.
     pub fn replace_well_known(&mut self, sym: SymbolId) {
-        let (name, kind) = (&self.u.symbol(sym).name, self.u.symbol(sym).kind);
-        let same = |u: &tasty::Universe, d: SymbolId| u.symbol(d).name == *name && u.symbol(d).kind == kind;
+        let s = self.u.symbol(sym);
+        let (name, kind, owner) = (&s.name, s.kind, s.owner);
+        let same = |u: &tasty::Universe, d: SymbolId| {
+            let d = u.symbol(d);
+            d.name == *name && d.kind == kind && d.owner == owner
+        };
         let Some(i) = self.replaced_well_known.iter().position(|&d| same(self.u, d)) else { return };
         let old = self.replaced_well_known.swap_remove(i);
         self.defn.replace(old, sym);
@@ -47,10 +51,11 @@ impl Typer<'_> {
         self.replace_root_imports(old, sym);
     }
 
-    /// Refuses each typed tree that still refers to a well-known symbol a definition of the unit
-    /// replaced, or has it as its type's class.
+    /// Refuses each typed tree that still refers to a well-known symbol the unit removed, replaced
+    /// or not, or has it as its type's class.
     pub fn check_well_known_uses(&mut self) {
-        let replaced = std::mem::take(&mut self.replaced_by);
+        let mut replaced = std::mem::take(&mut self.replaced_by);
+        replaced.append(&mut self.replaced_well_known);
         if replaced.is_empty() {
             return;
         }
