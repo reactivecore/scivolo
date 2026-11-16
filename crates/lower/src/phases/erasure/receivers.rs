@@ -40,7 +40,9 @@ pub fn receiver_type(l: &mut Lower, sel: TNodeId, qualifier: TNodeId) -> Result<
 /// Whether the code being erased may name class `c` in a cast: a Scala class, or a Java class it
 /// may access (dotty's `isJvmAccessible`).
 fn is_jvm_accessible(l: &mut Lower, c: SymbolId) -> bool {
-    if !l.u.may_be_java(c) {
+    let name = l.u.full_name(c);
+    let jdk = l.u.may_be_java(c) && (name.starts_with("java.") || name.starts_with("javax."));
+    if !jdk && !l.u.is_java_defined(c) {
         return true;
     }
     l.erasure_owner.is_some_and(|site| l.u.is_class_accessible_from(c, site))
