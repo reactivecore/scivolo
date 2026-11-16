@@ -122,6 +122,15 @@ fn a_private_constructor_is_refused_as_inaccessible() {
     assert!(!refused.status.success() && stderr.contains("inaccessible member"), "{stderr}");
 }
 
+/// A Java abstract class whose only constructor is private is no SAM type: a lambda is not
+/// converted to it.
+#[test]
+fn a_private_constructor_makes_no_sam_class() {
+    let Some((mut scivolo, _)) = scivolo("privatesam") else { return };
+    let refused = output(&mut scivolo);
+    assert!(!refused.status.success(), "{}", String::from_utf8_lossy(&refused.stdout));
+}
+
 #[test]
 fn a_receiver_parameter_is_refused_by_name() {
     let Some((mut scivolo, _)) = scivolo("refused") else { return };
