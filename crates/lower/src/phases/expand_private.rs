@@ -3,7 +3,8 @@
 //   compiler/src/dotty/tools/dotc/transform/ExpandPrivate.scala
 //! dotty's `ExpandPrivate`: private members used from another class, a nested one or a
 //! companion, and the private values of value classes get expanded names and become public, as
-//! do `@publicInBinary` private constructors.
+//! do `@publicInBinary` private constructors; a private object's value standing for `this` in its
+//! own class is no such use.
 
 use crate::Lower;
 use crate::symbols::has;
@@ -29,7 +30,13 @@ pub fn transform(l: &mut Lower, classes: &[TNodeId]) {
             }
             let Some(s) = l.tpd.sym(t) else { continue };
             let Some(owner) = l.u.symbol(s).owner else { continue };
-            if owner != class && l.u.is_class(owner) && has(l.u, s, PRIVATE) && l.u.symbol(s).kind.is_term() {
+            let own_module = l.u.is_module(s) && l.u.module_class(s) == Some(class);
+            if owner != class
+                && l.u.is_class(owner)
+                && has(l.u, s, PRIVATE)
+                && l.u.symbol(s).kind.is_term()
+                && !own_module
+            {
                 super::accessor_names::ensure_not_private(l, s);
             }
         }
