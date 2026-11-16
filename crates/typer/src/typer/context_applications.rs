@@ -32,12 +32,39 @@ impl Typer<'_> {
                 self.erased_context_function(wide)?;
             }
         }
-        let meth = self.tpd.sym(self.tpd.meth_part(tree));
-        if meth.is_some_and(|m| self.u.symbol(m).flags.has(tasty::tags::EXTENSION)) {
-            return Some(Err("context function result of an extension method"));
-        }
         let tree = self.inlined_transparent(tree, Pt::Any, ctx).unwrap_or(tree);
-        Some(self.with_apply(tree, Pt::Any, ctx).map(|apply| self.adapt(apply, pt, ctx)))
+        let span = self.tpd.span(tree);
+        let receiver_call = self.is_extension_receiver_call(tree);
+        if receiver_call {
+            self.tpd.get_mut(tree).span = span.to_synthetic();
+        }
+        let applied = self.with_apply(tree, Pt::Any, ctx).map(|apply| self.adapt(apply, pt, ctx));
+        if let Ok(t) = applied
+            && receiver_call
+            && self.tpd.span(t).start() == span.start()
+            && self.tpd.span(t).end() == span.end()
+        {
+            self.tpd.get_mut(t).span = span;
+        }
+        Some(applied)
+    }
+
+    /// Whether `t` applies an extension method to its receiver only, written as a selection `x.m`
+    /// of the method (dotty's `extMethodApply` under `typedSelect`).
+    fn is_extension_receiver_call(&self, t: TNodeId) -> bool {
+        let T::Apply { fun, args } = *self.tpd.tree(t) else { return false };
+        let fun = match *self.tpd.tree(fun) {
+            T::TypeApply { fun, .. } => fun,
+            _ => fun,
+        };
+        let selected = self
+            .tpd
+            .items(args)
+            .first()
+            .is_some_and(|&r| self.tpd.span(r).start() < self.tpd.span(fun).start());
+        selected
+            && !matches!(self.tpd.tree(fun), T::Apply { .. })
+            && self.tpd.sym(fun).is_some_and(|m| self.u.symbol(m).flags.has(tasty::tags::EXTENSION))
     }
 
     /// Whether typed tree `t` is a closure, possibly in blocks (dotty's `isContextualClosure` of a

@@ -4,6 +4,7 @@
 
 use super::Typer;
 use crate::ctx::Ctx;
+use crate::protected_access::host_for_accessor_of;
 use names::nme;
 use tasty::tags::{PRIVATE, PRIVATEqualified, PROTECTED, PROTECTEDqualified};
 use tasty::{SymbolId, Type, TypeId};
@@ -162,8 +163,9 @@ impl Typer<'_> {
 
     /// Refuses protected `sym` selected from a path of type `qual_tpe` other than `this` or
     /// `super`, outside its access boundary, from a class not deriving from its owner, a class,
-    /// unless it is a constructor of a parent of the class whose parent calls `ctx` is in and `new`
-    /// the qualifier (dotty's `ProtectedAccessors.needsAccessor`).
+    /// unless the path derives from the class hosting its accessor, or it is a constructor of a
+    /// parent of the class whose parent calls `ctx` is in and `new` the qualifier (dotty's
+    /// `ProtectedAccessors.needsAccessor`).
     pub fn check_protected_path(
         &mut self,
         sym: SymbolId,
@@ -182,6 +184,13 @@ impl Typer<'_> {
         let enclosing = self.enclosing_class(ctx.owner);
         if parent.is_some_and(|p| self.u.is_trait(p) || enclosing.is_some_and(|c| self.u.derives_from(c, p)))
         {
+            return Ok(());
+        }
+
+        let host = enclosing.and_then(|c| host_for_accessor_of(self.u, sym, c));
+        let qual_class = self.u.widen(qual_tpe);
+        let qual_class = self.u.class_symbol(qual_class);
+        if host.zip(qual_class).is_some_and(|(h, q)| self.u.derives_from(q, h)) {
             return Ok(());
         }
         let super_call = new
