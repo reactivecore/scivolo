@@ -229,6 +229,11 @@ fn arrays_of_type_members_cast_as_dotty_on_the_jvm() {
 }
 
 #[test]
+fn private_objects_keep_their_names_on_the_jvm() {
+    runs_on_the_jvm("privateobjects", "Privateobjects");
+}
+
+#[test]
 fn a_macro_call_runs_over_the_macro_classpath() {
     if Command::new("java").arg("-version").output().is_err() {
         eprintln!("no java on the PATH: skipped");
