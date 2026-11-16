@@ -116,8 +116,8 @@ def compile_groups(name, groups, out, timeout=None, options=()):
 
 
 def tests(filter_, dir="run"):
-    """(name, source groups in compilation order, check file or None, skip reason or None) of
-    the tests in dotty's tests/`dir`; the check file is the one in tests/dotty-checks/`dir`, recorded
+    """(name, Scala and Java source groups in compilation order, check file or None, skip reason or
+    None) of the tests in dotty's tests/`dir`; the check file is the one in tests/dotty-checks/`dir`, recorded
     with dotty on Scala Native, where that has one."""
     TESTS = shared(f"ref/scala3/tests/{dir}")
     RECORDED = ROOT / "tests/dotty-checks" / dir
@@ -129,7 +129,8 @@ def tests(filter_, dir="run"):
             continue
         files = [s for s in sorted(path.rglob("*")) if s.is_file()] if path.is_dir() else [path]
         sources = [s for s in files if s.suffix == ".scala"]
-        ordinals = sorted({group(s) for s in sources})
-        groups = [[s for s in sources if group(s) == g] for g in ordinals] if path.is_dir() else [sources]
+        compiled = [s for s in files if s.suffix in (".scala", ".java")]
+        ordinals = sorted({group(s) for s in compiled})
+        groups = [[s for s in compiled if group(s) == g] for g in ordinals] if path.is_dir() else [sources]
         check = next((c for c in (RECORDED / (name + ".check"), TESTS / (name + ".check")) if c.exists()), None)
         yield name, groups, check, skip_reason(files, sources)

@@ -190,7 +190,7 @@ def jvm(filter_, dir="run", libs=""):
     for name, groups, check, reason in all_:
         if name in files and groups and groups[0] and groups[0][0].parent.name != dir:
             name += "-dir"
-        todo.append((name, groups, check, None if reason == "jvm-only api" else reason))
+        todo.append((name, groups, check, None if reason in ("jvm-only api", "java sources") else reason))
     with concurrent.futures.ThreadPoolExecutor(JOBS) as pool:
         results = list(pool.map(lambda t: one(*t, dir, logs), todo))
     write(WORK / f"jvm-results{suffix}.tsv", WORK / f"jvm-report{suffix}.md", filter_,
