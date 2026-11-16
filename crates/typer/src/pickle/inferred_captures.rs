@@ -8,16 +8,16 @@ use super::TreePickler;
 use crate::tpd::{TNodeId, Tpd, Tree};
 use crate::typer::capture_types::{has_captures, is_retains_like};
 use crate::typer::seen_from::{resolve_class_params, resolve_class_params_keeping_captures};
-use tasty::{Kind, Type, TypeId, Universe};
+use tasty::{Kind, SymbolId, Type, TypeId, Universe};
 
 impl TreePickler<'_> {
     /// Records the type inferred type tree `tpt` of a capture-checked file is pickled with if the
     /// type it was inferred from has capture sets and is its type but for them: that type with
     /// each capture set but `retainsCap`'s empty, `B^{}` of `y` in `def g(b: B^{a}) = { val y =
     /// b; .. }`. The type inferred from is the one the typer recorded (a function value's
-    /// parameter's), else the info of the definition that right-hand side `rhs` refers to or
-    /// calls.
-    pub fn empty_captures(&mut self, tpt: TNodeId, rhs: Option<TNodeId>) {
+    /// parameter's), else, unless definition `sym` is a member that may inherit its type, the
+    /// info of the definition that its right-hand side `rhs` refers to or calls.
+    pub fn empty_captures(&mut self, sym: SymbolId, tpt: TNodeId, rhs: Option<TNodeId>) {
         if !self.file.is_some_and(|f| f.attributes.features.capture_checking()) {
             return;
         }
@@ -25,6 +25,7 @@ impl TreePickler<'_> {
         else {
             return;
         };
+        let rhs = rhs.filter(|_| !may_inherit(self.u, sym));
         let from = self.tpd.captured_type(tpt);
         let Some(from) = from.or_else(|| rhs.and_then(|r| rhs_type(self.u, self.tpd, r))) else { return };
         if !has_captures(self.u, from) {
@@ -36,6 +37,17 @@ impl TreePickler<'_> {
             self.kept_captures.insert(tpt, kept);
         }
     }
+}
+
+/// Whether `sym` is a member of a class with a base class that has a term member of its name,
+/// whose type it may take (dotty's `inherited` of `inferredResultType`).
+fn may_inherit(u: &mut Universe, sym: SymbolId) -> bool {
+    let Some(cls) = u.symbol(sym).owner.filter(|&o| u.symbol(o).kind == Kind::Class) else { return false };
+    let bases: Vec<SymbolId> = u.linearization(cls).into_iter().skip(1).collect();
+    let name = &u.symbol(sym).name;
+    bases
+        .iter()
+        .any(|&b| u.symbol(b).decls.iter().any(|&m| &u.symbol(m).name == name && u.symbol(m).kind.is_term()))
 }
 
 /// The declared type of right-hand side `rhs`, a reference to a value or a call of a method

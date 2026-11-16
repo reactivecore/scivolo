@@ -133,9 +133,9 @@ fn normalized_as(u: &mut tasty::Universe, t: TypeId, keep_captures: bool) -> Typ
             Type::TypeRef(..) => u.resolve_ref(tycon),
             _ => None,
         };
-        let impure =
-            !keep_captures && alias.is_some_and(|s| member_of(u, s, "scala", |n| n.starts_with("Impure")));
+        let impure = alias.is_some_and(|s| member_of(u, s, "scala", |n| n.starts_with("Impure")));
         let lambda = match alias {
+            Some(_) if impure && keep_captures => return None,
             Some(s) if impure => {
                 if !args.iter().any(|&a| has_captures(u, a)) {
                     return None;
