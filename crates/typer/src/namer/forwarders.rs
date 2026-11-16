@@ -56,8 +56,8 @@ impl Typer<'_> {
         self.set_forwarder_result(fwd, clauses, result);
     }
 
-    /// Completes the member a stable export forwarder `fwd` refers to, whose info its own reads
-    /// (dotty's lazy denotation of `path.m`).
+    /// Completes the term `m` that stable export forwarder `fwd` of type `=> path.m` forwards to,
+    /// as dotty's `isStableMember` does in `addForwarder`.
     pub fn complete_forwarded(&mut self, fwd: SymbolId) {
         if !self.u.symbol(fwd).flags.has(t::EXPORTED) {
             return;
