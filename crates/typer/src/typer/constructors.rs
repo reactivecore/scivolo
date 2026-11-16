@@ -21,12 +21,8 @@ impl Typer<'_> {
         }
         if let Some(s) = self.u.sym_of(tpe)
             && self.u.symbol(s).kind == Kind::Type
-            && self.syms.flags.contains_key(&s)
-            && let info = self.u.info(s)
-            && self.u.lambda(info).is_some()
-            && !self.parent_news.contains(&id)
         {
-            return self.unsupported(id, "new of a parameterized type alias without type arguments");
+            self.complete(s);
         }
         if let Some(c) = self.u.class_symbol(tpe)
             && !self.parent_news.contains(&id)

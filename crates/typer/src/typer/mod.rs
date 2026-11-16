@@ -393,8 +393,10 @@ pub struct Typer<'a> {
     pub file_starts: Vec<syntax::source::Offset>,
     /// The settings of each source file of a unit of several, none for a unit of one.
     pub file_cfgs: Vec<Config>,
-    /// The definitions replacing a well-known symbol, each with the symbol it defines.
-    pub replacing_well_known: Vec<(NodeId, SymbolId)>,
+    /// The well-known symbols a definition of the unit replaces, not yet defined.
+    pub replaced_well_known: Vec<SymbolId>,
+    /// The well-known symbols a definition of the unit replaced, each with that definition.
+    pub replaced_by: Vec<(SymbolId, SymbolId)>,
     /// The index of the source file whose settings are in use.
     pub file: usize,
     /// What runs macro implementations; without it, macro calls are refused.
@@ -495,7 +497,8 @@ impl<'a> Typer<'a> {
             quote_pattern: None,
             depth: 0,
             file_starts: Vec::new(),
-            replacing_well_known: Vec::new(),
+            replaced_well_known: Vec::new(),
+            replaced_by: Vec::new(),
             file_cfgs: Vec::new(),
             file: 0,
             macros: None,

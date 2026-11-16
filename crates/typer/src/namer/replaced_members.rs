@@ -1,5 +1,6 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/core/SymDenotations.scala
+//   compiler/src/dotty/tools/dotc/core/Definitions.scala
 //! The classpath members a unit's definitions replace.
 
 use crate::tpd::TNodeId;
@@ -11,15 +12,17 @@ impl Typer<'_> {
     /// unit's member `name` replaces: those of that name and of its companion's (dotty's
     /// `isDefinedInCurrentRun`), not the JDK classes a name Scala Native gives them stands for;
     /// replacing a TASTy one of package `scala` but not `scala.scalanative` marks the run as
-    /// building the Scala library. Returns whether a removed one is a well-known symbol.
-    pub fn unenter_classpath_members(&mut self, package: SymbolId, name: &str) -> bool {
+    /// building the Scala library. Keeps the removed well-known symbols for
+    /// `replace_well_known`.
+    pub fn unenter_classpath_members(&mut self, package: SymbolId, name: &str) {
         let base = name.strip_suffix('$').unwrap_or(name);
-        let mut well_known = false;
         for n in [base.to_owned(), format!("{base}$")] {
             for d in self.u.decls_named(package, &n) {
                 let tasty = self.u.symbol(d).tree.is_some();
                 if (tasty || self.u.is_library_java_stub(d)) && self.u.symbol(d).name == n {
-                    well_known |= self.defn.is_well_known(d);
+                    if self.defn.is_well_known(d) {
+                        self.replaced_well_known.push(d);
+                    }
                     let full = self.u.full_name(d);
                     if tasty && full.starts_with("scala.") && !full.starts_with("scala.scalanative.") {
                         self.u.set_builds_scala_library();
@@ -28,45 +31,39 @@ impl Typer<'_> {
                 }
             }
         }
-        well_known
     }
 
-    /// Refuses each definition replacing a well-known symbol (`scala.AnyVal`, `scala.Unit`,
-    /// `scala.Predef`, ...) whose symbol a typed tree outside it and its companion refers to or
-    /// has as its type's class, as `V extends AnyVal` or `ClassTag[Unit]` do.
+    /// Makes unit definition `sym` the well-known symbol it replaces, if any: in `Defn`, the
+    /// universe's and the root imports, as dotty's `Definitions` resolve to the definitions of
+    /// the run that compiles the library.
+    pub fn replace_well_known(&mut self, sym: SymbolId) {
+        let (name, kind) = (&self.u.symbol(sym).name, self.u.symbol(sym).kind);
+        let same = |u: &tasty::Universe, d: SymbolId| u.symbol(d).name == *name && u.symbol(d).kind == kind;
+        let Some(i) = self.replaced_well_known.iter().position(|&d| same(self.u, d)) else { return };
+        let old = self.replaced_well_known.swap_remove(i);
+        self.defn.replace(old, sym);
+        self.u.replace_defn(old, sym);
+        self.replaced_by.push((old, sym));
+        self.replace_root_imports(old, sym);
+    }
+
+    /// Refuses each typed tree that still refers to a well-known symbol a definition of the unit
+    /// replaced, or has it as its type's class.
     pub fn check_well_known_uses(&mut self) {
-        let replacing = std::mem::take(&mut self.replacing_well_known);
-        if replacing.is_empty() {
+        let replaced = std::mem::take(&mut self.replaced_by);
+        if replaced.is_empty() {
             return;
         }
-        let mut spans = Vec::new();
-        for &(_, sym) in &replacing {
-            let defined = self.with_companion(sym).into_iter().filter_map(|s| self.syms.def_trees.get(&s));
-            spans.extend(defined.map(|&t| self.ast.span(t)));
-        }
-        let mut used = vec![false; replacing.len()];
         for node in (0..self.tpd.len()).map(TNodeId::new) {
-            let span = self.tpd.span(node);
-            if span.exists() && spans.iter().any(|s| s.contains(span)) {
-                continue;
-            }
             let class = self.tpd.get(node).tpe.and_then(|t| self.u.class_symbol(t));
-            for (i, &(_, sym)) in replacing.iter().enumerate() {
-                used[i] |= self.tpd.sym(node) == Some(sym) || class == Some(sym);
+            let sym = self.tpd.sym(node);
+            if replaced.iter().any(|&(old, _)| sym == Some(old) || class == Some(old)) {
+                let span = self.tpd.span(node);
+                self.unsupported_at(
+                    span,
+                    "a reference to a library symbol a definition of the unit replaces",
+                );
             }
         }
-        for (&(tree, _), _) in replacing.iter().zip(used).filter(|(_, used)| *used) {
-            self.unsupported(tree, "a definition replacing a well-known library symbol");
-        }
-    }
-
-    /// The members of `sym`'s owner named as `sym` or its companion.
-    fn with_companion(&mut self, sym: SymbolId) -> Vec<SymbolId> {
-        let Some(owner) = self.u.symbol(sym).owner else { return vec![sym] };
-        let name = self.u.symbol(sym).name.clone();
-        let base = name.strip_suffix('$').unwrap_or(&name);
-        let mut syms = self.u.decls_named(owner, base);
-        syms.extend(self.u.decls_named(owner, &format!("{base}$")));
-        syms
     }
 }
