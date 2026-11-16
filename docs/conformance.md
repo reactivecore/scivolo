@@ -493,9 +493,12 @@ their own:
 
 - `unsafe/package{,$}`: as dotty compiles them against `UnsafePackageCompat`'s TASTy, without
   the call of its empty `$init$` that Scala Native's joint build has (case 3, upstream bug 10).
-- `UnsafePackageCompat`: the positions of its inline accessors (case 1): ours the template's
-  end; Scala Native's joint build takes the span of `package.scala`'s parent
-  `unsafe.UnsafePackageCompat` in the trait's source.
+- `UnsafePackageCompat`: the position of its inline accessor `inline$rawptr$i1` (open, not
+  accepted): ours the template's end, Scala Native's 11:19 inside a doc comment, an offset of
+  another file of its joint build taken in the trait's source. dotty positions the accessor of a
+  member defined in another file of the run at that member's point taken as an offset in the
+  accessor owner's source (`AccessProxies.accessorDef`, nscplugin's `fromSpan`); ours, in the
+  member's own file (`inline_accessors::accessor_span`).
 
 `just lib-compile scalalib` lowers each file of Scala Native's scalalib alone against Scala's
 library, its `LazyVals` replaced by Scala Native's (`scripts/scalalib_sources.py`). As in Scala
