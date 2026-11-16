@@ -49,15 +49,21 @@ impl Typer<'_> {
         Some(applied)
     }
 
-    /// Whether `t` applies an extension method to its receiver only, as a selection `x.m` of
-    /// the method types.
+    /// Whether `t` applies an extension method to its receiver only, written as a selection `x.m`
+    /// of the method (dotty's `extMethodApply` under `typedSelect`).
     fn is_extension_receiver_call(&self, t: TNodeId) -> bool {
-        let T::Apply { fun, .. } = *self.tpd.tree(t) else { return false };
+        let T::Apply { fun, args } = *self.tpd.tree(t) else { return false };
         let fun = match *self.tpd.tree(fun) {
             T::TypeApply { fun, .. } => fun,
             _ => fun,
         };
-        !matches!(self.tpd.tree(fun), T::Apply { .. })
+        let selected = self
+            .tpd
+            .items(args)
+            .first()
+            .is_some_and(|&r| self.tpd.span(r).start() < self.tpd.span(fun).start());
+        selected
+            && !matches!(self.tpd.tree(fun), T::Apply { .. })
             && self.tpd.sym(fun).is_some_and(|m| self.u.symbol(m).flags.has(tasty::tags::EXTENSION))
     }
 

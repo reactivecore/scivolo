@@ -118,7 +118,8 @@ impl Universe {
 
     /// The info a refinement of `t`, a part of `prefix`'s widened type inside recursive types
     /// `recs`, gives term member `name`; of both sides of an intersection, their infos
-    /// intersected unless one is a method's.
+    /// intersected, a by-name one widened if the other is not, unless one is a method's (dotty's
+    /// `infoMeet`).
     fn term_refinement_in(
         &mut self,
         mut t: TypeId,
@@ -143,9 +144,12 @@ impl Universe {
                     let (Some(a), Some(b)) = (a, b) else { return a.or(b) };
                     let method =
                         |u: &Self, x: TypeId| matches!(u.ty(x), Type::Method { .. } | Type::Poly { .. });
-                    return match () {
+                    return match (*self.ty(a), *self.ty(b)) {
                         _ if a == b => Some(a),
                         _ if method(self, a) || method(self, b) => None,
+                        (Type::ByName(_), Type::ByName(_)) => Some(self.glb(a, b)),
+                        (Type::ByName(x), _) => Some(self.glb(x, b)),
+                        (_, Type::ByName(y)) => Some(self.glb(a, y)),
                         _ => Some(self.glb(a, b)),
                     };
                 }
