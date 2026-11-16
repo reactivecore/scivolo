@@ -2,6 +2,7 @@
 //! prefix's base type, applied type lambdas reduced, capture annotations dropped.
 
 use super::Typer;
+use super::capture_types::{has_captures, is_retains_like};
 use super::type_ops::TypeOps;
 use tasty::{Binding, Kind, NameId, SymbolId, Type, TypeId};
 
@@ -86,11 +87,22 @@ impl TypeOps<'_> {
 /// `t` with each type parameter of a class `C` selected on a prefix other than `this` replaced by
 /// the argument other than a wildcard the prefix's base type `C[..]` gives it, then normalized.
 pub fn resolve_class_params(u: &mut tasty::Universe, t: TypeId) -> TypeId {
-    let t = u.map_type(t, &mut |u, part| {
+    let t = class_params_resolved(u, t);
+    normalized(u, t)
+}
+
+/// Resolves the class type parameters in `t` and normalizes the result as `resolve_class_params`
+/// does, but keeps capture-checking annotations and impure function aliases.
+pub fn resolve_class_params_keeping_captures(u: &mut tasty::Universe, t: TypeId) -> TypeId {
+    let t = class_params_resolved(u, t);
+    normalized_as(u, t, true)
+}
+
+fn class_params_resolved(u: &mut tasty::Universe, t: TypeId) -> TypeId {
+    u.map_type(t, &mut |u, part| {
         let arg = class_param_arg(u, part)?;
         u.bounds(arg).is_none().then_some(arg)
-    });
-    normalized(u, t)
+    })
 }
 
 /// The argument, a wildcard's bounds among them, that the base type of prefix `pre` gives class
@@ -100,12 +112,17 @@ pub fn class_param_arg(u: &mut tasty::Universe, t: TypeId) -> Option<TypeId> {
     u.arg_for_param(pre, p)
 }
 
-/// `t` with applied type lambdas and applied aliases of type lambdas reduced, and capture-checking
-/// annotations dropped, as `Typer::normalized`.
+/// Normalizes `t` as `Typer::normalized`: reduces applied type lambdas and applied aliases of
+/// type lambdas, and drops capture-checking annotations.
 pub fn normalized(u: &mut tasty::Universe, t: TypeId) -> TypeId {
+    normalized_as(u, t, false)
+}
+
+fn normalized_as(u: &mut tasty::Universe, t: TypeId, keep_captures: bool) -> TypeId {
     let mut again = false;
     let out = u.map_type(t, &mut |u, part| {
         if let Some((inner, a)) = u.annotated(part)
+            && !keep_captures
             && is_retains_like(u, a)
         {
             return Some(inner);
@@ -116,19 +133,11 @@ pub fn normalized(u: &mut tasty::Universe, t: TypeId) -> TypeId {
             Type::TypeRef(..) => u.resolve_ref(tycon),
             _ => None,
         };
-        let impure = alias.is_some_and(|s| member_of(u, s, "scala", |n| n.starts_with("Impure")));
+        let impure =
+            !keep_captures && alias.is_some_and(|s| member_of(u, s, "scala", |n| n.starts_with("Impure")));
         let lambda = match alias {
             Some(s) if impure => {
-                let mut annotated = false;
-                for &a in &args {
-                    u.map_type(a, &mut |u, x| {
-                        if let Some((_, an)) = u.annotated(x) {
-                            annotated |= is_retains_like(u, an);
-                        }
-                        None
-                    });
-                }
-                if !annotated {
+                if !args.iter().any(|&a| has_captures(u, a)) {
                     return None;
                 }
                 again = true;
@@ -170,14 +179,7 @@ pub fn normalized(u: &mut tasty::Universe, t: TypeId) -> TypeId {
         let names: Vec<NameId> = params.iter().map(|&(n, _)| n).collect();
         Some(u.subst(result, binder, &names, &args))
     });
-    if again { normalized(u, out) } else { out }
-}
-
-/// Whether annotation class type `a` is capture checking's `retains`, `retainsByName` or
-/// `retainsCap` (dotty's `isRetainsLike`).
-pub fn is_retains_like(u: &mut tasty::Universe, a: TypeId) -> bool {
-    u.class_symbol(a)
-        .is_some_and(|c| member_of(u, c, "scala.annotation", |n| n.starts_with(names::nme::RETAINS)))
+    if again { normalized_as(u, out, keep_captures) } else { out }
 }
 
 /// Whether `s` is a member of package `pkg` whose name `name` accepts.

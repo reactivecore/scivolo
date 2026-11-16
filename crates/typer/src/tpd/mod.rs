@@ -48,6 +48,8 @@ pub struct Tpd {
     tpt_annotations: FxHashMap<TNodeId, TNodeId>,
     /// The type trees whose type is pickled anew, not shared.
     fresh_types: FxHashSet<TNodeId>,
+    /// The type with capture-set annotations of each inferred type tree whose type lost them.
+    captured_types: FxHashMap<TNodeId, TypeId>,
 }
 
 /// What an anonymous class the typer made for a mirror becomes (dotty's
@@ -220,6 +222,17 @@ impl Tpd {
     /// Whether type tree `id` has a type made for it alone.
     pub fn has_fresh_type(&self, id: TNodeId) -> bool {
         self.fresh_types.contains(&id)
+    }
+
+    /// Records `captured`, a type with capture-set annotations, as the type inferred type tree
+    /// `tpt` has before they are dropped.
+    pub fn set_captured_type(&mut self, tpt: TNodeId, captured: TypeId) {
+        self.captured_types.insert(tpt, captured);
+    }
+
+    /// The type with capture-set annotations inferred type tree `tpt` has, if recorded.
+    pub fn captured_type(&self, tpt: TNodeId) -> Option<TypeId> {
+        self.captured_types.get(&tpt).copied()
     }
 
     /// Marks `copy` as a copy of `of` that is one tree with it in dotty's.

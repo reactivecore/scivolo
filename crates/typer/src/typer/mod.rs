@@ -24,7 +24,7 @@ mod base_completion;
 mod by_name_repeated;
 mod call_types;
 mod callee_types;
-mod capture_types;
+pub(crate) mod capture_types;
 mod captured_paths;
 mod case_companion;
 mod case_lambdas;
