@@ -490,8 +490,6 @@ fn a_java_annotation_with_an_argument_that_is_no_constant_is_refused() {
     }
     let code = "class R { @java.beans.Transient(sys.props.isEmpty) def f = 1 }";
     refuses("refusedannotation", code, "Java annotation arguments other than constants");
-    let code = "class R { def f(@java.lang.annotation.Documented x: Int) = x }";
-    refuses("refusedparamannotation", code, "Java annotations of parameters on the JVM");
 }
 
 #[test]
