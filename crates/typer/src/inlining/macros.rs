@@ -86,6 +86,8 @@ pub struct Expanded {
     pub warnings: Reports,
     /// The implicit arguments the typer found for it, which keep their spans in holes.
     pub found: Vec<TNodeId>,
+    /// The annotations of the classes it made (`Symbol.newClass(.., clsAnnotations = ..)`).
+    pub annotations: Annotations,
 }
 
 /// The errors and warnings a macro reported (`quotes.reflect.report`), with their spans.

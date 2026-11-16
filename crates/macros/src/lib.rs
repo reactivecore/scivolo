@@ -132,7 +132,8 @@ impl VmMacros<'_> {
                 }
                 let warnings = std::mem::take(&mut host.reported);
                 let found = host.typer.searched.iter().filter_map(|&(_, f)| f).collect();
-                Ok(Expanded { exprs: host.quoted().map_err(refused)?, results, warnings, found })
+                let annotations = std::mem::take(&mut host.made.annotations);
+                Ok(Expanded { exprs: host.quoted().map_err(refused)?, results, warnings, found, annotations })
             }
             (Err(VmError::Uncaught(thrown)), None) if thrown.classes.iter().any(|c| c == STOP) => {
                 Err(MacroError::Aborted(std::mem::take(&mut host.reported)))
