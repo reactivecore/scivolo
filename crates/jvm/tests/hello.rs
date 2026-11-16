@@ -67,6 +67,17 @@ fn a_class_parameter_field_capturing_another_parameter_refused() {
     assert!(!compiled.status.success() && stderr.contains(refusal), "{stderr}");
 }
 
+/// A super accessor through prefix `other.Views` whose capture set names the enclosing
+/// `Outer.this`, which dotty writes as `{other}`, is refused.
+#[test]
+fn a_super_accessor_capturing_an_enclosing_this_through_another_prefix_refused() {
+    let source = root().join("tests/jvm/refused/supercaptures.scala");
+    let (_, compiled) = compile("supercaptures", &source);
+    let stderr = String::from_utf8_lossy(&compiled.stderr);
+    let refusal = "a capture set that refers to other than static definitions";
+    assert!(!compiled.status.success() && stderr.contains(refusal), "{stderr}");
+}
+
 #[test]
 fn a_file_of_a_unit_compiles_as_alone() {
     let dir = root().join("tests/jvm/units");
