@@ -69,12 +69,12 @@ def skip_reason(files, sources):
     texts = [s.read_text(errors="replace") for s in sources]
     if not sources:
         return "no sources"
-    if any(s.suffix == ".java" for s in files):
-        return "java sources"
     if any(OTHER_COMPILER.search(s.name) for s in sources):
         return "other compiler"
     if any("//> using target.platform" in t for t in texts):
         return "platform-specific"
+    if any(s.suffix == ".java" for s in files):
+        return "java sources"
     if any(JVM_ONLY.search(COMMENT.sub("", t)) for t in texts):
         return "jvm-only api"
     return None

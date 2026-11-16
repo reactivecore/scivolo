@@ -17,16 +17,21 @@ impl Unpickler<'_> {
     /// arguments of older TASTy are named by their position. Arguments that do not match the
     /// elements, and the arguments of other calls, stay as they are.
     pub fn java_annotation_args(&mut self, fun: TNodeId, args: Vec<TNodeId>) -> Vec<TNodeId> {
-        let (info, meth) = self.method_type(fun);
-        let class =
-            meth.filter(|&m| self.u.symbol(m).name == nme::CONSTRUCTOR).and_then(|m| self.u.symbol(m).owner);
         let part = self.tpd.meth_part(fun);
-        let new = matches!(*self.tpd.tree(part), T::Select { qualifier, .. } if matches!(self.tpd.tree(qualifier), T::New { .. }));
-        let Some(params) = self.u.method(info).map(|m| m.params.to_vec()) else { return args };
-        if !new
+        let T::Select { qualifier, .. } = *self.tpd.tree(part) else { return args };
+        let class = self
+            .tpd
+            .sym(part)
+            .filter(|&m| self.u.symbol(m).name == nme::CONSTRUCTOR)
+            .and_then(|m| self.u.symbol(m).owner);
+        if !matches!(self.tpd.tree(qualifier), T::New { .. })
             || !class.is_some_and(|c| self.u.classfile_retention(c).is_some())
-            || args.len() > params.len()
         {
+            return args;
+        }
+        let (info, _) = self.method_type(fun);
+        let Some(params) = self.u.method(info).map(|m| m.params.to_vec()) else { return args };
+        if args.len() > params.len() {
             return args;
         }
 
