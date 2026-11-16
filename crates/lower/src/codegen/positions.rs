@@ -32,6 +32,24 @@ impl Gen<'_, '_> {
         Some(PosId(self.pool.positions.intern(Pos { file, line, column })))
     }
 
+    /// The position of `span`'s point taken as an offset in the source of class `class`, as
+    /// nscplugin positions the forwarder of a member defined in another file of the unit.
+    pub fn pos_in_source_of(&mut self, span: Span, class: SymbolId) -> PosId {
+        if span.is_in_other_source() {
+            return self.pos_or(span, self.no_pos);
+        }
+        let (src, point) = self.l.sources.locate(span.point());
+        let units = src.text.get(..point as usize).map_or(0, |t| t.encode_utf16().count());
+        self.offset_in_source_of(class, units).unwrap_or_else(|| self.pos_or(span, self.no_pos))
+    }
+
+    /// The position `units` UTF-16 units into the source of class `class` of this unit.
+    pub fn offset_in_source_of(&mut self, class: SymbolId, units: usize) -> Option<PosId> {
+        let at = self.spans.get(&class)?.point();
+        let (base, src) = self.l.sources.files()[self.l.sources.index(at)];
+        self.pos_of(Span::at(base + src.advance_utf16(0, units)))
+    }
+
     /// The position of `span`, or `or` if it has none.
     pub fn pos_or(&mut self, span: Span, or: PosId) -> PosId {
         self.pos_of(span).unwrap_or(or)
