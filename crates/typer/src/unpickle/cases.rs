@@ -140,11 +140,16 @@ impl Unpickler<'_> {
     }
 
     fn define_bind(&mut self, id: NodeId, tpe: NodeId) -> SymbolId {
+        let modifiers = self.kids(id).into_iter().map(|m| self.tag(m)).collect::<Vec<_>>();
+        let flags = [GIVEN, IMPLICIT]
+            .into_iter()
+            .filter(|f| modifiers.contains(f))
+            .fold(Flags::default().with(CASE), Flags::with);
         let s = self.u.define(Symbol {
             name: self.name(id),
             kind: Kind::Val,
             owner: Some(self.owner),
-            flags: Flags::default().with(CASE),
+            flags,
             target: None,
             is_extern: false,
             derived: self.is_derived_name(id),

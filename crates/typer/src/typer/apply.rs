@@ -245,6 +245,7 @@ impl Typer<'_> {
             _ if partial => result,
             _ => self.simplified(result),
         };
+        self.record_format_views(meth, &typed_args, ctx);
         let args = self.tpd.list(&typed_args);
         let apply = self.tpd.node(T::Apply { fun: f, args }, self.ast.span(id), Some(tpe), None);
         self.fold_apply(apply);

@@ -233,6 +233,11 @@ fn jumps_over_32_kib_run_on_the_jvm() {
 }
 
 #[test]
+fn arrays_of_type_members_cast_as_dotty_on_the_jvm() {
+    runs_on_the_jvm("memberarrays", "Memberarrays");
+}
+
+#[test]
 fn a_macro_call_runs_over_the_macro_classpath() {
     if Command::new("java").arg("-version").output().is_err() {
         eprintln!("no java on the PATH: skipped");

@@ -3,6 +3,7 @@
 
 mod build;
 mod children;
+mod format_views;
 mod info;
 pub mod print;
 mod slots;
@@ -11,6 +12,7 @@ mod walk;
 
 pub use build::{Build, constant_of, constant_type_of};
 pub use children::{Children, MapChild, map_children};
+pub use format_views::{FormatView, Target};
 pub use info::{Template, lub_of};
 pub use slots::Slot;
 pub use tree::{Clauses, Field, List, MatchKind, TNodeId, Tree};
@@ -37,6 +39,7 @@ pub struct Tpd {
     backquoted: FxHashSet<TNodeId>,
     anon_mirrors: FxHashMap<SymbolId, AnonMirror>,
     quote_tags: FxHashMap<TNodeId, Vec<(SymbolId, TypeId)>>,
+    format_views: FxHashMap<TNodeId, Vec<(Target, FormatView)>>,
     pattern_givens: FxHashMap<SymbolId, SymbolId>,
     annotations: FxHashMap<SymbolId, Vec<TNodeId>>,
     copies: FxHashMap<TNodeId, TNodeId>,

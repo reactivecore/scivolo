@@ -80,6 +80,7 @@ mod extension_setters;
 mod extractor_members;
 mod features;
 mod find_ref;
+mod format_views;
 mod forward_refs;
 mod function_parts;
 mod function_types;

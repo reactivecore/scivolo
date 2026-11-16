@@ -6,54 +6,21 @@
 
 use super::format_spec::{Checked, Conversion, Kind, conversions};
 use super::interpolators::process_escapes;
+use typer::tpd::Target;
 
-/// The argument types the conversions accept.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum Target {
-    Any,
-    Boolean,
-    Null,
-    Char,
-    Byte,
-    Short,
-    Int,
-    Long,
-    Float,
-    Double,
-    BigInt,
-    BigDecimal,
-    Calendar,
-    Date,
-    Formattable,
+/// The arguments of an interpolation as the format check asks about them.
+pub trait Args {
+    /// Whether argument `i` conforms to `t`.
+    fn conforms(&mut self, i: usize, t: Target) -> bool;
+
+    /// Whether an implicit view converts argument `i` to `t`, which then becomes the argument;
+    /// fails if that is unknown.
+    fn converts(&mut self, i: usize, t: Target) -> Checked<bool>;
 }
 
-impl Target {
-    /// The qualified name of the class of type `self`; `None` for `Any`.
-    pub fn class_name(self) -> Option<&'static str> {
-        Some(match self {
-            Target::Any => return None,
-            Target::Boolean => "scala.Boolean",
-            Target::Null => "scala.Null",
-            Target::Char => "scala.Char",
-            Target::Byte => "scala.Byte",
-            Target::Short => "scala.Short",
-            Target::Int => "scala.Int",
-            Target::Long => "scala.Long",
-            Target::Float => "scala.Float",
-            Target::Double => "scala.Double",
-            Target::BigInt => "scala.math.BigInt",
-            Target::BigDecimal => "scala.math.BigDecimal",
-            Target::Calendar => "java.util.Calendar",
-            Target::Date => "java.util.Date",
-            Target::Formattable => "java.util.Formattable",
-        })
-    }
-}
-
-/// The format string for interpolation parts `parts` and one argument fewer, where
-/// `conforms(i, t)` says whether argument `i` conforms to `t`. Fails with the reason if dotty
-/// reports an error or would convert an argument by a view.
-pub fn checked(parts: &[&[u16]], conforms: &mut dyn FnMut(usize, Target) -> bool) -> Checked<Vec<u16>> {
+/// The format string for interpolation parts `parts` and one argument fewer, `args`. Fails with
+/// the reason if dotty reports an error.
+pub fn checked(parts: &[&[u16]], args: &mut dyn Args) -> Checked<Vec<u16>> {
     let argc = parts.len() - 1;
     let mut format = Vec::new();
     for (n, part) in parts.iter().enumerate() {
@@ -73,7 +40,7 @@ pub fn checked(parts: &[&[u16]], conforms: &mut dyn FnMut(usize, Target) -> bool
                     if cv.start != 0 {
                         return Err("f interpolations with a conversion not following a splice");
                     }
-                    let chosen = arg_type(n - 1, cv.variants(), conforms)?;
+                    let chosen = arg_type(n - 1, cv.variants(), args)?;
                     cv.accepts(chosen)?;
                 }
             }
@@ -91,17 +58,19 @@ pub fn checked(parts: &[&[u16]], conforms: &mut dyn FnMut(usize, Target) -> bool
     Ok(format)
 }
 
-/// The first of `variants` argument `argi` conforms to other than `Any`, else `Any` if the only
-/// one (dotty's `argType`, which tries views to the others before `Any`).
-fn arg_type(
-    argi: usize,
-    variants: &[Target],
-    conforms: &mut dyn FnMut(usize, Target) -> bool,
-) -> Checked<Target> {
-    if let Some(&t) = variants.iter().find(|&&t| t != Target::Any && conforms(argi, t)) {
+/// The first of `variants` other than `Any` that argument `argi` conforms to, else the first a
+/// view converts it to, else `Any` if among them (dotty's `argType`).
+fn arg_type(argi: usize, variants: &[Target], args: &mut dyn Args) -> Checked<Target> {
+    let classes = || variants.iter().copied().filter(|&t| t != Target::Any);
+    if let Some(t) = classes().find(|&t| args.conforms(argi, t)) {
         return Ok(t);
     }
-    if variants == [Target::Any] {
+    for t in classes() {
+        if args.converts(argi, t)? {
+            return Ok(t);
+        }
+    }
+    if variants.contains(&Target::Any) {
         return Ok(Target::Any);
     }
     Err("f interpolation arguments of a type the conversion does not take")
@@ -202,11 +171,28 @@ impl Conversion {
 mod tests {
     use super::*;
 
-    fn format(parts: &[&str], args: &[Target]) -> Checked<String> {
+    /// Arguments of the targets they conform to, each with the one target a view converts it to.
+    struct Typed<'a>(&'a [Target], &'a [Option<Target>]);
+
+    impl Args for Typed<'_> {
+        fn conforms(&mut self, i: usize, t: Target) -> bool {
+            t == self.0[i]
+        }
+
+        fn converts(&mut self, i: usize, t: Target) -> Checked<bool> {
+            Ok(self.1.get(i) == Some(&Some(t)))
+        }
+    }
+
+    fn viewed(parts: &[&str], args: &[Target], views: &[Option<Target>]) -> Checked<String> {
         let parts: Vec<Vec<u16>> = parts.iter().map(|p| p.encode_utf16().collect()).collect();
         let parts: Vec<&[u16]> = parts.iter().map(Vec::as_slice).collect();
-        let f = checked(&parts, &mut |i, t| t == args[i])?;
+        let f = checked(&parts, &mut Typed(args, views))?;
         Ok(String::from_utf16(&f).unwrap())
+    }
+
+    fn format(parts: &[&str], args: &[Target]) -> Checked<String> {
+        viewed(parts, args, &[])
     }
 
     #[test]
@@ -231,9 +217,17 @@ mod tests {
         assert!(format(&["", "%.2d"], &[Int]).is_err());
         assert!(format(&["", "%q"], &[Int]).is_err());
         assert!(format(&["100%"], &[]).is_err());
-        assert!(format(&["", "%b"], &[Int]).is_err());
         assert!(format(&["", "%+x"], &[Int]).is_err());
         assert_eq!(format(&["", "%+x"], &[BigInt]).unwrap(), "%+x");
         assert_eq!(format(&["", "%tY"], &[Long]).unwrap(), "%tY");
+    }
+
+    #[test]
+    fn takes_views_before_any() {
+        use Target::*;
+        assert_eq!(format(&["", "%b"], &[Int]).unwrap(), "%b");
+        assert!(viewed(&["", "%c"], &[Any], &[Some(Char)]).is_ok());
+        assert!(viewed(&["", "%c"], &[Any], &[Some(Boolean)]).is_err());
+        assert!(viewed(&["", "%#s"], &[Any], &[Some(Formattable)]).is_ok());
     }
 }

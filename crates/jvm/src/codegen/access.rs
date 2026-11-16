@@ -35,7 +35,7 @@ impl Gen<'_, '_> {
             (false, Some(_)) => FieldOp::PutStatic,
         };
         if let Some((v, assign)) = value {
-            self.expr_as(b, v, classfile::value_slots(&desc))?;
+            self.expr_expect(b, v, &desc)?;
             self.cast_to_null(b, v, &desc);
             self.line(b, assign);
         }
@@ -181,7 +181,7 @@ impl Gen<'_, '_> {
             return unsupported(span, "arguments other than the descriptor's on the JVM");
         }
         for (a, param) in arg_list.into_iter().zip(params) {
-            self.expr_as(b, a, classfile::value_slots(param))?;
+            self.expr_expect(b, a, param)?;
             self.cast_to_null(b, a, param);
         }
         let in_trait = self.l.u.is_trait(owner) && owner_name == self.class_name(owner);

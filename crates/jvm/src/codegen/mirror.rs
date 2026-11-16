@@ -6,6 +6,7 @@
 use super::annotation_holders::Holder;
 use super::class_bytes::scala_markers;
 use super::descriptors::{class_descriptor, method_descriptor};
+use super::signatures::Member;
 use super::{ClassBytes, Gen, method_name, unsupported};
 use classfile::{
     ACC_FINAL, ACC_PUBLIC, ACC_STATIC, ACC_SUPER, ACC_SYNTHETIC, ACC_VARARGS, ClassFile, Code, FieldOp,
@@ -78,7 +79,7 @@ impl Gen<'_, '_> {
             let info = unflattened.unwrap_or_else(|| self.l.u.member_info(this, target));
             self.exceptions(cf, m);
             let thrown = self.signature_thrown(m);
-            let member = self.signed_member(target, target);
+            let member = Member { forwarder: true, ..self.signed_member(target, target) };
             let scope = self.class_type_vars(m);
             if !self.l.is_mixin_accessor(m)
                 && !self.l.is_bridge(m)
@@ -164,12 +165,14 @@ impl Gen<'_, '_> {
     }
 
     /// Whether a forwarder calls member method `m`: neither deferred, a constructor, non-public,
-    /// static, a macro, inline, erased, lifted, nor of an expanded name.
+    /// static, a macro, inline, erased, lifted, nor of an expanded name (a trait setter's name is
+    /// not one, though the name of its value may be).
     fn has_forwarder(&mut self, m: SymbolId) -> bool {
         let s = self.l.u.symbol(m);
         let excluded = [PRIVATE, PROTECTED, PRIVATEqualified, PROTECTEDqualified, STATIC, MACRO, INLINE];
-        let excluded =
-            excluded.iter().any(|&f| s.flags.has(f)) || s.name.contains(name_kinds::EXPAND_SEPARATOR);
+        let expanded = s.name.contains(name_kinds::EXPAND_SEPARATOR)
+            && !s.name.contains(name_kinds::TRAIT_SETTER_SEPARATOR);
+        let excluded = excluded.iter().any(|&f| s.flags.has(f)) || expanded;
         let deferred = match s.tree.is_some() {
             true => self.l.u.body(m).is_none(),
             false => self.l.u.is_deferred(m),
