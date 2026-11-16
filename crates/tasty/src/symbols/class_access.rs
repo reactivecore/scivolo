@@ -6,31 +6,48 @@ use super::{Kind, SymbolId, Universe};
 use crate::tags::{PRIVATE, PRIVATEqualified, PROTECTED, PROTECTEDqualified};
 
 impl Universe {
-    /// Determines whether code owned by `site` may name class `c`: a class without access
-    /// modifier everywhere; `private` in its owner and the owner's companion; `private[q]` within
-    /// `q`, as a package-private Java class within its package; `protected` also in subclasses
-    /// of its owner.
+    /// Determines whether code owned by `site` may name class `c` (dotty's `isAccessibleFrom`
+    /// and `accessBoundary`): a class without access modifier, a local class and a Java
+    /// `protected static` class everywhere; otherwise code within its boundary or the boundary's
+    /// companion, the boundary being the owner of a `private` or `protected` class and `q` of a
+    /// `private[q]` or `protected[q]` one. A Java class's package boundary does not extend to
+    /// subpackages. A `protected` class is also accessible in subclasses of its owner.
     pub fn is_class_accessible_from(&mut self, c: SymbolId, site: SymbolId) -> bool {
         let flags = self.symbol(c).flags;
         let modifiers = [PRIVATE, PRIVATEqualified, PROTECTED, PROTECTEDqualified];
         if !modifiers.iter().any(|&f| flags.has(f)) {
             return true;
         }
-        let sites: Vec<SymbolId> = std::iter::successors(Some(site), |&s| self.symbol(s).owner).collect();
-        if self.access_qualifier(c).is_some_and(|q| sites.contains(&q)) {
+        let Some(owner) = self.symbol(c).owner else { return true };
+        let (java, protected) = (self.is_java_defined(c), flags.has(PROTECTED));
+        if java && protected && self.is_module_class(owner) {
             return true;
         }
-        let Some(owner) = self.symbol(c).owner else { return false };
-        let companion = match (self.is_class(owner), self.is_module_class(owner)) {
-            (false, _) => None,
-            (true, true) => self.companion_class(owner),
-            (true, false) => self.companion_module(owner).and_then(|m| self.module_class(m)),
+        let boundary = match self.access_qualifier(c) {
+            Some(q) if !flags.has(PRIVATE) => q,
+            _ => owner,
         };
-        if sites.contains(&owner) || companion.is_some_and(|o| sites.contains(&o)) {
+        if !matches!(self.symbol(boundary).kind, Kind::Package | Kind::Class) {
             return true;
         }
-        let protected = flags.has(PROTECTED) && self.is_class(owner);
-        protected && sites.iter().any(|&s| self.symbol(s).kind == Kind::Class && self.derives_from(s, owner))
+
+        let sites: Vec<SymbolId> = std::iter::successors(Some(site), |&s| self.symbol(s).owner).collect();
+        let package = sites.iter().copied().find(|&s| self.symbol(s).kind == Kind::Package);
+        let within = |u: &Self, b: SymbolId| {
+            sites.contains(&b) && !(java && u.symbol(b).kind == Kind::Package && package != Some(b))
+        };
+        let linked = match (self.is_class(boundary), self.is_module_class(boundary)) {
+            (false, _) => None,
+            (true, true) => self.companion_class(boundary),
+            (true, false) => self.companion_module(boundary).and_then(|m| self.module_class(m)),
+        };
+        if within(self, boundary) || linked.is_some_and(|l| within(self, l)) {
+            return true;
+        }
+
+        protected
+            && self.is_class(owner)
+            && sites.iter().any(|&s| self.symbol(s).kind == Kind::Class && self.derives_from(s, owner))
     }
 
     /// Determines whether the code being compared (`set_comparison_owner`) may name class `c`;

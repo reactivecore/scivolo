@@ -4,6 +4,7 @@
 use crate::definitions::type_ref;
 use crate::phases::select_static::is_scala_static;
 use crate::{Lower, Result, unsupported};
+use tasty::tags::PROTECTED;
 use tasty::{Erased, SymbolId};
 use typer::tpd::{TNodeId, Tree};
 
@@ -37,13 +38,15 @@ pub fn receiver_type(l: &mut Lower, sel: TNodeId, qualifier: TNodeId) -> Result<
     Ok(Some(erased))
 }
 
-/// Whether the code being erased may name class `c` in a cast: a Scala class, or a Java class it
-/// may access (dotty's `isJvmAccessible`).
+/// Whether the code being erased may name class `c` in a cast: a Scala class, a `protected` Java
+/// class, or a Java class it may access (dotty's `isJvmAccessible`, through the prefix
+/// `c.owner.this`).
 fn is_jvm_accessible(l: &mut Lower, c: SymbolId) -> bool {
     let name = l.u.full_name(c);
     let jdk = l.u.may_be_java(c) && (name.starts_with("java.") || name.starts_with("javax."));
-    if !jdk && !l.u.is_java_defined(c) {
+    if !jdk && !l.u.is_java_defined(c) || l.u.symbol(c).flags.has(PROTECTED) {
         return true;
     }
-    l.erasure_owner.is_some_and(|site| l.u.is_class_accessible_from(c, site))
+    let site = l.erasure_owner.unwrap_or(l.u.root());
+    l.u.is_class_accessible_from(c, site)
 }
