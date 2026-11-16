@@ -108,15 +108,18 @@ impl TreePickler<'_> {
 }
 
 /// Whether capture-set annotation type `annot` refers to no `this`, parameter or definition other
-/// than a static one or the `this` of class `own`, which mapping a type that it annotates leaves
-/// alone.
+/// than a static one or the `this` of class `own` or of a class enclosing it, which mapping a type
+/// that it annotates leaves alone.
 fn is_static_capture_set(u: &mut Universe, annot: TypeId, own: Option<SymbolId>) -> bool {
     let mut is_static = true;
     u.map_type(annot, &mut |u, part| {
         is_static &= match *u.ty(part) {
             Type::This(c) => match *u.ty(c) {
                 Type::Package(_) | Type::PackageName(_) => true,
-                _ => u.class_symbol(c).is_some_and(|c| u.is_static_owner(c) || Some(c) == own),
+                _ => u.class_symbol(c).is_some_and(|c| {
+                    let mut enclosing = std::iter::successors(own, |&o| u.symbol(o).owner);
+                    u.is_static_owner(c) || enclosing.any(|o| o == c)
+                }),
             },
             Type::Sym(_, s) => u.is_static_symbol(s),
             Type::Local(..) | Type::Param(..) | Type::RecThis(_) | Type::Skolem(..) | Type::Var(_) => false,
