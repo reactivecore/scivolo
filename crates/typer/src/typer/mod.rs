@@ -150,6 +150,7 @@ mod parents;
 mod paths;
 mod pattern_alternatives;
 mod pattern_bounds;
+mod pattern_tpts;
 mod patterns;
 mod plain_trees;
 mod poly_context_bounds;

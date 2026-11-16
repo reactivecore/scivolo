@@ -89,6 +89,8 @@ pub struct TreePickler<'a> {
     /// The class of the definition of each such synthetic type tree, whose `this` its capture
     /// sets may name.
     capture_classes: FxHashMap<TNodeId, SymbolId>,
+    /// The class of the super accessor pickled now, whose `this` its type's capture sets may name.
+    accessor_class: Option<SymbolId>,
     /// Whether the source version keeps capture-set annotations as types (dotty's
     /// `enablesCompactAnnotation`).
     compact_annotations: bool,
@@ -192,6 +194,7 @@ fn pickle<'a>(
         param_tpts: FxHashMap::default(),
         kept_captures: FxHashMap::default(),
         capture_classes: FxHashMap::default(),
+        accessor_class: None,
         compact_annotations: file
             .map_or(source.is_none_or(|s| s.compact_annotations), |f| f.attributes.compact_annotations),
         file,

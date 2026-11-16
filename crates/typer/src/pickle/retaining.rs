@@ -16,12 +16,13 @@ impl TreePickler<'_> {
     /// Type `parent @annot` if `annot` is a capture-set annotation class type, as `parent` and
     /// the type `annot`, `retains[C]` of capture set `C`, or below source version 3.9 the tree
     /// `new retains[C]()` without positions (dotty's `oldTree`); `None` for another annotation.
-    /// Refuses a capture set that refers to other than static definitions.
+    /// Refuses a capture set that refers to other than static definitions and, in a kept synthetic
+    /// type tree or a super accessor, the `this` of its class.
     pub fn retaining(&mut self, parent: TypeId, annot: TypeId) -> Option<Result<(), Refusal>> {
         if !is_retains_like(self.u, annot) {
             return None;
         }
-        let own = self.type_tree.and_then(|t| self.capture_classes.get(&t).copied());
+        let own = self.type_tree.and_then(|t| self.capture_classes.get(&t).copied()).or(self.accessor_class);
         if !is_static_capture_set(self.u, annot, own) {
             return Some(Err(
                 "an annotated type of a capture set that refers to other than static definitions",

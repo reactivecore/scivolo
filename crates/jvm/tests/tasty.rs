@@ -92,6 +92,7 @@ const DOTTY_TASTY: &[(&str, &[&str])] = &[
     ("superaccessorannotations", &["scala/probe/Lengths", "scala/probe/Sizes"]),
     ("patterndefs", &["scala/probe/Chains"]),
     ("captureproxy", &["scala/probe/Proxy"]),
+    ("capturesuper", &["scala/probe/SeqViews"]),
     ("genericsuperaccessors", &["scala/probe/GenericLengths", "scala/probe/GenericSizes"]),
     (
         "inlineaccessors",
