@@ -108,9 +108,11 @@ fn emptied(u: &mut Universe, t: TypeId) -> TypeId {
             return None;
         }
         let inner = emptied(u, inner);
+        let cap = u.class_symbol(annot).is_some_and(|c| u.symbol(c).name == nme::RETAINS_CAP);
         let annot = match u.applied(annot) {
+            _ if cap => annot,
             Some((tycon, _)) => u.intern_applied(tycon, &[tasty::NOTHING]),
-            None => annot,
+            None => u.intern_applied(annot, &[tasty::NOTHING]),
         };
         Some(u.intern_type(Type::Annotated(inner, annot)))
     })
