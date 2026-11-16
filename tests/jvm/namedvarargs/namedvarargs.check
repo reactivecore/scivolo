@@ -2,3 +2,21 @@
 1 x,y
 2
 2
+1 x
+eval y
+eval 2
+2 y
+eval z
+7 b [z]
+eval v
+eval u
+eval 4
+4 v [u]
+7 b []
+eval r
+eval q
+1
+7 b [p,q]
+eval t
+eval s
+7 t [s]

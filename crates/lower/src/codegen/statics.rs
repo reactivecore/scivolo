@@ -121,9 +121,13 @@ impl Gen<'_, '_> {
             }
             let at = bridged.iter().find(|b| b.0 == m).map_or(m, |b| b.1);
             let pos = match self.l.coords.get(&at) {
-                Some(&span) if span.exists() => self.pos_or(span, self.no_pos),
+                Some(&span) if span.exists() => self.pos_in_source_of(span, module_class),
                 Some(_) => self.sym_pos(module_class, module_class),
-                None => self.library_pos(at, module_class).unwrap_or_else(|| self.sym_pos(at, module_class)),
+                None => match (self.library_pos(at, module_class), self.spans.get(&at).copied()) {
+                    (Some(pos), _) => pos,
+                    (None, Some(span)) if span.exists() => self.pos_in_source_of(span, module_class),
+                    (None, _) => self.sym_pos(module_class, module_class),
+                },
             };
             out.push(self.forwarder(m, module_class, name, pos));
         }
@@ -143,17 +147,13 @@ impl Gen<'_, '_> {
     }
 
     /// The position nscplugin gives the forwarder of member `m` of a library class compiled in
-    /// the same run: the point of its definition as an offset in the unit's source of
-    /// `module_class`.
+    /// the same run: its definition's point as an offset in the source of `module_class`.
     fn library_pos(&mut self, m: SymbolId, module_class: SymbolId) -> Option<PosId> {
         if !self.l.u.is_same_run(m) {
             return None;
         }
         let point = self.l.u.pickled_point(m)?;
-        let at = self.spans.get(&module_class)?.point();
-        let (base, src) = self.l.sources.files()[self.l.sources.index(at)];
-        let offset = base + src.advance_utf16(0, point as usize);
-        self.pos_of(Span::at(offset))
+        self.offset_in_source_of(module_class, point as usize)
     }
 
     /// `static def m(params) = C.m(params)` for method `m` of object class `module_class`.

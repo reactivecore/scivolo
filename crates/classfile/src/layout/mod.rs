@@ -10,7 +10,7 @@ use crate::{ClassFile, Lub, Member, writer};
 
 /// The order of attributes, by name, in classes, fields and methods; the custom attributes
 /// follow in the reverse order of their addition.
-const ORDER: [&str; 12] = [
+const ORDER: [&str; 14] = [
     "InnerClasses",
     "EnclosingMethod",
     "Code",
@@ -21,13 +21,15 @@ const ORDER: [&str; 12] = [
     "Deprecated",
     "RuntimeVisibleAnnotations",
     "RuntimeInvisibleAnnotations",
+    "RuntimeVisibleParameterAnnotations",
+    "RuntimeInvisibleParameterAnnotations",
     "MethodParameters",
     "BootstrapMethods",
 ];
 
 /// The order in which ASM's visitors add the entries of attributes, by name, the class's
 /// `Signature` with its name.
-const VISITS: [&str; 9] = [
+const VISITS: [&str; 11] = [
     "Signature",
     "SourceFile",
     "EnclosingMethod",
@@ -36,6 +38,8 @@ const VISITS: [&str; 9] = [
     "MethodParameters",
     "RuntimeVisibleAnnotations",
     "RuntimeInvisibleAnnotations",
+    "RuntimeVisibleParameterAnnotations",
+    "RuntimeInvisibleParameterAnnotations",
     "InnerClasses",
 ];
 
