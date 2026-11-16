@@ -7,6 +7,7 @@
 
 use super::adapt::adapt;
 use super::mixin::{is_jdk, javalib_only_bases, with_java_param_names};
+use super::param_forwarding::is_accessible;
 use super::varargs_forwarders::forwarded;
 use crate::symbols::{has, same_erasure};
 use crate::{Lower, Result};
@@ -31,6 +32,9 @@ pub fn transform(l: &mut Lower, td: TNodeId, deferred: &FxHashSet<SymbolId>) -> 
             continue;
         }
         if !differ(l, member, other) || forwarded(l, member, other) {
+            continue;
+        }
+        if l.u.is_java_defined(member) && !is_accessible(l, member, class) {
             continue;
         }
         let (params, result) = l.u.erased_method(other);
