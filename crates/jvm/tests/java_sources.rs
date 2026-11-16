@@ -49,6 +49,14 @@ fn scala_and_java_sources_that_use_each_other_compile_and_run() {
 }
 
 #[test]
+fn a_private_constructor_is_refused_as_inaccessible() {
+    let Some((mut scivolo, _)) = scivolo("private") else { return };
+    let refused = output(&mut scivolo);
+    let stderr = String::from_utf8_lossy(&refused.stderr);
+    assert!(!refused.status.success() && stderr.contains("inaccessible member"), "{stderr}");
+}
+
+#[test]
 fn a_receiver_parameter_is_refused_by_name() {
     let Some((mut scivolo, _)) = scivolo("refused") else { return };
     let refused = output(&mut scivolo);

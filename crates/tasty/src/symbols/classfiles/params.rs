@@ -7,16 +7,18 @@ use crate::tags::SYNTHETIC;
 use crate::types::Type;
 
 impl Universe {
-    /// Enters the parameters of method `m` of a class file, which has none, from its type: a
-    /// symbol per type and value parameter, the type parameters' references in the later
-    /// clauses replaced by references to their symbols (dotty's `recurWithoutParamss`).
-    pub fn enter_classfile_params(&mut self, m: SymbolId) {
+    /// Makes new parameters of method `m` of a class file, which has none, from its type, outside
+    /// its declarations: a symbol per type and value parameter, of all clauses in order, the type
+    /// parameters' references in the later clauses replaced by references to their symbols
+    /// (dotty's `recurWithoutParamss`, new symbols on each call).
+    pub fn classfile_params(&mut self, m: SymbolId) -> Vec<SymbolId> {
+        let mut all = Vec::new();
         let mut t = self.info(m);
         loop {
             let (binder, params, result, kind) = match *self.ty(t) {
                 Type::Poly { binder, params, result } => (binder, params, result, Kind::TypeParam),
                 Type::Method { binder, params, result, .. } => (binder, params, result, Kind::Param),
-                _ => return,
+                _ => return all,
             };
             let params = self.params_of(params).to_vec();
             let names: Vec<_> = params.iter().map(|&(n, _)| n).collect();
@@ -24,7 +26,9 @@ impl Universe {
                 .iter()
                 .map(|&(n, _)| {
                     let name = self.types.name(n).to_owned();
-                    synthetic(self, m, &name, kind, &[SYNTHETIC])
+                    let p = synthetic(self, m, &name, kind, &[SYNTHETIC]);
+                    self.unenter(p);
+                    p
                 })
                 .collect();
             let refs: Vec<_> = syms.iter().map(|&p| self.types.intern(Type::Sym(None, p))).collect();
@@ -34,6 +38,7 @@ impl Universe {
                 self.infos.insert(p, info);
             }
             t = if kind == Kind::TypeParam { self.subst(result, binder, &names, &refs) } else { result };
+            all.extend(syms);
         }
     }
 }

@@ -18,8 +18,9 @@ const ARRAY: &str = "Array";
 
 impl Typer<'_> {
     /// Types the annotations of the fields, methods and constructors of the Java sources in
-    /// `ctx` and keeps them on their symbols; a member with an annotation the reader refuses, or
-    /// one that does not type, keeps none, its diagnostics dropped.
+    /// `ctx` and keeps them on their symbols and their export forwarders; a member with an
+    /// annotation the reader refuses, or one that does not type, keeps none, its diagnostics
+    /// dropped.
     pub fn typed_java_source_annotations(&mut self, ctx: Ctx) {
         for (sym, annots) in self.u.java_source_annotations() {
             let Ok(annots) = annots else { continue };
@@ -28,17 +29,22 @@ impl Typer<'_> {
                 self.syms.annotations.insert(sym, typed);
             }
         }
+        self.forward_java_source_annotations();
     }
 
-    /// Annotation `a` typed in `ctx`, none if it reports an error or a refusal.
+    /// Annotation `a` typed in `ctx`; none, the constraint and the implicit dictionary restored,
+    /// if it reports an error or a refusal.
     fn typed_java_annotation(&mut self, a: &SourceAnnotation, ctx: Ctx) -> Option<TNodeId> {
         let (reported, unsupported) = (self.diags.items.len(), self.unsupported.clone());
+        let (attempt, dictionary) = (self.constraint.attempt(), self.history.snapshot());
         let tree = self.annotation_tree(a, ctx);
         let typed = tree.map(|tree| self.typed(tree, Pt::Any, ctx));
         let errors = self.diags.items[reported..].iter().any(|d| d.level == syntax::diag::Level::Error);
         if errors || self.unsupported != unsupported || typed.is_none_or(|t| self.is_error(t)) {
             self.diags.items.truncate(reported);
-            self.restore_unsupported(unsupported);
+            self.unsupported = unsupported;
+            self.constraint.abandon(attempt);
+            self.history.restore(dictionary);
             return None;
         }
         typed
