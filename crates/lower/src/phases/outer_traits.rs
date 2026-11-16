@@ -64,7 +64,8 @@ pub fn implement(l: &mut Lower, td: TNodeId, class: SymbolId, classes: &[TNodeId
         let span = Span::NONE;
         let prefix = prefix(l, class, m, outer);
         let rhs = path(l, class, prefix, span).map_err(|e| Unsupported { at: l.tpd.span(td), ..e })?;
-        let result = result_type(l, class, outer, prefix);        let name = outer_accessor_name(l, m);
+        let result = result_type(l, class, outer, prefix);
+        let name = outer_accessor_name(l, m);
         let sym = l.u.define(symbol(&name, Kind::Def, class, Flags::default().with(FINAL)));
         let info = method_type(l, result);
         l.u.set_info(sym, info);
