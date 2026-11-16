@@ -83,6 +83,7 @@ fn trees_and_flags(bytes: &[u8]) -> (Vec<u8>, Vec<u8>, Vec<u8>) {
 const DOTTY_TASTY: &[(&str, &[&str])] = &[
     ("captures", &["Break"]),
     ("captures38", &["Break"]),
+    ("inferredcaptures", &["Lambdas", "Locals"]),
     ("selectorannotations", &["scala/probe/Selectors"]),
     (
         "nestedannotations",
@@ -95,7 +96,8 @@ const DOTTY_TASTY: &[(&str, &[&str])] = &[
 
 /// The trees, positions and flag attributes of the classes of `DOTTY_TASTY` are dotty's: the
 /// field `label: Label[T]^{}` of captures.scala keeps its capture set as a type and, under source
-/// 3.8, as `new retains[Nothing]()`; annotated types take the annotation tree of their own
+/// 3.8, as `new retains[Nothing]()`; inferred types of inferredcaptures.scala keep the capture
+/// sets of the types they are inferred from, emptied; annotated types take the annotation tree of their own
 /// origin in match selectors and patterns, inferred types, super accessors and inline accessors;
 /// secondary constructors have their own type parameters and parameters passed on to the
 /// superclass are its parameters' aliases. Needs a JDK (java on the PATH), as dotty's did.

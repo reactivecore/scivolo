@@ -105,6 +105,7 @@ impl TreePickler<'_> {
             self.share_module_class(tpt, rhs);
         }
         self.keep_captures(sym, tpt)?;
+        self.empty_captures(sym, tpt, rhs);
         self.with_length(tag, &mut |p| {
             p.name(&local_name(p.u, sym));
             if let Some(paramss) = paramss {

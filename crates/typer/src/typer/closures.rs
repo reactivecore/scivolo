@@ -74,6 +74,7 @@ impl Typer<'_> {
                 }
                 Err(refused) => return refused,
             };
+            self.record_formal_captures(tpt, pt, i);
             let tpe = self.tpd.tpe(tpt);
             let text = self.text(name.name).to_owned();
             let mut flags = self.ast.modifiers(mods).flags.or(f::TERM_PARAM).to_term_flags();
