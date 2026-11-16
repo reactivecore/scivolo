@@ -11,10 +11,11 @@ impl Gen<'_, '_> {
     /// Labeled block `t` whose value stays on the stack, which `return[t]` leaves.
     pub fn gen_labeled(&mut self, b: &mut Body, t: TNodeId, expr: TNodeId) -> Result<i32> {
         let label = self.l.tpd.sym(t).expect("a label's symbol");
-        let slots = classfile::value_slots(&self.desc_of(t));
+        let desc = self.desc_of(t);
+        let slots = classfile::value_slots(&desc);
         let (end, depth) = (b.code.new_label(), b.code.stack());
         b.labels.push((label, Dest::Jump(end), slots));
-        self.expr_as(b, expr, slots)?;
+        self.expr_expect(b, expr, &desc)?;
         b.labels.pop();
         b.code.place(end);
         b.code.set_stack(depth + slots);

@@ -3,8 +3,8 @@
 //! Branches, loops and destinations of values (dotty's `genLoadIfTo`, `genLoadTo`, `genWhileDo`).
 
 use super::body::{Body, Dest};
-use super::descriptors::{NOTHING, class_descriptor, descriptor};
-use super::{Gen, unsupported};
+use super::Gen;
+use super::descriptors::{NOTHING, descriptor};
 use lower::Result;
 use syntax::ast::constant::Constant;
 use typer::tpd::{TNodeId, Tree};
@@ -13,31 +13,6 @@ impl Gen<'_, '_> {
     /// The descriptor of `t`'s erased type.
     pub fn desc_of(&mut self, t: TNodeId) -> String {
         descriptor(&self.l.u.erase(self.l.tpd.tpe(t)))
-    }
-
-    /// Generates `t` leaving `slots` slots: a value dropped, a `BoxedUnit` for none, as many as
-    /// asked for a tree that does not fall through or is of type `Nothing`.
-    pub fn expr_as(&mut self, b: &mut Body, t: TNodeId, slots: i32) -> Result<()> {
-        let depth = b.code.stack();
-        let got = self.expr(b, t)?;
-        match got - slots {
-            _ if !b.code.live() => b.code.set_stack(depth + slots),
-            0 => {}
-            1 if slots == 0 => b.code.insn(classfile::POP),
-            2 if slots == 0 => b.code.insn(classfile::POP2),
-            -1 if got == 0 => {
-                b.push("L");
-                let unit = "scala/runtime/BoxedUnit";
-                b.code.field(classfile::FieldOp::GetStatic, b.pool, unit, "UNIT", &class_descriptor(unit));
-            }
-            _ if got == 1 && self.desc_of(t) == NOTHING => {
-                b.code.insn(classfile::ATHROW);
-                b.code.set_stack(depth + slots);
-            }
-            _ => return unsupported(self.l.tpd.span(t), "a value of another size than its context's"),
-        }
-        b.forget(depth + slots);
-        Ok(())
     }
 
     /// Generates `t` and returns its value of descriptor `result` from the method.
@@ -91,6 +66,10 @@ impl Gen<'_, '_> {
                 b.sent_phantom = Some(fun);
                 self.expr_as(b, t, slots)?
             }
+            _ if dest == Dest::Return => {
+                let result = b.result.clone();
+                self.expr_expect(b, t, &result)?
+            }
             _ => self.expr_as(b, t, slots)?,
         }
         let call = matches!(self.l.tpd.tree(t), Tree::Apply { .. }) && !self.is_throw(t);
@@ -118,7 +97,8 @@ impl Gen<'_, '_> {
         thenp: TNodeId,
         elsep: TNodeId,
     ) -> Result<i32> {
-        let slots = classfile::value_slots(&self.desc_of(t));
+        let desc = self.desc_of(t);
+        let slots = classfile::value_slots(&desc);
         let (success, failure, after) = (b.code.new_label(), b.code.new_label(), b.code.new_label());
         let depth = b.code.stack();
         self.cond(b, cond, success, failure, success)?;
@@ -132,7 +112,7 @@ impl Gen<'_, '_> {
         self.expr_to(b, thenp, slots, Dest::Jump(after))?;
         b.code.place(failure);
         b.code.set_stack(depth);
-        self.expr_as(b, elsep, slots)?;
+        self.expr_expect(b, elsep, &desc)?;
         b.code.place(after);
         b.code.set_stack(depth + slots);
         Ok(slots)

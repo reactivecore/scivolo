@@ -3,6 +3,7 @@
 //! Class files from the lowered trees: a port of dotty's `GenBCode`.
 
 mod access;
+mod adapt;
 mod annotation_values;
 mod arrays;
 mod body;

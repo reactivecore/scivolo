@@ -49,7 +49,7 @@ impl Gen<'_, '_> {
             }
             (nme::UPDATE, &[i, value]) => {
                 self.operand(b, i, Kind::Int)?;
-                self.expr_as(b, value, classfile::value_slots(&elem))?;
+                self.expr_expect(b, value, &elem)?;
                 b.code.element(&elem, true);
                 0
             }
@@ -77,7 +77,7 @@ impl Gen<'_, '_> {
             b.code.insn(DUP);
             b.push("I");
             b.code.int(b.pool, i as i32);
-            self.expr_as(b, e, classfile::value_slots(&elem))?;
+            self.expr_expect(b, e, &elem)?;
             b.code.element(&elem, true);
         }
         Ok(1)

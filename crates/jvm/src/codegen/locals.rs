@@ -109,7 +109,7 @@ impl Gen<'_, '_> {
         let desc = self.storage_descriptor(sym);
         let Some(rhs) = rhs else { return unsupported(self.l.tpd.span(t), "a local without a value") };
         let slot = b.local(sym, desc.clone());
-        self.expr_as(b, rhs, classfile::value_slots(&desc))?;
+        self.expr_expect(b, rhs, &desc)?;
         self.cast_to_null(b, rhs, &desc);
         b.code.store(&desc, slot);
         self.name_block_local(b, sym, &desc, slot);
@@ -156,7 +156,7 @@ impl Gen<'_, '_> {
         {
             return Ok(Some(0));
         }
-        self.expr_as(b, rhs, classfile::value_slots(&desc))?;
+        self.expr_expect(b, rhs, &desc)?;
         self.cast_to_null(b, rhs, &desc);
         self.line(b, t);
         b.code.store(&desc, slot);
