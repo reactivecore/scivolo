@@ -94,6 +94,7 @@ const DOTTY_TASTY: &[(&str, &[&str])] = &[
     ("captureproxy", &["scala/probe/Proxy"]),
     ("capturesuper", &["scala/probe/SeqViews"]),
     ("genericsuperaccessors", &["scala/probe/GenericLengths", "scala/probe/GenericSizes"]),
+    ("typeparamannotations", &["scala/probe/TgLengths", "scala/probe/TgGeneric"]),
     (
         "inlineaccessors",
         &["scala/probe/Counter", "scala/probe/Counters", "scala/probe/Outer", "scala/probe/Derived"],
@@ -105,8 +106,8 @@ const DOTTY_TASTY: &[(&str, &[&str])] = &[
 /// field `label: Label[T]^{}` of captures.scala keeps its capture set as a type and, under source
 /// 3.8, as `new retains[Nothing]()`; inferred types of inferredcaptures.scala keep the capture
 /// sets of the types they are inferred from, emptied; annotated types take the annotation tree of their own
-/// origin in match selectors and patterns, inferred types, super accessors and inline accessors;
-/// secondary constructors have their own type parameters and parameters passed on to the
+/// origin in match selectors and patterns, inferred types, super accessors and inline accessors,
+/// in super accessors with their class's type parameters seen from the accessor's class; secondary constructors have their own type parameters and parameters passed on to the
 /// superclass are its parameters' aliases. Needs a JDK (java on the PATH), as dotty's did.
 #[test]
 fn probes_pickle_as_dotty_s() {

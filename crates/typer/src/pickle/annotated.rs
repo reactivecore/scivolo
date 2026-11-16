@@ -53,7 +53,10 @@ impl TreePickler<'_> {
             return self.with_length(ANNOTATEDtype, &mut |p| {
                 p.ty(parent, false)?;
                 if !p.keying {
-                    p.tree(tree)?;
+                    let outer = std::mem::replace(&mut p.annotation_seen, p.accessor_seen);
+                    let pickled = p.tree(tree);
+                    p.annotation_seen = outer;
+                    pickled?;
                     p.type_annots.push(tree);
                     return Ok(());
                 }

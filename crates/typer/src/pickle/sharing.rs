@@ -13,6 +13,10 @@ pub const BY_NAME: u8 = 0;
 impl TreePickler<'_> {
     /// Type `t`, a `SHAREDtype` if pickled before; `rich` admits method types.
     pub fn ty(&mut self, t: TypeId, rich: bool) -> Result<(), Refusal> {
+        let t = match self.annotation_seen {
+            Some((prefix, owner)) => self.u.as_seen_from(t, prefix, owner),
+            None => t,
+        };
         if let Type::Skolem(_, info) = *self.u.ty(t) {
             return self.ty(info, rich);
         }
