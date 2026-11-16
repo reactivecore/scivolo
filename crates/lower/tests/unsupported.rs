@@ -264,6 +264,23 @@ const CASES: &[(&str, &str)] = &[
         "object O { def f(@deprecatedName(\"y\") x: Int, y: Int) = x }",
         "parameter name equal to a deprecated name",
     ),
+    (
+        "class B(val n: Int); case class S(k: Int)\n\
+         object O { implicit def v(b: B)(using s: S): Int = b.n * s.k\n\
+         def h = { given S = S(10); f\"${B(3)}%d\" } }",
+        "f interpolation arguments of an unknown implicit view",
+    ),
+    (
+        "class B(val n: Int); case class S(k: Int)\n\
+         object O { implicit def v(b: B)(using s: S): Int = b.n * s.k }\n\
+         class C(using s: S) { import O.v; def h = f\"${B(3)}%d\" }",
+        "f interpolation arguments of an unknown implicit view",
+    ),
+    (
+        "class B(val n: Int)\n\
+         object O { implicit def v(b: => B): Int = b.n; def h = f\"${B(3)}%d\" }",
+        "f interpolation arguments of an unknown implicit view",
+    ),
 ];
 
 #[test]
