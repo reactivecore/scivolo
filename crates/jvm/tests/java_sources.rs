@@ -74,8 +74,10 @@ fn run_tests_with_java_sources_print_their_check() {
     for name in names {
         let out = root().join("tmp/jvm-test/javasources-runs").join(&name);
         let _ = std::fs::remove_dir_all(&out);
-        let mut files: Vec<PathBuf> =
-            std::fs::read_dir(tests.join(&name)).expect("the sources").map(|e| e.expect("an entry").path()).collect();
+        let mut files: Vec<PathBuf> = std::fs::read_dir(tests.join(&name))
+            .expect("the sources")
+            .map(|e| e.expect("an entry").path())
+            .collect();
         files.retain(|f| f.extension().is_some_and(|e| e == "java" || e == "scala"));
         files.sort();
         let last = files.iter().map(|f| group(f)).max().expect("sources");
@@ -92,7 +94,8 @@ fn run_tests_with_java_sources_print_their_check() {
 
         let classpath = format!("{}:{}:{}", classes.display(), earlier_classes.display(), library.display());
         let stdout = run(Command::new("java").args(["-Xverify:all", "-cp", &classpath, "Test"]));
-        let check = std::fs::read_to_string(tests.join(&name).join(format!("{name}.check"))).unwrap_or_default();
+        let check =
+            std::fs::read_to_string(tests.join(&name).join(format!("{name}.check"))).unwrap_or_default();
         assert_eq!(stdout, check, "{name}");
     }
 }
