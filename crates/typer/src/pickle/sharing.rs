@@ -11,7 +11,8 @@ use tasty::{SymbolId, Type, TypeId};
 pub const BY_NAME: u8 = 0;
 
 impl TreePickler<'_> {
-    /// Type `t`, a `SHAREDtype` if pickled before; `rich` admits method types.
+    /// Type `t`, a `SHAREDtype` if pickled before; `rich` admits method types. Inside an
+    /// annotation tree of a super accessor's type, `t` as seen from the accessor's class.
     pub fn ty(&mut self, t: TypeId, rich: bool) -> Result<(), Refusal> {
         let t = match self.annotation_seen {
             Some((prefix, owner)) => self.u.as_seen_from(t, prefix, owner),
