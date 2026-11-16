@@ -164,7 +164,11 @@ impl<'u> Sig<'u> {
                 self.and_parts(t, &mut parts);
                 let whole = self.glb_erasure(&parts);
                 let mut reprs = parts.into_iter().filter(|&p| self.u.erase(p) == whole).collect::<Vec<_>>();
-                let param = reprs.iter().position(|&p| self.type_param(p).is_some()).unwrap_or(0);
+                let param = reprs.iter().position(|&p| {
+                    let tycon = self.u.applied(p).map_or(p, |(c, _)| c);
+                    self.type_param(tycon).is_some()
+                });
+                let param = param.unwrap_or(0);
                 match reprs.is_empty() {
                     true => self.erased(t, boxing),
                     false => self.jsig(reprs.swap_remove(param), false, boxing),
