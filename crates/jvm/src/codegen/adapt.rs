@@ -6,7 +6,7 @@ use super::body::Body;
 use super::descriptors::{NOTHING, class_descriptor};
 use super::{Gen, unsupported};
 use lower::Result;
-use tasty::Erased;
+use tasty::{Erased, SymbolId};
 use typer::tpd::{List, TNodeId, Tree};
 
 impl Gen<'_, '_> {
@@ -22,8 +22,8 @@ impl Gen<'_, '_> {
         self.expr_adapted(b, t, classfile::value_slots(desc), desc != NOTHING)
     }
 
-    /// Generates `t` leaving `slots` slots; with `adapt`, an `if`, match, labeled block or `try`
-    /// of type `Nothing` ends with an `athrow` after its last label.
+    /// Generates `t` leaving `slots` slots; with `adapt`, an `if`, match, labeled block or `try` of
+    /// type `Nothing` ends with an `athrow` after its last label, which no jump reaches.
     fn expr_adapted(&mut self, b: &mut Body, t: TNodeId, slots: i32, adapt: bool) -> Result<()> {
         let depth = b.code.stack();
         let got = self.expr(b, t)?;
@@ -52,15 +52,31 @@ impl Gen<'_, '_> {
         Ok(())
     }
 
-    /// Whether `t`, or the value of block or typed expression `t`, is an `if`, a match, a labeled
-    /// block or a `try` whose erased type is `Nothing`, a value dotty adapts after its last label.
+    /// Whether `t`, or the value of block or typed expression `t`, is an `if`, a match, a `try` or
+    /// a labeled block no `return` leaves whose erased type is `Nothing`, a value dotty adapts
+    /// after its last label.
     fn is_join(&mut self, t: TNodeId) -> bool {
         match *self.l.tpd.tree(t) {
             Tree::Typed { expr, .. } | Tree::Block { expr, .. } => self.is_join(expr),
             Tree::If { .. } | Tree::Match { .. } | Tree::Try { .. } => self.erased_nothing(t),
-            Tree::Labeled { .. } => true,
+            Tree::Labeled { expr } => {
+                let label = self.l.tpd.sym(t);
+                !self.returns_to(expr, label) && self.erased_nothing(expr)
+            }
             _ => false,
         }
+    }
+
+    /// Whether `t` contains a `return` from `label` with a value of erased type other than
+    /// `Nothing`.
+    fn returns_to(&mut self, t: TNodeId, label: Option<SymbolId>) -> bool {
+        if let Tree::Return { expr, from } = *self.l.tpd.tree(t)
+            && self.l.tpd.sym(from) == label
+            && !self.erased_nothing(expr)
+        {
+            return true;
+        }
+        self.l.tpd.children(t).into_iter().any(|c| self.returns_to(c, label))
     }
 
     /// Whether erasure leaves `t` of type `Nothing`: a throw, a return, a call of a method or a
