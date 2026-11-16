@@ -21,6 +21,7 @@ mod equality;
 mod generic_infos;
 mod inline_info;
 mod java_annotations;
+mod jdk_class_flags;
 mod jdk_statics;
 mod labeled;
 mod literals;

@@ -68,7 +68,8 @@ impl Gen<'_, '_> {
                 && self.l.u.symbol(enclosing).owner.is_some_and(|o| self.l.u.symbol(o).kind == Kind::Package);
             if top_module { name.strip_suffix('$').unwrap_or(&name).to_owned() } else { name }
         });
-        let flags = java_flags(self.l, d) & !ACC_STATIC | if static_ { ACC_STATIC } else { 0 };
+        let flags = self.jdk_class_flags(d).unwrap_or_else(|| java_flags(self.l, d));
+        let flags = flags & !ACC_STATIC | if static_ { ACC_STATIC } else { 0 };
         let inner = InnerClass {
             inner: self.class_name(d),
             outer,
