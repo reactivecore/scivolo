@@ -27,7 +27,7 @@ impl TreePickler<'_> {
         let several = "an annotated type of several annotation trees";
         let tpt = match self.tpt_annotation(annotated) {
             Some(tree) => Some(Ok(tree)),
-            None => self.member_annotation(annot),
+            None => self.member_annotation(parent, annot),
         };
         let tree = match tpt {
             Some(tree) => Some(tree?.ok_or(several)?),

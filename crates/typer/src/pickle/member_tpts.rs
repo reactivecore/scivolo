@@ -38,19 +38,33 @@ impl TreePickler<'_> {
         pickled
     }
 
-    /// The annotation tree of class type `annot` of the member type trees of the super accessor
-    /// pickled now, whose types are seen from the accessor's class (dotty's `memberInfo` keeps the
-    /// member's annotation trees); `Some(None)` if they give several trees, one with arguments.
-    /// Refuses a tree that refers to type parameters, which seeing from the class would map.
-    pub fn member_annotation(&mut self, annot: TypeId) -> Option<Result<Option<TNodeId>, Refusal>> {
+    /// The annotation tree of class type `annot` on `parent` of the member type trees of the super
+    /// accessor pickled now, whose types are seen from the accessor's class (dotty's `memberInfo`
+    /// keeps the member's annotation trees), of those on a type of `parent`'s class if any;
+    /// `Some(None)` if they give several trees, one with arguments. Refuses a tree that refers to
+    /// type parameters, which seeing from the class would map.
+    pub fn member_annotation(
+        &mut self,
+        parent: TypeId,
+        annot: TypeId,
+    ) -> Option<Result<Option<TNodeId>, Refusal>> {
         let class = self.u.class_symbol(annot)?;
-        let mut trees = Vec::new();
+        let parent_class = self.u.class_symbol(parent);
+        let (mut trees, mut on_parent) = (Vec::new(), Vec::new());
         for t in self.member_tpts.clone() {
             let &T::Annotated { annot: tree, .. } = self.tpd.tree(t) else { continue };
             let tpe = self.tpd.tpe(tree);
-            if self.u.class_symbol(tpe) == Some(class) && !trees.contains(&tree) {
-                trees.push(tree);
+            if self.u.class_symbol(tpe) != Some(class) || trees.contains(&tree) {
+                continue;
             }
+            trees.push(tree);
+            let Type::Annotated(p, _) = *self.u.ty(self.tpd.tpe(t)) else { continue };
+            if self.u.class_symbol(p) == parent_class {
+                on_parent.push(tree);
+            }
+        }
+        if !on_parent.is_empty() {
+            trees = on_parent;
         }
         let first = *trees.first()?;
         if trees.len() > 1 && trees.iter().any(|&t| self.has_arguments(t, annot)) {
