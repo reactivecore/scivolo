@@ -37,7 +37,8 @@ impl Host {
     /// `asQuotes` of symbol `owner` or its holes' (`-1` for none). `rest` is `n`, then `n` pairs
     /// of a quote and its hole the searching `Quotes` fill, outermost first (`n` is `-1` for
     /// `Quotes` not known to fill any), then the candidates left out (`Implicits.searchIgnoring`).
-    /// The givens and implicits of the owners and those quotes at those holes are in scope.
+    /// The givens and implicits of the owners are in scope, inside them those of each quote at
+    /// its hole, by nested scope.
     pub fn search(&mut self, pt: TypeId, owner: i32, rest: Vec<i32>) -> Fallible<Vec<i32>> {
         const REFUSED: &str = "an implicit search inside a quote or owner that may define candidates";
         let (&n, rest) = rest.split_first().ok_or(super::decode::NO_ARGUMENTS)?;
@@ -49,7 +50,7 @@ impl Host {
             _ => self.running_holes(),
         };
         let mut locals = match owner {
-            0.. => self.owner_givens(symbol(owner)?)?.ok_or(REFUSED)?,
+            0.. => vec![self.owner_givens(symbol(owner)?)?.ok_or(REFUSED)?],
             _ => Vec::new(),
         };
         for (root, hole) in holes {
@@ -62,9 +63,10 @@ impl Host {
         self.answered(Search { pt, ignored, locals })
     }
 
-    /// The givens and implicits of quote `root` in scope at `hole`; none if it holds an import
-    /// or a class inheriting one.
-    fn quote_givens(&mut self, root: TNodeId, hole: TNodeId) -> Option<Vec<SymbolId>> {
+    /// The givens and implicits of quote `root` in scope at `hole`, by nested scope, outermost
+    /// first (dotty's `TreeMapWithImplicits` in `PickledQuotes`); none if it holds an import or
+    /// a class inheriting one.
+    fn quote_givens(&mut self, root: TNodeId, hole: TNodeId) -> Option<Vec<Vec<SymbolId>>> {
         let (imports, types) =
             self.tpd.fold((false, Vec::new()), root, &mut |(mut imports, mut types), d| {
                 match self.tpd.tree(d) {
@@ -77,8 +79,7 @@ impl Host {
         if imports || types.into_iter().any(|s| self.inherited_givens(s)) {
             return None;
         }
-        let scopes = typer::inlining::implicit_scopes_at(&self.tpd, &self.u, (root, hole));
-        Some(scopes.into_iter().flatten().rev().flatten().collect())
+        Some(typer::inlining::implicit_scopes_at(&self.tpd, &self.u, (root, hole)).unwrap_or_default())
     }
 
     /// The givens and implicits of `s` and its owners up to the splice owner: the parameters of
@@ -142,15 +143,25 @@ impl Host {
     }
 
     /// Whether `earlier`, a search of an earlier run, is `search`, whose local candidates are
-    /// those of this run in the same order.
+    /// those of this run in the same scopes and order.
     fn same_search(&self, earlier: &Search, search: &Search) -> bool {
-        let names = |s: &Search| s.locals.iter().map(|&l| self.u.symbol(l).name.clone()).collect::<Vec<_>>();
+        let names = |s: &Search| {
+            let level =
+                |l: &Vec<SymbolId>| l.iter().map(|&d| self.u.symbol(d).name.clone()).collect::<Vec<_>>();
+            s.locals.iter().map(level).collect::<Vec<_>>()
+        };
         earlier.pt == search.pt && earlier.ignored == search.ignored && names(earlier) == names(search)
     }
 
     /// Argument `found` of an earlier run's search with local candidates `earlier`, referring
     /// to `now`'s instead, at its span.
-    fn relocated(&mut self, found: TNodeId, earlier: &[SymbolId], now: &[SymbolId]) -> Fallible<TNodeId> {
+    fn relocated(
+        &mut self,
+        found: TNodeId,
+        earlier: &[Vec<SymbolId>],
+        now: &[Vec<SymbolId>],
+    ) -> Fallible<TNodeId> {
+        let (earlier, now) = (earlier.concat(), now.concat());
         if let Some(i) = self.tpd.sym(found).and_then(|s| earlier.iter().position(|&l| l == s))
             && matches!(self.tpd.tree(found), T::Ident { .. } | T::Select { .. })
         {
