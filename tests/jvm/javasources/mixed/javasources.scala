@@ -32,3 +32,4 @@ import java.util.Arrays
   val t = Tree[String]()
   val n = t.root("r")
   println(s"${n.value} ${t.leaf("l").value} ${n.tree() eq t} ${t.sizes(java.util.List.of("a"))(0)(0)}")
+  println(s"${Hidden(1).made}, ${Hidden("s").made}")

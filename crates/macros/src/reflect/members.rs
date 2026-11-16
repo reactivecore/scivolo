@@ -47,7 +47,8 @@ impl Host {
 
     /// `Symbol.paramSymss`: the number of clauses, their sizes and the parameters, a method's
     /// clauses of type and value parameters, none for other symbols; a secondary constructor
-    /// shares the type parameters of the primary one.
+    /// shares the type parameters of the primary one; a class-file method's entered from its type
+    /// on first use.
     pub fn param_symss(&mut self, s: SymbolId) -> Fallible<Vec<i32>> {
         if self.u.symbol(s).kind != Kind::Def {
             return Ok(vec![0]);
@@ -58,8 +59,13 @@ impl Host {
             sizes.push(self.u.params_of(params).len());
             t = result;
         }
+        let is_param =
+            |u: &tasty::Universe, p: SymbolId| matches!(u.symbol(p).kind, Kind::Param | Kind::TypeParam);
+        if self.u.is_java_defined(s) && !self.u.symbol(s).decls.iter().any(|&p| is_param(&self.u, p)) {
+            self.u.enter_classfile_params(s);
+        }
         let mut params = self.u.symbol(s).decls.clone();
-        params.retain(|&p| matches!(self.u.symbol(p).kind, Kind::Param | Kind::TypeParam));
+        params.retain(|&p| is_param(&self.u, p));
         let constructor = self.u.symbol(s).name == nme::CONSTRUCTOR;
         let primary =
             self.u.symbol(s).owner.filter(|_| constructor).and_then(|c| self.primary_constructor(c));
