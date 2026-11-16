@@ -56,6 +56,20 @@ impl Typer<'_> {
         self.set_forwarder_result(fwd, clauses, result);
     }
 
+    /// Completes the member a stable export forwarder `fwd` refers to, whose info its own reads
+    /// (dotty's lazy denotation of `path.m`).
+    pub fn complete_forwarded(&mut self, fwd: SymbolId) {
+        if !self.u.symbol(fwd).flags.has(t::EXPORTED) {
+            return;
+        }
+        let Some(&result) = self.syms.def_results.get(&fwd) else { return };
+        if let Some((Some(_), m)) = self.u.sym_ref(result)
+            && !self.u.is_type_symbol(m)
+        {
+            self.complete(m);
+        }
+    }
+
     /// Records parameter clauses `clauses` and result type `result` of forwarder `fwd` and sets
     /// its info from them.
     pub fn set_forwarder_result(&mut self, fwd: SymbolId, clauses: Vec<Vec<SymbolId>>, result: TypeId) {
