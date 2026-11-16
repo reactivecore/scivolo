@@ -120,6 +120,8 @@ pub struct TreePickler<'a> {
     /// The type trees of the case patterns, typed patterns and pattern variables enclosing the
     /// tree pickled now, or of the member of the super accessor pickled now, outermost first.
     typed_tpts: Vec<Vec<TNodeId>>,
+    /// The type trees of the member of the super accessor parameter or result pickled now.
+    member_tpts: Vec<TNodeId>,
     /// The selector of the match whose case is pickled next, and of the pattern pickled now.
     scrutinee: Option<TNodeId>,
     pattern_selector: Option<TNodeId>,
@@ -199,6 +201,7 @@ fn pickle<'a>(
         type_tree: None,
         annots: Vec::new(),
         typed_tpts: Vec::new(),
+        member_tpts: Vec::new(),
         scrutinee: None,
         pattern_selector: None,
         type_annots: Vec::new(),
