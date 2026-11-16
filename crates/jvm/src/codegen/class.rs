@@ -161,18 +161,29 @@ impl Gen<'_, '_> {
     }
 
     /// Declares the static field of nested object `c` of a static object, which stays unassigned
-    /// (dotty's `isStaticModuleField` for the module val).
+    /// (dotty's `isStaticModuleField` for the module val), also of a private object whose module
+    /// val's name was expanded.
     fn module_field(&mut self, cf: &mut ClassFile, c: SymbolId) {
         if !self.l.u.is_module_class(c) {
             return;
         }
-        let Some(module) = self.l.u.source_module(c) else { return };
+        let Some(module) = self.l.u.source_module(c).or_else(|| self.renamed_module(c)) else { return };
         let name = tasty::encode(&self.l.u.symbol(module).name.clone());
         let flags = java_flags(self.l, module) | ACC_STATIC | self.annotated_field_flags(module);
         cf.field(flags, &name, &class_descriptor(&self.class_name(c)));
         if self.is_deprecated(module) {
             cf.member_deprecated(Last::Field);
         }
+    }
+
+    /// The module val of module class `c` among its owner's members, whatever its name.
+    fn renamed_module(&mut self, c: SymbolId) -> Option<SymbolId> {
+        let owner = self.l.u.symbol(c).owner?;
+        let decls = self.l.u.decls(owner).ok()?;
+        decls.into_iter().find(|&s| {
+            let info = self.l.u.info(s);
+            self.l.u.is_module(s) && self.l.u.sym_of(info) == Some(c)
+        })
     }
 
     pub fn class_name(&self, c: SymbolId) -> String {

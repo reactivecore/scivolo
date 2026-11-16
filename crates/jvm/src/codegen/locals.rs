@@ -12,7 +12,7 @@ use lower::Result;
 use names::nme;
 use syntax::ast::constant::Constant;
 use tasty::tags::{MUTABLE, SYNTHETIC};
-use tasty::{Erased, SymbolId};
+use tasty::{Erased, PRIMITIVE_VALUE_CLASSES, SymbolId};
 use typer::tpd::{TNodeId, Tree};
 
 impl Gen<'_, '_> {
@@ -65,6 +65,14 @@ impl Gen<'_, '_> {
         }
     }
 
+    /// The name of the receiver of method `sym`: `$self` of a trait initializer, none in a static
+    /// method or the constructor of a primitive value class (dotty's `genDefDef`).
+    pub fn this_name(&mut self, sym: SymbolId, trait_init: bool, static_: bool) -> Option<&'static str> {
+        let owner = self.l.u.symbol(sym).owner.map(|o| self.l.u.full_name(o)).unwrap_or_default();
+        let primitive = PRIMITIVE_VALUE_CLASSES.contains(&owner.as_str()) && self.l.u.is_constructor(sym);
+        if trait_init { Some(nme::SELF) } else { (!static_ && !primitive).then_some(nme::THIS) }
+    }
+
     /// Names the receiver in slot 0 by `this`, none in a static method, and parameters `params`
     /// from `start` to here (dotty's `emitNormalMethodBody`).
     pub fn name_this_and_params(
@@ -109,7 +117,7 @@ impl Gen<'_, '_> {
         let desc = self.storage_descriptor(sym);
         let Some(rhs) = rhs else { return unsupported(self.l.tpd.span(t), "a local without a value") };
         let slot = b.local(sym, desc.clone());
-        self.expr_as(b, rhs, classfile::value_slots(&desc))?;
+        self.expr_expect(b, rhs, &desc)?;
         self.cast_to_null(b, rhs, &desc);
         b.code.store(&desc, slot);
         self.name_block_local(b, sym, &desc, slot);
@@ -156,7 +164,7 @@ impl Gen<'_, '_> {
         {
             return Ok(Some(0));
         }
-        self.expr_as(b, rhs, classfile::value_slots(&desc))?;
+        self.expr_expect(b, rhs, &desc)?;
         self.cast_to_null(b, rhs, &desc);
         self.line(b, t);
         b.code.store(&desc, slot);

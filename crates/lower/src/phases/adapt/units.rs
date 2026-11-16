@@ -45,14 +45,17 @@ fn type_symbol(l: &mut Lower, mut t: TypeId) -> Option<SymbolId> {
     None
 }
 
-/// `BoxedUnit.UNIT` for unit value `t`, after `t` unless it is pure.
+/// `BoxedUnit.UNIT` for unit value `t`, after `t` at its end unless it is pure (dotty's
+/// `constant`, whose block gives its spanless `UNIT` the end of `t`).
 pub fn boxed_unit(l: &mut Lower, t: TNodeId) -> TNodeId {
-    let span = from_start(l.tpd.span(t));
+    let span = l.tpd.span(t);
     let unit = l.defs.boxed_unit_unit;
-    let unit = l.ident(unit, span);
     match l.tpd.tree(t) {
-        Tree::Literal { .. } | Tree::Ident { .. } | Tree::This { .. } => unit,
-        _ => l.block(&[t], unit, l.tpd.span(t)),
+        Tree::Literal { .. } | Tree::Ident { .. } | Tree::This { .. } => l.ident(unit, from_start(span)),
+        _ => {
+            let unit = l.ident(unit, span.end_pos());
+            l.block(&[t], unit, span)
+        }
     }
 }
 

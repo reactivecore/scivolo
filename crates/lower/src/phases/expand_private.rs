@@ -7,6 +7,7 @@
 
 use crate::Lower;
 use crate::symbols::has;
+use rustc_hash::FxHashSet;
 use tasty::tags::PRIVATE;
 use typer::tpd::{TNodeId, Tree};
 
@@ -23,8 +24,12 @@ pub fn transform(l: &mut Lower, classes: &[TNodeId]) {
                 super::accessor_names::ensure_not_private(l, c);
             }
         }
-        for t in super::explicit_outer::terms(l, td, false) {
-            if !matches!(l.tpd.tree(t), Tree::Ident { .. } | Tree::Select { .. }) {
+        let terms = super::explicit_outer::terms(l, td, false);
+        let field_qualifiers = terms.iter().filter_map(|&t| field_qualifier(l, t)).collect::<FxHashSet<_>>();
+        for t in terms {
+            if !matches!(l.tpd.tree(t), Tree::Ident { .. } | Tree::Select { .. })
+                || field_qualifiers.contains(&t)
+            {
                 continue;
             }
             let Some(s) = l.tpd.sym(t) else { continue };
@@ -34,4 +39,14 @@ pub fn transform(l: &mut Lower, classes: &[TNodeId]) {
             }
         }
     }
+}
+
+/// The object `Lower::field_ref` puts before field selection `t` of that static object, where
+/// dotty refers to the field alone.
+fn field_qualifier(l: &mut Lower, t: TNodeId) -> Option<TNodeId> {
+    let Tree::Select { qualifier, .. } = *l.tpd.tree(t) else { return None };
+    let module = l.tpd.sym(qualifier).filter(|_| matches!(l.tpd.tree(qualifier), Tree::Ident { .. }))?;
+    let field_class = l.tpd.sym(t).and_then(|f| l.u.symbol(f).owner);
+    let synthesized = l.tpd.span(qualifier) == l.tpd.span(t) && l.u.is_module(module);
+    (synthesized && l.u.module_class(module) == field_class && field_class.is_some()).then_some(qualifier)
 }
