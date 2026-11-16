@@ -381,16 +381,16 @@ Results:
 
 | Outcome | tests/run | tests/run-macros |
 |---|---:|---:|
-| passed | 1668 | 316 |
-| wrong output | 2 | 0 |
+| passed | 1673 | 317 |
+| wrong output | 0 | 0 |
 | verify error | 0 | 0 |
-| linkage error | 5 | 0 |
+| linkage error | 2 | 0 |
 | crashed | 2 | 0 |
 | timeout | 0 | 0 |
 | frontend crashed | 3 | 0 |
 | jvm refused | 0 | 0 |
 | lowering refused | 1 | 0 |
-| typer refused | 16 | 4 |
+| typer refused | 16 | 3 |
 | skipped | 14 | 1 |
 | **total** | **1711** | **321** |
 
@@ -398,12 +398,10 @@ Results:
   (`enum-values`), and in tests with Java sources a Java type not found (`t3452e`, `t6138`,
   `t6138-2`, `i17255`), `@BeanProperty` (`i15318`) and adaptation (`i19619`).
 - **Typer refused (run-macros):** the annotations of a symbol defined outside the unit
-  (`annot-arg-value-in-java`), `Flags.show` (`i20052`), `Symbol.newClass` with annotations, a
-  source version.
-- **Tests with Java sources:** wrong output for meta-annotated targets of Java annotations
-  (`i12492`) and trailing blanks of a Java text block (`t12290`); linkage errors for
-  package-private Java classes (`i8661`, `i16474`, `java-package-protected`), a sealed Java
-  interface (`i23479`) and long class names (`java-longnames`); the frontend crashes on
+  (`annot-arg-value-in-java`), `Symbol.paramSymss` of a method whose parameters the frontend
+  lacks (`i20052`), a source version.
+- **Tests with Java sources:** linkage errors for a sealed Java interface (`i23479`) and long
+  class names (`java-longnames`); the frontend crashes on
   instantiating a Java annotation (`java-ann-super-class`, `-separate`, `repeatable`); the
   lowering refuses varargs forwarders of generic element types (`varargs-abstract`).
 - **Crash:** `lambda-serialization-gc` casts the application class loader to `URLClassLoader`,
@@ -449,13 +447,12 @@ the optimizer (1883 of its 3134 classes dotty also writes differ in code from do
 
 | Outcome | Files | Classes |
 |---|---:|---:|
-| same | 597 | 3167 |
-| attributes differ | 28 | 36 |
-| code differs | 22 | 38 |
-| refused | 2 | |
+| same | 598 | 3178 |
+| attributes differ | 29 | 39 |
+| code differs | 21 | 37 |
+| refused | 1 | |
 
-- **Refused:** TASTy pickling of a capture set that refers to other than static definitions
-  (`LazyListIterable`), a static member of a qualifier with effects (`TrieMap`).
+- **Refused:** a static member of a qualifier with effects (`TrieMap`).
 - **Code differs:** the static forwarders `from` of `immutable.IndexedSeq`, `LinearSeq` and `Seq`
   to the bridges of `SeqFactory.Delegate`, which the published jar has too: dotty sees those
   bridges only when `Delegate` is compiled in the same run, ours never. The pickled quotes of
@@ -463,8 +460,7 @@ the optimizer (1883 of its 3134 classes dotty also writes differ in code from do
   forwarder's signature `T[]` for `T <: AnyRef` that does not erase to its descriptor
   (`SingletonTypeManifest.newArray`), static forwarders and their signatures of `Nil`, `Vector0`,
   `Process`, `Tuples`, `*:` and `Tuple`, the higher-kinded bound of a forwarder read from TASTy
-  (`StreamConverters`), Scala 2's `@inline` `Enumeration.Value` inlined (`RoundingMode`), the
-  erased type of an inferred local (`ArrayOps.stepper`), and branches of pattern matches and
+  (`StreamConverters`), Scala 2's `@inline` `Enumeration.Value` inlined (`RoundingMode`), and branches of pattern matches and
   inlined `.nn` (`StepperHasParStream`, `CollisionProofHashMap`, `BasicIO`; dotty compiling those
   files alone differs from ours too); the generic signature of `lazyZip` over an inner class
   (`SeqView`, `SortedMap`, `mutable.SortedMap`), and `ArrayBuffer`, `ExecutionContextImpl` and

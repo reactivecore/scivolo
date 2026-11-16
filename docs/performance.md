@@ -58,7 +58,7 @@ on a shared machine; CPU is user + sys, so scalac's includes its JIT and GC thre
 | | | scivolo-lower | 0 | 0.18 | 0.18 | 53 |
 | | | scalac cold | | 2.87 | 11.91 | 368 |
 | | | scalac warm | | 0.34 | 1.51 | 685 |
-| Scala's library (JVM) | 649 | scivolo-jvm, file by file | 2 | 51.4 | 51.0 | 140 |
+| Scala's library (JVM) | 649 | scivolo-jvm, file by file | 1 | 51.4 | 51.0 | 140 |
 | | | scalac cold | | 16.7 | 74.8 | 1,388 |
 | | | scalac warm | | 6.4 | 10.6 | 2,163 |
 | javalib (Native) | 601 | scivolo-lower | 2 | 84.9 | 84.9 | 2,174 |
