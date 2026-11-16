@@ -113,14 +113,27 @@ fn builds_throwable(vm: &mut Vm, method: GlobalId, throwable: ClassId) -> bool {
     vm.is_subclass(class, throwable) || vm.is_subclass(throwable, class)
 }
 
+/// Determines the native that replaces method `owner::sig`, the maker of a frame's element.
 pub fn method(owner: &str, sig: &str) -> Option<NativeFn> {
-    is_element_method(owner, sig).then_some(element as NativeFn)
+    let f: NativeFn = match element_ip_index(owner, sig)? {
+        1 => |vm, args| element_of(vm, args[1]),
+        _ => |vm, args| element_of(vm, args[2]),
+    };
+    Some(f)
 }
 
-/// Whether `owner::sig` is `StackTrace.withNameFromUnwind`, which makes the element of a frame.
-pub fn is_element_method(owner: &str, sig: &str) -> bool {
-    owner == "scala.scalanative.runtime.StackTrace$"
-        && sig.starts_with("D20withNameFromUnwind$1jL44scala.scalanative.runtime.StackTrace$Context")
+/// Determines the index of the instruction pointer `ip` among the arguments, the receiver first,
+/// if `owner::sig` is `StackTrace.withNameFromUnwind`, which makes the element of a frame: lambda
+/// lifting puts `ip` before the context in Scala Native's published jar, after it under Scala 3.9.
+pub fn element_ip_index(owner: &str, sig: &str) -> Option<usize> {
+    if owner != "scala.scalanative.runtime.StackTrace$" {
+        return None;
+    }
+    match sig.strip_prefix("D20withNameFromUnwind$1")? {
+        s if s.starts_with("jL44scala.scalanative.runtime.StackTrace$Context") => Some(1),
+        s if s.starts_with("L44scala.scalanative.runtime.StackTrace$Contextj") => Some(2),
+        _ => None,
+    }
 }
 
 /// The class and method name of the stack trace element of a frame of `method`.
@@ -134,11 +147,6 @@ pub fn element_position(pool: &Pool, pos: PosId) -> Option<(&str, i32)> {
     let p = pool.pos(pos);
     let file = pool.str(p.file);
     (!file.is_empty()).then(|| (file.rsplit('/').next().unwrap_or(file), p.line as i32 + 1))
-}
-
-/// `withNameFromUnwind(ip, context, position)`: the `StackTraceElement` for `ip`.
-fn element(vm: &mut Vm, args: &[u64]) -> Flow {
-    element_of(vm, args[1])
 }
 
 /// The `StackTraceElement` for instruction pointer `ip`.

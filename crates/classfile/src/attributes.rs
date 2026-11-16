@@ -33,6 +33,8 @@ pub enum Attribute {
     Deprecated,
     /// Annotations, visible at run time or not.
     Annotations(bool, Vec<AnnotationValue>),
+    /// Each parameter's annotations, visible at run time or not.
+    ParameterAnnotations(bool, Vec<Vec<AnnotationValue>>),
     /// Each parameter's name and flags.
     MethodParameters(Vec<(String, u16)>),
     /// An attribute the JVM does not define.
@@ -51,6 +53,8 @@ impl Attribute {
             Attribute::Deprecated => "Deprecated",
             Attribute::Annotations(true, _) => "RuntimeVisibleAnnotations",
             Attribute::Annotations(false, _) => "RuntimeInvisibleAnnotations",
+            Attribute::ParameterAnnotations(true, _) => "RuntimeVisibleParameterAnnotations",
+            Attribute::ParameterAnnotations(false, _) => "RuntimeInvisibleParameterAnnotations",
             Attribute::MethodParameters(_) => "MethodParameters",
             Attribute::Custom(name, _) => name,
         }
@@ -83,6 +87,12 @@ impl Attribute {
             Attribute::Deprecated => {}
             Attribute::Annotations(_, annotations) => {
                 out.extend(crate::annotations::encode(pool, annotations))
+            }
+            Attribute::ParameterAnnotations(_, params) => {
+                out.push(params.len() as u8);
+                params
+                    .iter()
+                    .for_each(|annotations| out.extend(crate::annotations::encode(pool, annotations)));
             }
             Attribute::MethodParameters(params) => {
                 out.push(params.len() as u8);
@@ -157,6 +167,12 @@ impl ClassFile {
             Some(last) => self.member_attribute(last, a),
             None => self.attributes.push(a),
         }
+    }
+
+    /// The `RuntimeVisibleParameterAnnotations` attribute, else
+    /// `RuntimeInvisibleParameterAnnotations`, of the last method: each parameter's annotations.
+    pub fn parameter_annotations(&mut self, visible: bool, params: &[Vec<AnnotationValue>]) {
+        self.member_attribute(Last::Method, Attribute::ParameterAnnotations(visible, params.to_vec()));
     }
 
     fn member_attribute(&mut self, last: Last, a: Attribute) {

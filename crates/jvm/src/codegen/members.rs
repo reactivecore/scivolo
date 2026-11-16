@@ -54,9 +54,12 @@ impl Gen<'_, '_> {
     }
 
     /// Refuses the Java annotations of `sym`, defined at `at`, that `kept_annotations` refuses, and
-    /// the `@throws` that `check_throws` refuses.
+    /// the `@throws` that `check_throws` refuses, and those `check_tasty_mixin_annotations` refuses.
     pub fn check_annotations(&mut self, sym: SymbolId, at: Span) -> Result<()> {
         self.check_throws(sym, at)?;
+        if let Err(what) = self.check_tasty_mixin_annotations(sym) {
+            return unsupported(at, what);
+        }
         let source_only = ["java.lang.Override", "java.lang.SuppressWarnings"];
         for c in self.l.u.annotations(sym).to_vec() {
             let from_classfile = self.l.u.classfile_retention(c).is_some();
