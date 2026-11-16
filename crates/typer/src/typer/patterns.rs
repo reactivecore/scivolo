@@ -36,6 +36,9 @@ impl Typer<'_> {
         let tpt_id = tpt;
         let mode = if pattern { Mode::PATTERN_TYPE } else { ctx.mode.within(Mode::QUOTED_PATTERN) };
         let tpt = self.typed_type(tpt, ctx.with_mode(mode));
+        if pattern {
+            self.pattern_tpts.insert(tpt_id, tpt);
+        }
         let tpe = self.bounded_pattern_type(tpt, pattern, pt, ctx);
         if pattern && !self.is_testable_type(tpe) {
             match self.try_with_type_test(id, expr, tpt_id, tpe, pt, ctx) {

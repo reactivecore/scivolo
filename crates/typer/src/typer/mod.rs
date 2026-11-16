@@ -301,6 +301,9 @@ pub struct Typer<'a> {
     /// Trees typed while completing a symbol, by the owner they were typed in, taken when typing
     /// reaches them.
     pub ahead: FxHashMap<NodeId, Vec<(SymbolId, TNodeId)>>,
+    /// The typed type tree of each typed pattern's type tree, which a pattern definition's
+    /// variable shares (dotty's `makePatDef`).
+    pub pattern_tpts: FxHashMap<NodeId, TNodeId>,
     /// Untyped trees that stand for typed ones (dotty's `TypedSplice`).
     pub splices: FxHashMap<NodeId, TNodeId>,
     /// The owners of spliced trees, which their definitions leave when spliced (`TypedSplice.owner`).
@@ -456,6 +459,7 @@ impl<'a> Typer<'a> {
             scala2: v.is_scala2(),
             interactive: cfg.interactive,
             ahead: FxHashMap::default(),
+            pattern_tpts: FxHashMap::default(),
             splices: FxHashMap::default(),
             splice_owners: FxHashMap::default(),
             extension_receivers: Default::default(),

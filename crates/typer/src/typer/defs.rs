@@ -18,10 +18,12 @@ impl Typer<'_> {
             self.u.info(s)
         });
         let rhs_ctx = sym.map_or(ctx, |s| ctx.with_owner(s));
+        let tpt_id = tpt;
         let tpt = match self.ready(tpt, rhs_ctx) {
             Some(typed) => typed,
             None => self.typed_tpt(tpt, info, rhs_ctx),
         };
+        self.share_pattern_tpt(tpt_id, tpt);
         let pt = info.map_or(Pt::Any, Pt::Type);
         let Some(rhs) = self.non_deferred_rhs(sym, rhs, rhs_ctx) else {
             return self.unsupported(id, "deferred given of another deferred");
@@ -77,6 +79,42 @@ impl Typer<'_> {
             return self.type_tree(tpe, span, true);
         }
         self.typed_type(tpt, ctx)
+    }
+
+    /// Marks the parts of typed type tree `typed` of untyped `tpt` as copies of those of the typed
+    /// pattern's type tree that `tpt` is shared with, as dotty's typer shares them: its leaves and
+    /// the annotation trees of its annotated type trees.
+    fn share_pattern_tpt(&mut self, tpt: NodeId, typed: TNodeId) {
+        let first = self.pattern_tpts.get(&tpt).copied();
+        let Some(pairs) = first.and_then(|of| self.same_trees(typed, of)) else { return };
+        let annots: Vec<TNodeId> = (pairs.iter())
+            .filter_map(|&(c, _)| match *self.tpd.tree(c) {
+                T::Annotated { annot, .. } => Some(annot),
+                _ => None,
+            })
+            .collect();
+        for (copy, of) in pairs {
+            if self.tpd.children(copy).is_empty() || annots.contains(&copy) {
+                self.tpd.mark_copy(copy, of);
+            }
+        }
+    }
+
+    /// The pairs of typed tree `copy` and its descendants with `of`'s, if they have the same
+    /// kinds, types and spans.
+    fn same_trees(&self, copy: TNodeId, of: TNodeId) -> Option<Vec<(TNodeId, TNodeId)>> {
+        let (a, b) = (self.tpd.get(copy), self.tpd.get(of));
+        let same = std::mem::discriminant(&a.tree) == std::mem::discriminant(&b.tree)
+            && (a.tpe, a.sym, a.span) == (b.tpe, b.sym, b.span);
+        let (copies, ofs) = (self.tpd.children(copy), self.tpd.children(of));
+        if copy == of || !same || copies.len() != ofs.len() {
+            return None;
+        }
+        let mut pairs = vec![(copy, of)];
+        for (c, o) in copies.into_iter().zip(ofs) {
+            pairs.extend(self.same_trees(c, o)?);
+        }
+        Some(pairs)
     }
 
     pub fn typed_def_def(&mut self, id: NodeId, ctx: Ctx) -> TNodeId {
