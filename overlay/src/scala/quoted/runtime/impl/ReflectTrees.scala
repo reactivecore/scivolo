@@ -139,7 +139,10 @@ trait ReflectTrees extends reflectModule { self: reflect.type =>
   object TypeTree extends TypeTreeModule {
     def of[T <: AnyKind](using t: Type[T]): TypeTree =
       ReflectOps.term(ReflectOps.one("typeTreeOf", QuoteHost.typeId(t))).asInstanceOf[TypeTree]
-    def ref(typeSymbol: Symbol): TypeTree = refused("TypeTree.ref")
+    def ref(typeSymbol: Symbol): TypeTree = {
+      assert(typeSymbol.isType, s"Expected a type symbol, but got $typeSymbol")
+      Inferred(typeSymbol.typeRef)
+    }
   }
 
   object Inferred extends InferredModule {

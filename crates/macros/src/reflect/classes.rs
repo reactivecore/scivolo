@@ -34,6 +34,11 @@ impl Host {
         self.reflect().class_parents(cls, parents)
     }
 
+    /// Gives `cls` the self type `self_type` (`Symbol.newClass(.., selfType = Some(..))`).
+    pub fn class_self_type(&mut self, cls: SymbolId, self_type: TypeId) {
+        self.u.set_self_type(cls, self_type);
+    }
+
     /// Gives `cls` a constructor of type `info`, and answers the sizes of its clauses.
     pub fn class_constructor(&mut self, cls: SymbolId, info: TypeId) -> Fallible<Vec<i32>> {
         let (ctor, clauses) = self.reflect().class_constructor(cls, info)?;

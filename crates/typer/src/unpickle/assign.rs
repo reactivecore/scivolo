@@ -110,6 +110,35 @@ impl Unpickler<'_> {
         self.u.intern_applied(class, &[elem])
     }
 
+    /// The class of `new A(args)`, `A` a class file's annotation class whose elements `missing`
+    /// the arguments leave out all have defaults, as javalib's `@Deprecated` pickled against a JDK
+    /// whose `Deprecated` has no elements; else a refusal.
+    fn defaulted_java_annotation(
+        &mut self,
+        fun: TNodeId,
+        meth: Option<SymbolId>,
+        missing: &[(NameId, TypeId)],
+    ) -> Result<TypeId, Refusal> {
+        const MISSING: Refusal = "application with missing arguments in a library inline body";
+        let class =
+            meth.filter(|&m| self.u.symbol(m).name == nme::CONSTRUCTOR).and_then(|m| self.u.symbol(m).owner);
+        let Some(class) = class.filter(|&c| self.u.classfile_retention(c).is_some()) else {
+            return Err(MISSING);
+        };
+        let defaulted = !missing.is_empty()
+            && missing.iter().all(|&(n, _)| {
+                let name = self.u.name(n).to_owned();
+                self.u.has_annotation_default(class, &name)
+            });
+        let part = self.tpd.meth_part(fun);
+        match *self.tpd.tree(part) {
+            T::Select { qualifier, .. } if defaulted && matches!(self.tpd.tree(qualifier), T::New { .. }) => {
+                Ok(self.tpd.tpe(qualifier))
+            }
+            _ => Err(MISSING),
+        }
+    }
+
     /// The type of `fun(args)`: the result of `fun`'s method type, its parameters replaced by the
     /// arguments' types.
     pub fn apply_type(&mut self, fun: TNodeId, args: &[TNodeId]) -> Result<TypeId, Refusal> {
@@ -120,7 +149,7 @@ impl Unpickler<'_> {
             return Err("application of a value in a library inline body");
         };
         if params.len() != args.len() {
-            return Err("application with missing arguments in a library inline body");
+            return self.defaulted_java_annotation(fun, meth, &params[args.len().min(params.len())..]);
         }
         let part = self.tpd.meth_part(fun);
         let curried = self.u.method(result).is_some();

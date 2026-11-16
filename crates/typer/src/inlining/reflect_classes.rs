@@ -9,7 +9,7 @@ use crate::defn::type_ref;
 use crate::tpd::{TNodeId, Tree as T};
 use names::nme;
 use syntax::ast::TName;
-use tasty::tags::{ABSTRACT, FINAL, OBJECT, PARAMsetter, TRAIT};
+use tasty::tags::{ABSTRACT, FINAL, LOCAL, OBJECT, PARAMsetter, PRIVATE, TRAIT};
 use tasty::{Flags, Kind, Symbol, SymbolId, TypeId};
 
 impl Reflect<'_> {
@@ -96,10 +96,25 @@ impl Reflect<'_> {
         }
         stats.extend_from_slice(body);
         let (parents, body) = (self.tpd.list(parents), self.tpd.list(&stats));
-        let template = self.tpd.node(T::Template { constr, parents, self_: None, body }, span, None, dummy);
+        let self_ = self.self_def(cls)?;
+        let template = self.tpd.node(T::Template { constr, parents, self_, body }, span, None, dummy);
         let name = TName { name: self.names.intern(&self.u.symbol(cls).name), is_type: true };
         let tpe = type_ref(self.u, cls);
         Ok(self.tpd.node(T::TypeDef { name, rhs: template }, span, Some(tpe), Some(cls)))
+    }
+
+    /// The self definition `_: S & C` of class `C` with given self type `S`, none without one
+    /// (dotty's `tpd.ClassDef` with `newSelfSym`).
+    fn self_def(&mut self, cls: SymbolId) -> Result<Option<TNodeId>, &'static str> {
+        let Some(given) = self.u.given_self_type(cls) else { return Ok(None) };
+        let applied = self.u.this_type(cls);
+        let info = self.u.intern_type(tasty::Type::And(given, applied));
+        let flags = Flags::default().with(PRIVATE).with(LOCAL);
+        let sym = self.define(nme::WILDCARD, Kind::Val, cls, flags);
+        self.u.set_info(sym, info);
+        let tpt = self.type_tree(info);
+        let span = self.span;
+        Ok(Some(self.build()?.val_def(sym, tpt, None, span)))
     }
 
     /// Makes the parents of class definition `class_def` constructor calls as `parent_call` does
