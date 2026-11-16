@@ -355,6 +355,12 @@ fn an_annotated_type_inferred_from_another_file_with_its_own_tree_is_refused() {
 }
 
 #[test]
+fn a_use_of_a_well_known_class_the_unit_removes_is_refused() {
+    let code = "package scala { object Unit }\npackage p { class U { def t = () } }\n";
+    refuses("unitremoved", code, "a reference to a library symbol a definition of the unit replaces");
+}
+
+#[test]
 fn a_definition_of_scala_unit_is_the_well_known_unit() {
     let source = root().join("tmp/jvm-test/unitdefined.scala");
     std::fs::create_dir_all(source.parent().expect("a directory")).expect("tmp/jvm-test");
