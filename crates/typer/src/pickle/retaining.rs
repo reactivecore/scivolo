@@ -21,7 +21,8 @@ impl TreePickler<'_> {
         if !is_retains_like(self.u, annot) {
             return None;
         }
-        if !is_static_capture_set(self.u, annot) {
+        let own = self.type_tree.and_then(|t| self.capture_classes.get(&t).copied());
+        if !is_static_capture_set(self.u, annot, own) {
             return Some(Err(
                 "an annotated type of a capture set that refers to other than static definitions",
             ));
@@ -65,8 +66,8 @@ impl TreePickler<'_> {
     /// Records the info of value or parameter `sym` as the type of its type tree `tpt` if the
     /// tree is synthetic, as a class parameter's field, and has the info's type without its
     /// capture-set annotations: `label: Label[T]^{}` of `class Break[T](val label: Label[T]^{})`.
-    /// Refuses such an info with a capture set that refers to other than static definitions, as
-    /// `b: B^{a}` of `class C(val a: A^, val b: B^{a})`.
+    /// Refuses such an info with a capture set that refers to other than static definitions and
+    /// the `this` of `sym`'s class, as `b: B^{a}` of `class C(val a: A^, val b: B^{a})`.
     pub fn keep_captures(&mut self, sym: SymbolId, tpt: TNodeId) -> Result<(), Refusal> {
         let (Tree::TypeTree { inferred: false }, Some(tpe)) = (self.tpd.tree(tpt), self.tpd.get(tpt).tpe)
         else {
@@ -88,27 +89,33 @@ impl TreePickler<'_> {
             }
             None
         });
-        if captures.iter().any(|&c| !is_static_capture_set(self.u, c)) {
+        let class =
+            std::iter::successors(Some(sym), |&s| self.u.symbol(s).owner).find(|&s| self.u.is_class(s));
+        if captures.iter().any(|&c| !is_static_capture_set(self.u, c, class)) {
             return Err(
                 "a synthetic type tree of a capture set that refers to other than static definitions",
             );
         }
         if !captures.is_empty() {
             self.kept_captures.insert(tpt, info);
+            if let Some(class) = class {
+                self.capture_classes.insert(tpt, class);
+            }
         }
         Ok(())
     }
 }
 
 /// Whether capture-set annotation type `annot` refers to no `this`, parameter or definition other
-/// than a static one, which mapping a type that it annotates leaves alone.
-fn is_static_capture_set(u: &mut Universe, annot: TypeId) -> bool {
+/// than a static one or the `this` of class `own`, which mapping a type that it annotates leaves
+/// alone.
+fn is_static_capture_set(u: &mut Universe, annot: TypeId, own: Option<SymbolId>) -> bool {
     let mut is_static = true;
     u.map_type(annot, &mut |u, part| {
         is_static &= match *u.ty(part) {
             Type::This(c) => match *u.ty(c) {
                 Type::Package(_) | Type::PackageName(_) => true,
-                _ => u.class_symbol(c).is_some_and(|c| u.is_static_owner(c)),
+                _ => u.class_symbol(c).is_some_and(|c| u.is_static_owner(c) || Some(c) == own),
             },
             Type::Sym(_, s) => u.is_static_symbol(s),
             Type::Local(..) | Type::Param(..) | Type::RecThis(_) | Type::Skolem(..) | Type::Var(_) => false,

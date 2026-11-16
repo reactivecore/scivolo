@@ -86,6 +86,9 @@ pub struct TreePickler<'a> {
     /// definition's info has (`retaining::keep_captures`), and of each inferred one with the
     /// emptied capture sets of the type it was inferred from (`inferred_captures`).
     kept_captures: FxHashMap<TNodeId, TypeId>,
+    /// The class of the definition of each such synthetic type tree, whose `this` its capture
+    /// sets may name.
+    capture_classes: FxHashMap<TNodeId, SymbolId>,
     /// Whether the source version keeps capture-set annotations as types (dotty's
     /// `enablesCompactAnnotation`).
     compact_annotations: bool,
@@ -188,6 +191,7 @@ fn pickle<'a>(
         self_refs: FxHashSet::default(),
         param_tpts: FxHashMap::default(),
         kept_captures: FxHashMap::default(),
+        capture_classes: FxHashMap::default(),
         compact_annotations: file
             .map_or(source.is_none_or(|s| s.compact_annotations), |f| f.attributes.compact_annotations),
         file,
