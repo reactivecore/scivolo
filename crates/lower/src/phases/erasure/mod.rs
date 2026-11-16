@@ -43,7 +43,7 @@ fn typed_qualifier(l: &mut Lower, sel: TNodeId, qualifier: TNodeId) -> Result<TN
     if let Some(m) = retargeted {
         l.tpd.get_mut(sel).sym = Some(m);
     }
-    let owner = receiver_type(l, sel, qualifier);
+    let owner = receiver_type(l, sel, qualifier)?;
     let qualifier = typed(l, qualifier, None)?;
     Ok(match owner {
         Some(owner) => {

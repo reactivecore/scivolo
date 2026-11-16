@@ -3,6 +3,7 @@
 
 mod build;
 mod children;
+mod format_views;
 mod info;
 pub mod print;
 mod slots;
@@ -11,6 +12,7 @@ mod walk;
 
 pub use build::{Build, constant_of, constant_type_of};
 pub use children::{Children, MapChild, map_children};
+pub use format_views::{FormatView, Target};
 pub use info::{Template, lub_of};
 pub use slots::Slot;
 pub use tree::{Clauses, Field, List, MatchKind, TNodeId, Tree};
@@ -37,6 +39,7 @@ pub struct Tpd {
     backquoted: FxHashSet<TNodeId>,
     anon_mirrors: FxHashMap<SymbolId, AnonMirror>,
     quote_tags: FxHashMap<TNodeId, Vec<(SymbolId, TypeId)>>,
+    format_views: FxHashMap<TNodeId, Vec<(Target, FormatView)>>,
     pattern_givens: FxHashMap<SymbolId, SymbolId>,
     annotations: FxHashMap<SymbolId, Vec<TNodeId>>,
     copies: FxHashMap<TNodeId, TNodeId>,
@@ -48,6 +51,8 @@ pub struct Tpd {
     tpt_annotations: FxHashMap<TNodeId, TNodeId>,
     /// The type trees whose type is pickled anew, not shared.
     fresh_types: FxHashSet<TNodeId>,
+    /// The type with capture-set annotations of each inferred type tree whose type lost them.
+    captured_types: FxHashMap<TNodeId, TypeId>,
 }
 
 /// What an anonymous class the typer made for a mirror becomes (dotty's
@@ -220,6 +225,17 @@ impl Tpd {
     /// Whether type tree `id` has a type made for it alone.
     pub fn has_fresh_type(&self, id: TNodeId) -> bool {
         self.fresh_types.contains(&id)
+    }
+
+    /// Records `captured`, a type with capture-set annotations, as the type inferred type tree
+    /// `tpt` has before they are dropped.
+    pub fn set_captured_type(&mut self, tpt: TNodeId, captured: TypeId) {
+        self.captured_types.insert(tpt, captured);
+    }
+
+    /// The type with capture-set annotations inferred type tree `tpt` has, if recorded.
+    pub fn captured_type(&self, tpt: TNodeId) -> Option<TypeId> {
+        self.captured_types.get(&tpt).copied()
     }
 
     /// Marks `copy` as a copy of `of` that is one tree with it in dotty's.

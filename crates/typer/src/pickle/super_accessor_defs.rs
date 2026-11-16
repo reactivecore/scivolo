@@ -5,6 +5,7 @@
 
 use super::{Refusal, TreePickler};
 use crate::defn::type_ref;
+use crate::tpd::TNodeId;
 use names::nme;
 use syntax::ast::Span;
 use tasty::tags::{
@@ -14,9 +15,16 @@ use tasty::tags::{
 use tasty::write::Name;
 use tasty::{Flags, Kind, Symbol, SymbolId, Type, TypeId, Universe};
 
-/// The info of the super accessor of `member`, `info` its selection's type with references to
-/// `member`'s type parameters replaced by references to the type's (dotty's `memberInfo`).
-pub fn accessor_info(u: &mut Universe, member: SymbolId, info: TypeId) -> TypeId {
+/// The info of the super accessor of `member` in `class`, `info` its selection's type with the
+/// `this` of `member`'s class left in capture sets replaced by `class`'s and references to
+/// `member`'s type parameters by references to the type's (dotty's `memberInfo`).
+pub fn accessor_info(u: &mut Universe, member: SymbolId, class: SymbolId, info: TypeId) -> TypeId {
+    let class_this = type_ref(u, class);
+    let class_this = u.intern_type(Type::This(class_this));
+    let info = match u.symbol(member).owner {
+        Some(owner) => with_this(u, info, owner, class_this),
+        None => info,
+    };
     let Some((binder, params)) = u.poly(info).map(|b| (b.binder, b.params.to_vec())) else { return info };
     u.map_type(info, &mut |u, x| {
         let (None, s) = u.sym_ref(x)? else { return None };
@@ -24,6 +32,18 @@ pub fn accessor_info(u: &mut Universe, member: SymbolId, info: TypeId) -> TypeId
         let ours = sym.kind == Kind::TypeParam && sym.owner == Some(member);
         let i = params.iter().position(|&(n, _)| ours && u.name(n) == sym.name)?;
         Some(u.intern_type(Type::Param(binder, i as u32)))
+    })
+}
+
+/// Type `t` with the `this` of class `owner` replaced by `this_`, in annotations too.
+fn with_this(u: &mut Universe, t: TypeId, owner: SymbolId, this_: TypeId) -> TypeId {
+    u.map_type(t, &mut |u, x| match *u.ty(x) {
+        Type::This(c) => (u.class_symbol(c) == Some(owner)).then_some(this_),
+        Type::Annotated(parent, annot) => {
+            let (parent, annot) = (with_this(u, parent, owner, this_), with_this(u, annot, owner, this_));
+            Some(u.intern_type(Type::Annotated(parent, annot)))
+        }
+        _ => None,
     })
 }
 
@@ -38,8 +58,24 @@ impl TreePickler<'_> {
         let info = self.u.info(acc);
         let (span, member) = self.accessor_spans.get(&acc).copied().unwrap_or((Span::NONE, Span::NONE));
         self.synthetic_here(span, None);
+        self.accessor_class = self.u.symbol(acc).owner;
+        let pickled = self.accessor_def(acc, &name, info, (span, member), &mut member_tpts);
+        self.accessor_class = None;
+        pickled
+    }
+
+    /// The `DEFDEF` of super accessor `acc` named `name` of type `info`, at `spans` (its own and
+    /// its member's point), its types taking the annotation trees of `member_tpts`.
+    fn accessor_def(
+        &mut self,
+        acc: SymbolId,
+        name: &Name,
+        info: TypeId,
+        (span, member): (Span, Span),
+        member_tpts: &mut dyn Iterator<Item = Vec<TNodeId>>,
+    ) -> Result<(), Refusal> {
         self.with_length(DEFDEF, &mut |p| {
-            p.name(&name);
+            p.name(name);
             let mut t = p.accessor_type_params(acc, info, span)?;
             let mut term_before = false;
             while let Some((params, result, implicit, contextual)) =
@@ -58,7 +94,7 @@ impl TreePickler<'_> {
                         let name = Name::utf8(p.u.name(name));
                         p.name(&name);
                         p.synthetic_here(span, None);
-                        p.with_typed_tpts(tpts.clone(), &mut |p| p.ty(tpe, false))?;
+                        p.with_member_tpts(tpts.clone(), &mut |p| p.ty(tpe, false))?;
                         modifier.into_iter().for_each(|m| p.byte(m));
                         Ok(())
                     })?;
@@ -71,7 +107,7 @@ impl TreePickler<'_> {
             let tpt = p.synthetic.len();
             p.synthetic_here(span, None);
             let tpts = member_tpts.next().unwrap_or_default();
-            p.with_typed_tpts(tpts, &mut |p| p.ty(t, false))?;
+            p.with_member_tpts(tpts, &mut |p| p.ty(t, false))?;
             p.byte(ARTIFACT);
             if let Some(target) = p.u.symbol(acc).target.clone() {
                 p.target_name_annotation(&target, member)?;
@@ -191,8 +227,8 @@ mod tests {
         let own = u.intern_type(Type::Param(types, 0));
         let selected = poly(&mut u, t, other);
         let expected = poly(&mut u, own, other);
-        assert_eq!(accessor_info(&mut u, m, selected), expected);
+        assert_eq!(accessor_info(&mut u, m, c, selected), expected);
         let plain = u.intern_method(terms, &[(x_name, t)], t, false, false);
-        assert_eq!(accessor_info(&mut u, m, plain), plain);
+        assert_eq!(accessor_info(&mut u, m, c, plain), plain);
     }
 }

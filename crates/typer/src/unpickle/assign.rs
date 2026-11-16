@@ -26,7 +26,7 @@ impl Unpickler<'_> {
     }
 
     /// The type `fun` applies, seen from its prefix, and the method it refers to.
-    fn method_type(&mut self, fun: TNodeId) -> (TypeId, Option<SymbolId>) {
+    pub fn method_type(&mut self, fun: TNodeId) -> (TypeId, Option<SymbolId>) {
         let tpe = self.tpd.tpe(fun);
         let meth = self.tpd.sym(self.tpd.meth_part(fun));
         match *self.u.ty(tpe) {

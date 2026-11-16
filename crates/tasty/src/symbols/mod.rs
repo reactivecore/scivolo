@@ -8,6 +8,7 @@ mod base_types;
 mod bodies;
 mod builtin;
 mod children;
+mod class_access;
 mod classes;
 mod classfiles;
 mod companions;

@@ -68,6 +68,7 @@ object Attributes:
     println(Counting.count("a") + Counting.sum(1, 2) + Counting.plain("b"))
     println(List(classOf[Summing], Counting.getClass, Class.forName("Counting")).flatMap(Varargs.show))
     println(Throws.show(classOf[Throwing]))
+    println(Throws.show(classOf[ThrowingTrait]))
 
 class ByName[A](elem: => A):
   class In

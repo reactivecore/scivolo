@@ -152,15 +152,18 @@ fn prefix(l: &mut Lower, class: SymbolId, m: SymbolId, outer: SymbolId) -> TypeI
     }
 }
 
-/// The result type of the implementation in `class` of an accessor of an instance of `outer`:
-/// `outer`'s type where the class enclosing `class` derives from it, else the prefix's.
+/// The result type of the implementation in `class` of an accessor of an instance of `outer`: the
+/// base type `outer` of the class enclosing `class` if that derives from it, else the prefix's.
 fn result_type(l: &mut Lower, class: SymbolId, outer: SymbolId, prefix: TypeId) -> TypeId {
     let mut enclosing = l.u.symbol(class).owner;
     while let Some(e) = enclosing.filter(|&e| l.u.symbol(e).kind.is_term()) {
         enclosing = l.u.symbol(e).owner;
     }
     match enclosing.filter(|&e| l.u.is_class(e)) {
-        Some(e) if l.u.derives_from(e, outer) => type_ref(l.u, outer),
+        Some(e) if l.u.derives_from(e, outer) => {
+            let this = l.u.this_type(e);
+            l.u.base_type(this, outer).unwrap_or_else(|| type_ref(l.u, outer))
+        }
         _ => l.u.widen(prefix),
     }
 }
@@ -190,11 +193,10 @@ fn path(l: &mut Lower, class: SymbolId, p: TypeId, span: Span) -> Result<TNodeId
             if let Some(call) = super::local_lazy::object_call(l, s, span) {
                 return Ok(call);
             }
-            let qualifier = match q.map(|q| *l.u.ty(q)) {
-                _ if static_module => return Ok(l.ident(s, span)),
-                None | Some(Type::Package(_)) => return Ok(l.ident(s, span)),
-                Some(_) => path(l, class, q.expect("a prefix"), span)?,
+            let Some(q) = q.filter(|&q| !static_module && !matches!(l.u.ty(q), Type::Package(_))) else {
+                return Ok(l.ident(s, span));
             };
+            let qualifier = path(l, class, q, span)?;
             Ok(l.select(qualifier, s, span))
         }
         _ => unsupported(span, "outer prefixes of mixed-in traits other than paths"),

@@ -173,8 +173,7 @@ impl Sig<'_> {
     }
 
     fn array(&mut self, elem: TypeId) {
-        let param = self.u.param_ref(elem).and_then(|(b, i)| self.poly_param(b, i));
-        let checked = param.map_or(elem, |(_, bounds)| bounds);
+        let checked = self.with_param_bounds(elem);
         if self.u.is_generic(checked) {
             return self.out.push_str("Ljava/lang/Object;");
         }

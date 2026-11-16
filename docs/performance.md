@@ -51,14 +51,14 @@ on a shared machine; CPU is user + sys, so scalac's includes its JIT and GC thre
 | codebase | files | tool | refused | wall s | CPU s | peak RSS MB |
 |---|--:|---|--:|--:|--:|--:|
 | tasty-core | 8 | scivolo-jvm | 0 | 0.08 | 0.08 | 42 |
-| | | scivolo-lower | 0 | 0.07 | 0.07 | 38 |
-| | | scalac cold | | 1.65 | 4.27 | 267 |
-| | | scalac warm | | 0.22 | 0.61 | 486 |
-| upickle-core 4.4.3 | 27 | scivolo-jvm | 0 | 0.23 | 0.22 | 55 |
-| | | scivolo-lower | 0 | 0.19 | 0.19 | 53 |
-| | | scalac cold | | 2.96 | 10.06 | 355 |
-| | | scalac warm | | 0.36 | 1.36 | 667 |
-| Scala's library (JVM) | 649 | scivolo-jvm, file by file | 31 | 51.4 | 51.0 | 140 |
+| | | scivolo-lower | 0 | 0.08 | 0.08 | 38 |
+| | | scalac cold | | 1.78 | 6.82 | 289 |
+| | | scalac warm | | 0.21 | 0.93 | 567 |
+| upickle-core 4.4.3 | 27 | scivolo-jvm | 0 | 0.23 | 0.22 | 56 |
+| | | scivolo-lower | 0 | 0.18 | 0.18 | 53 |
+| | | scalac cold | | 2.87 | 11.91 | 368 |
+| | | scalac warm | | 0.34 | 1.51 | 685 |
+| Scala's library (JVM) | 649 | scivolo-jvm, file by file | 1 | 51.4 | 51.0 | 140 |
 | | | scalac cold | | 16.7 | 74.8 | 1,388 |
 | | | scalac warm | | 6.4 | 10.6 | 2,163 |
 | javalib (Native) | 601 | scivolo-lower | 2 | 84.9 | 84.9 | 2,174 |
@@ -66,12 +66,12 @@ on a shared machine; CPU is user + sys, so scalac's includes its JIT and GC thre
 | | | scalac warm | | 3.3 | 5.4 | 1,541 |
 
 - Against cold scalac, scivolo is 13–23× faster in wall time on tasty-core and upickle-core;
-  against warm scalac it is 1.6–3.1× in wall time and 6.1–8.7× in CPU time (loaded machine).
+  against warm scalac it is 1.5–2.7× in wall time and 6.7–12.3× in CPU time.
   upickle-core stays below 2× in wall time against warm scalac (#248); #249 (Scala's library)
   and #250 (javalib) name the hot spots of the others.
 - Scala's library row is file by file. `just bench-compile scalalib` compiles all 649 files as
-  one unit; on a loaded machine that takes about 154 s CPU, 69 files are refused and each
-  refusal round types the unit again (#249). scalac compiles its Scala and Java sources as one
+  one unit; that takes 34.3 s CPU, 10 files are refused and each refusal round types the unit
+  again, 3 typings in all (#249). scalac compiles its Scala and Java sources as one
   unit: its rows are not comparable.
 - javalib's two refused files are left out after one typing of the unit (127.6 s CPU on a
   loaded machine), and scalac compiles it to class files without Scala Native's plugin: its

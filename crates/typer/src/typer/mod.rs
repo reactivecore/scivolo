@@ -20,11 +20,12 @@ mod assign;
 mod auto_apply;
 mod avoid;
 mod avoid_captures;
+mod avoid_wildcards;
 mod base_completion;
 mod by_name_repeated;
 mod call_types;
 mod callee_types;
-mod capture_types;
+pub(crate) mod capture_types;
 mod captured_paths;
 mod case_companion;
 mod case_lambdas;
@@ -79,6 +80,7 @@ mod extension_setters;
 mod extractor_members;
 mod features;
 mod find_ref;
+mod format_views;
 mod forward_refs;
 mod function_parts;
 mod function_types;
@@ -148,7 +150,8 @@ mod parents;
 mod paths;
 mod pattern_alternatives;
 mod pattern_bounds;
-mod patterns;
+mod pattern_tpts;
+pub(crate) mod patterns;
 mod plain_trees;
 mod poly_context_bounds;
 mod poly_function_values;
@@ -229,6 +232,7 @@ mod unresolved_terms;
 mod unsafe_nulls;
 mod untupled;
 mod valid_infix;
+mod varargs;
 mod variance_check;
 mod variance_ops;
 mod variances;
@@ -299,6 +303,9 @@ pub struct Typer<'a> {
     /// Trees typed while completing a symbol, by the owner they were typed in, taken when typing
     /// reaches them.
     pub ahead: FxHashMap<NodeId, Vec<(SymbolId, TNodeId)>>,
+    /// The typed type tree of each typed pattern's type tree, which a pattern definition's
+    /// variable shares (dotty's `makePatDef`).
+    pub pattern_tpts: FxHashMap<NodeId, TNodeId>,
     /// Untyped trees that stand for typed ones (dotty's `TypedSplice`).
     pub splices: FxHashMap<NodeId, TNodeId>,
     /// The owners of spliced trees, which their definitions leave when spliced (`TypedSplice.owner`).
@@ -393,8 +400,10 @@ pub struct Typer<'a> {
     pub file_starts: Vec<syntax::source::Offset>,
     /// The settings of each source file of a unit of several, none for a unit of one.
     pub file_cfgs: Vec<Config>,
-    /// The definitions replacing a well-known symbol, each with the symbol it defines.
-    pub replacing_well_known: Vec<(NodeId, SymbolId)>,
+    /// The well-known symbols a definition of the unit replaces, not yet defined.
+    pub replaced_well_known: Vec<SymbolId>,
+    /// The well-known symbols a definition of the unit replaced.
+    pub replaced_by: Vec<SymbolId>,
     /// The index of the source file whose settings are in use.
     pub file: usize,
     /// What runs macro implementations; without it, macro calls are refused.
@@ -452,6 +461,7 @@ impl<'a> Typer<'a> {
             scala2: v.is_scala2(),
             interactive: cfg.interactive,
             ahead: FxHashMap::default(),
+            pattern_tpts: FxHashMap::default(),
             splices: FxHashMap::default(),
             splice_owners: FxHashMap::default(),
             extension_receivers: Default::default(),
@@ -495,7 +505,8 @@ impl<'a> Typer<'a> {
             quote_pattern: None,
             depth: 0,
             file_starts: Vec::new(),
-            replacing_well_known: Vec::new(),
+            replaced_well_known: Vec::new(),
+            replaced_by: Vec::new(),
             file_cfgs: Vec::new(),
             file: 0,
             macros: None,

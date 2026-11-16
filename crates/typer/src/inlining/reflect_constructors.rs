@@ -1,11 +1,12 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/scala/quoted/runtime/impl/QuotesImpl.scala
 //! The constructors of the classes `Symbol.newClass` makes, of the type its `conMethodType`
-//! gives.
+//! gives, and the calls of their parents' constructors.
 
 use super::Reflect;
 use crate::defn::type_ref;
-use crate::tpd::TNodeId;
+use crate::tpd::{TNodeId, Tree as T};
+use names::nme;
 use tasty::tags::{LOCAL, PARAMsetter, PRIVATE};
 use tasty::{Binder, Flags, Kind, SymbolId, Type, TypeId, Universe};
 
@@ -75,6 +76,49 @@ impl Reflect<'_> {
         let applied =
             args.len() == n && args.iter().enumerate().all(|(i, &a)| Some(self.u.ty(a)) == param(i).as_ref());
         applied && self.u.sym_of(tycon) == Some(class)
+    }
+
+    /// Makes the parents of class definition `class_def` constructor calls as `parent_call` does
+    /// (dotty's `ExplicitOuter`).
+    pub fn call_parents(&mut self, class_def: TNodeId) -> Result<(), &'static str> {
+        let T::TypeDef { rhs, .. } = *self.tpd.tree(class_def) else { return Ok(()) };
+        let T::Template { constr, parents, self_, body } = *self.tpd.tree(rhs) else { return Ok(()) };
+        if self.tpd.sym(class_def).is_none_or(|cls| self.u.is_trait(cls)) {
+            return Ok(());
+        }
+        let mut called = self.tpd.items(parents).to_vec();
+        for p in &mut called {
+            *p = self.parent_call(*p)?;
+        }
+        let parents = self.tpd.list(&called);
+        self.tpd.get_mut(rhs).tree = T::Template { constr, parents, self_, body };
+        Ok(())
+    }
+
+    /// Parent tree `p`: a constructor call or a trait's type tree as it is, a class's type tree
+    /// as a call of its constructor without arguments, in a class other than a trait.
+    fn parent_call(&mut self, p: TNodeId) -> Result<TNodeId, &'static str> {
+        let span = self.span;
+        let tpe = self.tpd.tpe(p);
+        let c = self.u.class_symbol(tpe).ok_or("ClassDef.apply with a parent other than a class type")?;
+        let type_tree =
+            matches!(self.tpd.tree(p), T::TypeTree { .. } | T::Ident { .. } | T::AppliedTypeTree { .. })
+                || matches!(self.tpd.tree(p), T::Select { name, .. } if name.is_type);
+        if self.u.is_trait(c) || !type_tree {
+            return Ok(p);
+        }
+        let ctors = self.u.decls_named(c, nme::CONSTRUCTOR);
+        let no_args = |r: &mut Self, k: SymbolId| {
+            let info = r.u.info(k);
+            r.u.method(info).is_some_and(|m| m.params.is_empty() && r.u.method(m.result).is_none())
+        };
+        let ctor = ctors.into_iter().find(|&k| no_args(self, k));
+        let ctor =
+            ctor.ok_or("ClassDef.apply with a parent class without a constructor without arguments")?;
+        let new = self.tpd.node(T::New { tpt: p }, span, Some(tpe), None);
+        let mut b = self.build()?;
+        let select = b.select(new, ctor, span);
+        Ok(b.apply(select, &[], tpe, span))
     }
 }
 

@@ -18,10 +18,12 @@ impl Typer<'_> {
             self.u.info(s)
         });
         let rhs_ctx = sym.map_or(ctx, |s| ctx.with_owner(s));
+        let tpt_id = tpt;
         let tpt = match self.ready(tpt, rhs_ctx) {
             Some(typed) => typed,
             None => self.typed_tpt(tpt, info, rhs_ctx),
         };
+        self.share_pattern_tpt(tpt_id, tpt);
         let pt = info.map_or(Pt::Any, Pt::Type);
         let Some(rhs) = self.non_deferred_rhs(sym, rhs, rhs_ctx) else {
             return self.unsupported(id, "deferred given of another deferred");

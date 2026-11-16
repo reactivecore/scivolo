@@ -61,6 +61,13 @@ impl Encode for String {
     }
 }
 
+/// No text, which `resultText` answers as `null`, for none.
+impl Encode for Option<String> {
+    fn put(self, h: &mut Host, out: &mut Reflected) -> Fallible<()> {
+        self.map_or(Ok(()), |s| s.put(h, out))
+    }
+}
+
 impl Encode for Printed {
     fn put(self, _: &mut Host, out: &mut Reflected) -> Fallible<()> {
         out.1 = Some(self.into_utf16());

@@ -31,6 +31,7 @@ impl Unpickler<'_> {
             APPLY => {
                 let fun = self.term(k[0])?;
                 let args = k[1..].iter().map(|&a| self.term(a)).collect::<Result<Vec<_>, _>>()?;
+                let args = self.java_annotation_args(fun, args);
                 let tpe = self.apply_type(fun, &args)?;
                 let args = self.tpd.list(&args);
                 self.bare(T::Apply { fun, args }, Some(tpe), None)

@@ -4,13 +4,13 @@
 //! Fresh copies of local classes and type aliases in copied trees: the class with its members,
 //! its parents and self type mapped (dotty's `mapSymbols` for classes).
 
-use super::Inlining;
-use super::copy::TreeTypeMap;
+use super::copy::{Hook, TreeTypeMap};
+use super::{Inlining, Unsupported};
 use crate::tpd::{TNodeId, Tree as T};
 use rustc_hash::FxHashMap;
 use tasty::{Kind, SymbolId, Type, TypeId, Universe};
 
-impl Inlining<'_> {
+impl<'a> Inlining<'a> {
     /// The fresh symbol of `s` and, for a class, those of its members, recursively, added to
     /// `made`, their types not yet set.
     pub fn declared_fresh_with_members(
@@ -32,7 +32,7 @@ impl Inlining<'_> {
     }
 
     /// Completes fresh symbol `n` of `s`: a class's parents and self type, else its type, mapped
-    /// through `m`, and whether it is abstract.
+    /// through `m`, whether it is abstract, and its annotation classes.
     pub fn complete_fresh(&mut self, m: &TreeTypeMap, s: SymbolId, n: SymbolId) {
         if self.u.symbol(s).kind == Kind::Class {
             let parents = self.u.parents(s).into_iter().map(|p| self.map_type(m, p)).collect();
@@ -58,6 +58,23 @@ impl Inlining<'_> {
                 self.u.annotate_string(n, c, arg);
             }
         }
+    }
+
+    /// Gives each fresh symbol of `made` the annotations of its original copied through `m` and
+    /// `hook`.
+    pub fn copy_annotations(
+        &mut self,
+        m: &mut TreeTypeMap,
+        made: &[(SymbolId, SymbolId)],
+        hook: &mut Hook<'_, 'a>,
+    ) -> Result<(), Unsupported> {
+        for &(s, n) in made {
+            for annot in self.tpd.annotations(s).to_vec() {
+                let copy = self.copy(m, annot, hook)?;
+                self.tpd.annotate(n, copy);
+            }
+        }
+        Ok(())
     }
 
     /// The owner of the children of `t`, owned by `owner`, when retyped, and the class enclosing

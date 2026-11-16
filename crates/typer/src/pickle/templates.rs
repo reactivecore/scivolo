@@ -93,12 +93,14 @@ impl TreePickler<'_> {
     /// `C.this` of class type `class` for tree `id`, `qual` the tree of its name if written;
     /// without one, as PostTyper makes reference `id` to a self (dotty's `This(cls)`).
     pub fn class_this(&mut self, id: TNodeId, qual: Option<TNodeId>, class: TypeId) -> Result<(), Refusal> {
+        let cls = self.u.class_symbol(class);
         let name = match qual.map(|q| self.tpd.tree(q)) {
-            Some(&T::Ident { name }) => Name::utf8(self.names.text(name.name)),
-            _ => {
-                let cls = self.u.class_symbol(class).ok_or("a this of no class")?;
-                sym_name(self.u, cls)
+            Some(&T::Ident { name })
+                if cls.is_none_or(|c| self.names.text(name.name) != self.u.symbol(c).name) =>
+            {
+                Name::utf8(self.names.text(name.name))
             }
+            _ => sym_name(self.u, cls.ok_or("a this of no class")?),
         };
         self.byte(QUALTHIS);
         match qual {

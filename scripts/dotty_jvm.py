@@ -16,7 +16,7 @@ import sys
 from pathlib import Path
 
 import jvm_lib_jar
-from dotty_sources import ROOT, SCALA, WORK, compile_groups, run, shared, tests, using_options
+from dotty_sources import ROOT, SCALA, WORK, compile_groups, quoted_files, run, shared, tests, using_options
 
 SCIVOLO_JVM = ROOT / "target/release/scivolo-jvm"
 LIBRARY = shared(f"ref/libs/scala-library-{SCALA}.jar")
@@ -128,7 +128,7 @@ def one(name, groups, check, reason, dir, logs):
     if reason:
         return "skipped", reason
     out, cp = compiled(name, groups, dir)
-    quoted = [s for s in groups[-1] if "scala.quoted" in s.read_text(errors="replace")]
+    quoted = quoted_files(groups[-1])
     if isinstance(out, tuple) and out[0] == "typer refused" and 0 < len(quoted) < len(groups[-1]):
         rest = [s for s in groups[-1] if s not in quoted]
         out, cp = compiled(name, [*groups[:-1], quoted, rest], dir, using_options(groups[-1]))
@@ -190,7 +190,7 @@ def jvm(filter_, dir="run", libs=""):
     for name, groups, check, reason in all_:
         if name in files and groups and groups[0] and groups[0][0].parent.name != dir:
             name += "-dir"
-        todo.append((name, groups, check, None if reason == "jvm-only api" else reason))
+        todo.append((name, groups, check, None if reason in ("jvm-only api", "java sources") else reason))
     with concurrent.futures.ThreadPoolExecutor(JOBS) as pool:
         results = list(pool.map(lambda t: one(*t, dir, logs), todo))
     write(WORK / f"jvm-results{suffix}.tsv", WORK / f"jvm-report{suffix}.md", filter_,

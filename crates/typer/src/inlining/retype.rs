@@ -145,7 +145,7 @@ impl Inlining<'_> {
                 let (inner, within) = self.owners_within(t, owner);
                 let outer_class = std::mem::replace(&mut self.enclosing_class, within);
                 let mut failed = None;
-                let mark = self.enter_block_implicits(t);
+                let mark = self.enter_implicits(t);
                 let unadapted = match *self.tpd.tree(t) {
                     T::Apply { fun, .. } | T::TypeApply { fun, .. } => Some(fun),
                     T::Closure { meth, .. } => Some(meth),

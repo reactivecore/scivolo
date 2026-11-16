@@ -2,6 +2,7 @@
 //   compiler/src/dotty/tools/dotc/typer/Applications.scala
 //! Applications `f(args)` (dotty's `typedApply`).
 
+use super::varargs::Varargs;
 use super::{Pt, Typer};
 use crate::ctx::{Ctx, Mode};
 use crate::tpd::{TNodeId, Tree as T};
@@ -101,16 +102,18 @@ impl Typer<'_> {
         let repeated = params.last().and_then(|&(_, p)| self.repeated_param_elem(p));
         let by_name_repeated =
             repeated.is_some() && params.last().is_some_and(|&(_, p)| self.u.by_name(p).is_some());
+        let all_params = params.clone();
         if repeated.is_some() {
             params.pop();
         }
-        let seq_arg = arg_ids
-            .last()
-            .copied()
-            .filter(|&a| repeated.is_some() && arg_ids.len() == params.len() + 1 && self.is_sequence_arg(a));
-        let named_seq = seq_arg.is_some_and(|a| {
-            self.arg_name(a).is_some_and(|n| names.last().is_some_and(|&l| self.u.name(l) == n))
+        let names_repeated = |t: &Self, a: NodeId| {
+            t.arg_name(a).is_some_and(|n| names.last().is_some_and(|&l| t.u.name(l) == n))
+        };
+        let seq_arg = arg_ids.last().copied().filter(|&a| {
+            let placed = arg_ids.len() == params.len() + 1 || names_repeated(self, a);
+            repeated.is_some() && placed && self.is_sequence_arg(a)
         });
+        let named_seq = seq_arg.is_some_and(|a| names_repeated(self, a));
         let unnamed = &arg_ids[..arg_ids.len() - usize::from(named_seq)];
         let aligned = match self.aligned_args(unnamed, &params, repeated.and(names.last().copied())) {
             Ok(aligned) => aligned,
@@ -138,12 +141,19 @@ impl Typer<'_> {
         if super::wildcard_members::is_bounds_like(self.u, result) {
             return self.unsupported(id, "result type of a wildcard argument");
         }
+        let seq = seq_arg.filter(|_| aligned.is_some());
+        let varargs = repeated.map(|elem| Varargs { elem, meth, result, by_name: by_name_repeated, seq });
         let aligned_args = aligned.as_ref().map(|a| {
-            self.typed_aligned_args((f, method), (&arg_ids, a, pretyped.as_deref()), (&params, &formals), ctx)
+            let call = (f, method, varargs.as_ref());
+            self.typed_aligned_args(call, (&arg_ids, a, pretyped.as_deref()), (&all_params, &formals), ctx)
         });
         let (f, mut typed_args, lifted) = match aligned_args {
             _ if !outer.is_empty() && aligned.is_some() => {
                 return self.unsupported(id, "named or default arguments after a lifted call");
+            }
+            _ if seq.is_some() && pretyped.is_some() => {
+                return self
+                    .unsupported(id, "sequence argument of an overload with named or default arguments");
             }
             Some(Err(what)) => return self.unsupported(id, what),
             Some(Ok(parts)) => parts,
@@ -191,10 +201,10 @@ impl Typer<'_> {
             let tpe = self.zonk(self.tpd.tpe(a));
             *self.u.ty(tpe) == Type::Error
         });
-        if let Some(elem) = repeated {
+        if let Some(varargs) = varargs.as_ref().filter(|_| aligned.is_none()) {
             let arg = match seq_arg {
                 Some(a) => {
-                    let elem = self.from_java_object(meth, elem);
+                    let elem = self.from_java_object(meth, varargs.elem);
                     match pretyped.as_ref().and_then(|typed| typed[arg_ids.len() - 1]) {
                         Some(typed) => match self.repeated_elem(self.tpd.tpe(typed)) {
                             Some(e) if self.conforms(e, elem) => typed,
@@ -204,25 +214,12 @@ impl Typer<'_> {
                     }
                 }
                 None => {
-                    let mut elems = typed_args.split_off(params.len());
-                    if self.is_open(result) {
-                        elems = match self.harmonic(elems, Pt::Type(elem), before_elems, ctx) {
-                            Ok(h) => h,
-                            Err(what) => return self.unsupported(id, what),
-                        };
-                    }
+                    let elems = typed_args.split_off(params.len());
                     let before = typed_args.last().copied().unwrap_or(f);
-                    let at = self.tpd.span(before).end_pos();
-                    let elem = self.normalized_tuple_type(elem);
-                    let elem = self.java_object_elem(meth, elem);
-                    let arg = self.seq_literal(&elems, elem, at);
-                    if let T::Typed { expr, .. } = *self.tpd.tree(arg) {
-                        if by_name_repeated {
-                            self.type_seq_literal(expr);
-                        }
-                        self.note_spreads(expr, ctx);
+                    match self.packed_varargs(elems, (before, before_elems), varargs, ctx) {
+                        Ok(arg) => arg,
+                        Err(what) => return self.unsupported(id, what),
                     }
-                    arg
                 }
             };
             typed_args.push(arg);
@@ -248,6 +245,7 @@ impl Typer<'_> {
             _ if partial => result,
             _ => self.simplified(result),
         };
+        self.record_format_views(meth, &typed_args, ctx);
         let args = self.tpd.list(&typed_args);
         let apply = self.tpd.node(T::Apply { fun: f, args }, self.ast.span(id), Some(tpe), None);
         self.fold_apply(apply);
@@ -277,8 +275,9 @@ impl Typer<'_> {
         }
     }
 
-    /// Sequence argument `a`, named or not, passed to a repeated parameter of element type `elem`.
-    fn named_sequence_arg(&mut self, a: NodeId, elem: TypeId, ctx: Ctx) -> TNodeId {
+    /// Types sequence argument `a`, named or not, passed to a repeated parameter of element type
+    /// `elem`.
+    pub fn named_sequence_arg(&mut self, a: NodeId, elem: TypeId, ctx: Ctx) -> TNodeId {
         let Tree::NamedArg { name, arg } = *self.ast.tree(a) else {
             return self.sequence_arg(a, Some(elem), ctx);
         };

@@ -48,9 +48,9 @@ impl AnnotationOrigins {
         let mut stack = vec![root];
         while let Some(t) = stack.pop() {
             stack.extend(tpd.children(t));
-            if let (T::Annotated { annot, .. }, Some(tpe)) = (tpd.tree(t), tpd.get(t).tpe) {
+            if let (&T::Annotated { annot, .. }, Some(tpe)) = (tpd.tree(t), tpd.get(t).tpe) {
                 let span = tpd.span(t);
-                origins.annotated_at.push((span.start(), span.end(), tpe, *annot));
+                origins.annotated_at.push((span.start(), span.end(), tpe, original(tpd, annot)));
             }
             origins.add_ascription_or_cast(u, tpd, t);
             origins.add_params(tpd, t);
@@ -70,7 +70,26 @@ impl AnnotationOrigins {
                 origins.rhs_of.insert(tpt, rhs);
             }
         }
+        origins.merge_retyped();
         origins
+    }
+
+    /// Takes the annotated type trees of one span and type as one, the first typed: a type tree
+    /// that desugaring shares, typed once in a pattern and once more as a definition's (dotty's
+    /// `makePatDef` shares the tree).
+    fn merge_retyped(&mut self) {
+        let mut first: FxHashMap<(Offset, Offset, TypeId), TNodeId> = FxHashMap::default();
+        for &(start, end, tpe, annot) in self.annotated_at.iter().filter(|e| e.0 < e.1) {
+            let kept = first.entry((start, end, tpe)).or_insert(annot);
+            if annot.index() < kept.index() {
+                *kept = annot;
+            }
+        }
+        for entry in &mut self.annotated_at {
+            if let Some(&kept) = first.get(&(entry.0, entry.1, entry.2)) {
+                entry.3 = kept;
+            }
+        }
     }
 
     /// The annotation tree of `annotated`, of annotation class `annot` and a part of the type of
@@ -125,12 +144,11 @@ impl AnnotationOrigins {
         if tpd.get(tpt).tpe != Some(annotated) {
             return within();
         }
+        let tpt_annotation = || tpd.tpt_annotation(tpt).map(|a| original(tpd, a));
         match *tpd.tree(tpt) {
-            T::Annotated { annot, .. } => Some(Some(annot)),
-            T::TypeTree { inferred: false } => {
-                within().flatten().or_else(|| tpd.tpt_annotation(tpt)).map(Some)
-            }
-            _ => tpd.tpt_annotation(tpt).map(Some).or_else(within),
+            T::Annotated { annot, .. } => Some(Some(original(tpd, annot))),
+            T::TypeTree { inferred: false } => within().flatten().or_else(tpt_annotation).map(Some),
+            _ => tpt_annotation().map(Some).or_else(within),
         }
     }
 
@@ -175,6 +193,11 @@ impl AnnotationOrigins {
         let first = trees.next()??;
         trees.all(|t| t == Some(first)).then_some(first)
     }
+}
+
+/// The tree annotation tree `annot` is a copy of, else itself: the one tree they are pickled as.
+fn original(tpd: &Tpd, annot: TNodeId) -> TNodeId {
+    tpd.copy_of(annot).unwrap_or(annot)
 }
 
 /// The annotated type an annotation tree is looked for, and the trees and types it is in.

@@ -37,7 +37,9 @@ impl Gen<'_, '_> {
             };
             self.operand(b, length, Kind::Int)?;
             b.code.new_array(b.pool, &elem);
-            b.code.checkcast(b.pool, &desc);
+            if b.cast_operand != Some(t) {
+                b.code.checkcast(b.pool, &desc);
+            }
             return Ok(Some(1));
         }
         self.expr(b, array)?;
@@ -49,7 +51,7 @@ impl Gen<'_, '_> {
             }
             (nme::UPDATE, &[i, value]) => {
                 self.operand(b, i, Kind::Int)?;
-                self.expr_as(b, value, classfile::value_slots(&elem))?;
+                self.expr_expect(b, value, &elem)?;
                 b.code.element(&elem, true);
                 0
             }
@@ -77,7 +79,7 @@ impl Gen<'_, '_> {
             b.code.insn(DUP);
             b.push("I");
             b.code.int(b.pool, i as i32);
-            self.expr_as(b, e, classfile::value_slots(&elem))?;
+            self.expr_expect(b, e, &elem)?;
             b.code.element(&elem, true);
         }
         Ok(1)
@@ -102,10 +104,13 @@ impl Gen<'_, '_> {
         if !reference(&to) || !class_or_array {
             return unsupported(span, "type tests and casts to primitive types");
         }
+        let cast = self.l.u.symbol(m).name == nme::AS_INSTANCE_OF && matches!(tested, Array(_));
+        b.cast_operand = cast.then_some(qualifier);
         match reference(&from) {
             true => _ = self.expr(b, qualifier)?,
             false => self.box_value(b, qualifier)?,
         }
+        b.cast_operand = None;
         match self.l.u.symbol(m).name.as_str() {
             nme::IS_INSTANCE_OF => b.code.instance_of(b.pool, &class_internal(&tested)),
             nme::AS_INSTANCE_OF if matches!(tested, Class(_)) && self.is_written_null(qualifier, span) => {}

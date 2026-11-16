@@ -12,13 +12,14 @@ use tasty::{Flags, Kind, Symbol, SymbolId, TypeId, Universe};
 pub const METHOD: u32 = 2;
 
 /// The symbols an expansion makes: the owner of its splice, the empty package and the root
-/// package's value; the arguments of the macro.
+/// package's value; the arguments of the macro; the annotations of the classes it makes.
 #[derive(Default)]
 pub struct Made {
     pub macro_owner: Option<SymbolId>,
     pub empty_package: Option<SymbolId>,
     root_package: Option<SymbolId>,
     pub args: super::from_symbol::Args,
+    pub annotations: typer::inlining::Annotations,
 }
 
 impl Host {

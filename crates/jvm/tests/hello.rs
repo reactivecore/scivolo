@@ -59,15 +59,6 @@ fn several_files_run_on_the_jvm() {
 }
 
 #[test]
-fn a_super_accessor_of_a_capturing_type_refused() {
-    let source = root().join("tests/jvm/refused/supercaptures.scala");
-    let (_, compiled) = compile("supercaptures", &source);
-    let stderr = String::from_utf8_lossy(&compiled.stderr);
-    let refusal = "does not support pickling an annotated type of a capture set that refers to other";
-    assert!(!compiled.status.success() && stderr.contains(refusal), "{stderr}");
-}
-
-#[test]
 fn a_class_parameter_field_capturing_another_parameter_refused() {
     let source = root().join("tests/jvm/refused/fieldcaptures.scala");
     let (_, compiled) = compile("fieldcaptures", &source);
@@ -233,6 +224,11 @@ fn jumps_over_32_kib_run_on_the_jvm() {
 }
 
 #[test]
+fn arrays_of_type_members_cast_as_dotty_on_the_jvm() {
+    runs_on_the_jvm("memberarrays", "Memberarrays");
+}
+
+#[test]
 fn a_macro_call_runs_over_the_macro_classpath() {
     if Command::new("java").arg("-version").output().is_err() {
         eprintln!("no java on the PATH: skipped");
@@ -354,14 +350,20 @@ fn an_annotated_type_inferred_from_another_file_with_its_own_tree_is_refused() {
 }
 
 #[test]
-fn a_definition_of_scala_unit_is_refused() {
+fn a_definition_of_scala_unit_is_the_well_known_unit() {
+    let source = root().join("tmp/jvm-test/unitdefined.scala");
+    std::fs::create_dir_all(source.parent().expect("a directory")).expect("tmp/jvm-test");
     let code = "package scala { final abstract class Unit private extends AnyVal }\n\
                 package p { class U { def t = summon[scala.reflect.ClassTag[Unit]] } }\n";
-    refuses("unitdefined", code, "a definition replacing a well-known library symbol");
+    std::fs::write(&source, code).expect("writing");
+    let (out, compiled) = compile("unitdefined", &source);
+    assert!(compiled.status.success(), "{}", String::from_utf8_lossy(&compiled.stderr));
+    let u = std::fs::read(out.join("p/U.class")).expect("p/U.class");
+    assert!(u.windows(12).any(|w| w == b"UnitManifest"), "ClassTag.Unit not referred to");
 }
 
 #[test]
-fn any_val_of_a_unit_of_several_files_is_left_out() {
+fn any_val_of_a_unit_of_several_files_is_the_well_known_any_val() {
     let any_val = "package scala\nimport scala.language.`2.13`\n\
                    transparent abstract class AnyVal extends Any, Matchable {\n\
                    def getClass(): Class[? <: AnyVal] = null.asInstanceOf[Class[? <: AnyVal]]\n}\n";
@@ -376,7 +378,7 @@ fn any_val_of_a_unit_of_several_files_is_left_out() {
         .output()
         .expect("running scivolo-jvm");
     let stderr = String::from_utf8_lossy(&run.stderr);
-    assert!(stderr.contains("AnyVal.scala: ") && !stderr.contains("v.scala: "), "{stderr}");
+    assert!(!stderr.contains("AnyVal.scala: ") && !stderr.contains("v.scala: "), "{stderr}");
     let companion = std::fs::read(out.join("V$.class")).expect("V$.class");
     assert!(companion.windows(15).any(|w| w == b"twice$extension"), "{stderr}");
 }
@@ -490,8 +492,6 @@ fn a_java_annotation_with_an_argument_that_is_no_constant_is_refused() {
     }
     let code = "class R { @java.beans.Transient(sys.props.isEmpty) def f = 1 }";
     refuses("refusedannotation", code, "Java annotation arguments other than constants");
-    let code = "class R { def f(@java.lang.annotation.Documented x: Int) = x }";
-    refuses("refusedparamannotation", code, "Java annotations of parameters on the JVM");
 }
 
 #[test]
@@ -535,11 +535,12 @@ fn a_refused_file_refuses_the_unit() {
 }
 
 #[test]
-fn a_cast_signature_polymorphic_call_is_refused() {
+fn a_cast_signature_polymorphic_call_of_an_inferred_type_is_refused() {
     if Command::new("java").arg("-version").output().is_err() {
         eprintln!("no java on the PATH: skipped");
         return;
     }
-    let code = "object R { def f = java.lang.invoke.MethodHandles.identity(classOf[String]).invoke(\"a\").asInstanceOf[String] }";
-    refuses("refusedpolymorphic", code, "cast of a signature polymorphic call");
+    let code = "object R { def id[T](x: T): T = x; \
+        def f = id(java.lang.invoke.MethodHandles.identity(classOf[String]).invoke(\"a\").asInstanceOf[String]) }";
+    refuses("refusedpolymorphic", code, "expected to be of an inferred type");
 }

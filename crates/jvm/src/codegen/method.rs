@@ -7,7 +7,7 @@ use super::descriptors::{method_descriptor, with_receiver};
 use super::{Gen, java_flags, method_name, unsupported};
 use classfile::{ACC_ABSTRACT, ACC_BRIDGE, ACC_FINAL, ACC_PUBLIC, ACC_STATIC, ACC_SYNTHETIC, ClassFile};
 use lower::Result;
-use names::{name_kinds, nme};
+use names::name_kinds;
 use syntax::ast::constant::Constant;
 use tasty::SymbolId;
 use typer::tpd::{TNodeId, Tree};
@@ -40,9 +40,10 @@ impl Gen<'_, '_> {
             params.filter(|&&p| matches!(self.l.tpd.tree(p), Tree::ValDef { .. })).copied().collect();
         let param_syms: Vec<SymbolId> =
             params.iter().map(|&p| self.l.tpd.sym(p).expect("a parameter's symbol")).collect();
-        if self.has_kept_param_annotations(&param_syms) {
-            return unsupported(self.l.tpd.span(dd), "Java annotations of parameters on the JVM");
-        }
+        let param_holders = match self.param_holders(sym, &param_syms) {
+            Ok(holders) => holders,
+            Err(what) => return unsupported(self.l.tpd.span(dd), what),
+        };
         let mixed_setter = self.l.mixed_in_from(sym).is_some()
             && name.ends_with("_$eq")
             && !name.contains(name_kinds::TRAIT_SETTER_SEPARATOR);
@@ -54,6 +55,7 @@ impl Gen<'_, '_> {
             self.exceptions(cf, sym);
             self.method_attributes(cf, (sym, deprecated), &desc, &param_syms, (erased, false));
             self.emit_method_annotations(cf, sym);
+            self.emit_param_annotations(cf, &param_holders);
             return Ok(());
         };
         let mut b = Body::new(&mut cf.pool, None, u16::from(!static_ || trait_init));
@@ -71,7 +73,7 @@ impl Gen<'_, '_> {
             self.line(&mut b, rhs);
             self.method_body(&mut b, rhs, &result)?;
         }
-        let this = if trait_init { Some(nme::SELF) } else { (!static_).then_some(nme::THIS) };
+        let this = self.this_name(sym, trait_init, static_);
         self.name_this_and_params(&mut b, start, this, &param_syms);
         let code = b.code;
         let at = cf.method_count();
@@ -80,6 +82,7 @@ impl Gen<'_, '_> {
         self.method_attributes(cf, (sym, deprecated), &desc, &param_syms, (erased, trait_init));
         if !trait_init {
             self.emit_method_annotations(cf, sym);
+            self.emit_param_annotations(cf, &param_holders);
         }
         let line = self.line_of(class_def);
         self.trait_forwarder(cf, (sym, flags), (&desc, &param_syms), line);

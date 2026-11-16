@@ -34,6 +34,24 @@ impl Host {
         self.reflect().class_parents(cls, parents)
     }
 
+    /// Gives `cls` the self type `self_type` (`Symbol.newClass(.., selfType = Some(..))`).
+    pub fn class_self_type(&mut self, cls: SymbolId, self_type: TypeId) {
+        self.u.set_self_type(cls, self_type);
+    }
+
+    /// Gives `cls` the annotations `annots` (`Symbol.newClass(.., clsAnnotations = ..)`).
+    pub fn class_annotations(&mut self, cls: SymbolId, annots: Vec<TNodeId>) -> Fallible<()> {
+        for annot in annots {
+            let tpe = self.tpd.tpe(annot);
+            let class = self.u.class_symbol(tpe).ok_or("Symbol.newClass with an annotation of no class")?;
+            self.u.annotate(cls, class);
+            self.tpd.annotate(cls, annot);
+            self.typer.annotations.entry(cls).or_default().push(annot);
+            self.made.annotations.entry(cls).or_default().push(annot);
+        }
+        Ok(())
+    }
+
     /// Gives `cls` a constructor of type `info`, and answers the sizes of its clauses.
     pub fn class_constructor(&mut self, cls: SymbolId, info: TypeId) -> Fallible<Vec<i32>> {
         let (ctor, clauses) = self.reflect().class_constructor(cls, info)?;

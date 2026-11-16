@@ -3,12 +3,15 @@
 //! Class files from the lowered trees: a port of dotty's `GenBCode`.
 
 mod access;
+mod adapt;
+mod annotation_holders;
 mod annotation_values;
 mod arrays;
 mod body;
 mod callee;
 mod class;
 mod class_bytes;
+mod classfile_class_flags;
 mod clinit;
 mod closures;
 mod concat;
@@ -30,6 +33,7 @@ mod method;
 mod mirror;
 mod monitors;
 mod nested;
+mod owner_seen;
 mod prims;
 mod pure_stats;
 mod serial;

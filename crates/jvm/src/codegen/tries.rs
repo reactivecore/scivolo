@@ -46,7 +46,7 @@ impl Gen<'_, '_> {
         let post = b.code.new_label();
         let start = b.code.here();
         b.cleanups.extend(cleanup);
-        self.expr_as(b, expr, slots)?;
+        self.expr_expect(b, expr, &desc)?;
         b.cleanups.truncate(b.cleanups.len() - usize::from(cleanup.is_some()));
         nop_if_needed(b, start);
         let end = b.code.here();
@@ -62,7 +62,7 @@ impl Gen<'_, '_> {
                 Some((_, local, slot)) => b.code.store(local, slot),
                 None => b.code.pop(),
             }
-            self.expr_as(b, c.body, slots)?;
+            self.expr_expect(b, c.body, &desc)?;
             nop_if_needed(b, handler);
             if let Some((sym, local, slot)) = bound {
                 self.name_local(b, sym, (local, slot), handler, false);

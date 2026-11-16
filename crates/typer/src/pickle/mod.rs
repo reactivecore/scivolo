@@ -8,6 +8,7 @@ mod annotation_origins;
 mod applies;
 mod cases;
 mod defs;
+mod inferred_captures;
 mod kept_annotations;
 mod member_tpts;
 mod names;
@@ -82,8 +83,14 @@ pub struct TreePickler<'a> {
     /// The type tree of each parameter pickled.
     param_tpts: FxHashMap<SymbolId, TNodeId>,
     /// The type of each synthetic type tree pickled with the capture-set annotations its
-    /// definition's info has (`retaining::keep_captures`).
+    /// definition's info has (`retaining::keep_captures`), and of each inferred one with the
+    /// emptied capture sets of the type it was inferred from (`inferred_captures`).
     kept_captures: FxHashMap<TNodeId, TypeId>,
+    /// The class of the definition of each such synthetic type tree, whose `this` its capture
+    /// sets may name.
+    capture_classes: FxHashMap<TNodeId, SymbolId>,
+    /// The class of the super accessor pickled now, whose `this` its type's capture sets may name.
+    accessor_class: Option<SymbolId>,
     /// Whether the source version keeps capture-set annotations as types (dotty's
     /// `enablesCompactAnnotation`).
     compact_annotations: bool,
@@ -118,6 +125,10 @@ pub struct TreePickler<'a> {
     /// The type trees of the case patterns, typed patterns and pattern variables enclosing the
     /// tree pickled now, or of the member of the super accessor pickled now, outermost first.
     typed_tpts: Vec<Vec<TNodeId>>,
+    /// The type trees of the member of the super accessor parameter or result pickled now.
+    member_tpts: Vec<TNodeId>,
+    /// The span of the innermost tree with one whose pickling was refused.
+    refused_at: Option<Span>,
     /// The selector of the match whose case is pickled next, and of the pattern pickled now.
     scrutinee: Option<TNodeId>,
     pattern_selector: Option<TNodeId>,
@@ -136,7 +147,7 @@ pub fn pickle_quote(
     root: TNodeId,
     holes: &[QuoteHole],
 ) -> Result<Vec<u8>, Refusal> {
-    pickle(cx, root, holes, None, None).map(|(bytes, _)| bytes)
+    pickle(cx, root, holes, None, None).map(|(bytes, _)| bytes).map_err(|(_, r)| r)
 }
 
 /// The TASTy of quote `root` of `source`, `holes` its term holes, with positions.
@@ -146,18 +157,19 @@ pub fn pickle_positioned_quote(
     holes: &[QuoteHole],
     source: &QuoteSource,
 ) -> Result<Vec<u8>, Refusal> {
-    pickle(cx, root, holes, Some(source), None).map(|(bytes, _)| bytes)
+    pickle(cx, root, holes, Some(source), None).map(|(bytes, _)| bytes).map_err(|(_, r)| r)
 }
 
 /// The TASTy of `root`: its trees, positions if `source` is given, and the comments and
 /// attributes of a file if `file` is; and the super accessors pickled, each its class and name.
+/// A refusal carries the span of the innermost tree refused that has one, else `root`'s.
 fn pickle<'a>(
     (u, tpd, names): (&'a mut Universe, &'a Tpd, &'a Names),
     root: TNodeId,
     holes: &[QuoteHole],
     source: Option<&QuoteSource>,
     file: Option<&'a File<'a>>,
-) -> Result<(Vec<u8>, Accessors), Refusal> {
+) -> Result<(Vec<u8>, Accessors), (Span, Refusal)> {
     let mut pickler = Pickler::default();
     let section = pickler.new_section("ASTs");
     let holes = holes.iter().map(|h| (h.node, (h.index, h.args.clone()))).collect();
@@ -181,6 +193,8 @@ fn pickle<'a>(
         self_refs: FxHashSet::default(),
         param_tpts: FxHashMap::default(),
         kept_captures: FxHashMap::default(),
+        capture_classes: FxHashMap::default(),
+        accessor_class: None,
         compact_annotations: file
             .map_or(source.is_none_or(|s| s.compact_annotations), |f| f.attributes.compact_annotations),
         file,
@@ -197,22 +211,27 @@ fn pickle<'a>(
         type_tree: None,
         annots: Vec::new(),
         typed_tpts: Vec::new(),
+        member_tpts: Vec::new(),
         scrutinee: None,
         pattern_selector: None,
         type_annots: Vec::new(),
         root,
         origins: None,
         keyed_by_place: false,
+        refused_at: None,
     };
-    p.tree(root)?;
+    let at = |p: &TreePickler| p.refused_at.unwrap_or_else(|| p.tpd.span(root));
+    if let Err(refusal) = p.tree(root) {
+        return Err((at(&p), refusal));
+    }
     if !p.forward.is_empty() {
-        return Err("a reference to a local definition outside the pickled trees");
+        return Err((at(&p), "a reference to a local definition outside the pickled trees"));
     }
     p.buf.compactify();
     let bytes = std::mem::take(&mut p.buf.buf.bytes);
     p.pickler.set_section(section, bytes);
     if let Some(source) = source {
-        p.positions(root, source)?;
+        p.positions(root, source).map_err(|r| (at(&p), r))?;
     }
     if let (Some(file), Some(source)) = (file, source) {
         p.file_sections(&file.attributes, &source.path);

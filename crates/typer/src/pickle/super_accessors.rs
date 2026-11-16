@@ -145,7 +145,7 @@ impl TreePickler<'_> {
         let acc = self.u.define(symbol);
         self.u.set_owner(acc, class);
         let info = self.u.widen(self.tpd.tpe(sel));
-        let info = accessor_info(self.u, *member, info);
+        let info = accessor_info(self.u, *member, class, info);
         self.u.set_info(acc, info);
         let tasty_name = |u: &Universe, original: &str| {
             let base = match trait_ {
