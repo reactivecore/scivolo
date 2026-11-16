@@ -84,33 +84,25 @@ fn rhs_type(u: &mut Universe, tpd: &Tpd, rhs: TNodeId) -> Option<TypeId> {
         info = u.method(info)?.result;
     }
     match *u.ty(info) {
-        Type::ByName(r) => match u.annotated(r) {
-            Some((inner, annot)) if is_by_name_captures(u, annot) => Some(inner),
-            _ => Some(r),
-        },
+        Type::ByName(r) => Some(r),
         _ => u.method(info).is_none().then_some(info),
     }
 }
 
-/// Whether annotation class type `annot` is `retainsByName`, a by-name parameter's capture set,
-/// which a reference to the parameter drops.
-fn is_by_name_captures(u: &mut Universe, annot: TypeId) -> bool {
-    is_retains_like(u, annot)
-        && u.class_symbol(annot).is_some_and(|c| u.symbol(c).name == nme::RETAINS_BY_NAME)
-}
-
-/// `t` with the capture set of each capture-checking annotation but `retainsCap` empty,
-/// `retains[Nothing]` (dotty's `CleanupRetains` where capture checking is enabled).
+/// `t` with the capture set of each capture-checking annotation empty, `retains[Nothing]`, but
+/// each type annotated `retainsCap` as it is (dotty's `CleanupRetains` where capture checking is
+/// enabled).
 fn emptied(u: &mut Universe, t: TypeId) -> TypeId {
     u.map_type(t, &mut |u, part| {
         let (inner, annot) = u.annotated(part)?;
         if !is_retains_like(u, annot) {
             return None;
         }
+        if u.class_symbol(annot).is_some_and(|c| u.symbol(c).name == nme::RETAINS_CAP) {
+            return Some(part);
+        }
         let inner = emptied(u, inner);
-        let cap = u.class_symbol(annot).is_some_and(|c| u.symbol(c).name == nme::RETAINS_CAP);
         let annot = match u.applied(annot) {
-            _ if cap => annot,
             Some((tycon, _)) => u.intern_applied(tycon, &[tasty::NOTHING]),
             None => u.intern_applied(annot, &[tasty::NOTHING]),
         };

@@ -334,7 +334,8 @@ Results:
   definitions in the field of a class parameter, as dotty a type `retains[C]` or below source 3.9
   `new retains[C]()`, and refuses one of other references there and in pickled types. An inferred
   type tree keeps the capture sets of the type it is inferred from, emptied as dotty's
-  `CleanupRetains` does, where that type is a function value's expected parameter type or the
+  `CleanupRetains` does (a type `T^` whole, so refused if `T` names other than static
+  definitions), where that type is a function value's expected parameter type or the
   declared type of what its right-hand side refers to or calls without type arguments; other
   inferred types drop them, a difference left (#276: e.g. of a generic call, a conditional, an
   inferred type argument or an overriding member). The capture checker,

@@ -11,3 +11,6 @@ object Locals:
   def g(a: A^, b: B^{a}): Int =
     val y = b
     1
+  def h(a: A^, b: => B^{a}): Int =
+    val y = b
+    1

@@ -125,7 +125,7 @@ fn normalized_as(u: &mut tasty::Universe, t: TypeId, keep_captures: bool) -> Typ
             && !keep_captures
             && is_retains_like(u, a)
         {
-            return Some(inner);
+            return Some(normalized_as(u, inner, false));
         }
         let (tycon, args) = u.applied(part).map(|(tycon, args)| (tycon, args.to_vec()))?;
         let alias = match *u.ty(tycon) {
