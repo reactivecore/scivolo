@@ -26,7 +26,7 @@ impl Unpickler<'_> {
     }
 
     /// The type `fun` applies, seen from its prefix, and the method it refers to.
-    fn method_type(&mut self, fun: TNodeId) -> (TypeId, Option<SymbolId>) {
+    pub fn method_type(&mut self, fun: TNodeId) -> (TypeId, Option<SymbolId>) {
         let tpe = self.tpd.tpe(fun);
         let meth = self.tpd.sym(self.tpd.meth_part(fun));
         match *self.u.ty(tpe) {
@@ -120,7 +120,7 @@ impl Unpickler<'_> {
             return Err("application of a value in a library inline body");
         };
         if params.len() != args.len() {
-            return self.defaulted_java_annotation(fun, meth, &params, args);
+            return Err("application with missing arguments in a library inline body");
         }
         let part = self.tpd.meth_part(fun);
         let curried = self.u.method(result).is_some();
