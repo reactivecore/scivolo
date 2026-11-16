@@ -2,8 +2,8 @@
 //   compiler/src/dotty/tools/backend/jvm/BCodeBodyBuilder.scala
 //! Branches, loops and destinations of values (dotty's `genLoadIfTo`, `genLoadTo`, `genWhileDo`).
 
-use super::body::{Body, Dest};
 use super::Gen;
+use super::body::{Body, Dest};
 use super::descriptors::{NOTHING, descriptor};
 use lower::Result;
 use syntax::ast::constant::Constant;

@@ -7,7 +7,7 @@ use super::descriptors::{method_descriptor, with_receiver};
 use super::{Gen, java_flags, method_name, unsupported};
 use classfile::{ACC_ABSTRACT, ACC_BRIDGE, ACC_FINAL, ACC_PUBLIC, ACC_STATIC, ACC_SYNTHETIC, ClassFile};
 use lower::Result;
-use names::{name_kinds, nme};
+use names::name_kinds;
 use syntax::ast::constant::Constant;
 use tasty::SymbolId;
 use typer::tpd::{TNodeId, Tree};
@@ -71,7 +71,7 @@ impl Gen<'_, '_> {
             self.line(&mut b, rhs);
             self.method_body(&mut b, rhs, &result)?;
         }
-        let this = if trait_init { Some(nme::SELF) } else { (!static_).then_some(nme::THIS) };
+        let this = self.this_name(sym, trait_init, static_);
         self.name_this_and_params(&mut b, start, this, &param_syms);
         let code = b.code;
         let at = cf.method_count();
