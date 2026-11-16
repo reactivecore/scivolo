@@ -229,6 +229,7 @@ mod unresolved_terms;
 mod unsafe_nulls;
 mod untupled;
 mod valid_infix;
+mod varargs;
 mod variance_check;
 mod variance_ops;
 mod variances;

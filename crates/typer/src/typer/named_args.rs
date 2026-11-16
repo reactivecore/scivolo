@@ -4,6 +4,7 @@
 //! `matchArgs`), where neither the function nor the arguments need lifting.
 
 use super::reordered_args::Aligned;
+use super::varargs::Varargs;
 use super::{Pt, Typer};
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
@@ -13,10 +14,11 @@ use tasty::{NameId, SymbolId, TypeId};
 impl Typer<'_> {
     /// Call `f` of `method` and its arguments `aligned`, typed against `formals`, the types of
     /// `params`, a missing one its default, with the definitions lifted out of them (dotty's
-    /// `TypedApply` with `liftFun` and `liftArgs`).
+    /// `TypedApply` with `liftFun` and `liftArgs`). The arguments after the slots of the
+    /// parameters before repeated parameter `varargs` are packed into its sequence.
     pub fn typed_aligned_args(
         &mut self,
-        (mut f, method): (TNodeId, Option<SymbolId>),
+        (mut f, method, varargs): (TNodeId, Option<SymbolId>, Option<&Varargs>),
         (args, aligned, pretyped): (&[NodeId], &Aligned, Option<&[Option<TNodeId>]>),
         (params, formals): (&[(NameId, TypeId)], &[TypeId]),
         ctx: Ctx,
@@ -38,10 +40,15 @@ impl Typer<'_> {
             }
         }
         let formals = lifted_formals.as_deref().unwrap_or(formals);
+        let fixed = params.len() - usize::from(varargs.is_some());
         let mut typed = Vec::new();
         let mut safe = true;
+        let mut before_elems = None;
         for (i, slot) in aligned.iter().enumerate() {
-            let formal = formals[i];
+            let formal = formals[i.min(formals.len() - 1)];
+            if i == fixed {
+                before_elems = Some(self.before_harmonic());
+            }
             let arg = match *slot {
                 Some(a) => match *self.ast.tree(a) {
                     Tree::NamedArg { name, arg } => {
@@ -65,6 +72,13 @@ impl Typer<'_> {
             safe &= self.is_pure_expr(arg);
             typed.push(arg);
         }
+        if let Some(v) = varargs {
+            let elems = typed.split_off(fixed);
+            let before = typed.last().copied().unwrap_or(f);
+            let seq = self.packed_varargs(elems, (before, before_elems), v, ctx)?;
+            safe &= self.is_pure_expr(seq);
+            typed.push(seq);
+        }
         if method.is_some_and(|m| self.is_java_annotation_constructor(m)) {
             return Ok((f, self.named_java_annotation_args(params, typed), defs));
         }
@@ -77,8 +91,8 @@ impl Typer<'_> {
             let mut arg_defs = Vec::new();
             typed = self.lift_args(&mut arg_defs, params, &typed, complex, ctx);
             let position =
-                |i: usize| aligned[i].and_then(|a| args.iter().position(|&b| b == a)).unwrap_or(args.len());
-            arg_defs.sort_by_key(|&(i, _)| position(i));
+                |i: usize| aligned.get(i).copied().flatten().and_then(|a| args.iter().position(|&b| b == a));
+            arg_defs.sort_by_key(|&(i, _)| position(i).unwrap_or(args.len()));
             defs.extend(arg_defs.into_iter().map(|(_, d)| d));
         }
         Ok((f, typed, defs))

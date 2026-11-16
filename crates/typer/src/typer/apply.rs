@@ -2,6 +2,7 @@
 //   compiler/src/dotty/tools/dotc/typer/Applications.scala
 //! Applications `f(args)` (dotty's `typedApply`).
 
+use super::varargs::Varargs;
 use super::{Pt, Typer};
 use crate::ctx::{Ctx, Mode};
 use crate::tpd::{TNodeId, Tree as T};
@@ -101,6 +102,7 @@ impl Typer<'_> {
         let repeated = params.last().and_then(|&(_, p)| self.repeated_param_elem(p));
         let by_name_repeated =
             repeated.is_some() && params.last().is_some_and(|&(_, p)| self.u.by_name(p).is_some());
+        let all_params = params.clone();
         if repeated.is_some() {
             params.pop();
         }
@@ -138,12 +140,17 @@ impl Typer<'_> {
         if super::wildcard_members::is_bounds_like(self.u, result) {
             return self.unsupported(id, "result type of a wildcard argument");
         }
+        let varargs = repeated.map(|elem| Varargs { elem, meth, result, by_name: by_name_repeated });
         let aligned_args = aligned.as_ref().map(|a| {
-            self.typed_aligned_args((f, method), (&arg_ids, a, pretyped.as_deref()), (&params, &formals), ctx)
+            let call = (f, method, varargs.as_ref());
+            self.typed_aligned_args(call, (&arg_ids, a, pretyped.as_deref()), (&all_params, &formals), ctx)
         });
         let (f, mut typed_args, lifted) = match aligned_args {
             _ if !outer.is_empty() && aligned.is_some() => {
                 return self.unsupported(id, "named or default arguments after a lifted call");
+            }
+            _ if seq_arg.is_some() && aligned.is_some() => {
+                return self.unsupported(id, "named or default arguments with a sequence argument");
             }
             Some(Err(what)) => return self.unsupported(id, what),
             Some(Ok(parts)) => parts,
@@ -191,10 +198,10 @@ impl Typer<'_> {
             let tpe = self.zonk(self.tpd.tpe(a));
             *self.u.ty(tpe) == Type::Error
         });
-        if let Some(elem) = repeated {
+        if let Some(varargs) = varargs.as_ref().filter(|_| aligned.is_none()) {
             let arg = match seq_arg {
                 Some(a) => {
-                    let elem = self.from_java_object(meth, elem);
+                    let elem = self.from_java_object(meth, varargs.elem);
                     match pretyped.as_ref().and_then(|typed| typed[arg_ids.len() - 1]) {
                         Some(typed) => match self.repeated_elem(self.tpd.tpe(typed)) {
                             Some(e) if self.conforms(e, elem) => typed,
@@ -204,25 +211,12 @@ impl Typer<'_> {
                     }
                 }
                 None => {
-                    let mut elems = typed_args.split_off(params.len());
-                    if self.is_open(result) {
-                        elems = match self.harmonic(elems, Pt::Type(elem), before_elems, ctx) {
-                            Ok(h) => h,
-                            Err(what) => return self.unsupported(id, what),
-                        };
-                    }
+                    let elems = typed_args.split_off(params.len());
                     let before = typed_args.last().copied().unwrap_or(f);
-                    let at = self.tpd.span(before).end_pos();
-                    let elem = self.normalized_tuple_type(elem);
-                    let elem = self.java_object_elem(meth, elem);
-                    let arg = self.seq_literal(&elems, elem, at);
-                    if let T::Typed { expr, .. } = *self.tpd.tree(arg) {
-                        if by_name_repeated {
-                            self.type_seq_literal(expr);
-                        }
-                        self.note_spreads(expr, ctx);
+                    match self.packed_varargs(elems, (before, before_elems), varargs, ctx) {
+                        Ok(arg) => arg,
+                        Err(what) => return self.unsupported(id, what),
                     }
-                    arg
                 }
             };
             typed_args.push(arg);
