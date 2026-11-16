@@ -36,6 +36,9 @@ impl ClassFile {
                 Attribute::Annotations(_, annotations) => {
                     annotations.iter().for_each(|a| a.descriptors(&mut texts))
                 }
+                Attribute::ParameterAnnotations(_, params) => {
+                    params.iter().flatten().for_each(|a| a.descriptors(&mut texts))
+                }
                 _ => {}
             }
         }

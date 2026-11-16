@@ -19,13 +19,17 @@ pub fn new_seen_from(l: &mut Lower, c: SymbolId, mono: Option<TypeId>) -> TNodeI
     l.tpd.node(Tree::New { tpt }, Span::NONE, Some(tpe), None)
 }
 
-/// The prefix of class `class` in type `param` if it is a member of a class.
+/// The prefix of class `class` in type `param`, or in a part of it an intersection, if it is a
+/// member of a class.
 pub fn class_prefix(l: &mut Lower, param: TypeId, class: SymbolId) -> Option<TypeId> {
     let owner = l.u.symbol(class).owner?;
     if l.u.symbol(owner).kind != Kind::Class {
         return None;
     }
     let t = l.u.dealias(param);
+    if let Type::And(a, b) = *l.u.ty(t) {
+        return class_prefix(l, a, class).or_else(|| class_prefix(l, b, class));
+    }
     let t = l.u.applied(t).map_or(t, |(tycon, _)| tycon);
     let t = l.u.this_of(t).unwrap_or(t);
     l.u.sym_ref(t).filter(|&(_, s)| s == class).and_then(|(pre, _)| pre)

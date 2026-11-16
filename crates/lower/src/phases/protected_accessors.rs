@@ -89,9 +89,6 @@ fn rewrite(l: &mut Lower, t: TNodeId, class: SymbolId, made: &mut Vec<Accessor>)
     let this = l.u.this_type(host);
     let info = l.u.member_info(this, sym);
     let info = java_named(l, sym, info);
-    if l.u.poly(info).is_some() {
-        return unsupported(span, "protected accessors of polymorphic methods");
-    }
     let name = name_kinds::protected_accessor(&l.u.symbol(sym).name);
     let acc = accessor(l, host, &name, info, (sym, false), made);
     let new = rewired(l, qualifier, acc, span);
@@ -193,6 +190,7 @@ fn accessor_def(l: &mut Lower, root: TNodeId, a: &Accessor, end: Span) -> TNodeI
     let host = l.u.symbol(a.sym).owner.expect("an accessor's class");
     let (accessed, setter) = (a.accessed, a.setter);
     let info = l.u.info(accessed);
+    let info = l.u.poly(info).map_or(info, |p| p.result);
     let applied = l.u.method(info).is_some();
     l.forwarding_def(a.sym, span, |l, args, result| {
         let access = reference(l, host, accessed, span);
