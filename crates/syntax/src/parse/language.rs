@@ -38,6 +38,23 @@ pub fn language_prefix(ast: &Ast, names: &Names, path: NodeId) -> Option<String>
     root_ok.then(String::new)
 }
 
+/// Determines the features `stat` of `ast` enables if it is a language import.
+pub fn imported_features(ast: &Ast, names: &Names, stat: NodeId) -> Features {
+    let mut features = Features::default();
+    let Tree::Import { expr, selectors } = *ast.tree(stat) else { return features };
+    let Some(prefix) = language_prefix(ast, names, expr) else { return features };
+    for &sel in ast.items(selectors) {
+        let Tree::ImportSelector { imported, renamed: None, .. } = *ast.tree(sel) else { continue };
+        let Tree::Ident { name } = *ast.tree(imported) else { continue };
+        let name = names.text(name.name);
+        let qualified = if prefix.is_empty() { name.to_string() } else { format!("{prefix}.{name}") };
+        if let Some(f) = Features::named(&qualified) {
+            features.insert(f);
+        }
+    }
+    features
+}
+
 impl Parser<'_> {
     /// `Some(prefix)` if `path` is `[[_root_.]scala.]language[.prefix]` (dotty's `languageImport`).
     pub fn language_prefix(&self, path: NodeId) -> Option<String> {

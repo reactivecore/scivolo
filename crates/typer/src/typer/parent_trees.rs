@@ -52,7 +52,7 @@ impl Typer<'_> {
             Some(ctor) if self.u.symbol(ctor).name == nme::CONSTRUCTOR => self.u.symbol(ctor).owner,
             _ => {
                 let tpe = self.tpd.tpe(tree);
-                self.u.class_symbol(tpe)
+                self.u.class_symbol(tpe).or_else(|| self.refined_class(tpe))
             }
         }
     }

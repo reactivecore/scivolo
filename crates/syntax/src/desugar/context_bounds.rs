@@ -4,14 +4,34 @@
 //! `elimContextBounds`).
 
 use super::Desugar;
+use crate::ast::constant::Constant;
 use crate::ast::flags::{self, FlagSet};
-use crate::ast::{Attrs, List, NodeId, TName, Tree};
+use crate::ast::{Ast, Attrs, List, NodeId, TName, Tree};
 use crate::config::{Features, SourceVersion};
-use crate::names::to_utf16;
+use crate::names::{Names, to_utf16};
 
 pub const WITNESS_NAMES: &str = "scala.annotation.internal.WitnessNames";
 
+/// Determines the evidence names of `@WitnessNames` annotation `annot` the desugaring adds to a
+/// type with context bounds (dotty's `WitnessNamesAnnot.unapply`); `None` for other annotations.
+pub fn witness_names(ast: &Ast, names: &Names, annot: NodeId) -> Option<Vec<String>> {
+    let Tree::Apply { fun, args } = *ast.tree(annot) else { return None };
+    let Tree::TypedSplice { sym } = *ast.tree(fun) else { return None };
+    if names.text(sym.name) != WITNESS_NAMES {
+        return None;
+    }
+    let strings = ast.items(args).iter().map(|&a| match ast.tree(a) {
+        Tree::Literal { value: Constant::String(s) } => String::from_utf16(s).ok(),
+        _ => None,
+    });
+    strings.collect()
+}
+
 impl Desugar<'_> {
+    pub fn is_witness_names(&self, annot: NodeId) -> bool {
+        witness_names(self.ast, self.names, annot).is_some()
+    }
+
     /// Type definition `tdef` without context bounds; their evidence goes to `evidence`, named
     /// `evidence$N` from `counter`, or as invented given names without one.
     pub fn desugar_context_bounds(
@@ -34,8 +54,19 @@ impl Desugar<'_> {
         if !self.cfg.features.contains(Features::MODULARITY) || names.is_empty() || clash {
             return tdef1;
         }
-        let annot = self.sym_ref(WITNESS_NAMES, true);
-        let annot = self.ast.respan(annot, self.ast.span(tdef));
+        let span = self.ast.span(tdef);
+        let fun = self.sym_ref(WITNESS_NAMES, true);
+        let fun = self.ast.respan(fun, span);
+        let args: Vec<NodeId> = names
+            .iter()
+            .map(|&n| {
+                let lit = self.literal(Constant::String(to_utf16(self.text(n)).into()));
+                self.ast.respan(lit, span)
+            })
+            .collect();
+        let args = self.list(&args);
+        let annot = self.ast.node(Tree::Apply { fun, args });
+        let annot = self.ast.respan(annot, span);
         let Some(mods) = self.ast.mods_of(tdef1) else { return tdef1 };
         let mut m = self.ast.modifiers(mods).clone();
         let annots = [self.ast.items(m.annotations), &[annot]].concat();

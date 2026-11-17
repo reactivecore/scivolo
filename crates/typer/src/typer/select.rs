@@ -15,6 +15,9 @@ use tasty::{Kind, SymbolId};
 
 impl Typer<'_> {
     pub fn typed_select(&mut self, id: NodeId, qualifier: NodeId, name: TName, pt: Pt, ctx: Ctx) -> TNodeId {
+        if let Some(t) = self.cb_select(id, qualifier, name, pt, ctx) {
+            return t;
+        }
         let path = matches!(self.ast.tree(qualifier), S::Ident { .. } | S::Select { .. });
         let text = self.text(name.name).to_owned();
         let mode = if path { Mode::QUALIFIER } else { Mode::NONE };

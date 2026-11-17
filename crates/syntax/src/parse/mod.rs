@@ -14,7 +14,7 @@ mod idents;
 mod imports;
 mod infix;
 mod interpolation;
-mod language;
+pub(crate) mod language;
 mod literals;
 mod location;
 mod lookahead;

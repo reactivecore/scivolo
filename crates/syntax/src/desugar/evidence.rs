@@ -4,7 +4,6 @@
 //! `fitEvidenceParams`).
 
 use super::Desugar;
-use super::context_bounds::WITNESS_NAMES;
 use crate::ast::flags::{self, FlagSet};
 use crate::ast::modifiers::Modifiers;
 use crate::ast::tree::ModsId;
@@ -36,9 +35,7 @@ impl Desugar<'_> {
 
     fn has_witness_names(&self, mods: ModsId) -> bool {
         let annots = self.ast.modifiers(mods).annotations;
-        self.ast.items(annots).iter().any(
-            |&a| matches!(*self.ast.tree(a), Tree::TypedSplice { sym } if self.text(sym) == WITNESS_NAMES),
-        )
+        self.ast.items(annots).iter().any(|&a| self.is_witness_names(a))
     }
 
     /// `clauses` with `params` fitted in, both halves of dotty's result joined.

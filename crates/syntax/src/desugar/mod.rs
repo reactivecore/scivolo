@@ -47,6 +47,7 @@ use crate::source::SourceFile;
 use class_syms::{ClassSym, Scope};
 use rustc_hash::FxHashMap;
 
+pub use context_bounds::witness_names;
 pub use given_name::given_type_name;
 
 /// What the trees being desugared are (dotty's `Mode`).

@@ -71,7 +71,8 @@ impl Typer<'_> {
     }
 
     /// The definitions implementing the deferred givens class `cls` inherits and its superclass
-    /// does not, searched in `ctx`, outside the class, and the class's given parameters.
+    /// does not, searched in `ctx`, outside the class, and the class's given parameters; those of
+    /// a base class before those of its subclasses, as dotty's member names list them.
     pub fn deferred_given_impls(
         &mut self,
         cls: SymbolId,
@@ -86,18 +87,24 @@ impl Typer<'_> {
         let superclass =
             parents.first().and_then(|&p| self.u.class_symbol(p)).filter(|&s| !self.u.is_trait(s));
         let inherited = superclass.map(|s| self.u.linearization(s)).unwrap_or_default();
-        let (mut impls, mut done) = (Vec::new(), Vec::new());
+        let mut found: Vec<(String, SymbolId, usize)> = Vec::new();
         let bases = self.u.linearization(cls);
-        for &base in bases.iter().skip(1).filter(|b| !inherited.contains(b)) {
+        for (i, &base) in bases.iter().enumerate().skip(1).filter(|(_, b)| !inherited.contains(b)) {
             for dcl in self.u.decls(base).unwrap_or_default() {
                 let name = self.u.symbol(dcl).name.clone();
-                if !self.is_deferred_given(dcl) || done.contains(&name) || self.has_value_named(&bases, &name)
-                {
+                if !self.is_deferred_given(dcl) || self.has_value_named(&bases, &name) {
                     continue;
                 }
-                done.push(name);
-                impls.extend(self.deferred_given_impl(cls, dcl, (ctx, cctx), span)?);
+                match found.iter_mut().find(|(n, ..)| *n == name) {
+                    Some((.., first)) => *first = i,
+                    None => found.push((name, dcl, i)),
+                }
             }
+        }
+        found.sort_by_key(|&(.., first)| std::cmp::Reverse(first));
+        let mut impls = Vec::new();
+        for (_, dcl, _) in found {
+            impls.extend(self.deferred_given_impl(cls, dcl, (ctx, cctx), span)?);
         }
         Ok(impls)
     }

@@ -52,6 +52,7 @@ impl Typer<'_> {
         let super_ctx = self.super_call_ctx(t.constr, ctx);
         self.u.type_params(cls).into_iter().for_each(|p| self.complete(p));
         let parents = self.parent_types(cls, tree, &t.parents, super_ctx);
+        let parents = self.separate_parent_refinements(cls, parents, ctx);
         self.check_parents(cls, rhs, &parents);
         let parents = self.adjust_synthetic_parents(cls, tree, parents);
         self.check_dynamics_enabled(rhs, &parents, ctx);
@@ -125,6 +126,7 @@ impl Typer<'_> {
         let (body, dummy) = self.typed_template_stats(cls, &t.body, cctx);
         let body = [self.bean_accessors(&body, cctx), body].concat();
         let mut body = self.with_inline_members(cls, body, cctx);
+        body.extend(self.parent_refinement_defs(cls, self.ast.span(rhs)));
         match self.deferred_given_impls(cls, ctx, cctx, self.ast.span(id)) {
             Ok(impls) => body.extend(impls),
             Err(what) => return self.unsupported(id, what),
