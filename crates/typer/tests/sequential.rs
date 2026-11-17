@@ -400,6 +400,8 @@ fn overrides_with_incompatible_types() {
         "class A { def y[X](x: X): X = x }\nclass B extends A { override def y[Z](x: Z): Int = 1 }\n",
         "trait T { def y: Int }\ntrait U extends T { def y: String }\n",
         "class A { def y(x: Int): Int = x }\nclass B extends A { override def y(x: Int): String = \"\" }\n",
+        "abstract class A { def y: Int }\ntrait T { def y: String = \"\" }\nclass B extends A with T\n",
+        "trait T { def y: Int }\ntrait U { def y: String }\nabstract class B extends T with U\n",
     ];
     for text in incompatible {
         assert_eq!(
@@ -410,6 +412,9 @@ fn overrides_with_incompatible_types() {
     }
     let compatible = [
         "class A { def y: Any = 1 }\nclass B extends A { override def y: String = \"\" }\n",
+        "trait T { def y: Any }\ntrait U { def y: String }\nabstract class B extends T with U\n",
+        "trait T { type X <: Int }\ntrait U { type X <: String }\nabstract class B extends T with U\n",
+        "trait T { def y: Int }\ntrait U { def y: String }\nabstract class B extends T with U { def y: Nothing }\n",
         "class A[T] { def y: Option[T] = None }\nclass B extends A[Int] { override def y: Some[Int] = Some(1) }\n",
         "class A { type T <: AnyVal }\nclass B extends A { type T = Int }\n",
         "abstract class A { type T <: Seq[Int] }\nabstract class B extends A { type T <: List[Int] }\n",

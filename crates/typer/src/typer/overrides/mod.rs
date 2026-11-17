@@ -5,6 +5,7 @@
 
 mod abstract_members;
 mod inherited_conflicts;
+mod inherited_pairs;
 mod member_overrides;
 mod name_clashes;
 mod override_kinds;
@@ -67,7 +68,7 @@ impl OverrideChecks {
         if let Some(what) = self.member_refusal(t, own.clone()) {
             return t.unsupported_at(self.span, what);
         }
-        if self.incompatible_term_member(t, &own) || self.incompatible_type_member(t, &own) {
+        if !t.diags.has_errors() && self.incompatible_type(t, &own) {
             return t.unsupported_at(self.span, "override with an incompatible type");
         }
         if self.overrides_nothing(t) {
