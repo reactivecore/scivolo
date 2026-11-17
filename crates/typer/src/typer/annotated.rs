@@ -10,7 +10,7 @@ use tasty::{Type, TypeId};
 
 /// The meta-annotations of `scala.annotation.meta` that choose the definitions a field's
 /// annotation goes to.
-const ACCESSOR_METAS: [&str; 4] = ["field", "getter", "setter", "param"];
+const ACCESSOR_METAS: [&str; 6] = ["field", "getter", "setter", "param", "beanGetter", "beanSetter"];
 
 impl Typer<'_> {
     pub fn typed_annotated(&mut self, id: NodeId, arg: NodeId, annot: NodeId, pt: Pt, ctx: Ctx) -> TNodeId {

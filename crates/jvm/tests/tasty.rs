@@ -102,6 +102,7 @@ const DOTTY_TASTY: &[(&str, &[&str])] = &[
         &["scala/probe/Counter", "scala/probe/Counters", "scala/probe/Outer", "scala/probe/Derived"],
     ),
     ("constructors", &["scala/probe/Base", "scala/probe/Derived"]),
+    ("beanproperties", &["scala/probe/Beans"]),
 ];
 
 /// The trees, positions and flag attributes of the classes of `DOTTY_TASTY` are dotty's: the
@@ -113,7 +114,7 @@ const DOTTY_TASTY: &[(&str, &[&str])] = &[
 /// are; annotated types take the annotation tree of their own
 /// origin in match selectors and patterns, inferred types, super accessors and inline accessors,
 /// in super accessors with their class's type parameters seen from the accessor's class; secondary constructors have their own type parameters and parameters passed on to the
-/// superclass are its parameters' aliases. Needs a JDK (java on the PATH), as dotty's did.
+/// superclass are its parameters' aliases; `@BeanProperty` values get their bean accessors. Needs a JDK (java on the PATH), as dotty's did.
 #[test]
 fn probes_pickle_as_dotty_s() {
     if Command::new("java").arg("-version").output().is_err() {

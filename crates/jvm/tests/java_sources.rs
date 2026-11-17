@@ -112,6 +112,45 @@ fn run_tests_with_java_sources_print_their_check() {
     }
 }
 
+/// With an output jar, javac's classes of the Java sources go into the jar with the Scala ones.
+#[test]
+fn java_sources_compile_into_an_output_jar() {
+    if ["java", "javac"].into_iter().any(|tool| Command::new(tool).arg("--version").output().is_err()) {
+        eprintln!("no java or javac on the PATH: skipped");
+        return;
+    }
+    let dir = root().join("tests/jvm/javasources/runs/named-args");
+    let out = root().join("tmp/jvm-test/javasources-jar");
+    let _ = std::fs::remove_dir_all(&out);
+    std::fs::create_dir_all(&out).expect("the output directory");
+    let jar = out.join("out.jar");
+    let sources = [dir.join("Greeter.java"), dir.join("Test.scala")];
+    run(Command::new(env!("CARGO_BIN_EXE_scivolo-jvm")).arg("-d").arg(&jar).args(&sources));
+    assert!(!out.join("out.javac").exists(), "javac's directory removed");
+    let library = root().join("ref/libs/scala-library-3.9.0.jar");
+    let classpath = format!("{}:{}", jar.display(), library.display());
+    let stdout = run(Command::new("java").args(["-Xverify:all", "-cp", &classpath, "Test"]));
+    let check = std::fs::read_to_string(dir.join("named-args.check")).expect("the check");
+    assert_eq!(stdout, check);
+}
+
+/// Without javac on the PATH the Scala classes are written and the Java sources only read, as
+/// dotty does, with a warning.
+#[test]
+fn java_sources_without_javac_are_only_read() {
+    let dir = root().join("tests/jvm/javasources/runs/named-args");
+    let out = root().join("tmp/jvm-test/javasources-no-javac");
+    let _ = std::fs::remove_dir_all(&out);
+    let empty = root().join("tmp/jvm-test/empty-path");
+    std::fs::create_dir_all(&empty).expect("an empty directory");
+    let sources = [dir.join("Greeter.java"), dir.join("Test.scala")];
+    let mut scivolo = Command::new(env!("CARGO_BIN_EXE_scivolo-jvm"));
+    let result = output(scivolo.env("PATH", &empty).arg("-d").arg(&out).args(&sources));
+    let stderr = String::from_utf8_lossy(&result.stderr);
+    assert!(result.status.success() && stderr.contains("no javac on the PATH"), "{stderr}");
+    assert!(out.join("Test.class").exists() && !out.join("Greeter.class").exists());
+}
+
 /// The varargs forwarders of methods with repeated parameters bounded by `Int` and `Double` wrap
 /// their arrays as dotty's do, by `wrapIntArray` and `wrapDoubleArray`.
 #[test]
@@ -141,6 +180,29 @@ fn a_private_constructor_makes_no_sam_class() {
     let Some((mut scivolo, _)) = scivolo("privatesam") else { return };
     let refused = output(&mut scivolo);
     assert!(!refused.status.success(), "{}", String::from_utf8_lossy(&refused.stdout));
+}
+
+/// A `final val` alias of a Java enum constant keeps its singleton type, one of another static
+/// field of the enum's type is widened to the enum (dotty's `isJavaEnumValue`): only the second
+/// ascription is rejected.
+#[test]
+fn only_enum_constants_keep_their_singleton_type() {
+    let Some((mut scivolo, _)) = scivolo("enumfield") else { return };
+    let rejected = output(&mut scivolo);
+    let stderr = String::from_utf8_lossy(&rejected.stderr);
+    assert!(!rejected.status.success() && stderr.contains("enumfield.scala:5:"), "{stderr}");
+    assert!(!stderr.contains("enumfield.scala:3:"), "{stderr}");
+}
+
+/// A class both a Java and a Scala source define is refused before anything is written, as dotty
+/// does ("C is already defined").
+#[test]
+fn a_class_of_both_java_and_scala_sources_is_refused() {
+    let Some((mut scivolo, out)) = scivolo("clash") else { return };
+    let refused = output(&mut scivolo);
+    let stderr = String::from_utf8_lossy(&refused.stderr);
+    assert!(!refused.status.success() && stderr.contains("q.C is already defined"), "{stderr}");
+    assert!(!out.exists(), "nothing written");
 }
 
 #[test]

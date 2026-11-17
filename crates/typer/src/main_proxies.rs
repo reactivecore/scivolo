@@ -181,7 +181,8 @@ impl Typer<'_> {
         self.ast.node(Tree::Apply { fun, args })
     }
 
-    fn def_def(
+    /// The untyped definition of method `name` with one parameter clause `params`.
+    pub fn def_def(
         &mut self,
         name: &str,
         params: &[NodeId],

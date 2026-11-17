@@ -123,6 +123,7 @@ impl Typer<'_> {
         });
         self.complete_classes_on_self(cls);
         let (body, dummy) = self.typed_template_stats(cls, &t.body, cctx);
+        let body = [self.bean_accessors(&body, cctx), body].concat();
         let mut body = self.with_inline_members(cls, body, cctx);
         match self.deferred_given_impls(cls, ctx, cctx, self.ast.span(id)) {
             Ok(impls) => body.extend(impls),

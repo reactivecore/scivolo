@@ -33,6 +33,11 @@ impl JavaClasses {
     pub fn in_jars(&self, internal: &str) -> bool {
         self.jars.contains_key(internal)
     }
+
+    /// Determines whether a jar's class file or a Java source declares class `internal`.
+    pub fn declares(&self, internal: &str) -> bool {
+        self.in_jars(internal) || self.sources.declares(internal)
+    }
 }
 
 impl Universe {

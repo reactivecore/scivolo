@@ -91,9 +91,13 @@ impl Typer<'_> {
     }
 
     /// Whether `t` is the singleton type of a constant of a Java enum of a class file or the JDK,
-    /// a value of the enum's type in its object (dotty's `isJavaEnumValue`).
+    /// a value of the enum's type in its object, a field of a class file only with `ACC_ENUM`
+    /// (dotty's `isJavaEnumValue`).
     fn is_java_enum_value(&mut self, t: TypeId) -> bool {
         let Type::Sym(_, s) = *self.u.ty(t) else { return false };
+        if !self.u.may_be_enum_constant(s) {
+            return false;
+        }
         let sym = self.u.symbol(s);
         let object = sym.owner.filter(|_| sym.kind == Kind::Val);
         let Some(class) = object.and_then(|o| self.u.companion_class(o)) else { return false };

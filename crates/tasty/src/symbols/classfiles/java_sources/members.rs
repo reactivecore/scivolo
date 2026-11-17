@@ -176,7 +176,7 @@ impl Parser {
             self.expect(";")?;
         }
         let access = access & !DEFAULT;
-        let params = components.into_iter().map(|(_, t)| t).collect();
+        let params = components;
         let annotations = Some(annotations);
         class.methods.push(Method {
             access,

@@ -19,7 +19,7 @@ pub struct Header {
 }
 
 /// A constructor of access flags `access` with parameters `params`.
-pub fn constructor(access: u16, params: Vec<Type>) -> Method {
+pub fn constructor(access: u16, params: Vec<(String, Type)>) -> Method {
     let (name, type_params, result) = (nme::CONSTRUCTOR.to_owned(), Vec::new(), Type::Primitive('V'));
     Method { access, name, type_params, params, result, annotation_default: false, annotations: None }
 }
@@ -42,6 +42,7 @@ impl Parser {
 /// a public accessor per component (the accessor of a varargs one returns its array) unless the
 /// body declares one, and the canonical constructor of the record's access unless declared.
 pub fn complete(class: &mut Class, header: Header) {
+    let components = header.components.clone();
     let types: Vec<Type> = header.components.iter().map(|(_, t)| t.clone()).collect();
     for (name, ty) in header.components {
         let declared = class.methods.iter().any(|m| m.name == name && m.params.is_empty());
@@ -69,13 +70,13 @@ pub fn complete(class: &mut Class, header: Header) {
     let canonical = class.methods.iter().any(|m| m.name == nme::CONSTRUCTOR && same_types(&m.params, &types));
     if !canonical {
         let varargs = if header.varargs { ACC_VARARGS } else { 0 };
-        class.methods.push(constructor(class.access & VISIBILITY | varargs, types));
+        class.methods.push(constructor(class.access & VISIBILITY | varargs, components));
     }
 }
 
-/// Determines whether types `a` and `b` are written the same.
-fn same_types(a: &[Type], b: &[Type]) -> bool {
-    a.len() == b.len() && a.iter().zip(b).all(|(x, y)| written(x) == written(y))
+/// Determines whether the types of parameters `a` and types `b` are written the same.
+fn same_types(a: &[(String, Type)], b: &[Type]) -> bool {
+    a.len() == b.len() && a.iter().zip(b).all(|((_, x), y)| written(x) == written(y))
 }
 
 /// Type `t` as text, for comparing types as written.
