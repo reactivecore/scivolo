@@ -263,6 +263,7 @@ pub use const_ops::{fold_binop, fold_unop};
 pub use features::source_versions;
 pub use inline_accessors::RETAINED_BODY;
 pub use protos::Pt;
+pub use simplify::fully_simplified;
 pub use transparent::InlineDef;
 pub use widen_inferred::Widen;
 
@@ -298,6 +299,8 @@ pub struct Typer<'a> {
     pub dollar_names_warned: bool,
     /// Whether the unit behaves as the Scala 2 library (`language.\`2.13\``).
     pub scala2: bool,
+    /// The source version of the file being typed.
+    pub source_version: SourceVersion,
     /// `Config::interactive`.
     pub interactive: bool,
     /// Trees typed while completing a symbol, by the owner they were typed in, taken when typing
@@ -416,11 +419,11 @@ pub struct Typer<'a> {
 /// How many `typed` calls may be in progress at once.
 const MAX_DEPTH: u32 = 400;
 
-/// Refuses source versions before 3.7 and migrating ones.
+/// Refuses source versions before 3.3 and migrating ones.
 pub fn check_source_version(v: SourceVersion) -> Result<(), String> {
-    match v.is_at_least(SourceVersion::V3_7) && !v.migrating {
+    match v.is_at_least(SourceVersion::V3_3) && !v.migrating {
         true => Ok(()),
-        false => Err("source versions other than 3.7 to 3.9".into()),
+        false => Err("source versions other than 3.3 to 3.9".into()),
     }
 }
 
@@ -436,6 +439,7 @@ impl<'a> Typer<'a> {
         check_source_version(v)?;
         let defn = u.enter_library_defn()?;
         u.reductions_exhausted = false;
+        u.legacy_match_types = !v.is_at_least(SourceVersion::V3_4);
         let mut syms = std::mem::take(syms);
         let ops = u.package(nme::OPS_PACKAGE);
         syms.throw_method = syms.throw_method.or_else(|| entered(u, ops?, nme::THROW, Kind::Def));
@@ -462,6 +466,7 @@ impl<'a> Typer<'a> {
             source_future: v.requires_new_syntax(),
             dollar_names_warned: v.is_at_least(SourceVersion::V3_9),
             scala2: v.is_scala2(),
+            source_version: v,
             interactive: cfg.interactive,
             ahead: FxHashMap::default(),
             pattern_tpts: FxHashMap::default(),

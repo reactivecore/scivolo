@@ -44,6 +44,8 @@ pub enum Spec {
     SubTypeTest(TypeId, TypeId),
     /// A case with captures and a legal pattern.
     Specced(Specced),
+    /// A case with captures below Scala 3.4, matched by a subtype comparison.
+    Legacy(Legacy),
     /// A case outside the patterns reduced here: abstract type constructors, type member
     /// extractors, illegal patterns, missing captures.
     Unsupported,
@@ -59,6 +61,14 @@ pub struct Specced {
     pub body: TypeId,
 }
 
+pub struct Legacy {
+    pub binder: Binder,
+    /// The name and bounds of each capture.
+    pub params: Vec<(NameId, TypeId)>,
+    pub pat: TypeId,
+    pub body: TypeId,
+}
+
 impl Cmp<'_> {
     pub fn analyze(&mut self, case: TypeId) -> Spec {
         match *self.u.ty(case) {
@@ -67,6 +77,10 @@ impl Cmp<'_> {
                 let Type::MatchCase(pat, body) = *self.u.ty(result) else {
                     return Spec::Unsupported;
                 };
+                if self.u.legacy_match_types {
+                    let params = self.u.params_of(params).to_vec();
+                    return Spec::Legacy(Legacy { binder, params, pat, body });
+                }
                 let names: Vec<_> = self.u.params_of(params).iter().map(|&(n, _)| n).collect();
                 let mut unaccounted = vec![true; names.len()];
                 if self.missing_captures(pat, binder, names.len()) {

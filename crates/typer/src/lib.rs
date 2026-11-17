@@ -33,7 +33,7 @@ use tpd::{TNodeId, Tpd};
 
 pub use completion::Request;
 pub use finish::SyntheticMembers;
-pub use typer::{RETAINED_BODY, Typer, approx, fold_binop, fold_unop};
+pub use typer::{RETAINED_BODY, Typer, approx, fold_binop, fold_unop, fully_simplified};
 
 /// Why a unit takes the JVM frontend instead.
 pub enum Fallback {

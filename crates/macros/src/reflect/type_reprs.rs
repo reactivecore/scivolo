@@ -51,6 +51,18 @@ impl Host {
         self.u.dealias(t)
     }
 
+    /// Simplifies `t`, its match types reduced (dotty's `TypeRepr.simplified`); refuses a
+    /// reduction over its budget.
+    pub fn simplified(&mut self, t: TypeId) -> Fallible<TypeId> {
+        let exhausted = std::mem::take(&mut self.u.reductions_exhausted);
+        let simplified = typer::fully_simplified(&mut self.u, t);
+        let refused = std::mem::replace(&mut self.u.reductions_exhausted, exhausted);
+        match refused {
+            true => Err("TypeRepr.simplified of a match type whose reduction is refused"),
+            false => Ok(simplified),
+        }
+    }
+
     pub fn by_name(&mut self, t: TypeId) -> TypeId {
         self.u.intern_type(Type::ByName(t))
     }

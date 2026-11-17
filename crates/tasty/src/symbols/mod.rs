@@ -192,6 +192,9 @@ pub struct Universe {
     pub reductions_left: u32,
     /// Whether a reduction was refused: over a budget, or reaching its own match type again.
     pub reductions_exhausted: bool,
+    /// Whether match types reduce as before Scala 3.4, every case with captures matched by a
+    /// subtype comparison (`-source` below 3.4).
+    pub legacy_match_types: bool,
     /// Whether `erase` erases as Scala 2 does, for the signature of a Scala 2 symbol.
     scala2_erasure: bool,
 }

@@ -10,6 +10,8 @@ use super::alt_types::{alt_type, parents_of};
 use super::as_good::{is_as_good, relaxed_conforms};
 use super::candidates::{Candidate, implicit_members};
 use crate::ctx::Ctx;
+use syntax::ast::Span;
+use syntax::config::SourceVersion;
 use tasty::{SymbolId, Type, TypeId, Universe};
 
 /// The candidate of `found` that ranks above all others in `ctx`.
@@ -28,8 +30,13 @@ pub fn most_specific(t: &mut Typer<'_>, found: &[Candidate], ctx: Ctx) -> Option
         .find(|&c| alts.iter().filter(|&&d| d != c).all(|&d| compare(t, c, d, ctx) == Some(1)))
 }
 
-/// 1 if `a` ranks above `b`, -1 if below, 0 if neither; `None` if undecided.
+/// 1 if `a` ranks above `b`, -1 if below, 0 if neither; `None` if undecided. Refuses the
+/// ranking of a file below Scala 3.7 (dotty's `CompareScheme.Old`).
 pub fn compare(t: &mut Typer<'_>, a: Candidate, b: Candidate, ctx: Ctx) -> Option<i32> {
+    if !t.source_version.is_at_least(SourceVersion::V3_7) {
+        t.unsupported_at(Span::NONE, "ranking implicits below Scala 3.7");
+        return None;
+    }
     let (full_a, full_b) = (alt_type(t, a), alt_type(t, b));
     let (sa, sb) = (without_implicits(t.u, full_a)?, without_implicits(t.u, full_b)?);
     let result = compare_with_types(t, (a, sa), (b, sb), ctx)?;

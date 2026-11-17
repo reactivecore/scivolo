@@ -117,6 +117,8 @@ impl Typer<'_> {
             self.source_future = v.requires_new_syntax();
             self.dollar_names_warned = v.is_at_least(SourceVersion::V3_9);
             self.scala2 = v.is_scala2();
+            self.source_version = v;
+            self.u.legacy_match_types = !v.is_at_least(SourceVersion::V3_4);
             self.file = file;
         }
         outer

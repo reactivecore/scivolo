@@ -5,6 +5,7 @@
 
 use super::Typer;
 use syntax::ast::{Attrs, NodeId};
+use syntax::config::SourceVersion;
 use tasty::{NameId, TypeId};
 
 impl Typer<'_> {
@@ -31,6 +32,9 @@ impl Typer<'_> {
         let Some(span) = args.first().map(|&a| self.ast.span(a)).filter(|s| s.exists()) else {
             return Ok(());
         };
+        if !self.source_version.is_at_least(SourceVersion::V3_7) {
+            return Ok(());
+        }
         let parens = self.ast.attrs(id).contains(Attrs::PAREN_ARGS);
         let rewrite = if parens { self.rewrite_notice("This code", "3.7-migration") } else { String::new() };
         let msg = format!(

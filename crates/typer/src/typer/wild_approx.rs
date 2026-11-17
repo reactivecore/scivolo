@@ -6,14 +6,20 @@
 use super::Typer;
 use super::type_ops::TypeOps;
 use crate::constraint::Constraint;
+use syntax::config::SourceVersion;
 use tasty::{SymbolId, Type, TypeId, TypeVars, Universe, VarId};
 
 impl Typer<'_> {
     /// The type that constrains the result of method `meth`: `pt`, approximated by wildcards if
-    /// `meth` is a transparent inline method (dotty's `constrainResult(meth, mt, pt)`).
+    /// `meth` is a transparent inline method from Scala 3.4 on (dotty's
+    /// `constrainResult(meth, mt, pt)`).
     pub fn result_pt(&mut self, meth: Option<SymbolId>, pt: TypeId) -> TypeId {
         match meth {
-            Some(m) if self.is_transparent_inline(m) => self.types().wild_approx(pt),
+            Some(m)
+                if self.source_version.is_at_least(SourceVersion::V3_4) && self.is_transparent_inline(m) =>
+            {
+                self.types().wild_approx(pt)
+            }
             _ => pt,
         }
     }

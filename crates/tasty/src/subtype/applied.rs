@@ -75,7 +75,7 @@ impl Cmp<'_> {
                 Type::Var(v) => match self.vars.instance(v) {
                     Some(t) => tycon1 = t,
                     None => {
-                        let same = tycon1 == tycon2 || !self.frozen() && self.recur(tycon1, tycon2);
+                        let same = tycon1 == tycon2 || self.can_constrain(v) && self.recur(tycon1, tycon2);
                         return same && self.sub_args(&args1, args2, variances, &[]);
                     }
                 },

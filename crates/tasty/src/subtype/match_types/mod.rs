@@ -3,13 +3,19 @@
 //! Normalization (dotty's `normalized`, `tryNormalize`, `underlyingNormalizable`): match types
 //! reduced, `scala.compiletime.ops` applications folded.
 
+mod case_vars;
 mod concrete;
 mod disjoint;
 mod disjoint_args;
+mod legacy;
 mod named_from;
 mod ops;
 mod reduce;
 mod spec;
+mod widening;
+
+pub use case_vars::CASE_VARS;
+pub use legacy::CaseLambda;
 
 use super::refs::Meaning;
 use super::{Cmp, NoVars};
