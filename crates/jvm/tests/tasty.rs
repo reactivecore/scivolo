@@ -203,13 +203,11 @@ fn untold_capture_sets_are_refused() {
     let _ = std::fs::remove_dir_all(&out);
     std::fs::create_dir_all(&out).expect("tmp/jvm-test/untoldcaptures");
     let header = "import language.experimental.captureChecking\nclass Label[T]\nclass A\nclass B\n";
-    let cases = [
-        (
-            "dependent",
-            "object D:\n  val f: (x: A^) -> Label[Int]^{x} = x => Label[Int]()\n",
-            "drops its refinement's capture sets",
-        ),
-    ];
+    let cases = [(
+        "dependent",
+        "object D:\n  val f: (x: A^) -> Label[Int]^{x} = x => Label[Int]()\n",
+        "drops its refinement's capture sets",
+    )];
     for (name, body, refusal) in cases {
         let source = out.join(format!("{name}.scala"));
         std::fs::write(&source, format!("{header}{body}")).expect("writing");
