@@ -240,6 +240,11 @@ fn arrays_of_type_members_cast_as_dotty_on_the_jvm() {
 }
 
 #[test]
+fn arrays_of_overridden_higher_kinded_members_erase_as_dotty_on_the_jvm() {
+    runs_on_the_jvm("hkmemberarrays", "Hkmemberarrays");
+}
+
+#[test]
 fn private_objects_keep_their_names_on_the_jvm() {
     runs_on_the_jvm("privateobjects", "Privateobjects");
 }

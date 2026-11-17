@@ -72,7 +72,7 @@ impl Universe {
 
     /// The alias or class by which the class of the prefix of abstract type reference `t`
     /// overrides it (dotty's `dealias` of a member found through the prefix).
-    fn overriding_member(&mut self, t: TypeId) -> Option<TypeId> {
+    pub fn overriding_member(&mut self, t: TypeId) -> Option<TypeId> {
         let prefix = match *self.ty(t) {
             Type::Sym(p, _) => p?,
             Type::TypeRef(p, _) => p,

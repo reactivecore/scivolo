@@ -43,6 +43,11 @@ impl Universe {
                     self.erase(t)
                 }
                 Some(t) => self.erase(t),
+                None if let Some(alias) = self.overriding_member(tycon) => {
+                    let applied = self.intern_applied(alias, args);
+                    let reduced = self.dealias_step(applied);
+                    self.erase(reduced)
+                }
                 None => match self.expand_upper(tycon, args) {
                     Some(t) if !self.mentions(t, tycon) => self.erase(t),
                     _ => self.erase(tycon),
