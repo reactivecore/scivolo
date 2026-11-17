@@ -79,7 +79,8 @@ impl TreePickler<'_> {
                 })
             }
             Type::Bounds(lo, hi) => {
-                let variances = self.variances(hi, true)?;
+                let structural = self.u.lambda(hi).is_some_and(|l| self.u.is_structural_lambda(l.binder));
+                let variances = if structural { Vec::new() } else { self.variances(hi, true)? };
                 self.with_length(TYPEBOUNDS, &mut |p| {
                     p.types(&[lo, hi], rich)?;
                     p.write_variances(&variances);

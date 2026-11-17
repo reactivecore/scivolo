@@ -84,6 +84,7 @@ impl Universe {
             defn: Defn::PENDING,
             binders: 0,
             lambda_variances: FxHashMap::default(),
+            structural_lambdas: Default::default(),
             unions: Default::default(),
             joint_members: FxHashMap::default(),
             subtype_steps: 0,

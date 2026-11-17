@@ -184,6 +184,8 @@ pub struct Universe {
     binders: u32,
     /// The declared variances of the type lambdas made outside TASTy that declare them.
     lambda_variances: FxHashMap<Binder, Vec<i8>>,
+    /// The type lambdas made outside TASTy whose variances are structural.
+    structural_lambdas: FxHashSet<Binder>,
     unions: Unions,
     joint_members: joint::JointMembers,
     /// How many steps comparisons have taken computing atoms and `Nothing`-ness.

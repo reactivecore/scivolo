@@ -76,6 +76,8 @@ impl Typer<'_> {
         let declares = type_def.is_some_and(|s| match_alias || opaque(s));
         if bounds || declares || syms.iter().any(|&s| self.u.has_variance(s)) {
             self.u.declare_variances(binder, &syms);
+        } else {
+            self.u.declare_structural_lambda(binder);
         }
         if bounds && self.leaks_private_type(owner, body_tpe, &syms) {
             return self.unsupported(id, "private type in the bounds of a higher-kinded type");
