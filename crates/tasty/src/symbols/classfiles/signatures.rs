@@ -4,6 +4,7 @@
 //! `sigToType` reads them.
 
 use super::super::Universe;
+use super::java_sources::scala_classes::{scala_class, scala_class_ref};
 use crate::types::{Type, TypeId};
 use crate::{ANY, NOTHING};
 use classfile::ACC_STATIC;
@@ -250,6 +251,12 @@ fn class_ref(u: &mut Universe, internal: &str) -> TypeId {
         return u.types.intern(Type::TypeRef(outer, name));
     }
     let (pkg, name) = internal.rsplit_once('/').unwrap_or(("", internal));
+    if name.contains('$')
+        && u.java_class_info(internal).is_none()
+        && let Some(class) = scala_class(u, internal)
+    {
+        return scala_class_ref(u, class);
+    }
     let pkg = u.enter_package(&pkg.replace('/', "."));
     let pkg = u.types.intern(Type::Package(pkg));
     let mut prefix = u.types.intern(Type::This(pkg));

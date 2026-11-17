@@ -13,6 +13,7 @@ mod parser;
 mod permitted;
 mod records;
 mod resolve;
+pub(super) mod scala_classes;
 mod scanner;
 mod syntax;
 mod text_blocks;

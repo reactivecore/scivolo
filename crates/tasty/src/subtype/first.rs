@@ -163,6 +163,11 @@ impl Cmp<'_> {
                 }
                 self.try_base_type(a, b, c)
             }
+            Meaning::Class(c) if self.u.is_java_defined(c) => {
+                let widened = self.u.widen(a);
+                let base = self.u.base_type(widened, c);
+                base.is_some_and(|base| self.u.class_symbol(base) == Some(c)) || self.fourth_try(a, b)
+            }
             Meaning::Class(_) => {
                 let constructor = self.constructor_arity(a).is_some();
                 match constructor.then(|| self.eta_expand(b)).flatten() {
