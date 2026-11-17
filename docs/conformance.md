@@ -309,9 +309,9 @@ Results:
 
 | Outcome | Tests |
 |---|---:|
-| passed | 1496 |
+| passed | 1497 |
 | wrong output | 0 |
-| crashed | 1 |
+| crashed | 0 |
 | timeout | 0 |
 | lowering refused | 0 |
 | typer refused | 9 |
@@ -330,7 +330,6 @@ Results:
   string. `Runtime.totalMemory`,
   `maxMemory` and `freeMemory`, which Scala Native's javalib lacks and the overlay adds (ADR
   0008), are typed through `libs/jdk-stubs/JdkMemberDeclarations.scala`.
-- **Crashed:** `i22888`, as on the JVM.
 - **`tests/run-macros`** (`just dotty-lower-report "" run-macros`): 311 of 321
   pass; the typer refuses two for classes Scala Native's javalib lacks, a platform limit:
   `java.lang.SuppressWarnings` (`annot-java-tree`) and `java.text.SimpleDateFormat`
@@ -391,11 +390,11 @@ Results:
 
 | Outcome | tests/run | tests/run-macros |
 |---|---:|---:|
-| passed | 1685 | 320 |
+| passed | 1686 | 320 |
 | wrong output | 0 | 0 |
 | verify error | 0 | 0 |
 | linkage error | 0 | 0 |
-| crashed | 2 | 0 |
+| crashed | 1 | 0 |
 | timeout | 0 | 0 |
 | frontend crashed | 0 | 0 |
 | jvm refused | 0 | 0 |
@@ -408,9 +407,7 @@ Results:
   bounds (`enum-values`).
 - **Tests with Java sources:** all pass.
 - **Crash:** `lambda-serialization-gc` casts the application class loader to `URLClassLoader`,
-  which fails for scalac's class files too, as the runner does not load tests through one;
-  `i22888` stores an `Array[Int]` in a field of an applied higher-kinded type erased to
-  `Object[]` (`ClassCastException`, open).
+  which fails for scalac's class files too, as the runner does not load tests through one.
 - **Difference from dotty (open, not accepted):** a macro runs from its Scala Native build in the VM, so a
   macro implementation that reads the platform (`System.getProperty`, `scala.util.Properties`,
   runtime class names) sees Scala Native's; what it reflects on (`Symbol`s, types) is the JVM
