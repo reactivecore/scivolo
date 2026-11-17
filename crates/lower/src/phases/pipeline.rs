@@ -26,7 +26,9 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
     super_accessors::transform(l, &classes)?;
     synthetic::add_all(l, root)?;
     for &td in &classes {
-        enumerations::transform(l, td)?;
+        if l.backend == crate::Backend::Native {
+            enumerations::transform(l, td)?;
+        }
         package_objects::transform(l, td);
         first_transform::transform(l, td, &inits);
     }

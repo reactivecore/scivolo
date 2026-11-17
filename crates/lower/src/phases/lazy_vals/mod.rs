@@ -52,7 +52,7 @@ pub fn transform(
     let Tree::Template { constr, parents, self_, body } = *l.tpd.tree(template) else { return Ok(()) };
     let mut stats = Vec::new();
     let mut mixed_in = Vec::new();
-    let mut handles = Vec::new();
+    let (mut handles, mut mixed_in_handles) = (Vec::new(), Vec::new());
     for stat in l.tpd.items(body).to_vec() {
         let lazy = l.tpd.sym(stat).filter(|&s| has(l.u, s, LAZY));
         let (Tree::DefDef { name, paramss, tpt, rhs: Some(rhs) }, Some(accessor)) =
@@ -83,7 +83,11 @@ pub fn transform(
         let field_span = if l.mixed_in.contains(&accessor) { Span::NONE } else { span };
         stats.push(l.build().val_def(lazy.field, field_tpt, None, field_span));
         if l.backend == crate::Backend::Jvm {
-            handles.insert(0, var_handle(l, class, lazy.field, defs));
+            let handle = var_handle(l, class, lazy.field, defs);
+            match l.mixed_in.contains(&accessor) {
+                true => mixed_in_handles.insert(0, handle),
+                false => handles.insert(0, handle),
+            }
         }
         let selected = l.getter_rhs.get(&accessor).copied().filter(|_| l.static_selects.contains(&rhs));
         if let Some(r) = selected {
@@ -108,8 +112,9 @@ pub fn transform(
         }
     }
     l.lazy_fields.extend(mixed_in);
-    handles.extend(stats);
-    let body = l.tpd.list(&handles);
+    mixed_in_handles.extend(handles);
+    mixed_in_handles.extend(stats);
+    let body = l.tpd.list(&mixed_in_handles);
     l.tpd.get_mut(template).tree = Tree::Template { constr, parents, self_, body };
     Ok(())
 }

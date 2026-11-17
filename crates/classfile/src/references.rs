@@ -10,7 +10,8 @@ use std::borrow::Cow;
 
 impl ClassFile {
     /// The internal names with a `$` of the classes the class, its members, their descriptors and
-    /// signatures, and its code refer to, each once.
+    /// signatures, and its code refer to, each once; not those only in the descriptor of its
+    /// enclosing method.
     pub fn referenced_classes(&self) -> Vec<String> {
         let mut out: Vec<String> = Vec::new();
         let mut add = |name: &str| {
@@ -28,10 +29,7 @@ impl ClassFile {
             match a {
                 Attribute::Signature(s) => texts.push(Cow::from(s)),
                 Attribute::Exceptions(cs) => classes.extend(cs.iter().map(Cow::from)),
-                Attribute::EnclosingMethod(c, m) => {
-                    classes.push(Cow::from(c));
-                    texts.extend(m.iter().map(|(_, d)| Cow::from(d)));
-                }
+                Attribute::EnclosingMethod(c, _) => classes.push(Cow::from(c)),
                 Attribute::InnerClasses(cs) => classes
                     .extend(cs.iter().flat_map(|c| std::iter::once(&c.inner).chain(&c.outer)).map(Cow::from)),
                 Attribute::Annotations(_, annotations) => {
@@ -45,10 +43,14 @@ impl ClassFile {
             texts.extend(descriptors.into_iter().map(Cow::Owned));
         }
         texts.extend(self.fields.iter().chain(&self.methods).map(|m| Cow::from(&m.descriptor)));
-        for e in self.pool.entries() {
+        for (i, e) in (1u16..).zip(self.pool.entries()) {
             match *e {
                 Entry::Class(n) => classes.push(Cow::Owned(self.pool.text(n))),
-                Entry::NameAndType(_, d) | Entry::MethodType(d) => texts.push(Cow::Owned(self.pool.text(d))),
+                Entry::MethodType(d) => texts.push(Cow::Owned(self.pool.text(d))),
+                Entry::Fieldref(..)
+                | Entry::Methodref(..)
+                | Entry::InterfaceMethodref(..)
+                | Entry::InvokeDynamic(..) => texts.push(Cow::Owned(self.pool.member_parts(i).2)),
                 _ => {}
             }
         }
