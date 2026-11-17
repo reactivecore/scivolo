@@ -3,7 +3,6 @@
 
 use super::TreePickler;
 use super::captured_exprs::{Captured, captured, strip_annotations};
-use super::captured_type_args::has_part;
 use crate::sealed::is_contained_in;
 use crate::tpd::{TNodeId, Tree as T};
 use crate::typer::seen_from::resolve_class_params;
@@ -27,16 +26,18 @@ impl TreePickler<'_> {
     /// its capture sets, other expressions (`id(mk(c))`, `id(id(b))`) none at the top. A path is
     /// one only outside closure method `local`. `None` for branches mixing paths and other
     /// expressions, a block ending in a path, and a path's set when type parameter `param` occurs
-    /// other than covariantly in the method's result `result` (an expected type bounds it below).
+    /// other than covariantly in the method's result `result`, `None` for a call without an
+    /// expected type (an expected type may bound it below).
     pub fn widened_arg(
         &mut self,
         (arg, c): (TNodeId, Captured),
         local: Option<SymbolId>,
-        (result, param): (TypeId, IsParam<'_>),
+        (result, param): (Option<TypeId>, IsParam<'_>),
     ) -> Option<Captured> {
         let Captured::With(t) = c else { return Some(c) };
         match self.path(arg, local)? {
             Path::Kept => {
+                let Some(result) = result else { return Some(c) };
                 let result = resolve_class_params(self.u, result);
                 only_covariant(self.u, result, param).then_some(c)
             }
@@ -98,6 +99,16 @@ impl TreePickler<'_> {
             _ => None,
         }
     }
+}
+
+/// Determines whether a part of `t` is one `is` accepts.
+pub fn has_part(u: &mut tasty::Universe, t: TypeId, is: IsParam<'_>) -> bool {
+    let mut found = false;
+    u.map_type(t, &mut |u, part| {
+        found |= is(u, part);
+        None
+    });
+    found
 }
 
 /// Whether the parts of `t` that `param` accepts occur only covariantly in it.
