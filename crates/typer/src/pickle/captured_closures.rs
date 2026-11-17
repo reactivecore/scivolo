@@ -82,6 +82,14 @@ impl TreePickler<'_> {
         }
     }
 
+    /// Determines the expression that gives the result type of the closure block `block` ends
+    /// in, with the closure's method: its right-hand side if the result type is inferred.
+    pub fn closure_result_expr(&self, block: TNodeId) -> Option<(TNodeId, SymbolId)> {
+        let def = self.closure_def(block)?;
+        let inferred = matches!(self.tpd.tree(def.tpt), T::TypeTree { inferred: true });
+        Some((if inferred { def.rhs } else { def.tpt }, def.method))
+    }
+
     /// Determines whether `t` is a block that ends in a closure.
     pub fn is_closure_block(&self, t: TNodeId) -> bool {
         self.closure_def(t).is_some()

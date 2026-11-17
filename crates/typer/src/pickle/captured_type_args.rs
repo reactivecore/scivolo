@@ -25,8 +25,8 @@ fn is_function(u: &mut tasty::Universe, tycon: TypeId) -> bool {
     u.referenced(tycon).is_some_and(|s| member_of(u, s, "scala", function))
 }
 
-/// Whether a part of `t` is one `is` accepts.
-fn has_part(u: &mut tasty::Universe, t: TypeId, is: &dyn Fn(&tasty::Universe, TypeId) -> bool) -> bool {
+/// Determines whether a part of `t` is one `is` accepts.
+pub fn has_part(u: &mut tasty::Universe, t: TypeId, is: &dyn Fn(&tasty::Universe, TypeId) -> bool) -> bool {
     let mut found = false;
     u.map_type(t, &mut |u, part| {
         found |= is(u, part);
@@ -123,9 +123,12 @@ impl TreePickler<'_> {
         let tellers = args.into_iter().map(Teller::Arg).chain(closures.into_iter().map(Teller::Closure));
         for teller in tellers {
             let c = match teller {
-                Teller::Arg(a) => self.captured_in(a, depth)?,
+                Teller::Arg(a) => (self.captured_in(a, depth))
+                    .and_then(|c| self.widened_arg((a, c), None, (info, &is_param)))?,
                 Teller::Closure((block, formals)) => {
-                    self.captured_closure_result(block, (&formals, binder), depth)?
+                    let c = self.captured_closure_result(block, (&formals, binder), depth)?;
+                    let (e, method) = self.closure_result_expr(block)?;
+                    self.widened_arg((e, c), Some(method), (info, &is_param))?
                 }
             };
             if found.is_some_and(|f| f != c) {
