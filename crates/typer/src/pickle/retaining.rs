@@ -21,7 +21,7 @@ impl TreePickler<'_> {
     /// the type `annot`, `retains[C]` of capture set `C`, or below source version 3.9 the tree
     /// `new retains[C]()` without positions (dotty's `oldTree`); `None` for another annotation.
     /// Refuses a capture set that refers to other than static definitions, but for one written in
-    /// a typed pattern a method's parameter or local, and, in a kept synthetic type tree or a
+    /// a typed pattern or `new` a definition of the file, and, in a kept synthetic tree or a
     /// super accessor, the `this` of its class.
     pub fn retaining(&mut self, parent: TypeId, annot: TypeId) -> Option<Result<(), Refusal>> {
         if !is_retains_like(self.u, annot) {
@@ -135,8 +135,8 @@ fn class_by_symbol(u: &mut Universe, annot: TypeId) -> TypeId {
 
 /// Whether capture-set annotation type `annot` refers to no `this`, parameter or definition other
 /// than a static one, a parameter of definition `def` or of a method type whose parameters
-/// `defined` has, a method's parameter or local among definitions `here` (those of the file for a
-/// set written in a typed pattern: `case it: (It[E]^{it})` in `def from[E](it: It[E]^)`), the
+/// `defined` has, a definition or class `this` among definitions `here` (those of the file for a
+/// set written in a typed pattern or `new`: `case it: (It[E]^{it})` in `def from[E](it: It[E]^)`), the
 /// `this` of class `own` or of a class enclosing it, which mapping a type that it annotates
 /// leaves alone; of an enclosing class only if seeing it from `seen`, the prefix and class of a
 /// super accessor's member, keeps it (`other.Views` of an inner trait `Views`).
@@ -148,10 +148,7 @@ fn is_static_capture_set(
     defined: &FxHashMap<Binder, Vec<SymbolId>>,
     here: Option<&FxHashMap<SymbolId, Option<Addr>>>,
 ) -> bool {
-    let local = |u: &Universe, s: SymbolId| {
-        let term_owned = u.symbol(s).owner.is_some_and(|o| u.symbol(o).kind.is_term());
-        term_owned && here.is_some_and(|h| h.contains_key(&s))
-    };
+    let local = |s: SymbolId| here.is_some_and(|h| h.contains_key(&s));
     let mut is_static = true;
     u.map_type(annot, &mut |u, part| {
         let this = matches!(u.ty(part), Type::This(_));
@@ -162,11 +159,14 @@ fn is_static_capture_set(
                     let mut enclosing = std::iter::successors(own, |&o| u.symbol(o).owner);
                     let kept =
                         |u: &mut Universe| seen.is_none_or(|(p, o)| u.as_seen_from(part, p, o) == part);
-                    u.is_static_owner(c) || Some(c) == own || (enclosing.any(|o| o == c) && kept(u))
+                    u.is_static_owner(c)
+                        || Some(c) == own
+                        || local(c)
+                        || (enclosing.any(|o| o == c) && kept(u))
                 }),
             },
             Type::Sym(_, s) => {
-                u.is_static_symbol(s) || def.is_some_and(|d| u.symbol(s).owner == Some(d)) || local(u, s)
+                u.is_static_symbol(s) || def.is_some_and(|d| u.symbol(s).owner == Some(d)) || local(s)
             }
             Type::Param(b, _) => defined.contains_key(&b),
             Type::Local(..) | Type::RecThis(_) | Type::Skolem(..) | Type::Var(_) => false,
