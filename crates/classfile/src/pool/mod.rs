@@ -45,6 +45,8 @@ pub enum Ref {
 pub struct Pool {
     entries: Vec<Entry>,
     index: FxHashMap<Entry, u16>,
+    /// The index of each `Utf8` entry added by its text.
+    utf8s: FxHashMap<Box<str>, u16>,
     /// The bootstrap methods: method handle and arguments, each a pool index.
     bootstraps: Vec<(u16, Vec<u16>)>,
 }
@@ -61,7 +63,12 @@ impl Pool {
     }
 
     pub fn utf8(&mut self, s: &str) -> u16 {
-        self.add(Entry::Utf8(s.encode_utf16().collect()))
+        if let Some(&i) = self.utf8s.get(s) {
+            return i;
+        }
+        let i = self.add(Entry::Utf8(s.encode_utf16().collect()));
+        self.utf8s.insert(s.into(), i);
+        i
     }
 
     pub fn integer(&mut self, v: i32) -> u16 {
