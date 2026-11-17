@@ -41,7 +41,8 @@ fn with_this(u: &mut Universe, t: TypeId, owner: SymbolId, this_: TypeId) -> Typ
         Type::This(c) => (u.class_symbol(c) == Some(owner)).then_some(this_),
         Type::Annotated(parent, annot) => {
             let (parent, annot) = (with_this(u, parent, owner, this_), with_this(u, annot, owner, this_));
-            Some(u.intern_type(Type::Annotated(parent, annot)))
+            let annotated = u.intern_type(Type::Annotated(parent, annot));
+            Some(u.carry_annotation_tree(x, annotated))
         }
         _ => None,
     })

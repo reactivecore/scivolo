@@ -146,7 +146,7 @@ fn probes_pickle_as_dotty_s() {
 
 /// The annotated types of tests/jvm/tastylib/annotlib.jar, dotty's classes of annotlib/, keep
 /// their library's annotation trees in the TASTy of libraryannotations.scala as in dotty's, each
-/// type its own, and in the quotes of quotedannotations.scala; one whose tree refers to a
+/// type its own, also in a super accessor, and in the quotes of quotedannotations.scala; one whose tree refers to a
 /// parameter, which dotty maps, is refused.
 #[test]
 fn library_annotations_pickle_as_dotty_s() {
@@ -164,10 +164,12 @@ fn library_annotations_pickle_as_dotty_s() {
     };
     let run = compile("tests/jvm/tastylib/libraryannotations.scala");
     assert!(run.status.success(), "{}", String::from_utf8_lossy(&run.stderr));
-    let ours = std::fs::read(out.join("scala/probe/Uses.tasty")).expect("our TASTy");
-    let theirs =
-        std::fs::read(root().join("tests/jvm/tastylib/libraryannotations-Uses.tasty")).expect("dotty's");
-    assert!(trees_and_flags(&ours) == trees_and_flags(&theirs), "Uses.tasty differs from dotty's");
+    for class in ["Uses", "Reversed"] {
+        let ours = std::fs::read(out.join(format!("scala/probe/{class}.tasty"))).expect("our TASTy");
+        let theirs = root().join(format!("tests/jvm/tastylib/libraryannotations-{class}.tasty"));
+        let theirs = std::fs::read(theirs).expect("dotty's");
+        assert!(trees_and_flags(&ours) == trees_and_flags(&theirs), "{class}.tasty differs from dotty's");
+    }
 
     let source = out.join("dependent.scala");
     std::fs::write(&source, "class D(b: annotlib.Box[Int]) { def d = b.dependent(2) }").expect("writing");

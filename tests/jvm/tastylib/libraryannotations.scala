@@ -18,3 +18,7 @@ class Uses(l: Lib, b: Box[Int]) {
   def full = b.full
   def ownAfter: List[String @tagged(5)] = Nil
 }
+
+trait Tags { def tags(l: Lib) = l.tags }
+
+trait Reversed extends Tags { override def tags(l: Lib) = super.tags(l).reverse }
