@@ -1,7 +1,8 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/core/NamerOps.scala
+//   compiler/src/dotty/tools/dotc/typer/Namer.scala
 //! The result type of a constructor, refined by its tracked parameters (dotty's
-//! `effectiveResultType`).
+//! `effectiveResultType`), and the parent refinements they give.
 
 use super::Typer;
 use syntax::ast::NodeId;
