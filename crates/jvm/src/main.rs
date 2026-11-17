@@ -32,7 +32,8 @@ struct Cli {
     /// The jar manifest's `Main-Class` (dotty's `-Xmain-class`).
     #[arg(long)]
     main_class: Option<String>,
-    /// The sources are Scala's library's: its classes are compiled in the same run.
+    /// The sources are Scala's library's: its classes are compiled in the same run, against the
+    /// JDK 17 API as its build's `-java-output-version 17`.
     #[arg(long)]
     scalalib: bool,
     /// A compiler option of all sources, checked as the options of their directives.
@@ -71,6 +72,7 @@ fn main() {
         u.use_java_sources(java_sources.clone());
         if scalalib {
             u.set_same_run_jar(0);
+            u.set_jdk_17_view();
         }
         u
     };

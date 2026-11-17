@@ -458,6 +458,25 @@ fn a_tuple_class_of_the_unit_extends_its_generic_tuple() {
 }
 
 #[test]
+fn the_library_sees_the_jdk_17_api() {
+    let code = "package p\nabstract class E extends java.util.concurrent.Executor\n\
+                trait T extends java.util.concurrent.ExecutorService\n\
+                abstract class A extends E with T\n";
+    let sources = written("jdk17view", &[("a.scala", code)]);
+    let out = root().join("tmp/jvm-test/jdk17view-out");
+    let _ = std::fs::remove_dir_all(&out);
+    let run = Command::new(env!("CARGO_BIN_EXE_scivolo-jvm"))
+        .args(["--scalalib", "-d"])
+        .arg(&out)
+        .args(&sources)
+        .output()
+        .expect("running scivolo-jvm");
+    assert!(run.status.success(), "{}", String::from_utf8_lossy(&run.stderr));
+    let class = std::fs::read(out.join("p/A.class")).expect("p/A.class");
+    assert!(!class.windows(5).any(|w| w == b"close"), "a forwarder to JDK 19's ExecutorService.close");
+}
+
+#[test]
 fn a_tuple_class_with_a_class_parent_is_refused() {
     let code = "package scala\nimport scala.language.`2.13`\nabstract class Base\n\
                 final case class Tuple2[+T1, +T2](_1: T1, _2: T2) extends Base with Product2[T1, T2]\n";
