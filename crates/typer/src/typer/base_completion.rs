@@ -154,7 +154,8 @@ impl Typer<'_> {
         any
     }
 
-    /// The type member named as type member `s` of the class of `prefix`'s underlying type.
+    /// The type member named as type member `s` of the class of `prefix`'s underlying type, if
+    /// other than `s`.
     fn overriding_type_member(&mut self, prefix: TypeId, s: SymbolId) -> Option<SymbolId> {
         if self.u.symbol(s).kind != Kind::Type {
             return None;
@@ -162,7 +163,8 @@ impl Typer<'_> {
         let widened = self.u.widen(prefix);
         let class = self.u.class_symbol(widened)?;
         let name = self.u.symbol(s).name.clone();
-        self.u.member_where(class, &name, |u, m| u.symbol(m).kind == Kind::Type).first().copied()
+        let found = self.u.member_where(class, &name, |u, m| u.symbol(m).kind == Kind::Type);
+        found.first().copied().filter(|&m| m != s)
     }
 
     /// Completes class `c` and the unit's classes among its base classes.
