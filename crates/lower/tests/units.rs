@@ -360,3 +360,25 @@ fn match_types_reduce_by_the_rules_of_the_code_at_hand() {
     assert_eq!(u.try_normalize(t), None, "differing rules refused");
     assert!(u.reductions_exhausted);
 }
+
+#[test]
+fn overloads_of_the_library_see_aliases_of_the_unit_not_yet_completed() {
+    let Some(jars) = jars() else { return };
+    let aliases = "package scala.scalanative\npackage object unsafe {\n  type CInt = Int\n  \
+                   type CVoidPtr = Ptr[?]\n  type CSize = unsigned.USize\n}";
+    let call = "import scala.scalanative.unsafe.{CSize, Ptr}\nobject T {\n  \
+                def f(p: Ptr[Byte], n: CSize) = scala.scalanative.runtime.ffi.memset(p, 0, n)\n}";
+    let sources = [SourceFile::new("t.scala", call), SourceFile::new("unsafe.scala", aliases)];
+    let t = dump(&jars, &sources, "T$");
+    assert!(t.contains("unbox[@scala.scalanative.unsigned.USize]") && t.contains("extern memset"), "{t}");
+}
+
+#[test]
+fn inline_accessors_of_members_of_another_file_take_their_offset_in_their_own_file() {
+    let Some(jars) = jars() else { return };
+    let p = SourceFile::new("p.scala", "package p\n\nclass P {\n  private[p] def raw: Int = 1\n}\n");
+    let c = SourceFile::new("c.scala", "package p\n\ntrait C {\n  inline def f(x: P): Int = x.raw\n}\n");
+    let c = dump(&jars, &[c, p], "p.C");
+    let accessor = &c[c.find("inline$raw$i1").expect("the accessor")..];
+    assert!(accessor.contains("@ c.scala:3:17"), "{accessor}");
+}
