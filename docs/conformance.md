@@ -523,10 +523,7 @@ not exist yet while a class of the same run is typed. `ToExpr$ArrayOf*ToExpr$` (
 `ToExpr$BigIntToExpr$`, `ToExpr$MapToExpr` and `FromExpr$MapFromExpr` differ in quote type
 sharing (case 1, as in **Quote type sharing** above, types shared across the files of the
 whole-module build); scala-cli's builds of `ToExpr.scala` and `FromExpr.scala` alone have their
-quotes as ours, up to the source path. Open: `scala/package$`'s lazy val `AnyRef` positions the
-object loaded for its lock release at the lazy val's end where dotty, also compiling
-`package.scala` alone, has the lazy val's: nscplugin desugars each `Ident` of a package object's
-field once (`cachedDesugarIdent`), so every later load of the object takes the first one's span.
+quotes as ours, up to the source path.
 
 ## Native executables
 
