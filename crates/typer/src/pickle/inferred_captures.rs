@@ -32,6 +32,20 @@ impl TreePickler<'_> {
         self.kept_captures.insert(tpt, kept);
     }
 
+    /// Refuses in a capture-checked file `this` as the right-hand side `rhs` of a definition of
+    /// inferred type tree `tpt` or as a match selector (`tpt` none), whose capture set dotty's
+    /// typer may take from the class (`var curr = this` of a class with mutable fields).
+    pub fn check_this_captures(&mut self, tpt: Option<TNodeId>, e: Option<TNodeId>) -> Result<(), Refusal> {
+        let inferred = tpt.is_none_or(|t| matches!(self.tpd.tree(t), Tree::TypeTree { inferred: true }));
+        match self.capture_checked()
+            && inferred
+            && e.is_some_and(|e| matches!(self.tpd.tree(e), Tree::This { .. }))
+        {
+            true => Err("an inferred type of `this`, which dotty's typer may give a capture set"),
+            false => Ok(()),
+        }
+    }
+
     /// Refuses a refined type tree of refinement `member` in a capture-checked file if the
     /// member's type has capture sets, whose parent dotty's typer derives from them: the function
     /// type parent of `(x: A^) -> B^{x}`.

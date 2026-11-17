@@ -12,6 +12,10 @@ trait Fac[+C]:
   def make(it: Coll[Int]^): C^{it}
 class Mk extends Fac[It[Int]]:
   def make(it: Coll[Int]^) = it.iterator
+final class ByNames(m: => Int, b: => B):
+  private val e = m
+  private val f = b
+  def g = m
 object G:
   def first[T](xs: List[T]): T = xs.head
   def box[T](x: T): Box[T] = new Box[T](x)

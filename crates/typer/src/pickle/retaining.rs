@@ -30,6 +30,10 @@ impl TreePickler<'_> {
                 "an annotated type of a capture set that refers to other than static definitions",
             ));
         }
+        let cap = self.u.class_symbol(annot).is_some_and(|c| self.u.symbol(c).name == nme::RETAINS_CAP);
+        if !cap && self.u.applied(annot).is_none() {
+            return Some(Err("a capture set a library annotation tree holds"));
+        }
         Some(self.with_length(ANNOTATEDtype, &mut |p| {
             p.ty(parent, false)?;
             match p.compact_annotations {
