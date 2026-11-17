@@ -13,13 +13,14 @@ impl Universe {
     /// `this` of `owner`, of its base classes and of its enclosing classes replaced by `prefix`
     /// or the prefix `prefix` gives them, the type parameters of `owner` by the arguments
     /// `prefix` gives them, one a wildcard by the parameter selected on `prefix` (dotty's
-    /// `argForParam`), a type member a refinement of `prefix` aliases the alias.
+    /// `argForParam`), a type member a refinement of `prefix` aliases the alias; in capture sets
+    /// too.
     pub fn as_seen_from(&mut self, t: TypeId, prefix: TypeId, owner: SymbolId) -> TypeId {
         let prefix = match *self.ty(prefix) {
             Type::Super(this, _) => this,
             _ => prefix,
         };
-        let seen = self.map_type(t, &mut |u, x| match *u.ty(x) {
+        let seen = self.map_with_capture_sets(t, &mut |u, x| match *u.ty(x) {
             Type::Sym(Some(_), s) if u.is_static_symbol(s) && !u.sees_opaques(s) => Some(x),
             Type::This(c) => {
                 let c = u.class_symbol(c)?;

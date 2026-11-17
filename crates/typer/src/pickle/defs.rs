@@ -104,10 +104,10 @@ impl TreePickler<'_> {
         if tag == VALDEF && self.u.symbol(sym).flags.has(OBJECT) {
             self.share_module_class(tpt, rhs);
         }
-        let outer = self.enter_capture_scope(sym);
         self.keep_captures(sym, tpt)?;
-        self.empty_captures(sym, tpt, rhs);
-        let pickled = self.with_length(tag, &mut |p| {
+        self.keep_overriding_captures(sym, tpt);
+        self.check_this_captures(Some(tpt), rhs).and_then(|()| self.check_closure_captures(tpt, rhs))?;
+        self.with_length(tag, &mut |p| {
             p.name(&local_name(p.u, sym));
             if let Some(paramss) = paramss {
                 p.paramss(sym, paramss)?;
@@ -117,9 +117,7 @@ impl TreePickler<'_> {
                 p.tree(rhs)?;
             }
             p.modifiers(sym)
-        });
-        self.leave_capture_scope(outer);
-        pickled
+        })
     }
 
     /// The parameter clauses `paramss` of a method (dotty's `pickleParamss`).

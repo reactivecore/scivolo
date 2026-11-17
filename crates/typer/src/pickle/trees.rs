@@ -99,7 +99,10 @@ impl TreePickler<'_> {
             T::Closure { env, meth, tpt } if env.is_empty() => {
                 self.node(LAMBDA, &[&[meth][..], &tpt.into_iter().collect::<Vec<_>>()].concat(), &[])
             }
-            T::Match { selector, cases, kind } => self.match_(selector, cases, kind),
+            T::Match { selector, cases, kind } => {
+                self.check_this_captures(None, selector)?;
+                self.match_(selector, cases, kind)
+            }
             T::CaseDef { pat, guard, body } => self.case_def(pat, guard, body),
             T::Try { expr, cases, finalizer } => self.try_(expr, cases, finalizer),
             T::Bind { body, .. } => self.bind(id, body),
@@ -135,7 +138,7 @@ impl TreePickler<'_> {
             T::SeqLiteral { elems, elemtpt } => self.node(REPEATED, &[elemtpt], &[elems]),
             T::Inlined { call, bindings, expansion } => self.inlined(call, bindings, expansion),
             T::TypeTree { .. } => {
-                self.check_inferred_captures(id, typed()?)?;
+                self.empty_inferred_captures(id, typed()?);
                 self.type_tree = Some(id);
                 let pickled = match self.tpd.has_fresh_type(id) {
                     true => self.new_type(typed()?, false, self.buf.buf.current_addr()),

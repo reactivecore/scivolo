@@ -10,31 +10,42 @@ use tasty::{NOTHING, Type, TypeId, TypeVars, VarId};
 impl Typer<'_> {
     /// Instantiates the type variables other than locked ones that type applications in `tree`'s
     /// prefixes bind and the parameters of its applications mention, where they occur in
-    /// `params`: minimized if they have a lower bound, else maximized if they have an upper bound.
+    /// `params` or in the instances of those instantiated (`Inv[X]` of `T` in `sh(new Inv(1))` of
+    /// `def sh[T](t: T)(using Show[T])`): minimized if they have a lower bound, else maximized if
+    /// they have an upper bound.
     pub fn instantiate_param_vars(&mut self, tree: TNodeId, params: &[TypeId]) -> Result<(), &'static str> {
         let mut bound = Vec::new();
         self.bound_vars(tree, &mut bound);
         let mut selected = Vec::new();
         self.occurring_vars(tree, bound, &mut selected);
         for &p in params {
-            for v in self.open_vars(p) {
-                if !selected.contains(&v) || self.constraint.instance(v).is_some() {
-                    continue;
-                }
-                let (lo, hi) = self.constraint.bounds(v);
-                let (lo, hi) = (self.zonk(lo), self.zonk(hi));
-                let direction = self.constraint.direction(self.u, v);
-                if direction <= 0 && lo != NOTHING {
-                    if matches!(self.u.ty(lo), Type::And(..)) {
-                        return Err("type variable minimized to an intersection before an implicit search");
-                    }
-                    self.instantiate_var(v, true)?;
-                } else if direction >= 0 && !self.is_any(hi) && self.u.var(hi).is_none() {
-                    self.instantiate_var(v, false)?;
-                }
-            }
+            while self.instantiate_selected(p, &selected)? {}
         }
         Ok(())
+    }
+
+    /// Instantiates the variables of `selected` that occur in `p` as `instantiate_param_vars`
+    /// does; whether it instantiated one.
+    fn instantiate_selected(&mut self, p: TypeId, selected: &[VarId]) -> Result<bool, &'static str> {
+        let mut instantiated = false;
+        for v in self.open_vars(p) {
+            if !selected.contains(&v) || self.constraint.instance(v).is_some() {
+                continue;
+            }
+            let (lo, hi) = self.constraint.bounds(v);
+            let (lo, hi) = (self.zonk(lo), self.zonk(hi));
+            let direction = self.constraint.direction(self.u, v);
+            if direction <= 0 && lo != NOTHING {
+                if matches!(self.u.ty(lo), Type::And(..)) {
+                    return Err("type variable minimized to an intersection before an implicit search");
+                }
+                self.instantiate_var(v, true)?;
+            } else if direction >= 0 && !self.is_any(hi) && self.u.var(hi).is_none() {
+                self.instantiate_var(v, false)?;
+            }
+            instantiated |= self.constraint.instance(v).is_some();
+        }
+        Ok(instantiated)
     }
 
     /// Whether `t` is `Any` or `AnyKind`.

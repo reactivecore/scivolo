@@ -3,7 +3,40 @@
 use super::{ParamList, Type, TypeId};
 use crate::Universe;
 
+/// The full-name prefix of capture checking's annotation classes (`retains`, `retainsByName`,
+/// `retainsCap`).
+const RETAINS: &str = "scala.annotation.retains";
+
 impl Universe {
+    /// Determines whether annotation type `annot` is a capture set.
+    fn is_capture_set(&mut self, annot: TypeId) -> bool {
+        self.class_symbol(annot).is_some_and(|c| self.full_name_starts_with(c, RETAINS))
+    }
+
+    /// `t` mapped as `map_type` maps it, and the references of its capture sets too (dotty's
+    /// `RetainingAnnotation.mapWith`).
+    pub fn map_with_capture_sets(
+        &mut self,
+        t: TypeId,
+        f: &mut dyn FnMut(&mut Self, TypeId) -> Option<TypeId>,
+    ) -> TypeId {
+        self.map_type(t, &mut |u, x| {
+            if let Some(r) = f(u, x) {
+                return Some(r);
+            }
+            let (inner, annot) = u.annotated(x)?;
+            if !u.is_capture_set(annot) {
+                return None;
+            }
+            let mapped = u.map_with_capture_sets(inner, f);
+            let set = u.map_with_capture_sets(annot, f);
+            Some(match (mapped, set) == (inner, annot) {
+                true => x,
+                false => u.intern_type(Type::Annotated(mapped, set)),
+            })
+        })
+    }
+
     /// `t` with every part for which `f` gives a replacement replaced, outermost parts first;
     /// the other parts are rebuilt from their mapped children, an application whose constructor
     /// became a type lambda beta-reduced, one whose constructor became `Nothing` `Nothing`, a union

@@ -180,7 +180,7 @@ impl TreePickler<'_> {
         let refinements = self.tpd.items(refinements).to_vec();
         let Some(&first) = refinements.first() else { return self.tree(tpt) };
         let member = self.tpd.sym(first).ok_or("a refinement without a symbol")?;
-        self.check_refinement_captures(tpt, member)?;
+        self.check_refinement_captures(member)?;
         let class = self.u.symbol(member).owner.ok_or("a refinement without a class")?;
         self.register_def(class);
         let class_ref = type_ref(self.u, class);

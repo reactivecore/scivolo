@@ -208,6 +208,9 @@ pub struct Universe {
     pub reductions_exhausted: bool,
     /// How the cases of match types are matched, by the source version of the code at hand.
     pub match_type_rules: crate::MatchTypeRules,
+    /// Whether normalized types keep capture-checking annotations: in a capture-checked file
+    /// (ADR 0126).
+    pub keeps_captures: bool,
     /// Whether `erase` erases as Scala 2 does, for the signature of a Scala 2 symbol.
     scala2_erasure: bool,
 }

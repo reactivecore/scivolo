@@ -106,8 +106,10 @@ const DOTTY_TASTY: &[(&str, &[&str])] = &[
     ("caseclasses", &["scala/probe/Pair", "scala/probe/Words"]),
     ("views", &["scala/probe/Views"]),
     ("widenedargs", &["W"]),
+    ("typercaptures", &["G", "Mk", "ByNames"]),
     ("lambdabounds", &["scala/probe/LambdaBounds"]),
     ("witnessnames", &["scala/probe/WitnessNames"]),
+    ("seencaptures", &["Q", "R"]),
 ];
 
 /// The trees, positions and flag attributes of the classes of `DOTTY_TASTY` are dotty's: the
@@ -116,8 +118,8 @@ const DOTTY_TASTY: &[(&str, &[&str])] = &[
 /// sets of the types they are inferred from, emptied, those of inferredcaptures2.scala through
 /// generic calls, conditionals, matches and closures, a type argument none from an argument whose
 /// capture sets are only around it, a type argument the top capture set only of a path argument
-/// (widenedargs.scala), and an overriding member's its overridden member's as they
-/// are; annotated types take the annotation tree of their own
+/// (widenedargs.scala), the typer's own inferred types in typercaptures.scala, and an overriding member's its overridden member's as they
+/// are, their `this` seen from the overriding class (seencaptures.scala); annotated types take the annotation tree of their own
 /// origin in match selectors and patterns, inferred types, super accessors and inline accessors,
 /// in super accessors with their class's type parameters seen from the accessor's class; secondary constructors have their own type parameters and parameters passed on to the
 /// superclass are its parameters' aliases; `@BeanProperty` values get their bean accessors;
@@ -149,6 +151,28 @@ fn probes_pickle_as_dotty_s() {
             let same = trees_and_flags(&ours) == trees_and_flags(&theirs.expect("dotty's"));
             assert!(same, "{name}'s {class}.tasty differs from dotty's");
         }
+    }
+}
+
+/// A capture-checked file compiled before a plain one in one unit keeps its capture sets, and
+/// the plain one gets none: both pickle as dotty's compiled apart.
+#[test]
+fn capture_sets_are_kept_per_file() {
+    let out = root().join("tmp/jvm-test/mixedcaptures");
+    let _ = std::fs::remove_dir_all(&out);
+    let run = Command::new(env!("CARGO_BIN_EXE_scivolo-jvm"))
+        .current_dir(root())
+        .arg("-d")
+        .arg(&out)
+        .args(["tests/jvm/tastylib/typercaptures.scala", "tests/jvm/tastylib/plainiterators.scala"])
+        .output()
+        .expect("running scivolo-jvm");
+    assert!(run.status.success(), "{}", String::from_utf8_lossy(&run.stderr));
+    for (name, class) in [("typercaptures", "G"), ("plainiterators", "PlainIterators")] {
+        let ours = std::fs::read(out.join(format!("{class}.tasty"))).expect("our TASTy");
+        let theirs = std::fs::read(root().join(format!("tests/jvm/tastylib/{name}-{class}.tasty")));
+        let same = trees_and_flags(&ours) == trees_and_flags(&theirs.expect("dotty's"));
+        assert!(same, "{class}.tasty differs from dotty's");
     }
 }
 
@@ -198,45 +222,32 @@ fn library_annotations_pickle_as_dotty_s() {
     }
 }
 
-/// An inferred type that dotty's typer may give capture sets which ours cannot tell, through a
-/// call whose type argument a parameter of another type than it infers, a `this.type` or
-/// parameter singleton result widened to the capture sets of its path, and a dependent function
-/// type whose function type parent dotty gives the capture sets of its refinement are refused.
+/// A dependent function type whose function type parent dotty gives the capture sets of its
+/// refinement is refused, and so is the inferred function type of a closure whose parameters have
+/// capture sets (`@declared` in dotty's) or whose result's capture sets name its parameter (a
+/// dependent function type in dotty's).
 #[test]
 fn untold_capture_sets_are_refused() {
     let out = root().join("tmp/jvm-test/untoldcaptures");
     let _ = std::fs::remove_dir_all(&out);
     std::fs::create_dir_all(&out).expect("tmp/jvm-test/untoldcaptures");
-    let header = "import language.experimental.captureChecking\nclass Label[T]\nclass A\nclass B\n";
+    let header = "import language.experimental.captureChecking\nclass Label[T]\nclass A\nclass B\n\
+                  trait Coll:\n  def label: Label[Int]^{this}\n";
     let cases = [
-        (
-            "generic",
-            "object G:\n  def first[T](xs: List[T]): T = xs.head\n  \
-             def g(a: A^, b: B^{a}): Int =\n    val y = first(List(b))\n    1\n",
-            "capture sets not told",
-        ),
-        (
-            "thistype",
-            "class S:\n  def me: this.type = this\nobject T:\n  \
-             def g(a: A^, s: S^{a}): Int =\n    val y = s.me\n    1\n",
-            "capture sets not told",
-        ),
-        (
-            "paramtype",
-            "object P:\n  def pick(x: B^): x.type = x\n  \
-             def g(a: A^, b: B^{a}): Int =\n    val y = pick(b)\n    1\n",
-            "capture sets not told",
-        ),
         (
             "dependent",
             "object D:\n  val f: (x: A^) -> Label[Int]^{x} = x => Label[Int]()\n",
             "drops its refinement's capture sets",
         ),
         (
-            "invariantresult",
-            "class Box[T](val x: T)\nobject V:\n  def box[T](x: T): Box[T] = new Box[T](x)\n  \
-             def g(a: A^, b: B^{a}): Int =\n    val y: Box[B^{a}] = box(b)\n    1\n",
-            "capture sets not told",
+            "declared",
+            "object E:\n  def g() =\n    val f = (x: A^) => 1\n    1\n",
+            "a closure whose parameters have capture sets",
+        ),
+        (
+            "dependentclosure",
+            "object F:\n  def g() =\n    val f = (x: Coll) => x.label\n    1\n",
+            "a closure whose result's capture sets name its parameters",
         ),
     ];
     for (name, body, refusal) in cases {

@@ -173,12 +173,13 @@ impl Typer<'_> {
         }
     }
 
-    /// `t` with references to `from` replaced by `to` if both have the same length.
+    /// `t` with references to `from` replaced by `to` if both have the same length, in its capture
+    /// sets too.
     fn subst_syms(&mut self, t: TypeId, from: &[SymbolId], to: &[TypeId]) -> TypeId {
         if from.len() != to.len() {
             return t;
         }
-        self.u.map_type(t, &mut |u, x| match u.sym_ref(x) {
+        self.u.map_with_capture_sets(t, &mut |u, x| match u.sym_ref(x) {
             Some((None, s)) => from.iter().position(|&p| p == s).map(|i| to[i]),
             _ => None,
         })
