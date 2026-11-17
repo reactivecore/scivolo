@@ -13,6 +13,7 @@ class Box[A](val a: A)
 trait HK[F[_]]
 trait Variant[+A, -B]
 class Bounded[A <: Comparable[A]]
+trait Marker
 
 class Sigs[A] {
   type Elem = A
@@ -48,6 +49,10 @@ class Sigs[A] {
   def nullable(x: List[A] | Null): String | Null = null
   def inter[B <: Comparable[B] & java.io.Serializable](b: B): B = b
   def interBounded[B <: Comparable[B]](b: B & java.io.Serializable): Unit = ()
+  def chainTrait[A <: Marker, B <: A](x: B & Comparable[B]): Unit = ()
+  def chainClass[A <: Box[Int], B <: A, C <: B](x: Comparable[C] & C): Unit = ()
+  def chainArray[A <: Marker, B <: A](x: Array[B]): Array[B] = x
+  def chainInt[A <: Int, B <: A](x: B & Comparable[B]): B = x
   def unit(): Unit = ()
   def nothing: Nothing = ???
   def anyRef(x: AnyRef, y: Any): Object = x
@@ -124,6 +129,10 @@ const METHODS: &[(&str, &str, Option<&str>)] = &[
     ("Sigs", "nullable", Some("(Lscala/collection/immutable/List<TA;>;)Ljava/lang/String;")),
     ("Sigs", "inter", Some("<B::Ljava/io/Serializable;:Ljava/lang/Comparable<TB;>;>(TB;)TB;")),
     ("Sigs", "interBounded", Some("<B::Ljava/lang/Comparable<TB;>;>(Ljava/io/Serializable;)V")),
+    ("Sigs", "chainTrait", Some("<A::Lsigs/Marker;B::TA;>(Ljava/lang/Comparable<TB;>;)V")),
+    ("Sigs", "chainClass", Some("<A:Lsigs/Box<Ljava/lang/Object;>;B:TA;C:TB;>(TC;)V")),
+    ("Sigs", "chainArray", Some("<A::Lsigs/Marker;B::TA;>([TB;)[TB;")),
+    ("Sigs", "chainInt", Some("<A:Ljava/lang/Object;B:Ljava/lang/Object;>(I)I")),
     ("Sigs", "unit", None),
     ("Sigs", "nothing", None),
     ("Sigs", "anyRef", None),
@@ -148,6 +157,14 @@ const METHODS: &[(&str, &str, Option<&str>)] = &[
     ("Tr", "get", Some("(TX;)Lscala/collection/immutable/List<TX;>;")),
     ("Tr", "get$", None),
     ("Impl", "get", None),
+];
+
+/// The method descriptors of `SOURCE` that dotty writes, where erasure follows a chain of bounds.
+const DESCRIPTORS: &[(&str, &str, &str)] = &[
+    ("Sigs", "chainTrait", "(Ljava/lang/Comparable;)V"),
+    ("Sigs", "chainClass", "(Lsigs/Box;)V"),
+    ("Sigs", "chainArray", "([Lsigs/Marker;)[Lsigs/Marker;"),
+    ("Sigs", "chainInt", "(I)I"),
 ];
 
 /// The field signatures of `SOURCE` that dotty writes.
@@ -207,10 +224,14 @@ fn generic_signatures_as_dotty_writes_them() {
     for &(c, sig) in CLASSES {
         assert_eq!(class(c).signature.as_deref(), sig, "class {c}");
     }
+    let method = |c: &str, m: &str| {
+        class(c).methods.iter().find(|x| x.name == m).unwrap_or_else(|| panic!("no method {c}.{m}"))
+    };
     for &(c, m, sig) in METHODS {
-        let method =
-            class(c).methods.iter().find(|x| x.name == m).unwrap_or_else(|| panic!("no method {c}.{m}"));
-        assert_eq!(method.signature.as_deref(), sig, "method {c}.{m}");
+        assert_eq!(method(c, m).signature.as_deref(), sig, "method {c}.{m}");
+    }
+    for &(c, m, descriptor) in DESCRIPTORS {
+        assert_eq!(method(c, m).descriptor, descriptor, "method {c}.{m}");
     }
     for &(c, f, sig) in FIELDS {
         let field =
