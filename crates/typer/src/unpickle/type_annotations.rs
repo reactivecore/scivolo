@@ -39,15 +39,6 @@ pub fn type_annotation(
     Ok(read)
 }
 
-/// Whether the annotation tree at `id` is `new C()`, without value or type arguments.
-pub fn is_new_without_arguments(ast: &Ast, id: NodeId) -> bool {
-    let apply = ast.deref(id);
-    let [select] = *ast.kids(apply) else { return false };
-    let select = ast.deref(select);
-    let is_new = |&k: &NodeId| ast.tag(ast.deref(k)) == NEW;
-    ast.tag(apply) == APPLY && ast.tag(select) == SELECTin && ast.kids(select).first().is_some_and(is_new)
-}
-
 /// Whether the tree at `id` refers only to packages and their static members and is of the
 /// tags `type_annotation` reads.
 fn is_static(ast: &Ast, id: NodeId) -> bool {

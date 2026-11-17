@@ -45,6 +45,7 @@ use unit::File;
 use crate::tpd::{TNodeId, Tpd};
 use crate::unpickle::QuoteHole;
 use rustc_hash::{FxHashMap, FxHashSet};
+use std::cell::Cell;
 use syntax::ast::Span;
 use syntax::names::Names;
 use tasty::write::{Addr, Name, Pickler, TreeBuffer};
@@ -161,28 +162,40 @@ pub fn pickle_quote(
     root: TNodeId,
     holes: &[QuoteHole],
 ) -> Result<Vec<u8>, Refusal> {
-    pickle(cx, root, holes, None, None).map(|(bytes, _)| bytes).map_err(|(_, r)| r)
+    let unread = Cell::new(None);
+    pickle(cx, root, holes, (None, None), &unread).map(|(bytes, _)| bytes).map_err(|(_, r)| r)
 }
 
-/// The TASTy of quote `root` of `source`, `holes` its term holes, with positions.
+/// The TASTy of quote `root` of `source`, `holes` its term holes, with positions. The library
+/// annotation trees of annotated types pickled are read on demand, the quote pickled again after
+/// each.
 pub fn pickle_positioned_quote(
-    cx: (&mut Universe, &Tpd, &Names),
+    (u, tpd, names): (&mut Universe, &mut Tpd, &mut Names),
     root: TNodeId,
     holes: &[QuoteHole],
     source: &QuoteSource,
 ) -> Result<Vec<u8>, Refusal> {
-    pickle(cx, root, holes, Some(source), None).map(|(bytes, _)| bytes).map_err(|(_, r)| r)
+    loop {
+        let unread = Cell::new(None);
+        let pickled = pickle((u, &*tpd, &*names), root, holes, (Some(source), None), &unread);
+        let Some(tree) = unread.take() else {
+            return pickled.map(|(bytes, _)| bytes).map_err(|(_, r)| r);
+        };
+        let read = crate::unpickle::type_annotation(u, tpd, names, tree);
+        tpd.set_library_annotation(tree, read);
+    }
 }
 
 /// The TASTy of `root`: its trees, positions if `source` is given, and the comments and
 /// attributes of a file if `file` is; and the super accessors pickled, each its class and name.
-/// A refusal carries the span of the innermost tree refused that has one, else `root`'s.
+/// A refusal carries the span of the innermost tree refused that has one, else `root`'s; one for
+/// a library annotation tree not read yet sets `unread` to it.
 fn pickle<'a>(
     (u, tpd, names): (&'a mut Universe, &'a Tpd, &'a Names),
     root: TNodeId,
     holes: &[QuoteHole],
-    source: Option<&QuoteSource>,
-    file: Option<&'a File<'a>>,
+    (source, file): (Option<&QuoteSource>, Option<&'a File<'a>>),
+    unread: &Cell<Option<tasty::AnnotationTree>>,
 ) -> Result<(Vec<u8>, Accessors), (Span, Refusal)> {
     let mut pickler = Pickler::default();
     let section = pickler.new_section("ASTs");
@@ -241,8 +254,8 @@ fn pickle<'a>(
     };
     let at = |p: &TreePickler| p.refused_at.unwrap_or_else(|| p.tpd.span(root));
     let pickled = p.tree(root);
-    if let (Some(file), Some(tree)) = (file, p.unread) {
-        file.unread.set(Some(tree));
+    if let Some(tree) = p.unread {
+        unread.set(Some(tree));
         return Err((at(&p), library_annotations::UNREAD_ANNOTATION));
     }
     if let Err(refusal) = pickled {

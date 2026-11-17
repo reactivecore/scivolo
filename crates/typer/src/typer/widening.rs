@@ -5,7 +5,7 @@ use super::Typer;
 use super::type_ops::TypeOps;
 use crate::tpd::TNodeId;
 use syntax::ast::flags as f;
-use tasty::{Kind, Type, TypeId};
+use tasty::{Kind, SymbolId, Type, TypeId};
 
 /// The value classes, and which of them each converts to by numeric widening.
 const WIDENINGS: [(&str, &[&str]); 7] = [
@@ -65,7 +65,7 @@ impl Typer<'_> {
             .ok()?
             .into_iter()
             .find(|&d| self.u.symbol(d).kind == Kind::Def)?;
-        let prefix = crate::defn::type_ref(self.u, module);
+        let prefix = self.value_companion_ref(tpe, module);
         let fun_tpe = self.u.intern_type(Type::Sym(Some(prefix), conv));
         let info = self.method_info(fun_tpe)?;
         let result = self.u.method(info)?.result;
@@ -75,5 +75,17 @@ impl Typer<'_> {
         let span = self.tpd.span(tree);
         let fun = self.build().ident(conv, fun_tpe, span.start_pos());
         Some(self.build().apply(fun, &[tree], result, span.to_synthetic()))
+    }
+
+    /// The reference to `module`, the companion of the class of `tpe`, through the prefix of the
+    /// class's reference in `tpe` (dotty's `companionRef`).
+    fn value_companion_ref(&mut self, tpe: TypeId, module: SymbolId) -> TypeId {
+        let widened = self.u.widen(tpe);
+        let class = self.u.class_symbol(widened);
+        match *self.u.ty(widened) {
+            Type::Sym(Some(p), c) if class == Some(c) => self.u.intern_type(Type::Sym(Some(p), module)),
+            Type::TypeRef(p, _) => self.u.intern_type(Type::Sym(Some(p), module)),
+            _ => crate::defn::type_ref(self.u, module),
+        }
     }
 }

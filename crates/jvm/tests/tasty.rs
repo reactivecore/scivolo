@@ -103,6 +103,8 @@ const DOTTY_TASTY: &[(&str, &[&str])] = &[
     ),
     ("constructors", &["scala/probe/Base", "scala/probe/Derived"]),
     ("beanproperties", &["scala/probe/Beans"]),
+    ("caseclasses", &["scala/probe/Pair", "scala/probe/Words"]),
+    ("views", &["scala/probe/Views"]),
 ];
 
 /// The trees, positions and flag attributes of the classes of `DOTTY_TASTY` are dotty's: the
@@ -114,7 +116,10 @@ const DOTTY_TASTY: &[(&str, &[&str])] = &[
 /// are; annotated types take the annotation tree of their own
 /// origin in match selectors and patterns, inferred types, super accessors and inline accessors,
 /// in super accessors with their class's type parameters seen from the accessor's class; secondary constructors have their own type parameters and parameters passed on to the
-/// superclass are its parameters' aliases; `@BeanProperty` values get their bean accessors. Needs a JDK (java on the PATH), as dotty's did.
+/// superclass are its parameters' aliases; `@BeanProperty` values get their bean accessors;
+/// synthesized case class members refer to package members through the package's `this`, and
+/// numeric widenings their companion through the prefix of the widened type. Needs a JDK (java on
+/// the PATH), as dotty's did.
 #[test]
 fn probes_pickle_as_dotty_s() {
     if Command::new("java").arg("-version").output().is_err() {
@@ -142,9 +147,9 @@ fn probes_pickle_as_dotty_s() {
 }
 
 /// The annotated types of tests/jvm/tastylib/annotlib.jar, dotty's classes of annotlib/, keep
-/// their library's annotation trees in the TASTy of libraryannotations.scala as in dotty's; one
-/// whose tree refers to a parameter, which dotty maps, is refused, as is one with arguments in a
-/// quote.
+/// their library's annotation trees in the TASTy of libraryannotations.scala as in dotty's, each
+/// type its own, also in a super accessor, and in the quotes of quotedannotations.scala; one whose tree refers to a
+/// parameter, which dotty maps, is refused.
 #[test]
 fn library_annotations_pickle_as_dotty_s() {
     let out = root().join("tmp/jvm-test/libraryannotations");
@@ -161,10 +166,12 @@ fn library_annotations_pickle_as_dotty_s() {
     };
     let run = compile("tests/jvm/tastylib/libraryannotations.scala");
     assert!(run.status.success(), "{}", String::from_utf8_lossy(&run.stderr));
-    let ours = std::fs::read(out.join("scala/probe/Uses.tasty")).expect("our TASTy");
-    let theirs =
-        std::fs::read(root().join("tests/jvm/tastylib/libraryannotations-Uses.tasty")).expect("dotty's");
-    assert!(trees_and_flags(&ours) == trees_and_flags(&theirs), "Uses.tasty differs from dotty's");
+    for class in ["Uses", "Reversed"] {
+        let ours = std::fs::read(out.join(format!("scala/probe/{class}.tasty"))).expect("our TASTy");
+        let theirs = root().join(format!("tests/jvm/tastylib/libraryannotations-{class}.tasty"));
+        let theirs = std::fs::read(theirs).expect("dotty's");
+        assert!(trees_and_flags(&ours) == trees_and_flags(&theirs), "{class}.tasty differs from dotty's");
+    }
 
     let source = out.join("dependent.scala");
     std::fs::write(&source, "class D(b: annotlib.Box[Int]) { def d = b.dependent(2) }").expect("writing");
@@ -175,16 +182,14 @@ fn library_annotations_pickle_as_dotty_s() {
         "{stderr}"
     );
 
-    let source = out.join("quoted.scala");
-    let quote = "import scala.quoted.*\n\
-        def tags(l: Expr[annotlib.Lib])(using Quotes): Expr[Int] = '{ val t = $l.tags; t.size }";
-    std::fs::write(&source, quote).expect("writing");
-    let run = compile(source.to_str().expect("a path"));
-    let stderr = String::from_utf8_lossy(&run.stderr);
-    assert!(
-        !run.status.success() && stderr.contains("annotation tree with arguments in a quote"),
-        "{stderr}"
-    );
+    let run = compile("tests/jvm/tastylib/quotedannotations.scala");
+    assert!(run.status.success(), "{}", String::from_utf8_lossy(&run.stderr));
+    let ours = std::fs::read(out.join("quotedannotations$package$.class")).expect("our class");
+    let theirs = std::fs::read_to_string(root().join("tests/jvm/tastylib/quotedannotations.quotes"))
+        .expect("dotty's pickled quotes");
+    for quote in theirs.lines().map(str::as_bytes) {
+        assert!(ours.windows(quote.len()).any(|w| w == quote), "a quote differs from dotty's");
+    }
 }
 
 /// An inferred type that dotty's typer may give capture sets which ours cannot tell, through a
