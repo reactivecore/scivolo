@@ -135,8 +135,9 @@ impl UnapplyPattern {
     }
 }
 
-/// Whether typed type tree `typed` has the shape of type tree `tpt`: the same type names,
-/// selections and applications (dotty's `tpt.args == tpt2.args` of case class trees).
+/// Whether typing type tree `tpt` as `typed` kept its shape: the same type names, selections,
+/// applications and annotated types (dotty's `tpt.args == tpt2.args`, true where typing
+/// reused the untyped trees).
 fn same_shape(t: &Typer<'_>, tpt: NodeId, typed: TNodeId) -> bool {
     match (t.ast.tree(tpt), t.tpd.tree(typed)) {
         (Tree::Ident { name: a }, T::Ident { name: b }) => a == b,
@@ -147,6 +148,7 @@ fn same_shape(t: &Typer<'_>, tpt: NodeId, typed: TNodeId) -> bool {
             let (l, m) = (t.ast.items(*l), t.tpd.items(*m));
             same_shape(t, *a, *b) && l.len() == m.len() && l.iter().zip(m).all(|(&a, &b)| same_shape(t, a, b))
         }
+        (Tree::Annotated { arg: a, .. }, T::Annotated { arg: b, .. }) => same_shape(t, *a, *b),
         _ => false,
     }
 }

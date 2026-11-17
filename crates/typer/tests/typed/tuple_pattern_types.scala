@@ -10,6 +10,10 @@ object TuplePatternTypes {
     case t @ (o: Some[Int], y) => (t, o)
     case t @ (o: Option[t], y) => (t, o)
   }
+  def annotated(p: (Seq[Option[Int]], Int)) = p match {
+    case t @ (s: Seq[Some[Int]] @unchecked, y) => (t, s)
+    case t @ (s: Seq[Some[Int] @unchecked], y) => (t, s)
+  }
   def wildcard(p: (Any, Int)) = p match {
     case t @ (l: List[?], y) => (t, l)
     case _ => null
