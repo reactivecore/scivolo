@@ -162,6 +162,7 @@ fn accessor_name(u: &Universe, access: Access, host: SymbolId) -> String {
 /// point, an offset in its source file taken in `host`'s (dotty's `accessed.span`); for a loaded
 /// member, which has no span, at the end of `host`'s template as its envelope places them
 /// (dotty's `Positioned.envelope`); else at the point of `span`, the reference that needs them.
+/// An offset past the end of `host`'s file, which dotty places on its last line, is its end.
 pub fn accessor_span(t: &Typer<'_>, host: SymbolId, accessed: SymbolId, span: Span) -> Span {
     let Some(&d) = t.syms.def_trees.get(&accessed) else {
         return template_end(t, host).unwrap_or(Span::at(span.point()));
@@ -170,7 +171,8 @@ pub fn accessor_span(t: &Typer<'_>, host: SymbolId, accessed: SymbolId, span: Sp
     let Some(&host_def) = t.syms.def_trees.get(&host) else { return Span::at(point) };
     let start = |file: usize| file.checked_sub(1).map_or(0, |i| t.file_starts[i]);
     let (from, to) = (t.file_of(Span::at(point)), t.file_of(t.ast.span(host_def)));
-    Span::at(point - start(from) + start(to))
+    let offset = point - start(from) + start(to);
+    Span::at(t.file_starts.get(to).map_or(offset, |&next| offset.min(next - 1)))
 }
 
 /// The end of the union of the spans of the parts of `host`'s template, if it has one.

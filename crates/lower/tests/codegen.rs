@@ -340,8 +340,10 @@ def @C$::n2(Marker): unit : (@C$, @Marker) => unit {
 
 #[test]
 fn jdk_overrides_javalib_lacks_are_called_on_their_class() {
-    let source =
-        "object R { def f(n: Int) = java.util.concurrent.ThreadLocalRandom.current().nextInt(0, n) }";
+    let source = "object R { def r = java.util.concurrent.ThreadLocalRandom.current()\n  \
+                  def f(n: Int) = r.nextInt(0, n) + r.nextLong(0L, n) + r.nextDouble(1.0) }";
     let Some(dump) = lowered(source, "R$") else { return };
-    assert!(dump.contains("call[(@java.util.concurrent.ThreadLocalRandom, int, int) => int]"), "{dump}");
+    for sig in ["int, int) => int", "long, long) => long", "double) => double"] {
+        assert!(dump.contains(&format!("call[(@java.util.concurrent.ThreadLocalRandom, {sig}]")), "{dump}");
+    }
 }
