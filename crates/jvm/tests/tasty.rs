@@ -103,6 +103,7 @@ const DOTTY_TASTY: &[(&str, &[&str])] = &[
     ),
     ("constructors", &["scala/probe/Base", "scala/probe/Derived"]),
     ("caseclasses", &["scala/probe/Pair", "scala/probe/Words"]),
+    ("views", &["scala/probe/Views"]),
 ];
 
 /// The trees, positions and flag attributes of the classes of `DOTTY_TASTY` are dotty's: the
@@ -115,7 +116,8 @@ const DOTTY_TASTY: &[(&str, &[&str])] = &[
 /// origin in match selectors and patterns, inferred types, super accessors and inline accessors,
 /// in super accessors with their class's type parameters seen from the accessor's class; secondary constructors have their own type parameters and parameters passed on to the
 /// superclass are its parameters' aliases; synthesized case class members refer to package
-/// members through the package's `this`. Needs a JDK (java on the PATH), as dotty's did.
+/// members through the package's `this`, and numeric widenings their companion through the prefix of
+/// the widened type. Needs a JDK (java on the PATH), as dotty's did.
 #[test]
 fn probes_pickle_as_dotty_s() {
     if Command::new("java").arg("-version").output().is_err() {
