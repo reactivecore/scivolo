@@ -10,6 +10,7 @@ mod member_overrides;
 mod name_clashes;
 mod override_kinds;
 mod overrides_nothing;
+mod result_conformance;
 mod result_types;
 
 use super::Typer;

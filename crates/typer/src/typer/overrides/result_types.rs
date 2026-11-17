@@ -5,11 +5,12 @@
 //! conform to the overridden one's (`isOverridingPair`).
 
 use super::super::Typer;
+use super::result_conformance::result_conforms;
 use super::{OverrideChecks, overridable};
 use crate::symbols::Completion;
 use names::{name_kinds, nme};
 use syntax::ast::flags as f;
-use tasty::{Binder, Kind, NameId, SymbolId, Type, TypeId};
+use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl OverrideChecks {
     /// Whether a member of `own`, the class's declarations, or an inherited one overrides another
@@ -132,72 +133,4 @@ pub fn is_checked_term(t: &Typer<'_>, d: SymbolId) -> bool {
     let (kind, name) = (t.u.symbol(d).kind, &t.u.symbol(d).name);
     let exempt = name == nme::CONSTRUCTOR || name.contains(name_kinds::DEFAULT_GETTER);
     matches!(kind, Kind::Def | Kind::Val) && !exempt
-}
-
-/// Whether the result type of member `d` conforms to that of member `m`, both seen from the
-/// class of `site` with `m`'s type and value parameters renamed to `d`'s.
-pub fn result_conforms(t: &mut Typer<'_>, site: TypeId, d: SymbolId, m: SymbolId) -> bool {
-    let this = t.u.intern_type(Type::This(site));
-    results_conform(t, this, d, m) || results_conform(t, site, d, m)
-}
-
-/// Whether the result type of member `d` conforms to that of member `m`, both seen from `prefix`.
-fn results_conform(t: &mut Typer<'_>, prefix: TypeId, d: SymbolId, m: SymbolId) -> bool {
-    let (mut rd, mut rm) = (t.u.own_member_info(prefix, d), t.u.own_member_info(prefix, m));
-    let (td, tm) = (t.u.type_params(d), t.u.type_params(m));
-    let mut offset = 0;
-    loop {
-        match (clause(t, rd), clause(t, rm)) {
-            (Some((true, b1, p1, r1)), Some((true, b2, p2, r2))) if p1.len() == p2.len() => {
-                let n = p1.len();
-                let r2 = t.u.with_binder(r2, (b2, &p2), b1);
-                rd = type_param_refs(t, r1, td.get(offset..offset + n).unwrap_or_default(), b1);
-                rm = type_param_refs(t, r2, tm.get(offset..offset + n).unwrap_or_default(), b1);
-                offset += n;
-            }
-            (Some((false, b1, p1, r1)), Some((false, b2, p2, r2))) if p1.len() == p2.len() => {
-                rd = t.u.param_syms_as_refs(r1, &p1, b1);
-                let r2 = t.u.param_syms_as_refs(r2, &p2, b2);
-                rm = t.u.with_binder(r2, (b2, &p2), b1);
-            }
-            (Some((false, _, p1, r1)), _) if p1.is_empty() => rd = r1,
-            (_, Some((false, _, p2, r2))) if p2.is_empty() => rm = r2,
-            _ => break,
-        }
-    }
-    let (rd, rm) = (widen_expr(t, rd), widen_expr(t, rm));
-    if t.conforms(rd, rm) {
-        return true;
-    }
-    let overridden = |t: &mut Typer<'_>, ty: TypeId| t.u.map_type(ty, &mut |u, x| u.overriding_member(x));
-    let (rd, rm) = (overridden(t, rd), overridden(t, rm));
-    t.conforms(rd, rm)
-}
-
-/// A parameter clause of method type `info`: whether it is a type parameter clause, its binder,
-/// parameters and result.
-fn clause(t: &Typer<'_>, info: TypeId) -> Option<(bool, Binder, Vec<(NameId, TypeId)>, TypeId)> {
-    match *t.u.ty(info) {
-        Type::Poly { binder, params, result } => Some((true, binder, t.u.params_of(params).to_vec(), result)),
-        Type::Method { binder, params, result, .. } => {
-            Some((false, binder, t.u.params_of(params).to_vec(), result))
-        }
-        _ => None,
-    }
-}
-
-/// `ty` with references to type parameters `params` made references to parameters of `binder`.
-fn type_param_refs(t: &mut Typer<'_>, ty: TypeId, params: &[SymbolId], binder: Binder) -> TypeId {
-    t.u.map_type(ty, &mut |u, x| {
-        let Some((None, s)) = u.sym_ref(x) else { return None };
-        params.iter().position(|&p| p == s).map(|i| u.intern_type(Type::Param(binder, i as u32)))
-    })
-}
-
-/// `T` for `=> T`, else `t`.
-fn widen_expr(t: &Typer<'_>, ty: TypeId) -> TypeId {
-    match *t.u.ty(ty) {
-        Type::ByName(r) => r,
-        _ => ty,
-    }
 }

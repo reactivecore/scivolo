@@ -4,7 +4,7 @@
 
 use super::super::Typer;
 use super::override_kinds::kind_refusal;
-use super::result_types::result_conforms;
+use super::result_conformance::result_conforms;
 use super::{OverrideChecks, overridable};
 use names::{name_kinds, nme};
 use syntax::ast::flags as f;
