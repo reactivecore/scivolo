@@ -25,6 +25,7 @@ impl CaseLambda {
         self.index(v).is_some()
     }
 
+    /// Determines the position of `v` among the captures, if it is one.
     pub fn index(&self, v: VarId) -> Option<usize> {
         let i = v.0.checked_sub(self.base)? as usize;
         (i < self.wildcards.len()).then_some(i)

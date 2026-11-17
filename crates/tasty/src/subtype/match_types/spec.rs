@@ -61,6 +61,7 @@ pub struct Specced {
     pub body: TypeId,
 }
 
+/// A case with captures as written, its pattern and body over the captures of `binder`.
 pub struct Legacy {
     pub binder: Binder,
     /// The name and bounds of each capture.
