@@ -79,7 +79,7 @@ impl TreePickler<'_> {
             return Ok(());
         }
         let info = self.u.info(sym);
-        if info == tpe || normalized(self.u, info) != tpe {
+        if normalized(self.u, info) != tpe {
             return Ok(());
         }
         let mut captures = Vec::new();

@@ -65,6 +65,13 @@ impl TreePickler<'_> {
     /// `tpe` is a primitive value class, which only a capture set on a type other than a class's
     /// may become.
     pub fn check_inferred_captures(&mut self, tpt: TNodeId, tpe: TypeId) -> Result<(), Refusal> {
+        if self.capture_checked() && matches!(self.tpd.tree(tpt), Tree::TypeTree { inferred: true }) {
+            if !self.kept_captures.contains_key(&tpt) && has_captures(self.u, tpe) {
+                let kept = emptied(self.u, tpe);
+                self.kept_captures.insert(tpt, kept);
+            }
+            return Ok(());
+        }
         let scope = self.inferred.scope;
         if !scope.captures
             || !matches!(self.tpd.tree(tpt), Tree::TypeTree { inferred: true })
@@ -124,6 +131,9 @@ impl TreePickler<'_> {
             return;
         };
         let overriding = !overridden_infos(self.u, sym).is_empty();
+        if !overriding {
+            return;
+        }
         let closure = self.u.symbol(sym).name == nme::ANON_FUN && !self.inferred.free_closures.contains(&sym);
         let from = match self.tpd.captured_type(tpt) {
             Some(t) => Some(captured(self.u, t)),

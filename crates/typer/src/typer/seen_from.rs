@@ -115,7 +115,7 @@ pub fn class_param_arg(u: &mut tasty::Universe, t: TypeId) -> Option<TypeId> {
 /// Normalizes `t` as `Typer::normalized`: reduces applied type lambdas and applied aliases of
 /// type lambdas, and drops capture-checking annotations.
 pub fn normalized(u: &mut tasty::Universe, t: TypeId) -> TypeId {
-    normalized_as(u, t, false)
+    normalized_as(u, t, u.keeps_captures)
 }
 
 fn normalized_as(u: &mut tasty::Universe, t: TypeId, keep_captures: bool) -> TypeId {
