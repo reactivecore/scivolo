@@ -4,6 +4,7 @@
 use super::TreePickler;
 use super::captured_exprs::{Captured, captured, strip_annotations};
 use super::retaining::emptied;
+use super::widened_args::has_part;
 use crate::tpd::{List, TNodeId, Tree as T};
 use crate::typer::seen_from::{member_of, resolve_class_params, resolve_class_params_keeping_captures};
 use crate::typer::type_apply::instantiate_poly;
@@ -23,16 +24,6 @@ fn is_function(u: &mut tasty::Universe, tycon: TypeId) -> bool {
     let function =
         |n: &str| n.trim_start_matches("Impure").trim_start_matches("Context").starts_with("Function");
     u.referenced(tycon).is_some_and(|s| member_of(u, s, "scala", function))
-}
-
-/// Determines whether a part of `t` is one `is` accepts.
-pub fn has_part(u: &mut tasty::Universe, t: TypeId, is: &dyn Fn(&tasty::Universe, TypeId) -> bool) -> bool {
-    let mut found = false;
-    u.map_type(t, &mut |u, part| {
-        found |= is(u, part);
-        None
-    });
-    found
 }
 
 impl TreePickler<'_> {
@@ -120,6 +111,7 @@ impl TreePickler<'_> {
             }
         }
         let (mut found, result) = (None, (!unexpected).then_some(info));
+        let mut blocks = Vec::new();
         let tellers = args.into_iter().map(Teller::Arg).chain(closures.into_iter().map(Teller::Closure));
         for teller in tellers {
             let c = match teller {
@@ -128,6 +120,7 @@ impl TreePickler<'_> {
                 Teller::Closure((block, formals)) => {
                     let c = self.captured_closure_result(block, (&formals, binder), depth)?;
                     let (e, method) = self.closure_result_expr(block)?;
+                    blocks.push(block);
                     self.widened_arg((e, c), Some(method), (result, &is_param))?
                 }
             };
@@ -135,6 +128,9 @@ impl TreePickler<'_> {
                 return None;
             }
             found = Some(c);
+        }
+        for block in blocks {
+            self.keep_closure_result(block, found?)?;
         }
         for (a, outer_only) in pure {
             let c = match self.captured_in(a, depth)? {

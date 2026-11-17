@@ -3,7 +3,6 @@
 
 use super::TreePickler;
 use super::captured_exprs::{Captured, captured, strip_annotations};
-use super::captured_type_args::has_part;
 use crate::sealed::is_contained_in;
 use crate::tpd::{TNodeId, Tree as T};
 use crate::typer::seen_from::resolve_class_params;
@@ -100,6 +99,16 @@ impl TreePickler<'_> {
             _ => None,
         }
     }
+}
+
+/// Determines whether a part of `t` is one `is` accepts.
+pub fn has_part(u: &mut tasty::Universe, t: TypeId, is: IsParam<'_>) -> bool {
+    let mut found = false;
+    u.map_type(t, &mut |u, part| {
+        found |= is(u, part);
+        None
+    });
+    found
 }
 
 /// Whether the parts of `t` that `param` accepts occur only covariantly in it.
