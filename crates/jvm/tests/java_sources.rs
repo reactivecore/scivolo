@@ -112,6 +112,45 @@ fn run_tests_with_java_sources_print_their_check() {
     }
 }
 
+/// With an output jar, javac's classes of the Java sources go into the jar with the Scala ones.
+#[test]
+fn java_sources_compile_into_an_output_jar() {
+    if ["java", "javac"].into_iter().any(|tool| Command::new(tool).arg("--version").output().is_err()) {
+        eprintln!("no java or javac on the PATH: skipped");
+        return;
+    }
+    let dir = root().join("tests/jvm/javasources/runs/named-args");
+    let out = root().join("tmp/jvm-test/javasources-jar");
+    let _ = std::fs::remove_dir_all(&out);
+    std::fs::create_dir_all(&out).expect("the output directory");
+    let jar = out.join("out.jar");
+    let sources = [dir.join("Greeter.java"), dir.join("Test.scala")];
+    run(Command::new(env!("CARGO_BIN_EXE_scivolo-jvm")).arg("-d").arg(&jar).args(&sources));
+    assert!(!out.join("out.javac").exists(), "javac's directory removed");
+    let library = root().join("ref/libs/scala-library-3.9.0.jar");
+    let classpath = format!("{}:{}", jar.display(), library.display());
+    let stdout = run(Command::new("java").args(["-Xverify:all", "-cp", &classpath, "Test"]));
+    let check = std::fs::read_to_string(dir.join("named-args.check")).expect("the check");
+    assert_eq!(stdout, check);
+}
+
+/// Without javac on the PATH the Scala classes are written and the Java sources only read, as
+/// dotty does, with a warning.
+#[test]
+fn java_sources_without_javac_are_only_read() {
+    let dir = root().join("tests/jvm/javasources/runs/named-args");
+    let out = root().join("tmp/jvm-test/javasources-no-javac");
+    let _ = std::fs::remove_dir_all(&out);
+    let empty = root().join("tmp/jvm-test/empty-path");
+    std::fs::create_dir_all(&empty).expect("an empty directory");
+    let sources = [dir.join("Greeter.java"), dir.join("Test.scala")];
+    let mut scivolo = Command::new(env!("CARGO_BIN_EXE_scivolo-jvm"));
+    let result = output(scivolo.env("PATH", &empty).arg("-d").arg(&out).args(&sources));
+    let stderr = String::from_utf8_lossy(&result.stderr);
+    assert!(result.status.success() && stderr.contains("no javac on the PATH"), "{stderr}");
+    assert!(out.join("Test.class").exists() && !out.join("Greeter.class").exists());
+}
+
 /// The varargs forwarders of methods with repeated parameters bounded by `Int` and `Double` wrap
 /// their arrays as dotty's do, by `wrapIntArray` and `wrapDoubleArray`.
 #[test]

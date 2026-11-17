@@ -79,13 +79,13 @@ pub struct Field {
     pub annotations: Option<Vec<Annotation>>,
 }
 
-/// A method or constructor (named `<init>`) with its class-file access flags and its
-/// annotations, none if the parser does not keep them.
+/// A method or constructor (named `<init>`) with its class-file access flags, its parameters'
+/// names and types, and its annotations, none if the parser does not keep them.
 pub struct Method {
     pub access: u16,
     pub name: String,
     pub type_params: Vec<TypeParam>,
-    pub params: Vec<Type>,
+    pub params: Vec<(String, Type)>,
     pub result: Type,
     pub annotation_default: bool,
     pub annotations: Option<Vec<Annotation>>,

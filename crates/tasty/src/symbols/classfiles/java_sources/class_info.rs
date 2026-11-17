@@ -68,7 +68,8 @@ pub fn class_info(u: &mut Universe, sources: &JavaSources, at: &Located) -> Resu
     let fields = class.fields.iter().map(|f| {
         let (sig, descriptor) = s.ty(u, &f.ty)?;
         let (access, name, constant) = (f.access, f.name.clone(), f.constant.clone());
-        Ok(MemberInfo { access, name, descriptor, signature: Some(sig), constant, annotation_default: false })
+        let (signature, annotation_default, param_names) = (Some(sig), false, Vec::new());
+        Ok(MemberInfo { access, name, descriptor, signature, constant, annotation_default, param_names })
     });
     let fields = fields.collect::<Result<_, String>>()?;
     let methods = class.methods.iter().map(|m| s.method(u, at, m)).collect::<Result<_, String>>()?;
@@ -164,7 +165,7 @@ impl Signatures<'_> {
             descriptor.push_str(&format!("L{};", outer.internal));
         }
         signature.push('(');
-        for p in &m.params {
+        for (_, p) in &m.params {
             let (sig, desc) = self.ty(u, p)?;
             signature.push_str(&sig);
             descriptor.push_str(&desc);
@@ -182,6 +183,7 @@ impl Signatures<'_> {
             signature: Some(signature),
             constant: None,
             annotation_default,
+            param_names: m.params.iter().map(|(n, _)| n.clone()).collect(),
         })
     }
 

@@ -7,6 +7,9 @@ use super::scanner::Token;
 use super::syntax::{Class, Field, Method, Type};
 use classfile::{ACC_ENUM, ACC_FINAL, ACC_PUBLIC, ACC_STATIC};
 
+/// The parameter name of an enum's `valueOf`.
+const VALUE_OF_PARAM: &str = "x";
+
 impl Parser {
     /// Reads the constants of enum `class` up to the `;` or `}` after them, and enters them as
     /// its static fields with its `values` and `valueOf`; a constant with a body makes the enum
@@ -37,7 +40,8 @@ impl Parser {
         class.access |= if bodies { 0 } else { ACC_FINAL };
         let array = Type::Array(Box::new(enum_type.clone()));
         let string = Type::Named(["java", "lang", "String"].map(|n| (n.to_owned(), Vec::new())).to_vec());
-        for (name, params, result) in [("values", vec![], array), ("valueOf", vec![string], enum_type)] {
+        let value_of = vec![(VALUE_OF_PARAM.to_owned(), string)];
+        for (name, params, result) in [("values", vec![], array), ("valueOf", value_of, enum_type)] {
             let (access, name, type_params) = (ACC_PUBLIC | ACC_STATIC, name.to_owned(), Vec::new());
             class.methods.push(Method {
                 access,
