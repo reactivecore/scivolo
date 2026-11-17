@@ -13,6 +13,7 @@ impl Typer<'_> {
         }
         for i in 0..self.tpd.len() {
             let id = TNodeId::new(i);
+            self.keep_captures_at(self.tpd.span(id));
             if let Some(t) = self.tpd.get(id).tpe {
                 self.fully_defined(t)?;
                 let t = self.types().zonk_kept(t);

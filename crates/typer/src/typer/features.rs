@@ -125,6 +125,17 @@ impl Typer<'_> {
         outer
     }
 
+    /// Makes normalized types keep capture sets if the source file `span` lies in is
+    /// capture-checked, for a pass over the trees of all files.
+    pub fn keep_captures_at(&mut self, span: Span) {
+        if !span.exists() || self.file_cfgs.len() < 2 {
+            return;
+        }
+        if let Some(cfg) = self.file_cfgs.get(self.file_of(span)) {
+            self.u.keeps_captures = cfg.features.capture_checking();
+        }
+    }
+
     /// Runs `f` with the settings of the source file of `tree`, which is typed apart from its file.
     pub fn in_file_of<R>(&mut self, tree: NodeId, f: impl FnOnce(&mut Self) -> R) -> R {
         let span = self.ast.span(tree);

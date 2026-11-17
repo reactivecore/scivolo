@@ -149,6 +149,28 @@ fn probes_pickle_as_dotty_s() {
     }
 }
 
+/// A capture-checked file compiled before a plain one in one unit keeps its capture sets, and
+/// the plain one gets none: both pickle as dotty's compiled apart.
+#[test]
+fn capture_sets_are_kept_per_file() {
+    let out = root().join("tmp/jvm-test/mixedcaptures");
+    let _ = std::fs::remove_dir_all(&out);
+    let run = Command::new(env!("CARGO_BIN_EXE_scivolo-jvm"))
+        .current_dir(root())
+        .arg("-d")
+        .arg(&out)
+        .args(["tests/jvm/tastylib/typercaptures.scala", "tests/jvm/tastylib/plainiterators.scala"])
+        .output()
+        .expect("running scivolo-jvm");
+    assert!(run.status.success(), "{}", String::from_utf8_lossy(&run.stderr));
+    for (name, class) in [("typercaptures", "G"), ("plainiterators", "PlainIterators")] {
+        let ours = std::fs::read(out.join(format!("{class}.tasty"))).expect("our TASTy");
+        let theirs = std::fs::read(root().join(format!("tests/jvm/tastylib/{name}-{class}.tasty")));
+        let same = trees_and_flags(&ours) == trees_and_flags(&theirs.expect("dotty's"));
+        assert!(same, "{class}.tasty differs from dotty's");
+    }
+}
+
 /// The annotated types of tests/jvm/tastylib/annotlib.jar, dotty's classes of annotlib/, keep
 /// their library's annotation trees in the TASTy of libraryannotations.scala as in dotty's, each
 /// type its own, also in a super accessor, and in the quotes of quotedannotations.scala; one whose tree refers to a

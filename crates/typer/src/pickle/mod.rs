@@ -187,11 +187,29 @@ pub fn pickle_positioned_quote(
     }
 }
 
+/// The TASTy of `root` as `pickle_trees` gives it, with types normalized as in `file` if given:
+/// keeping capture sets in a capture-checked file.
+fn pickle<'a>(
+    (u, tpd, names): (&'a mut Universe, &'a Tpd, &'a Names),
+    root: TNodeId,
+    holes: &[QuoteHole],
+    (source, file): (Option<&QuoteSource>, Option<&'a File<'a>>),
+    unread: &Cell<Option<tasty::AnnotationTree>>,
+) -> Result<(Vec<u8>, Accessors), (Span, Refusal)> {
+    let outer = u.keeps_captures;
+    if let Some(file) = file {
+        u.keeps_captures = file.attributes.features.capture_checking();
+    }
+    let pickled = pickle_trees((&mut *u, tpd, names), root, holes, (source, file), unread);
+    u.keeps_captures = outer;
+    pickled
+}
+
 /// The TASTy of `root`: its trees, positions if `source` is given, and the comments and
 /// attributes of a file if `file` is; and the super accessors pickled, each its class and name.
 /// A refusal carries the span of the innermost tree refused that has one, else `root`'s; one for
 /// a library annotation tree not read yet sets `unread` to it.
-fn pickle<'a>(
+fn pickle_trees<'a>(
     (u, tpd, names): (&'a mut Universe, &'a Tpd, &'a Names),
     root: TNodeId,
     holes: &[QuoteHole],
