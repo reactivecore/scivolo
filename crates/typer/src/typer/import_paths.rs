@@ -5,12 +5,15 @@
 use super::imports::{ImportEntry, ImportInfo};
 use super::{Pt, Typer};
 use crate::ctx::Ctx;
+use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{NodeId, Tree};
 
 impl Typer<'_> {
     /// Determines the info of import `i`, its path typed if not yet. A lookup through `i` while
     /// its path is typed, as when that completes an object whose exports refer to names `i`
     /// imports, types the path again once; `None` for a lookup through `i` during that typing.
+    /// Refuses that lookup when the path selects a member of a term, as `import B.C.*` in an
+    /// object that `B` exports (dotty's cyclic reference involving the import).
     pub fn import_info(&mut self, i: usize) -> Option<&ImportInfo> {
         let pending = match self.imports[i] {
             ImportEntry::Pending { tree, ctx } => Some((tree, ctx, false)),
@@ -20,12 +23,21 @@ impl Typer<'_> {
         if let Some((tree, ctx, again)) = pending {
             self.imports[i] = ImportEntry::Completing { tree, ctx, again };
             let info = self.typed_import_path(tree, ctx);
+            if again && let Some(expr) = info.expr.filter(|&e| self.selects_from_term(e)) {
+                self.unsupported_tree(self.tpd.span(expr), "cyclic reference involving an import");
+            }
             self.imports[i] = ImportEntry::Done(info);
         }
         match &self.imports[i] {
             ImportEntry::Done(info) => Some(info),
             _ => None,
         }
+    }
+
+    /// Whether typed path `path` selects a member of a term other than a package.
+    fn selects_from_term(&self, path: TNodeId) -> bool {
+        let T::Select { qualifier, .. } = *self.tpd.tree(path) else { return false };
+        !self.tpd.sym(qualifier).is_some_and(|s| self.u.symbol(s).kind == tasty::Kind::Package)
     }
 
     fn typed_import_path(&mut self, tree: NodeId, ctx: Ctx) -> ImportInfo {
