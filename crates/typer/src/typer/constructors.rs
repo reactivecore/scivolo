@@ -8,7 +8,10 @@ use crate::tpd::{TNodeId, Tree as T};
 use names::nme;
 use syntax::ast::NodeId;
 use tasty::tags::{ABSTRACT, TRAIT};
-use tasty::{Kind, SymbolId, Type, TypeId};
+use tasty::{Binder, Kind, ParamList, SymbolId, Type, TypeId};
+
+/// The parameter clauses of a method type, by binder.
+type Clauses = Vec<(Binder, ParamList)>;
 
 impl Typer<'_> {
     pub fn typed_new(&mut self, id: NodeId, tpt: NodeId, ctx: Ctx) -> TNodeId {
@@ -145,24 +148,34 @@ impl Typer<'_> {
                 let args: Vec<_> =
                     (0..arity).map(|i| self.u.intern_type(Type::Param(binder, i as u32))).collect();
                 let class = self.u.intern_applied(class, &args);
-                let result = self.with_final_result(result, class);
+                let result = self.with_final_result(owner, result, class, &mut Vec::new());
                 self.u.intern_type(Type::Poly { binder, params, result })
             }
-            _ => self.with_final_result(info, class),
+            _ => self.with_final_result(owner, info, class, &mut Vec::new()),
         }
     }
 
-    /// Method type `t` with its final result, if `Unit`, replaced by `class`.
-    fn with_final_result(&mut self, t: TypeId, class: TypeId) -> TypeId {
+    /// Method type `t` of a constructor of `owner` with its final result, if `Unit`, replaced by
+    /// `class`, refined by the tracked parameters of the clauses `outer` and those of `t`.
+    fn with_final_result(
+        &mut self,
+        owner: SymbolId,
+        t: TypeId,
+        class: TypeId,
+        outer: &mut Clauses,
+    ) -> TypeId {
         let node = *self.u.ty(t);
-        match node {
+        let result = match node {
             Type::Method { binder, params, result, implicit, contextual } => {
-                let result = self.with_final_result(result, class);
-                self.u.intern_type(Type::Method { binder, params, result, implicit, contextual })
+                outer.push((binder, params));
+                let result = self.with_final_result(owner, result, class, outer);
+                return self.u.intern_type(Type::Method { binder, params, result, implicit, contextual });
             }
             _ if self.u.class_symbol(t) == Some(self.defn.unit) => class,
-            _ => t,
-        }
+            _ if self.u.class_symbol(t) == Some(owner) && self.without_refinements(t) == t => t,
+            _ => return t,
+        };
+        outer.iter().fold(result, |r, &(binder, params)| self.add_param_refinements(owner, r, binder, params))
     }
 
     /// The type of a call of constructor `ctor` on `new` of type `class`, whose method type gives
@@ -174,7 +187,7 @@ impl Typer<'_> {
             u.sym_of(u.applied(t).map_or(t, |(c, _)| c)).is_some_and(|c| Some(c) == owner)
         };
         match owner {
-            _ if names_owner(self.u, result) => result,
+            _ if names_owner(self.u, self.without_refinements(result)) => result,
             Some(o) if self.u.applied(class).is_none() => crate::defn::type_ref(self.u, o),
             _ => class,
         }

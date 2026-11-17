@@ -62,7 +62,7 @@ class Sexp(bytes: Array[Int], b: StringBuilder)(using Context):
           (if f.is(AbsOverride) then List(ABSTRACT, OVERRIDE) else Nil) ++
           (if f.isAllOf(StableMethod) then List(STABLE) else Nil)
       else tpe.collect { case (flag, tag) if f.is(flag) => tag })
-    tags.distinct.sorted.map(astTagToString).mkString(" ")
+    tags.distinct.sorted.map(t => if t == TRACKED then "TRACKED" else astTagToString(t)).mkString(" ")
 
   def params(ns: List[Name], is: List[Type], d: Int): String =
     ns.zip(is).map((n, i) => s"$n${if i.isInstanceOf[TypeBounds] then " " else ": "}${tpe(i, d)}").mkString(", ")
