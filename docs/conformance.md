@@ -308,11 +308,11 @@ Results:
 
 | Outcome | Tests |
 |---|---:|
-| passed | 1495 |
+| passed | 1498 |
 | wrong output | 0 |
 | crashed | 0 |
 | timeout | 0 |
-| lowering refused | 3 |
+| lowering refused | 0 |
 | typer refused | 8 |
 | parser refused | 0 |
 | macro refused | 0 |
@@ -327,8 +327,6 @@ Results:
   (`errorhandling`), `Printer.TypeReprStructure` of a type the frontend does not print, an inline
   call of an object with opaque types in an inline expansion (`named-tuples-strawman-2`),
   `typeChecks` of a non-constant string.
-- **Lowering refused:** a `TypeDef` in an expression (`i11050`, `i13332intersection`,
-  `typeclass-derivation3`), left by summons in local classes of inline bodies (#278).
 - `Runtime.totalMemory`,
   `maxMemory` and `freeMemory`, which Scala Native's javalib lacks and the overlay adds (ADR
   0008), are typed through `libs/jdk-stubs/JdkMemberDeclarations.scala`.
@@ -392,21 +390,20 @@ Results:
 
 | Outcome | tests/run | tests/run-macros |
 |---|---:|---:|
-| passed | 1685 | 320 |
+| passed | 1688 | 320 |
 | wrong output | 0 | 0 |
 | verify error | 0 | 0 |
 | linkage error | 0 | 0 |
 | crashed | 1 | 0 |
 | timeout | 0 | 0 |
 | frontend crashed | 0 | 0 |
-| jvm refused | 3 | 0 |
+| jvm refused | 0 | 0 |
 | lowering refused | 0 | 0 |
 | typer refused | 8 | 0 |
 | skipped | 14 | 1 |
 | **total** | **1711** | **321** |
 
 - **Typer refused (run):** the eight of the VM's report.
-- **JVM refused (run):** the VM's three lowering refusals, as a `TypeDef` on the JVM.
 - **Tests with Java sources:** all pass.
 - **Crash:** `lambda-serialization-gc` casts the application class loader to `URLClassLoader`,
   which fails for scalac's class files too, as the runner does not load tests through one.
