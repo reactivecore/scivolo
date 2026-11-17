@@ -106,6 +106,7 @@ const DOTTY_TASTY: &[(&str, &[&str])] = &[
     ("caseclasses", &["scala/probe/Pair", "scala/probe/Words"]),
     ("views", &["scala/probe/Views"]),
     ("widenedargs", &["W"]),
+    ("lambdabounds", &["scala/probe/LambdaBounds"]),
 ];
 
 /// The trees, positions and flag attributes of the classes of `DOTTY_TASTY` are dotty's: the
@@ -120,7 +121,8 @@ const DOTTY_TASTY: &[(&str, &[&str])] = &[
 /// in super accessors with their class's type parameters seen from the accessor's class; secondary constructors have their own type parameters and parameters passed on to the
 /// superclass are its parameters' aliases; `@BeanProperty` values get their bean accessors;
 /// synthesized case class members refer to package members through the package's `this`, and
-/// numeric widenings their companion through the prefix of the widened type. Needs a JDK (java on
+/// numeric widenings their companion through the prefix of the widened type; a type lambda
+/// written as a wildcard's bound pickles without variances. Needs a JDK (java on
 /// the PATH), as dotty's did.
 #[test]
 fn probes_pickle_as_dotty_s() {

@@ -145,23 +145,10 @@ impl Typer<'_> {
                 let args: Vec<_> =
                     (0..arity).map(|i| self.u.intern_type(Type::Param(binder, i as u32))).collect();
                 let class = self.u.intern_applied(class, &args);
-                let result = self.with_final_result(result, class);
+                let result = self.with_final_result(owner, result, class, &mut Vec::new());
                 self.u.intern_type(Type::Poly { binder, params, result })
             }
-            _ => self.with_final_result(info, class),
-        }
-    }
-
-    /// Method type `t` with its final result, if `Unit`, replaced by `class`.
-    fn with_final_result(&mut self, t: TypeId, class: TypeId) -> TypeId {
-        let node = *self.u.ty(t);
-        match node {
-            Type::Method { binder, params, result, implicit, contextual } => {
-                let result = self.with_final_result(result, class);
-                self.u.intern_type(Type::Method { binder, params, result, implicit, contextual })
-            }
-            _ if self.u.class_symbol(t) == Some(self.defn.unit) => class,
-            _ => t,
+            _ => self.with_final_result(owner, info, class, &mut Vec::new()),
         }
     }
 
@@ -174,7 +161,7 @@ impl Typer<'_> {
             u.sym_of(u.applied(t).map_or(t, |(c, _)| c)).is_some_and(|c| Some(c) == owner)
         };
         match owner {
-            _ if names_owner(self.u, result) => result,
+            _ if names_owner(self.u, self.without_refinements(result)) => result,
             Some(o) if self.u.applied(class).is_none() => crate::defn::type_ref(self.u, o),
             _ => class,
         }
