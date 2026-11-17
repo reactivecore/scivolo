@@ -458,6 +458,19 @@ fn a_tuple_class_of_the_unit_extends_its_generic_tuple() {
 }
 
 #[test]
+fn var_handles_of_mixed_in_lazy_values_come_first() {
+    let code = "trait T { lazy val t: String = \"t\" }\n\
+                class Lz extends T { lazy val a: String = \"a\"; lazy val b: String = \"b\" }\n";
+    let sources = written("lazyhandles-src", &[("lz.scala", code)]);
+    let (out, compiled) = compile("lazyhandles", &sources[0]);
+    assert!(compiled.status.success(), "{}", String::from_utf8_lossy(&compiled.stderr));
+    let class = std::fs::read(out.join("Lz.class")).expect("Lz.class");
+    let at = |n: &str| class.windows(n.len()).position(|w| w == n.as_bytes()).expect(n);
+    assert!(at("t$lzy1$lzyHandle") < at("b$lzy1$lzyHandle"));
+    assert!(at("b$lzy1$lzyHandle") < at("a$lzy1$lzyHandle"));
+}
+
+#[test]
 fn the_library_sees_the_jdk_17_api() {
     let code = "package p\nabstract class E extends java.util.concurrent.Executor\n\
                 trait T extends java.util.concurrent.ExecutorService\n\
