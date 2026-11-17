@@ -11,7 +11,7 @@ use super::{Refusal, TreePickler};
 use crate::tpd::{TNodeId, Tree};
 use crate::typer::capture_types::has_captures;
 use tasty::tags::PRIVATE;
-use tasty::{Kind, SymbolId, TypeId, Universe};
+use tasty::{Kind, SymbolId, Type, TypeId, Universe};
 
 impl TreePickler<'_> {
     fn capture_checked(&self) -> bool {
@@ -42,6 +42,48 @@ impl TreePickler<'_> {
             && e.is_some_and(|e| matches!(self.tpd.tree(e), Tree::This { .. }))
         {
             true => Err("an inferred type of `this`, which dotty's typer may give a capture set"),
+            false => Ok(()),
+        }
+    }
+
+    /// Refuses in a capture-checked file a definition of inferred type tree `tpt` whose
+    /// right-hand side `rhs` is a closure with parameters of capture sets, which dotty's
+    /// `explicifyTpt` keeps as `@caps.internal.declared` (`val f = (x: A^) => x`).
+    pub fn check_closure_captures(&mut self, tpt: TNodeId, rhs: Option<TNodeId>) -> Result<(), Refusal> {
+        if !self.capture_checked() || !matches!(self.tpd.tree(tpt), Tree::TypeTree { inferred: true }) {
+            return Ok(());
+        }
+        let Some(&Tree::Block { stats, expr }) = rhs.map(|r| self.tpd.tree(r)) else { return Ok(()) };
+        let (&[stat], Tree::Closure { .. }) = (self.tpd.items(stats), self.tpd.tree(expr)) else {
+            return Ok(());
+        };
+        let Some(meth) = self.tpd.sym(stat).filter(|_| matches!(self.tpd.tree(stat), Tree::DefDef { .. }))
+        else {
+            return Ok(());
+        };
+        let info = self.u.info(meth);
+        let Some((params, result, binder)) =
+            self.u.method(info).map(|m| (m.param_types(), m.result, m.binder))
+        else {
+            return Ok(());
+        };
+        if params.into_iter().any(|p| has_captures(self.u, p)) {
+            return Err("an inferred function type of a closure whose parameters have capture sets");
+        }
+        let mut dependent = false;
+        self.u.map_with_capture_sets(result, &mut |u, part| {
+            dependent |= u.sym_ref(part).is_some_and(|(_, s)| u.symbol(s).owner == Some(meth));
+            dependent |= match *u.ty(part) {
+                Type::Param(b, _) => b == binder,
+                Type::Local(b, _) => b.0 == binder.0,
+                _ => false,
+            };
+            None
+        });
+        match dependent {
+            true => {
+                Err("an inferred function type of a closure whose result's capture sets name its parameters")
+            }
             false => Ok(()),
         }
     }

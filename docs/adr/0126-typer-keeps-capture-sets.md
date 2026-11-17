@@ -25,7 +25,8 @@ its own re-implementation of dotty's inference in the pickler, which can differ 
 - The pickler writes the inferred types the typer gives, emptied as `CleanupRetains` does; the
   pickler-side derivation goes where the typer's types supersede it.
 - What stays unported is refused: nested sets in patterns, branches that differ only in capture
-  sets, dependent function parents.
+  sets, dependent function parents, the inferred function type of a closure whose parameters
+  have capture sets (`explicifyTpt`'s `@declared`) or whose result's sets name a parameter.
 
 ## Consequences
 - One home for dotty's inference rules; a shape becomes told by porting the rule that types it.
