@@ -68,6 +68,14 @@ impl ImportEntry {
             ImportEntry::Done(info) => info.tree,
         }
     }
+
+    /// The import tree, if the import's path is not typed yet or being typed.
+    pub fn untyped(&self) -> Option<NodeId> {
+        match self {
+            ImportEntry::Pending { tree, .. } | ImportEntry::Completing { tree, .. } => Some(*tree),
+            ImportEntry::Done(_) => None,
+        }
+    }
 }
 
 impl Typer<'_> {

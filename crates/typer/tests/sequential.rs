@@ -704,3 +704,11 @@ fn annotations_of_imported_objects_skip_the_import_being_typed() {
                 @marker private object Impl { def mk(): Int = 1 }\nobject M { def f: Int = mk() }\n";
     assert_eq!(type_unit(&mut u, &mut Units::default(), "t.scala", unit), Ok(()));
 }
+
+#[test]
+fn annotations_of_objects_skip_named_imports_of_their_members() {
+    let Some(mut u) = universe() else { return };
+    let unit = "package p\npackage q\nimport p.q.TrieMap.Policy\n\
+                @SerialVersionUID(3L) object TrieMap { class Policy }\nclass C(p: Policy)\n";
+    assert_eq!(type_unit(&mut u, &mut Units::default(), "t.scala", unit), Ok(()));
+}
