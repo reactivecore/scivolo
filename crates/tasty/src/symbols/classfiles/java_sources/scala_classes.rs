@@ -1,6 +1,6 @@
 //! The Scala classes a Java source names by internal name: `p/C`, a member class `p/C$D` of a
 //! class or object, and an object's class `p/O$` (dotty's `typedIdent` and `typedSelect` in Java
-//! units, which try the object and then the class as qualifier).
+//! units), a qualifier tried as a class, then as an object.
 
 use crate::symbols::{Kind, SymbolId, Universe};
 use crate::types::{Type, TypeId};

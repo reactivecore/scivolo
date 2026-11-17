@@ -194,6 +194,17 @@ fn only_enum_constants_keep_their_singleton_type() {
     assert!(!stderr.contains("enumfield.scala:3:"), "{stderr}");
 }
 
+/// A class both a Java and a Scala source define is refused before anything is written, as dotty
+/// does ("C is already defined").
+#[test]
+fn a_class_of_both_java_and_scala_sources_is_refused() {
+    let Some((mut scivolo, out)) = scivolo("clash") else { return };
+    let refused = output(&mut scivolo);
+    let stderr = String::from_utf8_lossy(&refused.stderr);
+    assert!(!refused.status.success() && stderr.contains("q.C is already defined"), "{stderr}");
+    assert!(!out.exists(), "nothing written");
+}
+
 #[test]
 fn a_receiver_parameter_is_refused_by_name() {
     let Some((mut scivolo, _)) = scivolo("refused") else { return };

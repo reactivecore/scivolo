@@ -26,6 +26,18 @@ pub fn parse(files: &[&String]) -> Result<JavaSources, String> {
     JavaSources::parse(&texts.collect::<Result<Vec<_>, String>>()?)
 }
 
+/// Refuses a class of internal name among `classes`, the Scala sources' class files, that the
+/// Java sources `sources` declare too, as dotty does ("C is already defined").
+pub fn check_clashes<'a>(
+    sources: &JavaSources,
+    mut classes: impl Iterator<Item = &'a str>,
+) -> Result<(), String> {
+    match classes.find(|c| sources.declares(c)) {
+        Some(c) => Err(format!("{} is already defined as a class of the Java sources", c.replace('/', "."))),
+        None => Ok(()),
+    }
+}
+
 /// Compiles Java sources `files` with javac against the output `out` and the jars `classpath`:
 /// into `out` if it is a directory; for a jar into a directory beside it, whose class files are
 /// returned (path from the root and bytes) and the directory removed. Without javac on the PATH

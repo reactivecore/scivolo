@@ -101,6 +101,7 @@ fn main() {
     let Isolated { out: classes, refused, typings, .. } =
         lower::compile_isolated(&mut open, &sources, config, macros, backend)
             .unwrap_or_else(|e| fail(&message(&e)));
+    javac::check_clashes(&java_sources, classes.iter().map(|c| c.name.as_str())).unwrap_or_else(|e| fail(&e));
     if refused.is_empty() || leave_out_refused {
         write(&out, &entries(&classes), main_class.as_deref());
     }
