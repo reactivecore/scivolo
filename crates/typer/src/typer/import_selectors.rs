@@ -13,6 +13,9 @@ use names::nme;
 use syntax::ast::{List, NodeId, Tree};
 use tasty::{SymbolId, TypeId};
 
+/// The name of the one root import an import of it hides (dotty's `ShadowableImportNames`).
+const SHADOWABLE_IMPORT: &str = "Predef";
+
 impl Typer<'_> {
     /// The selectors `selectors`, their bounds typed in `ctx`.
     pub fn selectors(&mut self, selectors: List, ctx: Ctx) -> Vec<Selector> {
@@ -61,6 +64,27 @@ impl Typer<'_> {
         self.ast.items(selectors).iter().any(|&s| {
             self.selector_names(s).is_some_and(|(_, rename)| rename == name && rename != nme::WILDCARD)
         })
+    }
+
+    /// Whether import `i`, if its path is not typed yet, has a wildcard or `given` selector
+    /// (dotty's `ImportInfo.isWildcardImport`).
+    pub fn may_import_wild(&self, i: usize) -> bool {
+        let ImportEntry::Pending { tree, .. } = self.imports[i] else { return true };
+        let Tree::Import { selectors, .. } = *self.ast.tree(tree) else { return true };
+        self.ast.items(selectors).iter().any(|&s| {
+            self.selector_names(s).is_some_and(|(name, _)| name == nme::WILDCARD || name.is_empty())
+        })
+    }
+
+    /// Whether import `i`, if its path is not typed yet, has a path ending in a name whose import
+    /// may hide a root import (dotty's `ImportInfo.unimported`, `ShadowableImportNames`).
+    pub fn may_unimport(&self, i: usize) -> bool {
+        let ImportEntry::Pending { tree, .. } = self.imports[i] else { return true };
+        let Tree::Import { expr, .. } = *self.ast.tree(tree) else { return true };
+        match *self.ast.tree(expr) {
+            Tree::Ident { name } | Tree::Select { name, .. } => self.text(name.name) == SHADOWABLE_IMPORT,
+            _ => false,
+        }
     }
 
     /// Whether a `given` selector of import `i` imports given or implicit `sym`: one without a

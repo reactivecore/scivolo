@@ -3,8 +3,8 @@ use crate::tpd::{TNodeId, Tree as T};
 use tasty::Kind;
 
 impl Typer<'_> {
-    /// Makes the types of all trees, and of closures' symbols, fully defined; `Err` if a local
-    /// symbol escaped into the bound of a type variable.
+    /// Makes the types of all trees, and of closures' and signature polymorphic instances'
+    /// symbols, fully defined; `Err` if a local symbol escaped into the bound of a type variable.
     pub fn zonk_trees(&mut self) -> Result<(), &'static str> {
         for s in self.syms.closure_syms.clone() {
             let info = self.u.info(s);
@@ -17,6 +17,12 @@ impl Typer<'_> {
                 self.fully_defined(t)?;
                 let t = self.types().zonk_kept(t);
                 self.tpd.get_mut(id).tpe = Some(t);
+            }
+            if let Some(s) = self.tpd.sym(id).filter(|&s| self.u.original_signature_polymorphic(s).is_some())
+            {
+                let info = self.u.info(s);
+                let info = self.fully_defined(info)?;
+                self.u.set_info(s, info);
             }
             let defines = matches!(self.tpd.tree(id), T::ValDef { .. } | T::DefDef { .. } | T::Bind { .. });
             if let Some(s) = self.tpd.sym(id).filter(|_| defines)

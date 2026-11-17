@@ -18,7 +18,21 @@ pub fn needs_accessor_if_not_in_subclass(u: &mut Universe, sym: SymbolId, class:
         && !u.is_annotated(sym, "scala.annotation.publicInBinary")
         && owner.is_some_and(|o| !u.is_trait(o))
         && !is_java_static(u, sym)
-        && !within(u, class, package_of(u, sym))
+        && !inside_boundary_of(u, sym, class)
+}
+
+/// Whether `class` lies in the access boundary of `sym`: its `protected[q]` qualifier or else its
+/// package, or the qualifier's companion (`ProtectedAccessors.insideBoundaryOf`).
+fn inside_boundary_of(u: &mut Universe, sym: SymbolId, class: SymbolId) -> bool {
+    let Some(boundary) = u.access_qualifier(sym) else { return within(u, class, package_of(u, sym)) };
+    if within(u, class, boundary) {
+        return true;
+    }
+    let linked = match u.is_module_class(boundary) {
+        true => u.companion_class(boundary),
+        false => u.companion_module(boundary).and_then(|m| u.module_class(m)),
+    };
+    linked.is_some_and(|l| within(u, class, l))
 }
 
 /// Whether `sym` selected on `this` from class `class` needs a super accessor in the trait

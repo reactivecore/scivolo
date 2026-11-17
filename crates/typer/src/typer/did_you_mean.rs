@@ -4,7 +4,6 @@
 //! distance (dotty's `DidYouMean`).
 
 use super::Typer;
-use super::imports::ImportEntry;
 use super::java_classes::java_classes;
 use crate::ctx::{Ctx, Level};
 use syntax::ast::children::Child;
@@ -41,7 +40,7 @@ impl Typer<'_> {
                 }
                 &Level::Members(owner) => sites.push(owner),
                 &Level::Import(i) => {
-                    let ImportEntry::Done(info) = &self.imports[i] else { return None };
+                    let info = self.import_info(i)?;
                     names.extend(info.selectors.iter().map(|s| s.rename.clone()));
                     let qual = info.qual;
                     sites.push(self.import_site_class(qual)?);
