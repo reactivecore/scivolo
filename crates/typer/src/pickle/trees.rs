@@ -135,6 +135,7 @@ impl TreePickler<'_> {
             T::SeqLiteral { elems, elemtpt } => self.node(REPEATED, &[elemtpt], &[elems]),
             T::Inlined { call, bindings, expansion } => self.inlined(call, bindings, expansion),
             T::TypeTree { .. } => {
+                self.check_inferred_captures(id, typed()?)?;
                 self.type_tree = Some(id);
                 let pickled = match self.tpd.has_fresh_type(id) {
                     true => self.new_type(typed()?, false, self.buf.buf.current_addr()),

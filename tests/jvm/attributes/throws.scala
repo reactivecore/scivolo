@@ -19,6 +19,10 @@ trait ThrowingTrait:
   @throws[java.io.IOException]
   val inTrait: Int = 5
 
+class ThrowingValue(val s: String) extends AnyVal:
+  @throws[java.io.IOException]
+  def load(n: Int): String = s
+
 object InlineThrows:
   inline def guarded: List[String] =
     class Oops extends Exception

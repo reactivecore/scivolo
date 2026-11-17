@@ -75,7 +75,64 @@ trait Tr[X] {
 class Impl extends Tr[String]
 
 class Sub extends Sigs[String] with HK[List] with Variant[Int, Unit]
+
+trait SelfRef {
+  def pair[B](b: B): (B, this.type) = (b, this)
+}
+class Outer[A] {
+  class Inner extends SelfRef
+}
+trait Arr[T] {
+  def mk(n: Int): Array[T] = ???
+}
+class ArrRef[T <: AnyRef] extends Arr[T]
+
+trait Hidden {
+  private[sigs] def hidden: Int = 1
+}
+object Fwd extends Hidden {
+  def poly[F[_]](f: [t] => t => F[t]): Int = 0
+}
+trait Inl {
+  inline def apply(n: Int): Int = n
+}
+object Inl {
+  def apply(): String = ""
+}
+trait AbsInl {
+  inline def apply(n: Int): Int
+}
+class InlImpl extends AbsInl {
+  inline def apply(n: Int): Int = n
+}
+object InlImpl {
+  def apply(): String = ""
+}
+object Conv extends scala.collection.convert.StreamExtensions
+object OrdInt extends scala.math.Ordering.IntOrdering
 "#;
+
+/// The signatures of forwarders: mixin forwarders seen from their class and static forwarders.
+const FORWARDERS: &[(&str, &str, Option<&str>)] = &[
+    ("Outer$Inner", "pair", Some("<B:Ljava/lang/Object;>(TB;)Lscala/Tuple2<TB;Lsigs/Outer<TA;>.Inner;>;")),
+    ("ArrRef", "mk", None),
+    ("Fwd", "hidden", None),
+    ("Fwd", "poly", Some("<F:Ljava/lang/Object;>(Lscala/PolyFunction;)I")),
+    ("Inl", "apply", None),
+    ("InlImpl", "apply", None),
+    ("OrdInt$", "max", None),
+    ("OrdInt", "max", None),
+    (
+        "Conv",
+        "MapHasParKeyValueStream",
+        Some(
+            "<K:Ljava/lang/Object;V:Ljava/lang/Object;\
+             CC::Lscala/collection/MapOps<Ljava/lang/Object;Ljava/lang/Object;Lscala/collection/Map;*>;>\
+             (Lscala/collection/MapOps<TK;TV;Lscala/collection/Map;*>;)\
+             Lscala/collection/convert/StreamExtensions$MapHasParKeyValueStream<TK;TV;TCC;>;",
+        ),
+    ),
+];
 
 /// The method signatures of `SOURCE` that dotty 3.9.0 writes: class, method, signature; but for
 /// upstream bugs 20 and 21 of `docs/conformance.md`.
@@ -242,7 +299,7 @@ fn generic_signatures_as_dotty_writes_them() {
     let method = |c: &str, m: &str| {
         class(c).methods.iter().find(|x| x.name == m).unwrap_or_else(|| panic!("no method {c}.{m}"))
     };
-    for &(c, m, sig) in METHODS {
+    for &(c, m, sig) in METHODS.iter().chain(FORWARDERS) {
         assert_eq!(method(c, m).signature.as_deref(), sig, "method {c}.{m}");
     }
     for &(c, m, descriptor) in DESCRIPTORS {

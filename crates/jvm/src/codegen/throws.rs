@@ -103,10 +103,12 @@ impl Gen<'_, '_> {
         }
     }
 
-    /// The annotations of method `sym`; of a mixin forwarder without any, those of the trait
-    /// method it calls, read from its TASTy if need be (dotty's `mkForwarderSym`).
+    /// The annotations of method `sym`: of an extension method those of the value class method
+    /// (dotty's `ExtensionMethods`); of a mixin forwarder without any, those of the trait method
+    /// it calls, read from its TASTy if need be (dotty's `mkForwarderSym`).
     fn forwarded_annotations(&mut self, sym: SymbolId) -> Vec<TNodeId> {
-        let own = self.l.tpd.annotations(sym).to_vec();
+        let holder = if self.l.mixed_in_from(sym).is_some() { sym } else { self.l.annotations_holder(sym) };
+        let own = self.l.tpd.annotations(holder).to_vec();
         let forwarded =
             self.l.mixed_in_from(sym).filter(|_| own.is_empty() && !self.l.is_mixin_accessor(sym));
         let Some(origin) = forwarded else { return own };

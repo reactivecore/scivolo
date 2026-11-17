@@ -15,11 +15,10 @@ impl Sig<'_> {
         loop {
             match *self.u.ty(t) {
                 Type::Poly { binder, params, result } => {
-                    let encoded: Vec<(String, TypeId)> = self
-                        .u
-                        .params_of(params)
-                        .iter()
-                        .map(|&(n, b)| (tasty::encode(self.u.name(n)), b))
+                    let params = self.u.params_of(params).to_vec();
+                    let encoded: Vec<(String, TypeId)> = params
+                        .into_iter()
+                        .map(|(n, b)| (tasty::encode(self.u.name(n)), self.param_bounds(b)))
                         .collect();
                     if top && !self.constructor {
                         tparams.extend(encoded.iter().cloned());
@@ -93,16 +92,13 @@ impl Sig<'_> {
     /// Appends a reference to type parameter `p`: a method's under its fresh name, or as the
     /// erasure of its bound if that is a primitive (dotty's `jsig` of a `TypeParamRef`).
     pub fn param_ref(&mut self, p: SymbolId, boxing: Boxing) {
-        let mut name = tasty::encode(&self.u.symbol(p).name);
-        if self.u.symbol(p).owner.is_some_and(|o| self.u.symbol(o).kind == Kind::Def) {
-            if let Some((_, fresh)) = self.renamed.iter().find(|r| r.0 == name) {
-                name = fresh.clone();
-            }
-            let bounds = self.poly.iter().rev().flat_map(|(_, ps)| ps).find(|q| q.0 == name).map(|q| q.1);
-            if let Some(bounds) = bounds.filter(|&b| self.primitive_bound(b)) {
-                let hi = self.u.bounds(bounds).map_or(bounds, |(_, hi)| hi);
-                return self.erased(hi, boxing);
-            }
+        let Some((name, bounds)) = self.method_param(p) else {
+            let name = tasty::encode(&self.u.symbol(p).name);
+            return self.out.push_str(&format!("T{name};"));
+        };
+        if self.primitive_bound(bounds) {
+            let hi = self.u.bounds(bounds).map_or(bounds, |(_, hi)| hi);
+            return self.erased(hi, boxing);
         }
         self.out.push_str(&format!("T{name};"));
     }

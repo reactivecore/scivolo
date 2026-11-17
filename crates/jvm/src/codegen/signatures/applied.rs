@@ -39,8 +39,13 @@ impl Sig<'_> {
 
     /// `tycon[args]`, if `tycon` is a method type parameter in scope.
     fn applied_param(&mut self, tycon: TypeId, args: &[TypeId]) -> Option<Applied> {
-        let (b, i) = self.u.param_ref(tycon)?;
-        let (name, bounds) = self.poly_param(b, i)?;
+        let (name, bounds) = match self.u.param_ref(tycon) {
+            Some((b, i)) => self.poly_param(b, i)?,
+            None => {
+                let p = self.type_param(tycon)?;
+                self.method_param(p)?
+            }
+        };
         let hi = self.u.bounds(bounds).map_or(bounds, |(_, hi)| hi);
         let Some(lambda) = self.u.lambda(hi) else { return Some(Applied::Param(name)) };
         let (binder, names, result) = (lambda.binder, lambda.names(), lambda.result);
@@ -51,6 +56,30 @@ impl Sig<'_> {
             None
         });
         Some(if recursive { Applied::Erased } else { Applied::Resolved(t) })
+    }
+
+    /// The name, fresh if renamed, and bounds of method type parameter `p` in scope, which a
+    /// method of TASTy refers to by its symbol.
+    pub fn method_param(&mut self, p: SymbolId) -> Option<(String, TypeId)> {
+        let owner = self.u.symbol(p).owner?;
+        if self.u.symbol(owner).kind != Kind::Def {
+            return None;
+        }
+        let mut name = tasty::encode(&self.u.symbol(p).name);
+        if let Some((_, fresh)) = self.renamed.iter().find(|r| r.0 == name) {
+            name = fresh.clone();
+        }
+        self.poly.iter().rev().flat_map(|(_, ps)| ps).find(|q| q.0 == name).cloned()
+    }
+
+    /// Turns the bounds `b` of a higher-kinded type parameter as TASTy has them, a type lambda
+    /// over bounds, into bounds over type lambdas; other bounds stay.
+    pub fn param_bounds(&mut self, b: TypeId) -> TypeId {
+        let Type::Lambda { binder, params, result } = *self.u.ty(b) else { return b };
+        let Some((lo, hi)) = self.u.bounds(result) else { return b };
+        let lo = self.u.intern_type(Type::Lambda { binder, params, result: lo });
+        let hi = self.u.intern_type(Type::Lambda { binder, params, result: hi });
+        self.u.intern_type(Type::Bounds(lo, hi))
     }
 
     /// The name and bounds of method type parameter `i` of `binder`, if in scope.
