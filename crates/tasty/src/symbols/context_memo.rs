@@ -44,8 +44,9 @@ struct MemoEffects {
 
 /// Runs `compute` for `key`, or gets what it gave for `key` in the same context, kept in the
 /// memo `memo` selects. A result is kept when computing it left the context as it was and made
-/// no binder, skolem or opaque lift and took no match type reduction; none is kept or used while
-/// a GADT constraint, a merge of base types, a resolution or a reduction is in progress.
+/// no binder, skolem or opaque lift and took no match type reduction, and no refused reduction is
+/// recorded (`reductions_exhausted`); none is kept or used while a GADT constraint, a merge of
+/// base types, a resolution or a reduction is in progress.
 pub fn remembered<K: Hash + Eq, V: Copy>(
     u: &mut Universe,
     memo: fn(&mut Universe) -> &mut ContextMemo<K, V>,
@@ -62,7 +63,7 @@ pub fn remembered<K: Hash + Eq, V: Copy>(
 
     let before = effects(u);
     let found = compute(u);
-    if effects(u) == before {
+    if effects(u) == before && !u.reductions_exhausted {
         let m = memo(u);
         if m.context != Some(context) {
             m.found.clear();

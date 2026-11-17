@@ -359,4 +359,12 @@ fn match_types_reduce_by_the_rules_of_the_code_at_hand() {
     u.reductions_exhausted = false;
     assert_eq!(u.try_normalize(t), None, "differing rules refused");
     assert!(u.reductions_exhausted);
+
+    let dummy_class = u.class_symbol(dummy).unwrap();
+    for _ in 0..2 {
+        assert_eq!(u.base_type(t, dummy_class), None);
+    }
+    u.reductions_exhausted = false;
+    assert_eq!(u.base_type(t, dummy_class), None);
+    assert!(u.reductions_exhausted, "a remembered base type hides the refused reduction");
 }
