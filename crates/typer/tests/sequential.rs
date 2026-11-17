@@ -414,6 +414,7 @@ fn overrides_with_incompatible_types() {
     let compatible = [
         "class A { def y: Any = 1 }\nclass B extends A { override def y: String = \"\" }\n",
         "class L extends java.util.LinkedList[Int] with java.util.Deque[Int]\n",
+        "trait N { type Zero <: Nat; type Nat; trait ZeroOpt { type Refined = Zero } }\nobject C extends N { trait NatClass; case object ZeroObj extends NatClass with ZeroOpt { type Refined = this.type }; type Nat = NatClass; type Zero = ZeroObj.type }\n",
         "abstract class M extends java.util.AbstractMap[Int, Int] with java.util.NavigableMap[Int, Int]\n",
         "trait N { type Nat; trait Opt { def get: Nat } }\nobject C extends N { class S extends Opt { def get: NC = ??? }; trait NC; type Nat = NC }\n",
         "trait AddRemove { type TNode <: NodeImpl; trait NodeImpl }\nclass Linked extends AddRemove { type TNode = Node; class Node extends super.NodeImpl }\n",

@@ -55,10 +55,9 @@ fn results_conform(t: &mut Typer<'_>, (site, prefix): (TypeId, TypeId), d: Symbo
 
     let (rd, rm) = (widen_expr(t, rd), widen_expr(t, rm));
     let (rd, rm) = (strip_annotations(t.u, rd), strip_annotations(t.u, rm));
-    if t.conforms(rd, rm) {
+    if conforms_overridden(t, site, rd, rm) {
         return true;
     }
-    complete_overriders(t, site, &[rd, rm]);
     let overridden = |t: &mut Typer<'_>, ty: TypeId| t.u.map_type(ty, &mut |u, x| u.overriding_member(x));
     let (rd, rm) = (overridden(t, rd), overridden(t, rm));
     let bound = |t: &Typer<'_>, ty: TypeId, upper: bool| {
@@ -67,6 +66,18 @@ fn results_conform(t: &mut Typer<'_>, (site, prefix): (TypeId, TypeId), d: Symbo
     };
     let (rd, rm) = (bound(t, rd, true), bound(t, rm, false));
     t.conforms(rd, rm) || has_lambda(t, rd) || has_lambda(t, rm)
+}
+
+/// Whether `a` conforms to `b`, else with the abstract types they refer to replaced by the aliases
+/// overriding them in the class of `site`.
+pub fn conforms_overridden(t: &mut Typer<'_>, site: TypeId, a: TypeId, b: TypeId) -> bool {
+    if t.conforms(a, b) {
+        return true;
+    }
+    complete_overriders(t, site, &[a, b]);
+    let overridden = |t: &mut Typer<'_>, ty: TypeId| t.u.map_type(ty, &mut |u, x| u.overriding_member(x));
+    let (a, b) = (overridden(t, a), overridden(t, b));
+    t.conforms(a, b)
 }
 
 /// Whether `ty` has a type lambda, as a higher-kinded type argument, which the check accepts.

@@ -5,7 +5,7 @@
 //! conform to the overridden one's (`isOverridingPair`).
 
 use super::super::Typer;
-use super::result_conformance::result_conforms;
+use super::result_conformance::{conforms_overridden, result_conforms};
 use super::{OverrideChecks, overridable};
 use names::{name_kinds, nme};
 use syntax::ast::flags as f;
@@ -65,7 +65,9 @@ impl OverrideChecks {
             if [lo1, hi1, lo2, hi2].into_iter().any(|x| is_uncompared(t, x)) {
                 return true;
             }
-            let conforms = |t: &mut Typer<'_>, a, b| t.conforms(a, b) || derives_nominally(t, a, b);
+            let site = self.site;
+            let conforms =
+                |t: &mut Typer<'_>, a, b| conforms_overridden(t, site, a, b) || derives_nominally(t, a, b);
             conforms(t, lo2, lo1) && conforms(t, hi1, hi2)
         })
     }
