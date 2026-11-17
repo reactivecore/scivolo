@@ -173,7 +173,7 @@ fn conforms_to_test(l: &mut Lower, tpe: tasty::TypeId, test: tasty::TypeId) -> b
         return conforms_to_test(l, a, test) && conforms_to_test(l, b, test);
     }
     let Some(c) = l.u.class_symbol(test) else { return false };
-    let java = l.u.is_from_jdk_jars(c) || super::mixin::is_jdk(l, c);
+    let java = l.u.is_from_jdk_jars(c) || super::mixin::is_jdk(l, c) || l.u.is_java_defined(c);
     java && !l.u.type_params(c).is_empty() && l.u.base_type(widened, c).is_some()
 }
 

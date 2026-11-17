@@ -471,6 +471,30 @@ fn var_handles_of_mixed_in_lazy_values_come_first() {
 }
 
 #[test]
+fn a_pattern_of_a_generic_java_class_its_scrutinee_conforms_to_tests_null() {
+    let java = "package jn;\nabstract class MainN<K, V> {}\n";
+    let scala = "package jn\nclass Use[K, V] { def h(p: MainN[K, V]): Int = p match { case vn: MainN[?, ?] => 2 } }\n";
+    let sources = written("javapattern-src", &[("MainN.java", java), ("Use.scala", scala)]);
+    let (out, compiled) = compile_all("javapattern", &sources);
+    assert!(compiled.status.success(), "{}", String::from_utf8_lossy(&compiled.stderr));
+    let class = std::fs::read(out.join("jn/Use.class")).expect("jn/Use.class");
+    let null_test = [0x2b, 0x4d, 0x2c, 0xc6];
+    assert!(class.windows(4).any(|w| w == null_test), "no `ifnull` on the scrutinee");
+}
+
+#[test]
+fn the_enclosing_method_descriptor_adds_no_inner_class() {
+    let code = "class Enc {\n  def sp: java.util.Map.Entry[String, String] =\n    \
+                new java.util.AbstractMap.SimpleEntry[String, String](\"a\", \"b\") {}\n}\n";
+    let sources = written("enclosingmethod-src", &[("enc.scala", code)]);
+    let (out, compiled) = compile("enclosingmethod", &sources[0]);
+    assert!(compiled.status.success(), "{}", String::from_utf8_lossy(&compiled.stderr));
+    let class = std::fs::read(out.join("Enc$$anon$1.class")).expect("Enc$$anon$1.class");
+    let entry = [&[1, 0, 19][..], b"java/util/Map$Entry"].concat();
+    assert!(!class.windows(entry.len()).any(|w| w == entry), "an InnerClasses entry of Map$Entry");
+}
+
+#[test]
 fn the_library_sees_the_jdk_17_api() {
     let code = "package p\nabstract class E extends java.util.concurrent.Executor\n\
                 trait T extends java.util.concurrent.ExecutorService\n\

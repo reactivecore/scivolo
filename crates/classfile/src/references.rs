@@ -9,7 +9,8 @@ use crate::pool::Entry;
 
 impl ClassFile {
     /// The internal names with a `$` of the classes the class, its members, their descriptors and
-    /// signatures, and its code refer to, each once.
+    /// signatures, and its code refer to, each once; not those only in the descriptor of its
+    /// enclosing method.
     pub fn referenced_classes(&self) -> Vec<String> {
         let mut out = Vec::new();
         let mut add = |name: String| {
@@ -26,10 +27,7 @@ impl ClassFile {
             match a {
                 Attribute::Signature(s) => texts.push(s.clone()),
                 Attribute::Exceptions(cs) => classes.extend(cs.iter().cloned()),
-                Attribute::EnclosingMethod(c, m) => {
-                    classes.push(c.clone());
-                    texts.extend(m.iter().map(|(_, d)| d.clone()));
-                }
+                Attribute::EnclosingMethod(c, _) => classes.push(c.clone()),
                 Attribute::InnerClasses(cs) => {
                     classes.extend(cs.iter().flat_map(|c| std::iter::once(&c.inner).chain(&c.outer)).cloned())
                 }
@@ -43,10 +41,14 @@ impl ClassFile {
             }
         }
         texts.extend(self.fields.iter().chain(&self.methods).map(|m| m.descriptor.clone()));
-        for e in self.pool.entries() {
+        for (i, e) in (1u16..).zip(self.pool.entries()) {
             match *e {
                 Entry::Class(n) => classes.push(self.pool.text(n)),
-                Entry::NameAndType(_, d) | Entry::MethodType(d) => texts.push(self.pool.text(d)),
+                Entry::MethodType(d) => texts.push(self.pool.text(d)),
+                Entry::Fieldref(..)
+                | Entry::Methodref(..)
+                | Entry::InterfaceMethodref(..)
+                | Entry::InvokeDynamic(..) => texts.push(self.pool.member_parts(i).2),
                 _ => {}
             }
         }
