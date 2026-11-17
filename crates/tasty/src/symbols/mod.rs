@@ -109,8 +109,8 @@ pub struct Universe {
     linearizations: FxHashMap<SymbolId, Vec<SymbolId>>,
     /// The type of `this` of each class `this_type` was asked for.
     this_types: FxHashMap<SymbolId, TypeId>,
-    /// The classes and methods that declare or declared a type parameter.
-    type_param_owners: FxHashSet<SymbolId>,
+    /// The type parameters of each class and method that declares some, in order.
+    declared_type_params: FxHashMap<SymbolId, Vec<SymbolId>>,
     /// Per class and base class, whether the class's parents give the base different types.
     disagreeing_bases: FxHashMap<(SymbolId, SymbolId), bool>,
     /// The abstract methods and values among the symbols defined outside TASTy.

@@ -47,7 +47,7 @@ impl Universe {
             parents: FxHashMap::default(),
             linearizations: FxHashMap::default(),
             this_types: FxHashMap::default(),
-            type_param_owners: Default::default(),
+            declared_type_params: FxHashMap::default(),
             disagreeing_bases: FxHashMap::default(),
             deferred: Default::default(),
             with_inits: Default::default(),

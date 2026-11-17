@@ -18,7 +18,7 @@ impl Universe {
             self.symbols[o.0 as usize].decls.push(id);
             if s.kind == Kind::TypeParam {
                 self.this_types.remove(&o);
-                self.type_param_owners.insert(o);
+                self.declared_type_params.entry(o).or_default().push(id);
             }
             if targeted {
                 self.targeted.insert(o);
@@ -42,13 +42,14 @@ impl Universe {
         id
     }
 
-    /// Drops the name index and `this` type of `owner` and what `changed` drops.
+    /// Drops the name index and `this` type of `owner` and what `changed` drops; takes its type
+    /// parameters from its declarations again.
     fn decls_changed(&mut self, owner: SymbolId) {
         self.by_name.remove(&owner);
         self.this_types.remove(&owner);
-        if self.symbol(owner).decls.iter().any(|&d| self.symbol(d).kind == Kind::TypeParam) {
-            self.type_param_owners.insert(owner);
-        }
+        let decls = self.symbol(owner).decls.iter().copied();
+        let params: Vec<SymbolId> = decls.filter(|&d| self.symbol(d).kind == Kind::TypeParam).collect();
+        self.declared_type_params.insert(owner, params);
         self.changed();
     }
 

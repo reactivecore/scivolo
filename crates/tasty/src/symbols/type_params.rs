@@ -6,11 +6,7 @@ use crate::types::{Type, TypeId};
 impl Universe {
     /// The type parameters of class or method `c`, in order.
     pub fn type_params(&self, c: SymbolId) -> Vec<SymbolId> {
-        if !self.type_param_owners.contains(&c) {
-            return Vec::new();
-        }
-        let decls = &self.symbol(c).decls;
-        decls.iter().copied().filter(|&d| self.symbol(d).kind == Kind::TypeParam).collect()
+        self.declared_type_params.get(&c).cloned().unwrap_or_default()
     }
 
     /// The type of `this` in class `c`: `c` applied to its own type parameters, seen from `this`
@@ -42,7 +38,6 @@ impl Universe {
         if self.symbol(s).kind != Kind::TypeParam || self.symbol(owner).kind != Kind::Class {
             return None;
         }
-        let decls = self.symbol(owner).decls.iter();
-        Some((owner, decls.filter(|&&d| self.symbol(d).kind == Kind::TypeParam).position(|&p| p == s)?))
+        Some((owner, self.declared_type_params.get(&owner)?.iter().position(|&p| p == s)?))
     }
 }
