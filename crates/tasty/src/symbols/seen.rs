@@ -13,7 +13,8 @@ impl Universe {
     /// `this` of `owner`, of its base classes and of its enclosing classes replaced by `prefix`
     /// or the prefix `prefix` gives them, the type parameters of `owner` by the arguments
     /// `prefix` gives them, one a wildcard by the parameter selected on `prefix` (dotty's
-    /// `argForParam`), a type member a refinement of `prefix` aliases the alias.
+    /// `argForParam`), a type member a refinement of `prefix` aliases the alias; in capture sets
+    /// too.
     pub fn as_seen_from(&mut self, t: TypeId, prefix: TypeId, owner: SymbolId) -> TypeId {
         let prefix = match *self.ty(prefix) {
             Type::Super(this, _) => this,
@@ -148,6 +149,11 @@ impl Universe {
     /// The type of member `m` of `prefix` that `m` declares; the `apply` of a dependent function
     /// type, or a term member a refinement narrows, the one its refinement gives.
     pub fn own_member_info(&mut self, prefix: TypeId, m: SymbolId) -> TypeId {
+        let compute = |u: &mut Self| u.seen_member_info(prefix, m);
+        super::context_memo::remembered(self, |u| &mut u.member_infos, (prefix, m), compute)
+    }
+
+    fn seen_member_info(&mut self, prefix: TypeId, m: SymbolId) -> TypeId {
         let info = self.info(m);
         match self.symbol(m).owner {
             Some(owner) if self.symbol(owner).kind == Kind::Class => {

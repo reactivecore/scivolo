@@ -41,10 +41,13 @@ impl Typer<'_> {
             owner = self.u.symbol(o).owner;
         }
         let defs: Vec<(NodeId, SymbolId)> = self.syms.by_tree.iter().map(|(&t, &s)| (t, s)).collect();
+        let mut module_classes = vec![None; defs.len()];
         for &o in owners.iter().rev() {
-            for &(tree, s) in &defs {
-                let defines =
-                    s == o || self.u.symbol(s).kind == Kind::Val && self.u.module_class(s) == Some(o);
+            for (&(tree, s), class) in defs.iter().zip(&mut module_classes) {
+                if s != o && class.is_none() && self.u.symbol(s).kind == Kind::Val {
+                    *class = Some(self.u.module_class(s));
+                }
+                let defines = s == o || *class == Some(Some(o));
                 if defines && self.ast.exists_subtree(tree, &|_, n| n == id) {
                     return Some(tree);
                 }

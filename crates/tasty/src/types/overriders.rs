@@ -115,6 +115,7 @@ impl Universe {
             _ => return None,
         };
         let base = self.symbol(s).owner?;
+        let declared = self.widen(declared);
         let cls = self.class_symbol(declared).filter(|&c| c != base && self.derives_from(c, base))?;
         Some((cls, base))
     }

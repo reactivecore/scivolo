@@ -107,6 +107,8 @@ const DOTTY_TASTY: &[(&str, &[&str])] = &[
     ("views", &["scala/probe/Views"]),
     ("widenedargs", &["W"]),
     ("typercaptures", &["G", "Mk", "ByNames"]),
+    ("lambdabounds", &["scala/probe/LambdaBounds"]),
+    ("seencaptures", &["Q", "R"]),
     ("librarycaptures", &["scala/probe/Appending", "scala/probe/LibCaptures"]),
     ("thiscaptures", &["Node", "Plain", "Ops", "Ser"]),
 ];
@@ -118,14 +120,16 @@ const DOTTY_TASTY: &[(&str, &[&str])] = &[
 /// generic calls, conditionals, matches and closures, a type argument none from an argument whose
 /// capture sets are only around it, a type argument the top capture set only of a path argument
 /// (widenedargs.scala), the typer's own inferred types in typercaptures.scala, and an overriding member's its overridden member's as they
-/// are, a library member's capture sets (librarycaptures.scala) seen from the class and with the
-/// overriding member's or the super accessor's parameters, the type of `this` its class's self
-/// type with the self type's capture set (thiscaptures.scala); annotated types take the annotation tree of their own
+/// are, their `this` seen from the overriding class (seencaptures.scala), a library member's
+/// capture sets (librarycaptures.scala) seen from the class and with the overriding member's or
+/// the super accessor's parameters, the type of `this` its class's self type with the self
+/// type's capture set (thiscaptures.scala); annotated types take the annotation tree of their own
 /// origin in match selectors and patterns, inferred types, super accessors and inline accessors,
 /// in super accessors with their class's type parameters seen from the accessor's class; secondary constructors have their own type parameters and parameters passed on to the
 /// superclass are its parameters' aliases; `@BeanProperty` values get their bean accessors;
 /// synthesized case class members refer to package members through the package's `this`, and
-/// numeric widenings their companion through the prefix of the widened type. Needs a JDK (java on
+/// numeric widenings their companion through the prefix of the widened type; a type lambda
+/// written as a wildcard's bound pickles without variances. Needs a JDK (java on
 /// the PATH), as dotty's did.
 #[test]
 fn probes_pickle_as_dotty_s() {
@@ -222,18 +226,33 @@ fn library_annotations_pickle_as_dotty_s() {
 }
 
 /// A dependent function type whose function type parent dotty gives the capture sets of its
-/// refinement is refused.
+/// refinement is refused, and so is the inferred function type of a closure whose parameters have
+/// capture sets (`@declared` in dotty's) or whose result's capture sets name its parameter (a
+/// dependent function type in dotty's).
 #[test]
 fn untold_capture_sets_are_refused() {
     let out = root().join("tmp/jvm-test/untoldcaptures");
     let _ = std::fs::remove_dir_all(&out);
     std::fs::create_dir_all(&out).expect("tmp/jvm-test/untoldcaptures");
-    let header = "import language.experimental.captureChecking\nclass Label[T]\nclass A\nclass B\n";
-    let cases = [(
-        "dependent",
-        "object D:\n  val f: (x: A^) -> Label[Int]^{x} = x => Label[Int]()\n",
-        "drops its refinement's capture sets",
-    )];
+    let header = "import language.experimental.captureChecking\nclass Label[T]\nclass A\nclass B\n\
+                  trait Coll:\n  def label: Label[Int]^{this}\n";
+    let cases = [
+        (
+            "dependent",
+            "object D:\n  val f: (x: A^) -> Label[Int]^{x} = x => Label[Int]()\n",
+            "drops its refinement's capture sets",
+        ),
+        (
+            "declared",
+            "object E:\n  def g() =\n    val f = (x: A^) => 1\n    1\n",
+            "a closure whose parameters have capture sets",
+        ),
+        (
+            "dependentclosure",
+            "object F:\n  def g() =\n    val f = (x: Coll) => x.label\n    1\n",
+            "a closure whose result's capture sets name its parameters",
+        ),
+    ];
     for (name, body, refusal) in cases {
         let source = out.join(format!("{name}.scala"));
         std::fs::write(&source, format!("{header}{body}")).expect("writing");

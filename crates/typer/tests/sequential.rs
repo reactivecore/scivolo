@@ -613,3 +613,35 @@ fn constructs_diverging_from_dotty_are_refused() {
         assert_eq!(outcome, Err(format!("unsupported {what}")), "{text}");
     }
 }
+
+#[test]
+fn parent_refinements_of_tracked_parameters_are_refused() {
+    let Some(mut u) = universe() else { return };
+    let flagged = &["-source", "future", "-language:experimental.modularity"];
+    let refused = Err("unsupported parent refinement of a tracked parameter".to_owned());
+    for (i, arg) in ["\"bar\"", "List(\"x\").head"].into_iter().enumerate() {
+        let text =
+            format!("abstract class Foo{i}(tracked val d: String); class Bar{i} extends Foo{i}({arg})");
+        assert_eq!(
+            type_unit_with(&mut u, &mut Units::default(), ("t.scala", &text), flagged),
+            refused,
+            "{text}"
+        );
+    }
+    let untracked = "abstract class Foo(val d: String); class Bar extends Foo(\"bar\")";
+    assert_eq!(type_unit_with(&mut u, &mut Units::default(), ("t.scala", untracked), flagged), Ok(()));
+}
+
+#[test]
+fn import_cycles_through_a_member_selection_are_refused() {
+    let Some(mut u) = universe() else { return };
+    let cycle = |import: &str, p: &str| {
+        format!(
+            "package {p}\nobject A {{ import {import}.*; type T = U; def a: T = 1 }}\n\
+             object B {{ export A.*; object C {{ type U = Int }}; type U = Int; def b: T = a }}\n"
+        )
+    };
+    let refused = Err("unsupported cyclic reference involving an import".to_owned());
+    assert_eq!(type_unit(&mut u, &mut Units::default(), "t.scala", &cycle("p1.B.C", "p1")), refused);
+    assert_eq!(type_unit(&mut u, &mut Units::default(), "t.scala", &cycle("p2.B", "p2")), Ok(()));
+}

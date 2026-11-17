@@ -12,6 +12,7 @@ mod class_access;
 mod classes;
 mod classfiles;
 mod companions;
+mod context_memo;
 mod define;
 pub mod defn;
 mod encoded_names;
@@ -50,6 +51,7 @@ mod seen;
 mod selves;
 mod symbol;
 mod table;
+mod type_params;
 mod varargs;
 mod variance;
 
@@ -106,6 +108,14 @@ pub struct Universe {
     gadt: GadtConstraint,
     parents: FxHashMap<SymbolId, Vec<TypeId>>,
     linearizations: FxHashMap<SymbolId, Vec<SymbolId>>,
+    /// The type of `this` of each class `this_type` was asked for.
+    this_types: FxHashMap<SymbolId, TypeId>,
+    /// The base types found, by type and base class.
+    base_types: context_memo::ContextMemo<(TypeId, SymbolId), Option<TypeId>>,
+    /// The types of members as seen from prefixes, by prefix and member.
+    member_infos: context_memo::ContextMemo<(TypeId, SymbolId), TypeId>,
+    /// The type parameters of each class and method that declares some, in order.
+    declared_type_params: FxHashMap<SymbolId, Vec<SymbolId>>,
     /// Per class and base class, whether the class's parents give the base different types.
     disagreeing_bases: FxHashMap<(SymbolId, SymbolId), bool>,
     /// The abstract methods and values among the symbols defined outside TASTy.
@@ -184,6 +194,8 @@ pub struct Universe {
     binders: u32,
     /// The declared variances of the type lambdas made outside TASTy that declare them.
     lambda_variances: FxHashMap<Binder, Vec<i8>>,
+    /// The type lambdas made outside TASTy whose variances are structural.
+    structural_lambdas: FxHashSet<Binder>,
     unions: Unions,
     joint_members: joint::JointMembers,
     /// How many steps comparisons have taken computing atoms and `Nothing`-ness.

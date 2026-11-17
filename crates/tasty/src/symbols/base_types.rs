@@ -3,6 +3,7 @@
 //   compiler/src/dotty/tools/dotc/core/Types.scala
 //! Base types of a type as instances of its base classes (dotty's `baseType`).
 
+use super::context_memo::remembered;
 use super::{Kind, SymbolId, Universe};
 use crate::tags::OPAQUE;
 use crate::types::{Type, TypeId};
@@ -12,9 +13,11 @@ pub const MAX_DEPTH: u32 = 64;
 
 impl Universe {
     /// `t` seen as an instance of class `base`: `base` applied to the arguments `t` passes it
-    /// through its parents; `None` if `t` does not derive from `base`.
+    /// through its parents; `None` if `t` does not derive from `base`. Remembered while the
+    /// universe and the context of comparisons stay the same (dotty's `baseTypeCache`).
     pub fn base_type(&mut self, t: TypeId, base: SymbolId) -> Option<TypeId> {
-        self.base_type_within(t, base, MAX_DEPTH)
+        let compute = |u: &mut Self| u.base_type_within(t, base, MAX_DEPTH);
+        remembered(self, |u| &mut u.base_types, (t, base), compute)
     }
 
     fn base_type_within(&mut self, t: TypeId, base: SymbolId, depth: u32) -> Option<TypeId> {

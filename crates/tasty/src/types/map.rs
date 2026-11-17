@@ -61,13 +61,13 @@ impl Universe {
         }
         let mut m = |u: &mut Self, x: TypeId| u.map_type(x, f);
         let params = |u: &mut Self, ps: ParamList, m: &mut dyn FnMut(&mut Self, TypeId) -> TypeId| {
-            let mapped: Vec<_> = (0..u.params_of(ps).len())
-                .map(|i| {
-                    let (n, p) = u.params_of(ps)[i];
-                    (n, m(u, p))
-                })
-                .collect();
-            if mapped[..] == *u.params_of(ps) { ps } else { u.intern_params(&mapped) }
+            let mut changed: Option<Vec<_>> = None;
+            for i in 0..u.params_of(ps).len() {
+                let (n, p) = u.params_of(ps)[i];
+                let x = m(u, p);
+                record(&mut changed, u.params_of(ps), i, (n, x));
+            }
+            changed.map_or(ps, |mapped| u.intern_params(&mapped))
         };
         let mapped = match *self.ty(t) {
             Type::TypeRef(p, n) => Type::TypeRef(m(self, p), n),
@@ -83,15 +83,17 @@ impl Universe {
                 if mapped != c && mapped == crate::NOTHING {
                     return mapped;
                 }
-                let args: Vec<_> = (0..self.types_of(list).len())
-                    .map(|i| {
-                        let a = self.types_of(list)[i];
-                        m(self, a)
-                    })
-                    .collect();
-                if mapped == c && args[..] == *self.types_of(list) {
-                    return t;
+                let mut changed: Option<Vec<_>> = None;
+                for i in 0..self.types_of(list).len() {
+                    let a = self.types_of(list)[i];
+                    let x = m(self, a);
+                    record(&mut changed, self.types_of(list), i, x);
                 }
+                let args = match changed {
+                    None if mapped == c => return t,
+                    None => self.types_of(list).to_vec(),
+                    Some(args) => args,
+                };
                 let applied = self.intern_applied(mapped, &args);
                 let lambda = self.lambda(mapped).is_some();
                 return if mapped != c && lambda { self.beta_reduced(applied) } else { applied };
@@ -158,5 +160,15 @@ impl Universe {
             return t;
         }
         self.intern_type(mapped)
+    }
+}
+
+/// Records `x`, the mapped `i`th of `items`, in `changed`, which starts with the first item that
+/// changed: a copy of the items before it.
+fn record<T: Copy + PartialEq>(changed: &mut Option<Vec<T>>, items: &[T], i: usize, x: T) {
+    match changed {
+        Some(mapped) => mapped.push(x),
+        None if x != items[i] => *changed = Some([&items[..i], &[x]].concat()),
+        None => {}
     }
 }

@@ -95,6 +95,7 @@ mod harmonize;
 mod ident_hint;
 mod idents;
 mod implicits;
+mod import_paths;
 mod import_selectors;
 mod import_tree;
 mod imports;
@@ -205,6 +206,7 @@ mod this_calls;
 mod this_constr_calls;
 mod throws_types;
 mod top_level_annotations;
+mod tracked_params;
 mod trait_params;
 mod transparent;
 mod transparent_traits;
@@ -553,7 +555,8 @@ impl<'a> Typer<'a> {
         let vars = self.constraint.count();
         let top_only = crate::ctx::Mode::APPLY_QUALIFIER
             .with(crate::ctx::Mode::ASSIGNMENT_LHS)
-            .with(crate::ctx::Mode::SINGLETON_REF);
+            .with(crate::ctx::Mode::SINGLETON_REF)
+            .with(crate::ctx::Mode::REDUNDANT_APPLY);
         let inner = ctx.with_mode(ctx.mode.without(top_only));
         let (tree, ahead) = match self.contextual_function(id, pt, inner) {
             Some(t) => (t, false),
