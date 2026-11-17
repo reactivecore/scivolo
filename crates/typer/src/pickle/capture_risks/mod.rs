@@ -3,17 +3,18 @@
 //! type tree with them.
 
 mod definitions;
+mod pure_elements;
+mod type_arg_calls;
 
 use super::inferred_captures::overridden_infos;
 use crate::tpd::{TNodeId, Tpd, Tree as T};
 use crate::typer::capture_types::{has_captures, is_retains_like};
-use definitions::{Def, definition};
+use definitions::{Def, definition, is_class_type};
 use names::nme;
+use pure_elements::pure_elements;
 use rustc_hash::{FxHashMap, FxHashSet};
-use tasty::{Kind, SymbolId, Type, TypeId, Universe};
-
-/// The most aliases a capture-set annotated type is dealiased through to a class.
-const MAX_ALIASES: usize = 16;
+use tasty::{SymbolId, TypeId, Universe};
+use type_arg_calls::type_arg_calls;
 
 /// What the types of a scope may give its inferred types.
 #[derive(Clone, Copy, Default, PartialEq, Eq)]
@@ -39,6 +40,8 @@ pub struct CaptureRisks {
     outer: Risk,
     unknown: FxHashSet<SymbolId>,
     of_types: FxHashMap<TypeId, Risk>,
+    pure_elements: FxHashSet<TNodeId>,
+    type_arg_calls: FxHashMap<TNodeId, TNodeId>,
 }
 
 /// A step of the walk over a file's trees: a tree entered, a scope left.
@@ -57,6 +60,8 @@ impl CaptureRisks {
             outer: Risk::default(),
             unknown: FxHashSet::default(),
             of_types: FxHashMap::default(),
+            pure_elements: pure_elements(u, tpd, root),
+            type_arg_calls: type_arg_calls(tpd, root),
         };
         loop {
             let unknown = risks.walk(u, tpd, root);
@@ -75,6 +80,17 @@ impl CaptureRisks {
     /// The risk of the file outside its definitions.
     pub fn outer(&self) -> Risk {
         self.outer
+    }
+
+    /// Whether inferred type tree `tpt` is a repeated argument's element type a parameter fixes
+    /// without capture sets (`pure_elements`).
+    pub fn is_pure_element(&self, tpt: TNodeId) -> bool {
+        self.pure_elements.contains(&tpt)
+    }
+
+    /// The call inferred type argument tree `tpt` is a type argument of (`type_arg_calls`).
+    pub fn call_of(&self, tpt: TNodeId) -> Option<TNodeId> {
+        self.type_arg_calls.get(&tpt).copied()
     }
 
     /// Whether dotty's typer may give definition `sym` an inferred type with capture sets.
@@ -165,22 +181,4 @@ impl CaptureRisks {
         self.of_types.insert(t, risk);
         risk
     }
-}
-
-/// Whether `t` is a class type or an alias of one, applied or not.
-fn is_class_type(u: &mut Universe, mut t: TypeId) -> bool {
-    for _ in 0..MAX_ALIASES {
-        let tycon = u.applied(t).map_or(t, |(tycon, _)| tycon);
-        let Some(s) = u.referenced(tycon) else { return false };
-        match u.symbol(s).kind {
-            Kind::Class => return true,
-            Kind::Type => {
-                let info = u.info(s);
-                let Type::Alias(a) = *u.ty(info) else { return false };
-                t = a;
-            }
-            _ => return false,
-        }
-    }
-    false
 }

@@ -3,11 +3,37 @@
 
 use super::TreePickler;
 use super::captured_exprs::Captured;
-use super::inferred_captures::emptied;
+use super::retaining::emptied;
 use crate::tpd::{List, TNodeId, Tree as T};
-use crate::typer::seen_from::{resolve_class_params, resolve_class_params_keeping_captures};
+use crate::typer::seen_from::{member_of, resolve_class_params, resolve_class_params_keeping_captures};
 use crate::typer::type_apply::instantiate_poly;
 use tasty::{Binder, NameId, SymbolId, Type, TypeId};
+
+/// What tells an inferred type argument.
+enum Teller {
+    /// An argument of a parameter of its type.
+    Arg(TNodeId),
+    /// A closure block passed for a function type parameter whose result is of its type, with the
+    /// function's parameter types.
+    Closure((TNodeId, Vec<TypeId>)),
+}
+
+/// Whether type constructor `tycon` is a function class or an impure function alias of `scala`.
+fn is_function(u: &mut tasty::Universe, tycon: TypeId) -> bool {
+    let function =
+        |n: &str| n.trim_start_matches("Impure").trim_start_matches("Context").starts_with("Function");
+    u.referenced(tycon).is_some_and(|s| member_of(u, s, "scala", function))
+}
+
+/// Whether a part of `t` is one `is` accepts.
+fn has_part(u: &mut tasty::Universe, t: TypeId, is: &dyn Fn(&tasty::Universe, TypeId) -> bool) -> bool {
+    let mut found = false;
+    u.map_type(t, &mut |u, part| {
+        found |= is(u, part);
+        None
+    });
+    found
+}
 
 impl TreePickler<'_> {
     /// Applies type `info` of polymorphic method `method` to type arguments `targs`, each inferred
@@ -56,7 +82,9 @@ impl TreePickler<'_> {
     }
 
     /// The type the arguments of the parameters of type `param`, the `i`th type parameter `name`
-    /// of binder `binder`, or a repetition of it, give it: the one all give.
+    /// of binder `binder`, a repetition of it or a function type of that result give it: the one
+    /// all give; no capture sets if those of other parameters whose types have `param` in them
+    /// have none and no other gives one.
     fn told_type_arg(
         &mut self,
         (binder, i, name): (Binder, usize, NameId),
@@ -69,7 +97,8 @@ impl TreePickler<'_> {
             Type::Local(b, n) => b.0 == binder.0 && n == name,
             _ => false,
         };
-        let (mut args, mut seq_tpts) = (Vec::new(), Vec::new());
+        let (mut args, mut seq_tpts, mut closures, mut pure) =
+            (Vec::new(), Vec::new(), Vec::new(), Vec::new());
         for &clause in clauses {
             let formals = self.u.method(info)?.param_types();
             info = self.u.method(info)?.result;
@@ -79,16 +108,35 @@ impl TreePickler<'_> {
                     args.push(*actuals.get(j)?);
                 } else if self.u.repeated_elem(formal).is_some_and(|e| is_param(self.u, e)) {
                     args.extend(self.repeated_args(actuals.get(j..)?, &mut seq_tpts)?);
+                } else if let Some((tycon, fargs)) = self.u.applied(formal).map(|(c, a)| (c, a.to_vec()))
+                    && is_function(self.u, tycon)
+                    && fargs.last().is_some_and(|&r| is_param(self.u, r))
+                {
+                    closures.push((*actuals.get(j)?, fargs[..fargs.len() - 1].to_vec()));
+                } else if has_part(self.u, formal, &is_param) && !self.is_closure_block(*actuals.get(j)?) {
+                    pure.push(*actuals.get(j)?);
                 }
             }
         }
         let mut found = None;
-        for a in args {
-            let c = self.captured_in(a, depth)?;
+        let tellers = args.into_iter().map(Teller::Arg).chain(closures.into_iter().map(Teller::Closure));
+        for teller in tellers {
+            let c = match teller {
+                Teller::Arg(a) => self.captured_in(a, depth)?,
+                Teller::Closure((block, formals)) => {
+                    self.captured_closure_result(block, (&formals, binder), depth)?
+                }
+            };
             if found.is_some_and(|f| f != c) {
                 return None;
             }
             found = Some(c);
+        }
+        for a in pure {
+            if self.captured_in(a, depth)? != Captured::Ours || found.is_some_and(|f| f != Captured::Ours) {
+                return None;
+            }
+            found = Some(Captured::Ours);
         }
         for tpt in seq_tpts {
             self.keep_element_captures(tpt, found?)?;

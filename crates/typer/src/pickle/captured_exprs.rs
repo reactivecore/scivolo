@@ -44,7 +44,7 @@ impl TreePickler<'_> {
             T::Literal { .. } | T::This { .. } => Some(Captured::Ours),
             T::Typed { tpt, .. } => self.captured_tpt(tpt),
             T::Block { expr, .. } => match *self.tpd.tree(expr) {
-                T::Closure { tpt: None, .. } => self.captured_closure(e, expr, depth),
+                T::Closure { tpt: None, .. } => self.captured_closure(e, depth),
                 _ => self.captured_in(expr, depth),
             },
             T::If { thenp, elsep, .. } => self.captured_branches(&[thenp, elsep], depth),

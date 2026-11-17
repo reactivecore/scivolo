@@ -13,6 +13,7 @@ object Generic:
   def g(a: A^, b: B^{a}): Int =
     val y = id(b)
     val z = List(b)
+    val s = s"of $b"
     1
 
 object Conds:
