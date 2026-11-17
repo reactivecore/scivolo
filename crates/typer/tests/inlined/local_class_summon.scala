@@ -41,9 +41,25 @@ object LocalClassSummon {
     D.m
   }
 
+  class Base(val x: Int)
+
+  inline def superArg: Int = {
+    given Int = 1
+    class D extends Base(summonInline[Int]) with G
+    new D().x
+  }
+
+  inline def superParam: Int = {
+    given Int = 1
+    class D(using i: Int) extends Base(summonInline[Int]) with G
+    new D(using 2).x
+  }
+
   def a = own(5)
   def b = inherited
   def c = selfType
   def d = nested(7)
   def e = from(8)
+  def f = superArg
+  def g = superParam
 }
