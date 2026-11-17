@@ -7,11 +7,17 @@ use crate::types::{Type, TypeId};
 
 /// The Scala class of internal name `internal`, if the universe has one: a package's class, then
 /// member classes of the classes or objects named by the parts between `$`, a trailing `$`
-/// naming an object's class.
+/// naming an object's class; none, without looking it up, if its top-level class is a Java
+/// class of a jar, a Java source or the JDK.
 pub fn scala_class(u: &mut Universe, internal: &str) -> Option<SymbolId> {
     let (package, simple) = internal.rsplit_once('/').unwrap_or(("", internal));
-    let package = u.package(&package.replace('/', "."))?;
     let parts: Vec<&str> = simple.split('$').collect();
+    let top = internal.split('$').next().unwrap_or(internal);
+    let jars_or_sources = u.java_classes.as_ref().is_some_and(|c| c.declares(top));
+    if jars_or_sources || u.jdk.as_mut().is_some_and(|jdk| jdk.class(top).is_some()) {
+        return None;
+    }
+    let package = u.package(&package.replace('/', "."))?;
     member(u, package, &parts)
 }
 
