@@ -18,7 +18,7 @@ impl Typer<'_> {
     pub fn adapt(&mut self, tree: TNodeId, pt: Pt, ctx: Ctx) -> TNodeId {
         let apply_selected = ctx.mode.is(Mode::APPLY_QUALIFIER);
         let ctx = ctx.with_mode(ctx.mode.without(Mode::APPLY_QUALIFIER));
-        let (redundant_apply, poly_ctx) = (ctx.mode.is(Mode::REDUNDANT_APPLY), ctx);
+        let (redundant_apply, readapt_ctx) = (ctx.mode.is(Mode::REDUNDANT_APPLY), ctx);
         let ctx = ctx.with_mode(ctx.mode.without(Mode::REDUNDANT_APPLY));
         let Some(tpe) = self.tpd.get(tree).tpe else { return tree };
         if matches!(self.u.ty(tpe), Type::Error) || matches!(pt, Pt::Fun(_) | Pt::PolyFun(_)) {
@@ -33,7 +33,7 @@ impl Typer<'_> {
         let method = info.or(Some(tpe)).map(|i| *self.u.ty(i));
         if let Some(Type::Poly { .. }) = method {
             return match self.with_type_vars(tree) {
-                Ok(applied) => self.adapt(applied, pt, poly_ctx),
+                Ok(applied) => self.adapt(applied, pt, readapt_ctx),
                 Err(what) => {
                     self.unsupported_at(span, what);
                     tree
@@ -48,7 +48,7 @@ impl Typer<'_> {
                 .refinement_result((info, meth), pt)
                 .and_then(|()| self.implicit_clause_applied(tree, ctx));
             return match applied.inspect(|&apply| self.settle_adapted(apply, pt, ctx)) {
-                Ok(apply) => self.adapt(apply, pt, ctx),
+                Ok(apply) => self.adapt(apply, pt, readapt_ctx),
                 Err(what) => {
                     self.unsupported_at(span, what);
                     tree
@@ -78,7 +78,7 @@ impl Typer<'_> {
                 let apply = self.build().apply(tree, &[], *result, span.to_synthetic());
                 self.fold_apply(apply);
                 self.settle_adapted(apply, pt, ctx);
-                return self.adapt(apply, pt, ctx);
+                return self.adapt(apply, pt, readapt_ctx);
             }
         }
         if matches!(method, Some(Type::Method { .. } | Type::Poly { .. })) {
