@@ -49,7 +49,8 @@ impl Sig<'_> {
 
     /// The class `t` stands for (dotty's `classSymbol`): of a type lambda its result's, of an
     /// intersection the side deriving from the other, of a union `union_class`, of a type member of
-    /// a refinement or a method type parameter its bound's; `depth` bounds the members followed.
+    /// a refinement or a method type parameter, also applied, its bound's; `depth` bounds the
+    /// members followed.
     fn class_of(&mut self, t: TypeId, depth: u32) -> Option<SymbolId> {
         let depth = depth.checked_sub(1)?;
         let t = self.u.dealias(t);
@@ -69,6 +70,7 @@ impl Sig<'_> {
                 let (_, bounds) = self.poly_param(b, i)?;
                 self.class_of(bounds, depth)
             }
+            Type::Applied(tycon, _) if self.u.param_ref(tycon).is_some() => self.class_of(tycon, depth),
             Type::TypeRef(p, n) if unresolved => {
                 let info = self.u.refinement_named(p, n)?;
                 self.class_of(info, depth)

@@ -300,3 +300,17 @@ def @M$::tryFinally(scala.Function0): int : (@M$, @scala.Function0) => int {
         ],
     );
 }
+
+#[test]
+fn arrays_of_parameters_bounded_by_applied_higher_kinded_parameters() {
+    let source = "object C { def f[F[x] <: Seq[x], B <: F[Int]](x: Array[B]): Unit = () }";
+    let Some(dump) = lowered(source, "C$") else { return };
+    assert_defs(
+        &dump,
+        &[r"
+def @C$::f(array[scala.collection.immutable.Seq]): unit : (@C$, array[@scala.collection.immutable.Seq]) => unit {
+%3(%2 <this> : @C$, %1 <x> : array[@scala.collection.immutable.Seq]):
+  ret unit
+}"],
+    );
+}
