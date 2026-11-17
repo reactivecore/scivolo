@@ -40,6 +40,23 @@ impl Typer<'_> {
         }
     }
 
+    /// Determines the bounds of a pattern variable as the `i`th argument of `tycon`, not a class:
+    /// those of the parameter of the type lambda `tycon` stands for if they are of a higher kind
+    /// and refer to no parameter (dotty's `tparamBounds`), else none.
+    pub fn pattern_var_bounds(&mut self, tycon: TypeId, i: usize) -> TypeId {
+        match self.higher_kinded_param_bounds(tycon, i) {
+            Some(bounds) => bounds,
+            None => self.u.intern_type(Type::Bounds(NOTHING, ANY)),
+        }
+    }
+
+    fn higher_kinded_param_bounds(&mut self, tycon: TypeId, i: usize) -> Option<TypeId> {
+        let c = self.u.sym_of(tycon).filter(|&c| self.u.symbol(c).kind == Kind::Type)?;
+        let bounds = self.lambda_param_bounds(c, i)?;
+        let (_, hi) = self.u.bounds(bounds)?;
+        self.u.lambda(hi).is_some().then_some(bounds)
+    }
+
     /// The bounds of the `i`th parameter of the type lambda abstract type `c` stands for, if they
     /// refer to no parameter.
     fn lambda_param_bounds(&mut self, c: SymbolId, i: usize) -> Option<TypeId> {

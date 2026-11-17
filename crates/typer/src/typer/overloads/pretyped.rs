@@ -61,7 +61,7 @@ impl Resolution {
                 (Some(f), None) => {
                     self.common_formal(t, f, i, alts)?.map(|p| typed_unmapped(t, a, Pt::Type(p), ctx))
                 }
-                (None, None) if t.is_sequence_arg(a) => Some(t.sequence_arg(a, None, ctx)),
+                (None, inner) if t.is_sequence_arg(a) => Some(t.sequence_arg(inner.unwrap_or(a), None, ctx)),
                 (None, inner) => {
                     let arg = inner.unwrap_or_else(|| unblocked_all(t.ast, a));
                     Some(typed_unmapped(t, arg, Pt::Any, ctx))

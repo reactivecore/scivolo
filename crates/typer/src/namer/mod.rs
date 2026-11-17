@@ -185,6 +185,9 @@ impl Typer<'_> {
             self.unsupported(tree, "definition tree shared by two definitions");
         }
         self.syms.def_trees.insert(sym, tree);
+        if !kind.is_term() {
+            self.record_witness_names(sym, mods);
+        }
         Some(sym)
     }
 

@@ -141,10 +141,10 @@ pub fn applied(u: &mut Universe, class: SymbolId, args: Vec<TypeId>) -> TypeId {
     u.intern_applied(tycon, &args)
 }
 
-/// The type of a reference to `s` from where its owner's members are visible.
+/// The type of a reference to `s` from where its owner's members are visible, a package's
+/// member through the package's `this` (dotty's `ref` of the symbol).
 pub fn type_ref(u: &mut Universe, s: SymbolId) -> TypeId {
     let prefix = match u.symbol(s).owner {
-        Some(o) if u.symbol(o).kind == Kind::Package => Some(u.intern_type(Type::Package(o))),
         Some(o) if u.symbol(o).kind == Kind::Class => {
             let class = type_ref(u, o);
             Some(u.intern_type(Type::This(class)))

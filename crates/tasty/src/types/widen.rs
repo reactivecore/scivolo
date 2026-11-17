@@ -137,23 +137,18 @@ impl Universe {
         }
     }
 
-    /// The type of `this` in class `c`: `c` applied to its own type parameters, seen from `this`
-    /// (dotty's `appliedRef`).
-    pub fn this_type(&mut self, c: SymbolId) -> TypeId {
-        let class = self.intern_type(Type::Sym(None, c));
-        let this = self.intern_type(Type::This(class));
-        let params: Vec<TypeId> =
-            self.type_params(c).into_iter().map(|p| self.intern_type(Type::Sym(Some(this), p))).collect();
-        match params.is_empty() {
-            true => class,
-            false => self.intern_applied(class, &params),
-        }
-    }
-
-    /// The type of `this` in class `c` with its given self type (dotty's `ClassInfo.selfType`).
+    /// The type of `this` in class `c` with its given self type, a capture set of that type around
+    /// both, `(S & C)^{cs}` of `S^{cs}` (dotty's `ClassInfo.selfType`).
     pub fn self_type(&mut self, c: SymbolId) -> TypeId {
         let applied = self.this_type(c);
-        self.given_self_type(c).map_or(applied, |s| self.intern_type(Type::And(s, applied)))
+        let Some(given) = self.given_self_type(c) else { return applied };
+        match self.annotated(given).filter(|&(_, a)| self.is_capture_set(a)) {
+            Some((inner, set)) => {
+                let both = self.intern_type(Type::And(inner, applied));
+                self.intern_type(Type::Annotated(both, set))
+            }
+            None => self.intern_type(Type::And(given, applied)),
+        }
     }
 
     /// The class type of a constant with tag `tag`.

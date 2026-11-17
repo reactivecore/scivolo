@@ -22,6 +22,7 @@ mod avoid;
 mod avoid_captures;
 mod avoid_wildcards;
 mod base_completion;
+mod bean_properties;
 mod by_name_repeated;
 mod call_types;
 mod callee_types;
@@ -29,9 +30,11 @@ pub(crate) mod capture_types;
 mod captured_paths;
 mod case_companion;
 mod case_lambdas;
+mod cb_companions;
 mod child_annotations;
 mod clashing_synthetics;
 mod class_members;
+mod class_seen_types;
 mod classes;
 mod closure_params;
 mod closure_trees;
@@ -94,6 +97,7 @@ mod harmonize;
 mod ident_hint;
 mod idents;
 mod implicits;
+mod import_paths;
 mod import_selectors;
 mod import_tree;
 mod imports;
@@ -145,6 +149,7 @@ mod overloads;
 mod overrides;
 mod package_members;
 mod param_vars;
+mod parent_refinements;
 mod parent_trees;
 mod parents;
 mod paths;
@@ -204,6 +209,7 @@ mod this_calls;
 mod this_constr_calls;
 mod throws_types;
 mod top_level_annotations;
+mod tracked_params;
 mod trait_params;
 mod transparent;
 mod transparent_traits;
@@ -263,6 +269,7 @@ pub use const_ops::{fold_binop, fold_unop};
 pub use features::source_versions;
 pub use inline_accessors::RETAINED_BODY;
 pub use protos::Pt;
+pub use simplify::fully_simplified;
 pub use transparent::InlineDef;
 pub use widen_inferred::Widen;
 
@@ -298,6 +305,8 @@ pub struct Typer<'a> {
     pub dollar_names_warned: bool,
     /// Whether the unit behaves as the Scala 2 library (`language.\`2.13\``).
     pub scala2: bool,
+    /// The source version of the file being typed.
+    pub source_version: SourceVersion,
     /// `Config::interactive`.
     pub interactive: bool,
     /// Trees typed while completing a symbol, by the owner they were typed in, taken when typing
@@ -416,11 +425,19 @@ pub struct Typer<'a> {
 /// How many `typed` calls may be in progress at once.
 const MAX_DEPTH: u32 = 400;
 
-/// Refuses source versions before 3.7 and migrating ones.
+/// Determines the rules that match match type cases in code of source version `v`.
+pub fn match_type_rules(v: SourceVersion) -> tasty::MatchTypeRules {
+    match v.legacy_match_types() {
+        true => tasty::MatchTypeRules::Legacy,
+        false => tasty::MatchTypeRules::Spec,
+    }
+}
+
+/// Refuses source versions before 3.3 and migrating ones.
 pub fn check_source_version(v: SourceVersion) -> Result<(), String> {
-    match v.is_at_least(SourceVersion::V3_7) && !v.migrating {
+    match v.is_at_least(SourceVersion::V3_3) && !v.migrating {
         true => Ok(()),
-        false => Err("source versions other than 3.7 to 3.9".into()),
+        false => Err("source versions other than 3.3 to 3.9".into()),
     }
 }
 
@@ -436,6 +453,8 @@ impl<'a> Typer<'a> {
         check_source_version(v)?;
         let defn = u.enter_library_defn()?;
         u.reductions_exhausted = false;
+        u.match_type_rules = match_type_rules(v);
+        u.keeps_captures = cfg.features.capture_checking();
         let mut syms = std::mem::take(syms);
         let ops = u.package(nme::OPS_PACKAGE);
         syms.throw_method = syms.throw_method.or_else(|| entered(u, ops?, nme::THROW, Kind::Def));
@@ -462,6 +481,7 @@ impl<'a> Typer<'a> {
             source_future: v.requires_new_syntax(),
             dollar_names_warned: v.is_at_least(SourceVersion::V3_9),
             scala2: v.is_scala2(),
+            source_version: v,
             interactive: cfg.interactive,
             ahead: FxHashMap::default(),
             pattern_tpts: FxHashMap::default(),
@@ -538,7 +558,8 @@ impl<'a> Typer<'a> {
         let vars = self.constraint.count();
         let top_only = crate::ctx::Mode::APPLY_QUALIFIER
             .with(crate::ctx::Mode::ASSIGNMENT_LHS)
-            .with(crate::ctx::Mode::SINGLETON_REF);
+            .with(crate::ctx::Mode::SINGLETON_REF)
+            .with(crate::ctx::Mode::REDUNDANT_APPLY);
         let inner = ctx.with_mode(ctx.mode.without(top_only));
         let (tree, ahead) = match self.contextual_function(id, pt, inner) {
             Some(t) => (t, false),

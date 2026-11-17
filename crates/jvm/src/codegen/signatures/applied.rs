@@ -39,8 +39,13 @@ impl Sig<'_> {
 
     /// `tycon[args]`, if `tycon` is a method type parameter in scope.
     fn applied_param(&mut self, tycon: TypeId, args: &[TypeId]) -> Option<Applied> {
-        let (b, i) = self.u.param_ref(tycon)?;
-        let (name, bounds) = self.poly_param(b, i)?;
+        let (name, bounds) = match self.u.param_ref(tycon) {
+            Some((b, i)) => self.poly_param(b, i)?,
+            None => {
+                let p = self.type_param(tycon)?;
+                self.method_param(p)?
+            }
+        };
         let hi = self.u.bounds(bounds).map_or(bounds, |(_, hi)| hi);
         let Some(lambda) = self.u.lambda(hi) else { return Some(Applied::Param(name)) };
         let (binder, names, result) = (lambda.binder, lambda.names(), lambda.result);
@@ -53,17 +58,44 @@ impl Sig<'_> {
         Some(if recursive { Applied::Erased } else { Applied::Resolved(t) })
     }
 
+    /// The name, fresh if renamed, and bounds of method type parameter `p` in scope, which a
+    /// method of TASTy refers to by its symbol.
+    pub fn method_param(&mut self, p: SymbolId) -> Option<(String, TypeId)> {
+        let owner = self.u.symbol(p).owner?;
+        if self.u.symbol(owner).kind != Kind::Def {
+            return None;
+        }
+        let mut name = tasty::encode(&self.u.symbol(p).name);
+        if let Some((_, fresh)) = self.renamed.iter().find(|r| r.0 == name) {
+            name = fresh.clone();
+        }
+        self.poly.iter().rev().flat_map(|(_, ps)| ps).find(|q| q.0 == name).cloned()
+    }
+
+    /// Turns the bounds `b` of a higher-kinded type parameter as TASTy has them, a type lambda
+    /// over bounds, into bounds over type lambdas; other bounds stay.
+    pub fn param_bounds(&mut self, b: TypeId) -> TypeId {
+        let Type::Lambda { binder, params, result } = *self.u.ty(b) else { return b };
+        let Some((lo, hi)) = self.u.bounds(result) else { return b };
+        let lo = self.u.intern_type(Type::Lambda { binder, params, result: lo });
+        let hi = self.u.intern_type(Type::Lambda { binder, params, result: hi });
+        self.u.intern_type(Type::Bounds(lo, hi))
+    }
+
     /// The name and bounds of method type parameter `i` of `binder`, if in scope.
     pub fn poly_param(&self, binder: Binder, i: u32) -> Option<(String, TypeId)> {
         let (_, params) = self.poly.iter().find(|p| p.0 == binder)?;
         params.get(i as usize).cloned()
     }
 
-    /// Replaces a reference to a parameter of the method by its bounds in `t`, also in the parts
-    /// of a union such as `T | Null` and as the upper bound of a wildcard such as `? <: T`.
+    /// Replaces a reference to a parameter of the method by its bounds in `t`, the parameters in
+    /// its upper bound by theirs, also in the parts of a union such as `T | Null` and as the upper
+    /// bound of a wildcard such as `? <: T`.
     pub fn with_param_bounds(&mut self, t: TypeId) -> TypeId {
         if let Some((_, bounds)) = self.u.param_ref(t).and_then(|(b, i)| self.poly_param(b, i)) {
-            return bounds;
+            let Some((lo, hi)) = self.u.bounds(bounds) else { return bounds };
+            let hi = self.upper_bounded(hi);
+            return self.u.intern_type(Type::Bounds(lo, hi));
         }
         match *self.u.ty(t) {
             Type::Or(a, b, soft) => {
@@ -117,9 +149,10 @@ impl Sig<'_> {
     }
 
     /// Whether a method type parameter of `bounds` erases to a primitive, also through a value
-    /// class, and so appears by its erasure.
+    /// class or through other method type parameters, and so appears by its erasure.
     pub fn primitive_bound(&mut self, bounds: TypeId) -> bool {
         let hi = self.u.bounds(bounds).map_or(bounds, |(_, hi)| hi);
+        let hi = self.upper_bounded(hi);
         match self.u.erase_value(hi) {
             Erased::Value(_, e) => matches!(*e, Erased::Prim(_)),
             e => matches!(e, Erased::Prim(_)),

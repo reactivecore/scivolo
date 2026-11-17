@@ -10,7 +10,7 @@ use super::{AMBIGUOUS, NO_APPLICABLE, Resolution, UNDECIDED, Unchosen, applicabi
 use crate::ctx::Ctx;
 use crate::typer::type_ops::TypeOps;
 use crate::typer::{Pt, Typer};
-use tasty::SymbolId;
+use tasty::{SymbolId, Type};
 
 impl Resolution {
     /// Chooses the alternative of `alts` that the arguments of `proto` select: of those they
@@ -70,6 +70,12 @@ impl Resolution {
             let arg_types = self.proto_arg_types(t, proto, &narrowed)?;
             let mut applicable = Vec::new();
             for &alt in &narrowed {
+                let info = t.u.info(alt);
+                t.complete_named_type_members(info, info);
+                let seen = t.u.intern_type(Type::Sym(self.prefix, alt));
+                if let Some(seen) = t.method_info(seen) {
+                    t.complete_named_type_members(seen, seen);
+                }
                 let fits = applicable_to_proto(t, alt, self.prefix, (proto, &arg_types), views, ctx);
                 let fits = match (fits, t.protos[proto].pt) {
                     (Some(true), Pt::Type(pt)) if t.protos[proto].deep => {

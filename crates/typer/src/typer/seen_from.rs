@@ -76,9 +76,9 @@ impl TypeOps<'_> {
     }
 
     /// Normalizes `t`: reduces applied type lambdas and applied aliases of type lambdas (dotty's
-    /// `appliedTo`: an alias only if it eta-expands its result), and drops capture-checking
-    /// annotations (`retains`); an impure function alias only if its arguments have such
-    /// annotations.
+    /// `appliedTo`: an alias only if it eta-expands its result), and but in a capture-checked file
+    /// (ADR 0126) drops capture-checking annotations (`retains`); an impure function alias only if
+    /// its arguments have such annotations.
     pub fn normalized(&mut self, t: TypeId) -> TypeId {
         normalized(self.u, t)
     }
@@ -89,13 +89,6 @@ impl TypeOps<'_> {
 pub fn resolve_class_params(u: &mut tasty::Universe, t: TypeId) -> TypeId {
     let t = class_params_resolved(u, t);
     normalized(u, t)
-}
-
-/// Resolves the class type parameters in `t` and normalizes the result as `resolve_class_params`
-/// does, but keeps capture-checking annotations and impure function aliases.
-pub fn resolve_class_params_keeping_captures(u: &mut tasty::Universe, t: TypeId) -> TypeId {
-    let t = class_params_resolved(u, t);
-    normalized_as(u, t, true)
 }
 
 fn class_params_resolved(u: &mut tasty::Universe, t: TypeId) -> TypeId {
@@ -113,9 +106,9 @@ pub fn class_param_arg(u: &mut tasty::Universe, t: TypeId) -> Option<TypeId> {
 }
 
 /// Normalizes `t` as `Typer::normalized`: reduces applied type lambdas and applied aliases of
-/// type lambdas, and drops capture-checking annotations.
+/// type lambdas, and drops capture-checking annotations but in a capture-checked file.
 pub fn normalized(u: &mut tasty::Universe, t: TypeId) -> TypeId {
-    normalized_as(u, t, false)
+    normalized_as(u, t, u.keeps_captures)
 }
 
 fn normalized_as(u: &mut tasty::Universe, t: TypeId, keep_captures: bool) -> TypeId {

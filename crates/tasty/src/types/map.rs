@@ -3,7 +3,54 @@
 use super::{ParamList, Type, TypeId};
 use crate::Universe;
 
+/// The full-name prefix of capture checking's annotation classes (`retains`, `retainsByName`,
+/// `retainsCap`).
+const RETAINS: &str = "scala.annotation.retains";
+
 impl Universe {
+    /// Determines whether annotation type `annot` is a capture set.
+    pub fn is_capture_set(&mut self, annot: TypeId) -> bool {
+        self.class_symbol(annot).is_some_and(|c| self.full_name_starts_with(c, RETAINS))
+    }
+
+    /// `t` mapped as `map_type` maps it, and the references of its capture sets too (dotty's
+    /// `RetainingAnnotation.mapWith`).
+    pub fn map_with_capture_sets(
+        &mut self,
+        t: TypeId,
+        f: &mut dyn FnMut(&mut Self, TypeId) -> Option<TypeId>,
+    ) -> TypeId {
+        self.map_type(t, &mut |u, x| {
+            if let Some(r) = f(u, x) {
+                return Some(r);
+            }
+            let (inner, annot) = u.annotated(x)?;
+            if !u.is_capture_set(annot) {
+                return None;
+            }
+            let mapped = u.map_with_capture_sets(inner, f);
+            let set = u.map_with_capture_sets(annot, f);
+            Some(match (mapped, set) == (inner, annot) {
+                true => x,
+                false => u.intern_type(Type::Annotated(mapped, set)),
+            })
+        })
+    }
+
+    /// `t` mapped as `map_type` maps it, in a capture-checked file as `map_with_capture_sets`
+    /// (dotty's `TypeMap` of an `AnnotatedType`, which maps a capture set where capture checking
+    /// is enabled).
+    pub fn map_type_and_kept_sets(
+        &mut self,
+        t: TypeId,
+        f: &mut dyn FnMut(&mut Self, TypeId) -> Option<TypeId>,
+    ) -> TypeId {
+        match self.keeps_captures {
+            true => self.map_with_capture_sets(t, f),
+            false => self.map_type(t, f),
+        }
+    }
+
     /// `t` with every part for which `f` gives a replacement replaced, outermost parts first;
     /// the other parts are rebuilt from their mapped children, an application whose constructor
     /// became a type lambda beta-reduced, one whose constructor became `Nothing` `Nothing`, a union
@@ -14,13 +61,13 @@ impl Universe {
         }
         let mut m = |u: &mut Self, x: TypeId| u.map_type(x, f);
         let params = |u: &mut Self, ps: ParamList, m: &mut dyn FnMut(&mut Self, TypeId) -> TypeId| {
-            let mapped: Vec<_> = (0..u.params_of(ps).len())
-                .map(|i| {
-                    let (n, p) = u.params_of(ps)[i];
-                    (n, m(u, p))
-                })
-                .collect();
-            if mapped[..] == *u.params_of(ps) { ps } else { u.intern_params(&mapped) }
+            let mut changed: Option<Vec<_>> = None;
+            for i in 0..u.params_of(ps).len() {
+                let (n, p) = u.params_of(ps)[i];
+                let x = m(u, p);
+                record(&mut changed, u.params_of(ps), i, (n, x));
+            }
+            changed.map_or(ps, |mapped| u.intern_params(&mapped))
         };
         let mapped = match *self.ty(t) {
             Type::TypeRef(p, n) => Type::TypeRef(m(self, p), n),
@@ -36,15 +83,17 @@ impl Universe {
                 if mapped != c && mapped == crate::NOTHING {
                     return mapped;
                 }
-                let args: Vec<_> = (0..self.types_of(list).len())
-                    .map(|i| {
-                        let a = self.types_of(list)[i];
-                        m(self, a)
-                    })
-                    .collect();
-                if mapped == c && args[..] == *self.types_of(list) {
-                    return t;
+                let mut changed: Option<Vec<_>> = None;
+                for i in 0..self.types_of(list).len() {
+                    let a = self.types_of(list)[i];
+                    let x = m(self, a);
+                    record(&mut changed, self.types_of(list), i, x);
                 }
+                let args = match changed {
+                    None if mapped == c => return t,
+                    None => self.types_of(list).to_vec(),
+                    Some(args) => args,
+                };
                 let applied = self.intern_applied(mapped, &args);
                 let lambda = self.lambda(mapped).is_some();
                 return if mapped != c && lambda { self.beta_reduced(applied) } else { applied };
@@ -68,8 +117,7 @@ impl Universe {
                     return t;
                 }
                 let annotated = self.intern_type(Type::Annotated(mapped, annot));
-                self.carry_annotation_tree(t, annotated);
-                return annotated;
+                return self.carry_annotation_tree(t, annotated);
             }
             Type::Flexible(hi) => {
                 let hi = m(self, hi);
@@ -112,5 +160,15 @@ impl Universe {
             return t;
         }
         self.intern_type(mapped)
+    }
+}
+
+/// Records `x`, the mapped `i`th of `items`, in `changed`, which starts with the first item that
+/// changed: a copy of the items before it.
+fn record<T: Copy + PartialEq>(changed: &mut Option<Vec<T>>, items: &[T], i: usize, x: T) {
+    match changed {
+        Some(mapped) => mapped.push(x),
+        None if x != items[i] => *changed = Some([&items[..i], &[x]].concat()),
+        None => {}
     }
 }

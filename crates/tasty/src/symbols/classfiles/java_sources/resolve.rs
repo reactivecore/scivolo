@@ -5,9 +5,10 @@
 //! their supertypes, single-type imports, the package, on-demand imports and `java.lang`.
 
 use super::super::classpath::java_class;
+use super::scala_classes::scala_class;
 use super::syntax::{Class, Type};
 use super::{JavaSources, Located};
-use crate::symbols::{Kind, Universe};
+use crate::symbols::Universe;
 
 /// How deep the supertypes of a class are searched for a member class.
 const MAX_SUPERTYPE_DEPTH: usize = 32;
@@ -39,7 +40,7 @@ pub fn resolve(
     {
         return Ok(Resolved::Var((*name).to_owned()));
     }
-    let class = match simple(u, sources, scope, parts[0]) {
+    let class = match simple(u, sources, scope, parts[0], parts.len() > 1) {
         Some(class) => nested_path(u, sources, class, &parts[1..]),
         None => package_path(u, sources, parts),
     };
@@ -51,8 +52,15 @@ fn nested_path(u: &mut Universe, sources: &JavaSources, internal: String, rest: 
     rest.iter().try_fold(internal, |c, name| member_class(u, sources, &c, name, 0))
 }
 
-/// The class simple name `name` stands for in `scope`, a type variable aside.
-fn simple(u: &mut Universe, sources: &JavaSources, scope: &Scope, name: &str) -> Option<String> {
+/// The class simple name `name` stands for in `scope`, a type variable aside; with `qualifier`
+/// also a Scala object of the package.
+fn simple(
+    u: &mut Universe,
+    sources: &JavaSources,
+    scope: &Scope,
+    name: &str,
+    qualifier: bool,
+) -> Option<String> {
     let unit = &scope.at.unit;
     for outer in scope.at.enclosing().into_iter().skip(usize::from(scope.in_header)) {
         if let Some(c) = member_class(u, sources, &outer, name, 0) {
@@ -71,7 +79,7 @@ fn simple(u: &mut Universe, sources: &JavaSources, scope: &Scope, name: &str) ->
             return Some(c);
         }
     }
-    if exists(u, sources, &in_package(name)) {
+    if found(u, sources, &in_package(name), qualifier) {
         return Some(in_package(name));
     }
     let on_demand = unit.imports.iter().filter(|i| i.on_demand).map(|i| i.path.join("/"));
@@ -87,8 +95,15 @@ fn simple(u: &mut Universe, sources: &JavaSources, scope: &Scope, name: &str) ->
 fn package_path(u: &mut Universe, sources: &JavaSources, parts: &[&str]) -> Option<String> {
     (1..parts.len()).find_map(|i| {
         let internal = format!("{}/{}", parts[..i].join("/"), parts[i]);
-        exists(u, sources, &internal).then(|| nested_path(u, sources, internal, &parts[i + 1..]))?
+        let qualifier = i + 1 < parts.len();
+        found(u, sources, &internal, qualifier).then(|| nested_path(u, sources, internal, &parts[i + 1..]))?
     })
+}
+
+/// Determines whether class `internal` exists, or with `qualifier` a Scala object of that name,
+/// whose member classes a Java source may name.
+fn found(u: &mut Universe, sources: &JavaSources, internal: &str, qualifier: bool) -> bool {
+    exists(u, sources, internal) || qualifier && scala_class(u, &format!("{internal}$")).is_some()
 }
 
 /// The member class `name` of class `owner` (internal names), declared in it or inherited from
@@ -144,10 +159,5 @@ pub fn exists(u: &mut Universe, sources: &JavaSources, internal: &str) -> bool {
     if u.jdk.as_mut().is_some_and(|jdk| jdk.class(internal).is_some()) {
         return true;
     }
-    let Some((package, name)) = internal.rsplit_once('/') else { return false };
-    if name.contains('$') {
-        return false;
-    }
-    let Some(p) = u.package(&package.replace('/', ".")) else { return false };
-    u.decls_named(p, name).into_iter().any(|d| u.symbol(d).kind == Kind::Class && !u.is_module_class(d))
+    scala_class(u, internal).is_some()
 }

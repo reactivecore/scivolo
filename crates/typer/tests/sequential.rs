@@ -388,6 +388,66 @@ fn errors_first(text: &str) -> Result<(), String> {
 }
 
 #[test]
+fn overrides_with_incompatible_types() {
+    let Some(_) = universe() else { return };
+    let incompatible = [
+        "class A { def y: Option[Int] = None }\nclass B extends A { override def y: String = \"\" }\n",
+        "class A { val y: Int = 1 }\nclass B extends A { override val y: String = \"\" }\n",
+        "abstract class A { def y: Int }\nclass B extends A { def y: String = \"\" }\n",
+        "class A[T] { def y: List[T] = Nil }\nclass B extends A[Int] { override def y: List[String] = Nil }\n",
+        "class A { type T <: Int }\nclass B extends A { type T = String }\n",
+        "class A { type T >: String }\nclass B extends A { type T = Int }\n",
+        "class A { def y[X](x: X): X = x }\nclass B extends A { override def y[Z](x: Z): Int = 1 }\n",
+        "trait T { def y: Int }\ntrait U extends T { def y: String }\n",
+        "class A { def y(x: Int): Int = x }\nclass B extends A { override def y(x: Int): String = \"\" }\n",
+        "abstract class A { def y: Int }\ntrait T { def y: String = \"\" }\nclass B extends A with T\n",
+        "trait T { def y: Int }\ntrait U { def y: String }\nabstract class B extends T with U\n",
+        "abstract class X extends ThreadLocal[Int] with java.util.function.Supplier[String]\n",
+    ];
+    for text in incompatible {
+        assert_eq!(
+            errors_first(text),
+            Err("unsupported override with an incompatible type".into()),
+            "{text}"
+        );
+    }
+    let compatible = [
+        "class A { def y: Any = 1 }\nclass B extends A { override def y: String = \"\" }\n",
+        "class L extends java.util.LinkedList[Int] with java.util.Deque[Int]\n",
+        "trait N { type Zero <: Nat; type Nat; trait ZeroOpt { type Refined = Zero } }\nobject C extends N { trait NatClass; case object ZeroObj extends NatClass with ZeroOpt { type Refined = this.type }; type Nat = NatClass; type Zero = ZeroObj.type }\n",
+        "abstract class M extends java.util.AbstractMap[Int, Int] with java.util.NavigableMap[Int, Int]\n",
+        "trait N { type Nat; trait Opt { def get: Nat } }\nobject C extends N { class S extends Opt { def get: NC = ??? }; trait NC; type Nat = NC }\n",
+        "trait AddRemove { type TNode <: NodeImpl; trait NodeImpl }\nclass Linked extends AddRemove { type TNode = Node; class Node extends super.NodeImpl }\n",
+        "class A { def s[B >: Int](b: B): B = b }\nclass C extends A { override def s[B >: Int](b: B): Int = 1 }\n",
+        "trait T { type B; def b: B }\ntrait U { type B = Int }\nclass C extends T with U { def b: B = 1 }\n",
+        "trait T { def y: Any }\ntrait U { def y: String }\nabstract class B extends T with U\n",
+        "trait T { type X <: Int }\ntrait U { type X <: String }\nabstract class B extends T with U\n",
+        "trait T { def y: Int }\ntrait U { def y: String }\nabstract class B extends T with U { def y: Nothing }\n",
+        "class A[T] { def y: Option[T] = None }\nclass B extends A[Int] { override def y: Some[Int] = Some(1) }\n",
+        "class A { type T <: AnyVal }\nclass B extends A { type T = Int }\n",
+        "abstract class A { type T <: Seq[Int] }\nabstract class B extends A { type T <: List[Int] }\n",
+        "class B { override def toString: String = \"\" }\nclass C extends Thread { override def run(): Unit = () }\n",
+        "class D extends java.util.AbstractList[Int] { def get(i: Int): Int = 1; def size = 0 }\n",
+        "class A { def y[X](x: X): List[X] = Nil }\nclass B extends A { override def y[Z](x: Z): List[Z] = Nil }\n",
+        "class A { def self: A = this }\nclass B extends A { override def self: this.type = this }\n",
+        "abstract class A { type T; def t: T }\nclass B extends A { type T = Int; def t: Int = 1 }\n",
+        "trait T { def y: AnyRef }\nclass B extends T { def y = \"s\" }\n",
+        "abstract class A { def y: Int }\ntrait T extends A { def y: Int = 2 }\nclass B extends A with T\n",
+        "trait T[+X] { def get: X }\nclass B extends T[String] { def get = \"\" }\n",
+        "class A { def f: Int = 1 }\nclass B extends A { override def f: Nothing = ??? }\n",
+        "class C extends java.util.Comparator[String] { def compare(a: String, b: String): Int = 0 }\n",
+        "class A extends Iterator[Int] { def hasNext = false; def next() = 1 }\n",
+        "class E extends Exception { override def getMessage(): String = \"\" }\n",
+        "class A[T] { def y(x: T): T = x }\nclass B extends A[String] { override def y(x: String): String = x }\n",
+        "class P { type T }\nclass A { def f(p: P): p.T = ??? }\nclass B extends A { override def f(q: P): q.T = ??? }\n",
+        "class A { def f(x: Int)(using s: String): Int = 1 }\nclass B extends A { override def f(x: Int)(using t: String): Int = 2 }\n",
+    ];
+    for text in compatible {
+        assert_eq!(errors_first(text), Ok(()), "{text}");
+    }
+}
+
+#[test]
 fn no_false_errors_behind_unsupported_constructs() {
     let Some(_) = universe() else { return };
     let cases = [
@@ -612,4 +672,103 @@ fn constructs_diverging_from_dotty_are_refused() {
         let outcome = type_unit(&mut u, &mut Units::default(), "t.scala", text);
         assert_eq!(outcome, Err(format!("unsupported {what}")), "{text}");
     }
+}
+
+#[test]
+fn parent_refinements_of_tracked_parameters_are_refused() {
+    let Some(mut u) = universe() else { return };
+    let flagged = &["-source", "future", "-language:experimental.modularity"];
+    let refused = Err("unsupported parent refinement of a tracked parameter".to_owned());
+    for (i, arg) in ["\"bar\"", "List(\"x\").head"].into_iter().enumerate() {
+        let text =
+            format!("abstract class Foo{i}(tracked val d: String); class Bar{i} extends Foo{i}({arg})");
+        assert_eq!(
+            type_unit_with(&mut u, &mut Units::default(), ("t.scala", &text), flagged),
+            refused,
+            "{text}"
+        );
+    }
+    let untracked = "abstract class Foo(val d: String); class Bar extends Foo(\"bar\")";
+    assert_eq!(type_unit_with(&mut u, &mut Units::default(), ("t.scala", untracked), flagged), Ok(()));
+    let unchanged = "abstract class Foo(tracked val d: String); class Bar(x: String) extends Foo(x)";
+    assert!(type_unit_with(&mut u, &mut Units::default(), ("t.scala", unchanged), flagged).is_err());
+}
+
+#[test]
+fn type_members_parameters_refine_as_aliases_are_refused() {
+    let flagged = &["-source", "future", "-language:experimental.modularity"];
+    let refused = Err("unsupported type member a parameter refines as an alias".to_owned());
+    for sig in ["T: TC[S] as tc](x: S, y: tc.Self)", "T: TC[S]](x: S, y: T.Self)"] {
+        let Some(mut u) = universe() else { return };
+        let text = format!("trait TC[T]:\n  type Self\ndef f[S, {sig} = ()\n");
+        assert_eq!(
+            type_unit_with(&mut u, &mut Units::default(), ("t.scala", &text), flagged),
+            refused,
+            "{text}"
+        );
+    }
+}
+
+#[test]
+fn context_bound_companions_beside_inherited_terms_are_refused() {
+    let Some(mut u) = universe() else { return };
+    let flagged = &["-source", "future", "-language:experimental.modularity"];
+    let text = "trait M:\n  type Self\n  def unit: Self\ntrait B:\n  val XX: M { type Self = Int } = \
+                null\ntrait AA extends B:\n  type XX: M\n  def x = XX.unit\n";
+    assert_eq!(
+        type_unit_with(&mut u, &mut Units::default(), ("t.scala", text), flagged),
+        Err("unsupported context bound companion beside a term member of its name".to_owned())
+    );
+}
+
+#[test]
+fn context_bound_parameters_dotty_infers_as_tracked_are_refused() {
+    let flagged = &["-source", "future", "-language:experimental.modularity"];
+    let refused = Err("unsupported context bound parameter dotty infers as tracked".to_owned());
+    let coll = "trait Coll[Self]:\n  type Pos\n";
+    let cases = [
+        (format!("{coll}def first[S: Coll](s: S) = 1\n"), refused.clone()),
+        (format!("{coll}class C[S: Coll](s: S)\n"), refused.clone()),
+        (format!("{coll}given g: [S] => (c: Coll[S]) => Coll[List[S]]:\n  type Pos = Int\n"), refused),
+        (format!("{coll}def first(s: Int) =\n  def local[S: Coll](s: S) = 1\n  2\n"), Ok(())),
+        ("trait Eq[Self]\ndef first[S: Eq](s: S) = 1\n".to_owned(), Ok(())),
+    ];
+    for (text, expected) in cases {
+        let Some(mut u) = universe() else { return };
+        assert_eq!(
+            type_unit_with(&mut u, &mut Units::default(), ("t.scala", &text), flagged),
+            expected,
+            "{text}"
+        );
+    }
+}
+
+#[test]
+fn import_cycles_through_a_member_selection_are_refused() {
+    let Some(mut u) = universe() else { return };
+    let cycle = |import: &str, p: &str| {
+        format!(
+            "package {p}\nobject A {{ import {import}.*; type T = U; def a: T = 1 }}\n\
+             object B {{ export A.*; object C {{ type U = Int }}; type U = Int; def b: T = a }}\n"
+        )
+    };
+    let refused = Err("unsupported cyclic reference involving an import".to_owned());
+    assert_eq!(type_unit(&mut u, &mut Units::default(), "t.scala", &cycle("p1.B.C", "p1")), refused);
+    assert_eq!(type_unit(&mut u, &mut Units::default(), "t.scala", &cycle("p2.B", "p2")), Ok(()));
+}
+
+#[test]
+fn annotations_of_imported_objects_skip_the_import_being_typed() {
+    let Some(mut u) = universe() else { return };
+    let unit = "package p\nimport Impl._\nclass marker extends scala.annotation.StaticAnnotation\n\
+                @marker private object Impl { def mk(): Int = 1 }\nobject M { def f: Int = mk() }\n";
+    assert_eq!(type_unit(&mut u, &mut Units::default(), "t.scala", unit), Ok(()));
+}
+
+#[test]
+fn annotations_of_objects_skip_named_imports_of_their_members() {
+    let Some(mut u) = universe() else { return };
+    let unit = "package p\npackage q\nimport p.q.TrieMap.Policy\n\
+                @SerialVersionUID(3L) object TrieMap { class Policy }\nclass C(p: Policy)\n";
+    assert_eq!(type_unit(&mut u, &mut Units::default(), "t.scala", unit), Ok(()));
 }

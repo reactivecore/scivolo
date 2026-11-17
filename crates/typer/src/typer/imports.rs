@@ -4,12 +4,12 @@
 //! Imports: what an import makes visible (dotty's `ImportInfo`, `typedImport`, and the import
 //! side of `findRef`: `namedImportRef`, `wildImportRef`, `selection`).
 
+use super::Typer;
 use super::idents::Found;
-use super::{Pt, Typer};
 use crate::ctx::{Ctx, Level, LevelId};
 use crate::tpd::TNodeId;
 use names::nme;
-use syntax::ast::{NodeId, Tree};
+use syntax::ast::NodeId;
 use tasty::{SymbolId, TypeId};
 
 /// A selector `name => rename`; `name` empty for `given`, `rename` `_` for an unimport; the
@@ -47,8 +47,16 @@ impl ImportInfo {
 
 /// An import of a unit: its tree and the context its path is typed in, or what it imports.
 pub enum ImportEntry {
-    Pending { tree: NodeId, ctx: Ctx },
-    Completing(NodeId),
+    Pending {
+        tree: NodeId,
+        ctx: Ctx,
+    },
+    /// An import whose path is being typed; `again` once a lookup during that typing types it again.
+    Completing {
+        tree: NodeId,
+        ctx: Ctx,
+        again: bool,
+    },
     Done(ImportInfo),
 }
 
@@ -56,8 +64,16 @@ impl ImportEntry {
     /// The import tree, if the import has one.
     pub fn tree(&self) -> Option<NodeId> {
         match self {
-            ImportEntry::Pending { tree, .. } | ImportEntry::Completing(tree) => Some(*tree),
+            ImportEntry::Pending { tree, .. } | ImportEntry::Completing { tree, .. } => Some(*tree),
             ImportEntry::Done(info) => info.tree,
+        }
+    }
+
+    /// The import tree, if the import's path is not typed yet or being typed.
+    pub fn untyped(&self) -> Option<NodeId> {
+        match self {
+            ImportEntry::Pending { tree, .. } | ImportEntry::Completing { tree, .. } => Some(*tree),
+            ImportEntry::Done(_) => None,
         }
     }
 }
@@ -108,7 +124,7 @@ impl Typer<'_> {
     /// The root import that import `i` hides when it does not supply a name: `Predef`'s, if `i`
     /// imports from `Predef` (dotty's `ImportInfo.unimported`).
     pub fn unimported(&mut self, i: usize) -> Option<SymbolId> {
-        if self.is_root_import(i) {
+        if self.is_root_import(i) || !self.may_unimport(i) {
             return None;
         }
         let qual = self.import_info(i)?.qual;
@@ -126,30 +142,6 @@ impl Typer<'_> {
     /// Whether import `i` is one of the imports every unit starts with.
     pub fn is_root_import(&self, i: usize) -> bool {
         matches!(&self.imports[i], ImportEntry::Done(ImportInfo { expr: None, .. }))
-    }
-
-    /// The info of import `i`, its path typed if not yet.
-    pub fn import_info(&mut self, i: usize) -> Option<&ImportInfo> {
-        if let ImportEntry::Pending { tree, ctx } = self.imports[i] {
-            self.imports[i] = ImportEntry::Completing(tree);
-            let Tree::Import { expr, selectors } = *self.ast.tree(tree) else { unreachable!() };
-            let typed = self.typed(expr, Pt::Any, ctx.with_mode(crate::ctx::Mode::QUALIFIER));
-            let package = self.tpd.sym(typed).is_some_and(|s| self.u.symbol(s).kind == tasty::Kind::Package);
-            let tpe = self.tpd.tpe(typed);
-            if !package && !self.is_stable_path(typed) && !super::stability::is_stable_path(self.u, tpe) {
-                self.unsupported(expr, "import prefix that is not a pure expression");
-            }
-            let qual = self.import_qual(typed);
-            self.check_language_path(expr, qual);
-            let selectors = self.selectors(selectors, ctx);
-            let owner = Some(ctx.owner);
-            let info = ImportInfo { qual, selectors, expr: Some(typed), owner, tree: Some(tree) };
-            self.imports[i] = ImportEntry::Done(info);
-        }
-        match &self.imports[i] {
-            ImportEntry::Done(info) => Some(info),
-            _ => None,
-        }
     }
 
     /// The members named `member` of import `i`'s path; for a wildcard, the givens only if a
@@ -186,7 +178,7 @@ impl Typer<'_> {
 
     /// What import `i` makes visible as `name` by a wildcard (dotty's `wildImportRef`).
     pub fn wild_import_ref(&mut self, i: usize, name: &str, is_type: bool) -> Option<Found> {
-        if !self.import_info(i)?.wildcard_imports(name) {
+        if !self.may_import_wild(i) || !self.import_info(i)?.wildcard_imports(name) {
             return None;
         }
         self.selection(i, name, is_type, true)

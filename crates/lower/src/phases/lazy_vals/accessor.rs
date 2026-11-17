@@ -6,7 +6,7 @@ use super::Lazy;
 use crate::Lower;
 use crate::definitions::LazyVals;
 use crate::phases::adapt::adapt;
-use crate::phases::lazy_trees::{block, call, eq, field_ref, if_, local, object, val_def};
+use crate::phases::lazy_trees::{block, call, eq, field_read, if_, local, object, val_def};
 use crate::symbols::is_singleton;
 use syntax::ast::Span;
 use tasty::{Erased, SymbolId, TypeId};
@@ -18,7 +18,7 @@ use typer::tpd::{TNodeId, Tree};
 pub fn accessor_body(l: &mut Lower, lazy: &Lazy, info: TypeId, defs: LazyVals) -> TNodeId {
     let object = object(l);
     let result = local(l, lazy.accessor, "result", object, false);
-    let field = field_ref(l, lazy);
+    let field = field_read(l, lazy);
     let def = val_def(l, result, field);
     let erased = l.u.erased_method(lazy.accessor).1;
     let info = if l.u.erase(info) == Erased::Unit { crate::phases::casts::type_of(l, &erased) } else { info };

@@ -49,8 +49,7 @@ impl Cmp<'_> {
                     return t;
                 }
                 let lifted = self.u.intern_type(Type::Annotated(q, a));
-                self.u.carry_annotation_tree(t, lifted);
-                return lifted;
+                return self.u.carry_annotation_tree(t, lifted);
             }
             _ => None,
         };

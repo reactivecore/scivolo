@@ -70,6 +70,11 @@ impl SourceVersion {
         self.is_at_least(Self::V3_6)
     }
 
+    /// Whether match types reduce as before 3.4 (dotty's `LegacyPatMat` cases).
+    pub fn legacy_match_types(self) -> bool {
+        !self.is_at_least(Self::V3_4)
+    }
+
     pub fn enables_named_tuples(self) -> bool {
         self.is_at_least(Self::V3_7)
     }

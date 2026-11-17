@@ -4,11 +4,12 @@
 
 use super::super::Typer;
 use super::override_kinds::kind_refusal;
+use super::result_conformance::result_conforms;
 use super::{OverrideChecks, overridable};
 use names::{name_kinds, nme};
 use syntax::ast::flags as f;
 use tasty::tags::{EXTENSION, FINAL, INLINE};
-use tasty::{Kind, SymbolId, Type};
+use tasty::{Kind, SymbolId};
 
 impl OverrideChecks {
     /// Why a member of `own`, the class's declarations, may not override a member of a base
@@ -90,17 +91,6 @@ impl OverrideChecks {
             || final_owner
             || sm.kind != Kind::Def
             || sd.flags.has(EXTENSION) != sm.flags.has(EXTENSION);
-        let this = t.u.intern_type(Type::This(self.site));
-        let (rd, rm) = (t.u.own_member_info(this, d), t.u.own_member_info(this, m));
-        let binder = t.u.poly(rd).map(|p| p.binder);
-        let (rd, mut rm) = t.u.aligned_results((d, rd), (m, rm));
-        let params = t.u.type_params(d);
-        if let Some(binder) = binder {
-            rm = t.u.map_type(rm, &mut |u, x| {
-                let Some((None, s)) = u.sym_ref(x) else { return None };
-                params.iter().position(|&p| p == s).map(|i| u.intern_type(Type::Param(binder, i as u32)))
-            });
-        }
-        refused || !t.conforms(rd, rm)
+        refused || !result_conforms(t, self.site, d, m)
     }
 }

@@ -2,12 +2,11 @@
 //   compiler/src/dotty/tools/dotc/core/TypeErasure.scala
 //   compiler/src/dotty/tools/dotc/core/Types.scala
 //! Erasure of applied types: arrays (dotty's `isGenericArrayElement`), tuples, unions and
-//! intersections written as `|[A, B]`/`&[A, B]`, and applied aliases, whose arguments are
-//! substituted into their right-hand side.
+//! intersections written as `|[A, B]`/`&[A, B]`, and applied aliases.
 
 use super::special::tuple;
 use super::{Erased, object};
-use crate::types::{NameId, Type, TypeId};
+use crate::types::{Type, TypeId};
 use crate::{Kind, Universe};
 
 impl Universe {
@@ -43,9 +42,27 @@ impl Universe {
                     self.erase(t)
                 }
                 Some(t) => self.erase(t),
-                None => self.erase(tycon),
+                None if let Some(alias) = self.overriding_member(tycon) => {
+                    let applied = self.intern_applied(alias, args);
+                    let reduced = self.dealias_step(applied);
+                    self.erase(reduced)
+                }
+                None => match self.expand_upper(tycon, args) {
+                    Some(t) if !self.mentions(t, tycon) => self.erase(t),
+                    _ => self.erase(tycon),
+                },
             },
         }
+    }
+
+    /// Whether `t` contains type `part`.
+    fn mentions(&mut self, t: TypeId, part: TypeId) -> bool {
+        let mut found = false;
+        self.map_type(t, &mut |_, x| {
+            found |= x == part;
+            None
+        });
+        found
     }
 
     /// `tycon[args]` with `tycon` an opaque type lambda defined outside TASTy: its right-hand
@@ -126,51 +143,6 @@ impl Universe {
         let d = self.dealias(t);
         let (c, n) = self.applied(d).map(|(c, args)| (c, args.len()))?;
         (self.class_name(c) == Some(format!("scala.Tuple{n}"))).then_some(n)
-    }
-
-    /// `tycon[args]` with `tycon` an alias of a type lambda: its body as seen from the prefix of
-    /// `tycon`, arguments substituted.
-    pub fn expand(&mut self, tycon: TypeId, args: &[TypeId]) -> Option<TypeId> {
-        self.applied_info(tycon, args, false)
-    }
-
-    /// `expand`, or for `tycon` an abstract type bounded by a type lambda, that lambda's body
-    /// (dotty's `superType` of an applied type).
-    pub fn expand_upper(&mut self, tycon: TypeId, args: &[TypeId]) -> Option<TypeId> {
-        self.applied_info(tycon, args, true)
-    }
-
-    fn applied_info(&mut self, tycon: TypeId, args: &[TypeId], upper: bool) -> Option<TypeId> {
-        let (prefix, alias) = match *self.ty(tycon) {
-            Type::Sym(p, s) => (p, Some(s)),
-            Type::TypeRef(p, n) => (Some(p), self.resolve(p, n, true)),
-            _ => (None, None),
-        };
-        let alias = alias?;
-        let kind = self.symbol(alias).kind;
-        if kind != Kind::Type && !(upper && kind == Kind::TypeParam) {
-            return None;
-        }
-        let info = self.info(alias);
-        let info = self.bounds(info).filter(|_| upper).map_or(info, |(_, hi)| hi);
-        let owner = self.symbol(alias).owner;
-        let info = match (prefix, owner) {
-            (Some(p), Some(o)) if self.symbol(o).kind == Kind::Class => self.as_seen_from(info, p, o),
-            _ => info,
-        };
-        let (binder, names, result) = self.lambda(info).map(|l| (l.binder, l.names(), l.result))?;
-        Some(self.subst(result, binder, &names, args))
-    }
-
-    /// `t` with the parameters of lambda `binder`, named `names`, replaced by `args`.
-    pub fn subst(&mut self, t: TypeId, binder: crate::Binder, names: &[NameId], args: &[TypeId]) -> TypeId {
-        self.map_type(t, &mut |u, x| match *u.ty(x) {
-            Type::Local(b, n) if b.0 == binder.0 => {
-                names.iter().position(|&m| m == n).and_then(|i| args.get(i).copied())
-            }
-            Type::Param(b, i) if b == binder => args.get(i as usize).copied(),
-            _ => None,
-        })
     }
 
     /// The symbol a `Sym` or `TypeRef` refers to.

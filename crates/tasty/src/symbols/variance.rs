@@ -64,6 +64,17 @@ impl Universe {
         self.lambda_variances.insert(binder, variances);
     }
 
+    /// Records type lambda `binder`, made outside TASTy, as one whose variances are structural
+    /// (dotty's `HKTypeLambda` without declared variances, such as `[X] =>> F[X]`).
+    pub fn declare_structural_lambda(&mut self, binder: Binder) {
+        self.structural_lambdas.insert(binder);
+    }
+
+    /// Whether type lambda `binder` was recorded by `declare_structural_lambda`.
+    pub fn is_structural_lambda(&self, binder: Binder) -> bool {
+        self.structural_lambdas.contains(&binder)
+    }
+
     /// Whether type parameter `s` is declared covariant or contravariant.
     pub fn has_variance(&self, s: SymbolId) -> bool {
         variance(self.symbol(s).flags) != 0

@@ -233,3 +233,7 @@ quoteshapes
 quotecc
 bottomarrays
 nullobjectunbox
+legacymatchtypes
+pkglazyval
+trackedparams
+localclassmirrors

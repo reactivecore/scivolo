@@ -108,9 +108,9 @@ impl Cmp<'_> {
         if always {
             return true;
         }
-        match self.frozen() {
-            true => self.fourth_try(a, b),
-            false => {
+        match self.can_constrain(v) {
+            false => self.fourth_try(a, b),
+            true => {
                 let a = match *self.u.ty(a) {
                     Type::ByName(r) => r,
                     Type::Applied(tycon, args) => {

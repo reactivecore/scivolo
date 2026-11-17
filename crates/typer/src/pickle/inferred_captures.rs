@@ -1,111 +1,139 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/transform/PostTyper.scala
 //   compiler/src/dotty/tools/dotc/cc/CaptureOps.scala
-//! Capture sets in inferred type trees of capture-checked files, each emptied (dotty's
-//! `CleanupRetains` of an inferred `TypeTree` in PostTyper).
+//   compiler/src/dotty/tools/dotc/typer/Namer.scala
+//! Capture sets in inferred type trees of capture-checked files, as the typer gives them (ADR
+//! 0126): each emptied (dotty's `CleanupRetains` of an inferred `TypeTree` in PostTyper), an
+//! overriding member's kept (`explicifyTpt`).
 
-use super::TreePickler;
-use crate::tpd::{TNodeId, Tpd, Tree};
-use crate::typer::capture_types::{has_captures, is_retains_like};
-use crate::typer::seen_from::{resolve_class_params, resolve_class_params_keeping_captures};
-use names::nme;
-use tasty::{Kind, SymbolId, Type, TypeId, Universe};
+use super::retaining::emptied;
+use super::{Refusal, TreePickler};
+use crate::tpd::{TNodeId, Tree};
+use crate::typer::capture_types::has_captures;
+use tasty::tags::PRIVATE;
+use tasty::{Binder, Kind, SymbolId, Type, TypeId, Universe};
 
 impl TreePickler<'_> {
-    /// Records the type inferred type tree `tpt` of a capture-checked file is pickled with if the
-    /// type it was inferred from has capture sets and is its type but for them: that type with
-    /// each capture set but `retainsCap`'s empty, `B^{}` of `y` in `def g(b: B^{a}) = { val y =
-    /// b; .. }`. The type inferred from is the one the typer recorded (a function value's
-    /// parameter's), else, unless definition `sym` is a closure's method or a member that may
-    /// inherit its type, the info of the definition that its right-hand side `rhs` refers to or
-    /// calls.
-    pub fn empty_captures(&mut self, sym: SymbolId, tpt: TNodeId, rhs: Option<TNodeId>) {
-        if !self.file.is_some_and(|f| f.attributes.features.capture_checking()) {
+    fn capture_checked(&self) -> bool {
+        self.file.is_some_and(|f| f.attributes.features.capture_checking())
+    }
+
+    /// Records the type inferred type tree `tpt` of type `tpe` of a capture-checked file is
+    /// pickled with: `tpe` with each capture set but `retainsCap`'s empty, unless recorded before.
+    pub fn empty_inferred_captures(&mut self, tpt: TNodeId, tpe: TypeId) {
+        if !self.capture_checked()
+            || !matches!(self.tpd.tree(tpt), Tree::TypeTree { inferred: true })
+            || self.kept_captures.contains_key(&tpt)
+            || !has_captures(self.u, tpe)
+        {
+            return;
+        }
+        let kept = emptied(self.u, tpe);
+        self.kept_captures.insert(tpt, kept);
+    }
+
+    /// Refuses in a capture-checked file a definition of inferred type tree `tpt` whose
+    /// right-hand side `rhs` is a closure (dotty's `explicifyTpt` cases 2 and 3): with parameters
+    /// of capture sets, which dotty keeps as `@caps.internal.declared` (`val f = (x: A^) => 1`),
+    /// or with a result whose capture sets name a parameter, a dependent function type in
+    /// dotty's (`val f = (x: Coll) => x.iterator`).
+    pub fn check_closure_captures(&mut self, tpt: TNodeId, rhs: Option<TNodeId>) -> Result<(), Refusal> {
+        if !self.capture_checked() || !matches!(self.tpd.tree(tpt), Tree::TypeTree { inferred: true }) {
+            return Ok(());
+        }
+        let Some(&Tree::Block { stats, expr }) = rhs.map(|r| self.tpd.tree(r)) else { return Ok(()) };
+        let (&[stat], Tree::Closure { .. }) = (self.tpd.items(stats), self.tpd.tree(expr)) else {
+            return Ok(());
+        };
+        let Some(meth) = self.tpd.sym(stat).filter(|_| matches!(self.tpd.tree(stat), Tree::DefDef { .. }))
+        else {
+            return Ok(());
+        };
+        let info = self.u.info(meth);
+        let Some((params, result, binder)) =
+            self.u.method(info).map(|m| (m.param_types(), m.result, m.binder))
+        else {
+            return Ok(());
+        };
+        if params.into_iter().any(|p| has_captures(self.u, p)) {
+            return Err("an inferred function type of a closure whose parameters have capture sets");
+        }
+        match names_params(self.u, result, meth, binder) {
+            true => {
+                Err("an inferred function type of a closure whose result's capture sets name its parameters")
+            }
+            false => Ok(()),
+        }
+    }
+
+    /// Refuses a refined type tree of refinement `member` in a capture-checked file if the
+    /// member's type has capture sets, whose parent dotty's typer derives from them: the function
+    /// type parent of `(x: A^) -> B^{x}`.
+    pub fn check_refinement_captures(&mut self, member: SymbolId) -> Result<(), Refusal> {
+        if !self.capture_checked() {
+            return Ok(());
+        }
+        let info = self.u.info(member);
+        match has_captures(self.u, info) {
+            true => Err("a refined type whose parent drops its refinement's capture sets"),
+            false => Ok(()),
+        }
+    }
+
+    /// Records the type of inferred type tree `tpt` of member `sym` of a capture-checked file
+    /// as it is, capture sets not emptied, if `sym` overrides a member (dotty's `explicifyTpt`
+    /// makes the tree not inferred); its sets may name `sym`'s parameters.
+    pub fn keep_overriding_captures(&mut self, sym: SymbolId, tpt: TNodeId) {
+        if !self.capture_checked() || overridden_infos(self.u, sym).is_empty() {
             return;
         }
         let (Tree::TypeTree { inferred: true }, Some(tpe)) = (self.tpd.tree(tpt), self.tpd.get(tpt).tpe)
         else {
             return;
         };
-        let closure = self.u.symbol(sym).name == nme::ANON_FUN;
-        let rhs = rhs.filter(|_| !closure && !may_inherit(self.u, sym));
-        let from = self.tpd.captured_type(tpt);
-        let Some(from) = from.or_else(|| rhs.and_then(|r| rhs_type(self.u, self.tpd, r))) else { return };
-        if !has_captures(self.u, from) {
+        if !has_captures(self.u, tpe) {
             return;
         }
-        let emptied = emptied(self.u, from);
-        let kept = resolve_class_params_keeping_captures(self.u, emptied);
-        if kept != tpe && resolve_class_params(self.u, kept) == tpe {
-            self.kept_captures.insert(tpt, kept);
+        self.kept_captures.insert(tpt, tpe);
+        self.capture_defs.insert(tpt, sym);
+        if let Some(class) = self.u.symbol(sym).owner.filter(|&o| self.u.is_class(o)) {
+            self.capture_classes.insert(tpt, class);
         }
     }
 }
 
-/// Whether `sym` is a member of a class with a base class that has a term member of its name,
-/// whose type it may take (dotty's `inherited` of `inferredResultType`).
-fn may_inherit(u: &mut Universe, sym: SymbolId) -> bool {
-    let Some(cls) = u.symbol(sym).owner.filter(|&o| u.symbol(o).kind == Kind::Class) else { return false };
-    let bases: Vec<SymbolId> = u.linearization(cls).into_iter().skip(1).collect();
-    let name = &u.symbol(sym).name;
-    bases
-        .iter()
-        .any(|&b| u.symbol(b).decls.iter().any(|&m| &u.symbol(m).name == name && u.symbol(m).kind.is_term()))
-}
-
-/// The declared type of right-hand side `rhs`, a reference to a value or a call of a method
-/// without type arguments: the referenced definition's info as seen from the qualifier, the
-/// result of a method's after a clause per argument list.
-fn rhs_type(u: &mut Universe, tpd: &Tpd, rhs: TNodeId) -> Option<TypeId> {
-    let (mut fun, mut clauses) = (rhs, 0);
-    loop {
-        match *tpd.tree(fun) {
-            Tree::Block { expr, .. } if clauses == 0 => fun = expr,
-            Tree::Apply { fun: f, .. } => (fun, clauses) = (f, clauses + 1),
-            _ => break,
-        }
-    }
-    let s = tpd.sym(fun)?;
-    if !matches!(u.symbol(s).kind, Kind::Val | Kind::Param | Kind::Def) {
-        return None;
-    }
-    let mut info = match *tpd.tree(fun) {
-        Tree::Ident { .. } => u.info(s),
-        Tree::Select { qualifier, .. } => {
-            let prefix = tpd.get(qualifier).tpe?;
-            match *u.ty(prefix) {
-                Type::Package(_) | Type::PackageName(_) => u.info(s),
-                _ => u.member_info(prefix, s),
-            }
-        }
-        _ => return None,
-    };
-    for _ in 0..clauses {
-        info = u.method(info)?.result;
-    }
-    match *u.ty(info) {
-        Type::ByName(r) => Some(r),
-        _ => u.method(info).is_none().then_some(info),
-    }
-}
-
-/// `t` with the capture set of each capture-checking annotation empty, `retains[Nothing]`, but
-/// each type annotated `retainsCap` as it is (dotty's `CleanupRetains` where capture checking is
-/// enabled).
-fn emptied(u: &mut Universe, t: TypeId) -> TypeId {
-    u.map_type(t, &mut |u, part| {
-        let (inner, annot) = u.annotated(part)?;
-        if !is_retains_like(u, annot) {
-            return None;
-        }
-        if u.class_symbol(annot).is_some_and(|c| u.symbol(c).name == nme::RETAINS_CAP) {
-            return Some(part);
-        }
-        let inner = emptied(u, inner);
-        let annot = match u.applied(annot) {
-            Some((tycon, _)) => u.intern_applied(tycon, &[tasty::NOTHING]),
-            None => u.intern_applied(annot, &[tasty::NOTHING]),
+/// Whether `t`, its capture sets too, names a parameter of method `meth` of binder `binder`.
+fn names_params(u: &mut Universe, t: TypeId, meth: SymbolId, binder: Binder) -> bool {
+    let mut names = false;
+    u.map_with_capture_sets(t, &mut |u, part| {
+        names |= u.sym_ref(part).is_some_and(|(_, s)| u.symbol(s).owner == Some(meth));
+        names |= match *u.ty(part) {
+            Type::Param(b, _) => b == binder,
+            Type::Local(b, _) => b.0 == binder.0,
+            _ => false,
         };
-        Some(u.intern_type(Type::Annotated(inner, annot)))
-    })
+        None
+    });
+    names
+}
+
+/// The infos, as seen from its class, of the members that member `sym` overrides: the non-private
+/// term members of its name of its class's base classes (dotty's `allOverriddenSymbols`).
+pub fn overridden_infos(u: &mut Universe, sym: SymbolId) -> Vec<TypeId> {
+    let Some(cls) = u.symbol(sym).owner.filter(|&o| u.symbol(o).kind == Kind::Class) else {
+        return Vec::new();
+    };
+    let this = u.this_type(cls);
+    let name = u.symbol(sym).name.clone();
+    let mut infos = Vec::new();
+    for base in u.linearization(cls).into_iter().skip(1) {
+        let members: Vec<SymbolId> = (u.symbol(base).decls.iter().copied())
+            .filter(|&m| u.symbol(m).name == name && u.symbol(m).kind.is_term())
+            .filter(|&m| !u.symbol(m).flags.has(PRIVATE))
+            .collect();
+        for m in members {
+            infos.push(u.member_info(this, m));
+        }
+    }
+    infos
 }

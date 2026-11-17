@@ -117,9 +117,23 @@ impl Typer<'_> {
             self.source_future = v.requires_new_syntax();
             self.dollar_names_warned = v.is_at_least(SourceVersion::V3_9);
             self.scala2 = v.is_scala2();
+            self.source_version = v;
+            self.u.match_type_rules = super::match_type_rules(v);
+            self.u.keeps_captures = cfg.features.capture_checking();
             self.file = file;
         }
         outer
+    }
+
+    /// Makes normalized types keep capture sets if the source file `span` lies in is
+    /// capture-checked, for a pass over the trees of all files.
+    pub fn keep_captures_at(&mut self, span: Span) {
+        if !span.exists() || self.file_cfgs.len() < 2 {
+            return;
+        }
+        if let Some(cfg) = self.file_cfgs.get(self.file_of(span)) {
+            self.u.keeps_captures = cfg.features.capture_checking();
+        }
     }
 
     /// Runs `f` with the settings of the source file of `tree`, which is typed apart from its file.

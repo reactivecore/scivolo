@@ -141,9 +141,8 @@ The VM fixes javalib bugs in its library overlay (`overlay/src`, ADR 0009).
     - A class extending the trait calls its empty `$init$` when compiled with the trait, not
       against its TASTy: nativelib's `unsafe/package$` and `UnsafePackageCompat`.
     - Fix: `defKind` of `ExtMethods` as of its methods. Frontend: as dotty; `just lib-compile
-      nativelib` reads `UnsafePackageCompat` from TASTy until #196, so `unsafe/package$` lacks the
-      call and `unsafe/package`'s forwarders to its members have the object's position, as in
-      separate compilation.
+      nativelib` lowers `UnsafePackageCompat` with `unsafe/package.scala` as one unit, as Scala
+      Native's joint build does.
 11. **`super[Q].m` of a `@targetName` member crashes `ResolveSuper`** (dotty 3.9.0,
     `compiler/src/dotty/tools/dotc/transform/ResolveSuper.scala:89`, `decomposeSuperName`).
     - Trait `P extends Q` with `@targetName("tn") def n` calling `P.super[Q].n` from a nested
@@ -251,13 +250,13 @@ The VM fixes javalib bugs in its library overlay (`overlay/src`, ADR 0009).
 
 | Outcome | tests/programs | tests/pos | tests/neg |
 |---|---:|---:|---:|
-| passed | 262 | 2495 | 1277 |
-| differ | 35 | 113 | 0 |
+| passed | 265 | 2509 | 1277 |
+| differ | 32 | 111 | 0 |
 | warnings differ | 0 | 9 | 0 |
 | accepted (neg) | 0 | 0 | 21 |
-| unsupported | 1 | 408 | 0 |
+| unsupported | 1 | 396 | 0 |
 | crashed | 0 | 0 | 0 |
-| skipped | 37 | 351 | 496 |
+| skipped | 41 | 351 | 496 |
 
 ## M4: dotty `tests/run`
 
@@ -309,12 +308,12 @@ Results:
 
 | Outcome | Tests |
 |---|---:|
-| passed | 1497 |
+| passed | 1498 |
 | wrong output | 0 |
 | crashed | 0 |
 | timeout | 0 |
 | lowering refused | 0 |
-| typer refused | 9 |
+| typer refused | 8 |
 | parser refused | 0 |
 | macro refused | 0 |
 | frontend crashed | 0 |
@@ -322,17 +321,23 @@ Results:
 | skipped | 173 |
 | **total** | **1711** |
 
-- **Typer refused:** one each for a local type escaping through a type variable (`Parser`), an
-  inline expansion of a type referring to a binding (`i13332shapeless`), adaptation, source
-  versions other than 3.7 to 3.9, a divergence check through a conversion (`errorhandling`), a
-  context bound companion (`given-disambiguation`), `Printer.TypeReprStructure` of a type the
-  frontend does not print, the unresolved name `AnyNamedTuple`, `typeChecks` of a non-constant
-  string. `Runtime.totalMemory`,
+- **Typer refused:** a parent refinement of a tracked parameter (`i21213`, `i21213-min`); one each
+  for a local type escaping through a type variable (`Parser`), an inline expansion of a type
+  referring to a binding (`i13332shapeless`), a divergence check through a conversion
+  (`errorhandling`), `Printer.TypeReprStructure` of a type the frontend does not print, an inline
+  call of an object with opaque types in an inline expansion (`named-tuples-strawman-2`),
+  `typeChecks` of a non-constant string.
+- `Runtime.totalMemory`,
   `maxMemory` and `freeMemory`, which Scala Native's javalib lacks and the overlay adds (ADR
   0008), are typed through `libs/jdk-stubs/JdkMemberDeclarations.scala`.
-- **`tests/run-macros`** (`just dotty-lower-report "" run-macros`): 310 of 321
-  pass; the typer refuses 3 (the unresolved name `SuppressWarnings`, a member not found
-  (`f-interpolator-tests`), a source version other than 3.7 to 3.9), 8 are skipped.
+- **`tests/run-macros`** (`just dotty-lower-report "" run-macros`): 311 of 321
+  pass; the typer refuses two for classes Scala Native's javalib lacks, a platform limit:
+  `java.lang.SuppressWarnings` (`annot-java-tree`) and `java.text.SimpleDateFormat`
+  (`f-interpolator-tests`); 8 are skipped.
+- **`-source 3.3` to `3.6`:** below 3.4 match types reduce as dotty's legacy matching does (a
+  case with captures matched by a subtype comparison); the typer refuses ranking two implicits
+  below 3.7 and an implicit defined after the search below 3.6 (dotty's old schemes). Earlier and
+  migrating versions are refused.
 - **`-source future`:** typed as 3.9 with the parser's new-syntax rules; the typer refuses
   alphanumeric infix calls, types and extractor patterns not declared `infix`, which it warns
   about otherwise, and checks no other `future` rule.
@@ -343,10 +348,14 @@ Results:
   `new retains[C]()`, and refuses one of other references there and in pickled types. An inferred
   type tree keeps the capture sets of the type it is inferred from, emptied as dotty's
   `CleanupRetains` does (a type `T^` whole, so refused if `T` names other than static
-  definitions), where that type is a function value's expected parameter type or the
-  declared type of what its right-hand side refers to or calls without type arguments; other
-  inferred types drop them, a difference left (#276: e.g. of a generic call, a conditional, an
-  inferred type argument or an overriding member). The capture checker,
+  definitions), where that type is a function value's expected parameter type or the type of
+  its right-hand side as the definitions it refers to tell it: a reference or call, with inferred
+  type arguments that arguments of parameters of those types give, a conditional or match whose
+  branches agree, a closure without an expected type. An overriding member keeps its overridden
+  member's capture sets as they are (`explicifyTpt`). An inferred type in a definition that
+  refers to a type with capture sets is refused if its own are not told so (unless a primitive
+  type), as is a dependent function type whose refinement has capture sets, which dotty's
+  function type parent approximates. The capture checker,
   which runs after the typer and leaves the NIR unchanged, is not run (#168). dotty pickles quotes before the capture
   checker, so their TASTy is the typer's: ours as dotty's, with the inferred type arguments of
   inline methods annotated `@caps.internal.inferred` (`PostTyper.markInferred`). Since the
@@ -381,26 +390,21 @@ Results:
 
 | Outcome | tests/run | tests/run-macros |
 |---|---:|---:|
-| passed | 1673 | 317 |
+| passed | 1688 | 320 |
 | wrong output | 0 | 0 |
 | verify error | 0 | 0 |
-| linkage error | 2 | 0 |
-| crashed | 2 | 0 |
+| linkage error | 0 | 0 |
+| crashed | 1 | 0 |
 | timeout | 0 | 0 |
-| frontend crashed | 3 | 0 |
+| frontend crashed | 0 | 0 |
 | jvm refused | 0 | 0 |
-| lowering refused | 1 | 0 |
-| typer refused | 16 | 3 |
+| lowering refused | 0 | 0 |
+| typer refused | 8 | 0 |
 | skipped | 14 | 1 |
 | **total** | **1711** | **321** |
 
-- **Typer refused (run):** the nine of the VM's report, TASTy pickling of a type lambda's bounds
-  (`enum-values`), and in tests with Java sources a Java type not found (`t3452e`, `t6138`,
-  `t6138-2`, `i17255`), `@BeanProperty` (`i15318`) and adaptation (`i19619`).
-- **Typer refused (run-macros):** the annotations of a symbol defined outside the unit
-  (`annot-arg-value-in-java`), `Symbol.paramSymss` of a method whose parameters the frontend
-  lacks (`i20052`), a source version.
-- **Tests with Java sources:** all pass but the six the typer refuses (see above).
+- **Typer refused (run):** the eight of the VM's report.
+- **Tests with Java sources:** all pass.
 - **Crash:** `lambda-serialization-gc` casts the application class loader to `URLClassLoader`,
   which fails for scalac's class files too, as the runner does not load tests through one.
 - **Difference from dotty (open, not accepted):** a macro runs from its Scala Native build in the VM, so a
@@ -443,24 +447,19 @@ the optimizer (1883 of its 3134 classes dotty also writes differ in code from do
 
 | Outcome | Files | Classes |
 |---|---:|---:|
-| same | 598 | 3178 |
-| attributes differ | 29 | 39 |
-| code differs | 21 | 37 |
-| refused | 1 | |
+| same | 603 | 3071 |
+| attributes differ | 27 | 36 |
+| code differs | 9 | 21 |
+| refused | 10 | |
 
-- **Refused:** a static member of a qualifier with effects (`TrieMap`).
-- **Code differs:** the static forwarders `from` of `immutable.IndexedSeq`, `LinearSeq` and `Seq`
-  to the bridges of `SeqFactory.Delegate`, which the published jar has too: dotty sees those
-  bridges only when `Delegate` is compiled in the same run, ours never. The pickled quotes of
-  `scala.quoted.ToExpr` and `FromExpr` (strings of TASTy), `@throws` in the signature of `StringOps.split`, a mixin
-  forwarder's signature `T[]` for `T <: AnyRef` that does not erase to its descriptor
-  (`SingletonTypeManifest.newArray`), static forwarders and their signatures of `Nil`, `Vector0`,
-  `Process`, `Tuples`, `*:` and `Tuple`, the higher-kinded bound of a forwarder read from TASTy
-  (`StreamConverters`), Scala 2's `@inline` `Enumeration.Value` inlined (`RoundingMode`), and branches of pattern matches and
-  inlined `.nn` (`StepperHasParStream`, `CollisionProofHashMap`, `BasicIO`; dotty compiling those
-  files alone differs from ours too); the generic signature of `lazyZip` over an inner class
-  (`SeqView`, `SortedMap`, `mutable.SortedMap`), and `ArrayBuffer`, `ExecutionContextImpl` and
-  `Regex`.
+- **Refused:** pickling a capture set that refers to other than static definitions into TASTy
+  (#285): `PartialFunction`, `collection.IndexedSeq`, `Iterable`, `IterableOnce`, `Iterator`,
+  `Seq`, `StrictOptimizedIterableOps`, `View`, `immutable.LazyListIterable`, `mutable.Buffer`.
+- **Code differs:** the pickled quotes of `scala.quoted.FromExpr` and `ToExpr` (strings of
+  TASTy), branches of pattern matches (`BasicIO`, dotty compiling it alone differs from ours
+  too; `CollisionProofHashMap`), `ExecutionContextImpl`, static forwarders (`from`,
+  `iterableFactory`, `isDefinedAt`) of `immutable.List`, `immutable.Seq` and `Vector`, and a
+  `superArg` lambda of `ArrayBufferView`.
 - **Attributes differ:** mostly line numbers (of extension method calls and implicit
   conversions, of the `()` ending a secondary constructor); `InnerClasses` entries, a
   `LocalVariableTable` entry, a `Deprecated` attribute and a method's flags.
@@ -501,41 +500,36 @@ own 35 files have no scala-cli oracle (Scala 3.9 reports cyclic references in `A
 | Module | Files lowered | NIR same | var-order | differ |
 |---|---:|---:|---:|---:|
 | javalib | 601 of 601 | 3,414 | 82 | |
-| nativelib | 103 of 103 | 706 | 10 | 3 |
+| nativelib | 103 of 103 | 709 | 10 | |
 | auxlib | 15 of 15 | 85 | | |
 | clib | 21 of 21 | 115 | | |
 | posixlib | 67 of 67 | 270 | | |
 | windowslib | 34 | 130 | | |
-| scalalib | 649 of 649 | 4,379 | 17 | 13 |
+| scalalib | 649 of 649 | 4,381 | 17 | 11 |
 
 clib, posixlib, scalalib, javalib and nativelib pass Scala Native's unit tests on our jars as on
 the published ones (`just lib-jar-report`). `lib-compile` lowers javalib's `WindowsPath.scala`
 and `WindowsPathParser.scala` as one unit, as Scala Native's build does: alone, the join of
 `PathType`'s case objects read from TASTy also has their `Mirror.Singleton` parent and erases to
-it, as in dotty's separate compilation. Left in nativelib, whose `scala-3` sources are a unit of
-their own:
-
-- `unsafe/package{,$}`: as dotty compiles them against `UnsafePackageCompat`'s TASTy, without
-  the call of its empty `$init$` that Scala Native's joint build has (case 3, upstream bug 10).
-- `UnsafePackageCompat`: the position of its inline accessor `inline$rawptr$i1` (open, not
-  accepted): ours the template's end, Scala Native's 11:19 inside a doc comment, an offset of
-  another file of its joint build taken in the trait's source. dotty positions the accessor of a
-  member defined in another file of the run at that member's point taken as an offset in the
-  accessor owner's source (`AccessProxies.accessorDef`, nscplugin's `fromSpan`); ours, in the
-  member's own file (`inline_accessors::accessor_span`).
+it, as in dotty's separate compilation. Likewise nativelib's `UnsafePackageCompat.scala`,
+`unsafe/package.scala` and `unsafe/Ptr.scala`: alone, `unsafe/package$` lacks the call of the
+trait's empty `$init$` (upstream bug 10), and the inline accessor `inline$rawptr$i1` sits at the
+template's end, as dotty places the accessor of a member read from TASTy. Together, it sits at
+`Ptr.rawptr`'s offset taken in the trait's source, inside a doc comment, as dotty places the
+accessor of a member of another file of the run (`AccessProxies.accessorDef`). An offset past
+the end of that source sits at its end, where dotty's column runs on along the last line
+(case 1: a debug position, not representable in a unit's offsets). `lib-jar nativelib` lowers all
+of nativelib's source directories as one unit, as Scala Native's build does.
 
 `just lib-compile scalalib` lowers each file of Scala Native's scalalib alone against Scala's
 library, its `LazyVals` replaced by Scala Native's (`scripts/scalalib_sources.py`). As in Scala
 Native's build of the whole module, a selection of a synthetic member of a case class of Scala's
 library (`(a, b).hashCode()`) selects the member it overrides (`Any.hashCode`): those members do
 not exist yet while a class of the same run is typed. `ToExpr$ArrayOf*ToExpr$` (8),
-`ToExpr$BigIntToExpr$` and `ToExpr$MapToExpr` differ in quote type sharing (case 1, as in
-**Quote type sharing** above, types shared across the files of the whole-module build);
-scala-cli's build of `ToExpr.scala` alone has the quotes of all 106 classes as ours, up to
-positions. Open: `FromExpr$MapFromExpr`'s quotes differ beyond positions; `CNode` calls
-`RandomGenerator.nextInt(int, int)`
-where Scala Native, compiling against the JDK, calls `ThreadLocalRandom`'s override, which
-javalib lacks.
+`ToExpr$BigIntToExpr$`, `ToExpr$MapToExpr` and `FromExpr$MapFromExpr` differ in quote type
+sharing (case 1, as in **Quote type sharing** above, types shared across the files of the
+whole-module build); scala-cli's builds of `ToExpr.scala` and `FromExpr.scala` alone have their
+quotes as ours, up to the source path.
 
 ## Native executables
 

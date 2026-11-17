@@ -56,5 +56,18 @@ object Loops {
     println(k max 7)
     val s: String = if k > 0 then null else "s"
     println(if (s eq null) || ({ val t = k; t < 0 } && k > 0) then 1 else 2)
+    println(Node(0, Node(1, Node(5, null))).find(1))
+  }
+}
+
+final class Node(val x: Int, val next: Node | Null) {
+  def ok(k: Int): Boolean = x + k > 2
+
+  @tailrec def find(k: Int): String = {
+    def here() = ok(k)
+    next match {
+      case n: Node if !here() => n.find(k)
+      case _ => if here() then s"found $x" else "none"
+    }
   }
 }

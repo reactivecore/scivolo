@@ -5,20 +5,17 @@
 
 use super::annotation_holders::Holder;
 use super::class_bytes::scala_markers;
-use super::descriptors::{class_descriptor, method_descriptor};
+use super::descriptors::class_descriptor;
+use super::forwarded::Forwarded;
 use super::signatures::Member;
-use super::{ClassBytes, Gen, method_name, unsupported};
+use super::{ClassBytes, Gen, unsupported};
 use classfile::{
     ACC_FINAL, ACC_PUBLIC, ACC_STATIC, ACC_SUPER, ACC_SYNTHETIC, ACC_VARARGS, ClassFile, Code, FieldOp,
     Invoke, Last,
 };
 use lower::Result;
-use names::{name_kinds, nme};
-use std::collections::HashSet;
-use tasty::tags::{
-    FIELDaccessor, INLINE, MACRO, PRIVATE, PRIVATEqualified, PROTECTED, PROTECTEDqualified, STATIC,
-};
-use tasty::{Kind, PRIMITIVE_VALUE_CLASSES, SymbolId};
+use names::nme;
+use tasty::SymbolId;
 use typer::tpd::TNodeId;
 
 impl Gen<'_, '_> {
@@ -50,9 +47,8 @@ impl Gen<'_, '_> {
     pub fn add_forwarders(&mut self, cf: &mut ClassFile, module: SymbolId, companion: Option<SymbolId>) {
         let module_name = self.class_name(module);
         let module_desc = class_descriptor(&module_name);
-        let mut methods = self.forwarded(module, companion);
-        methods.sort_by(|a, b| (&a.0, &a.1).cmp(&(&b.0, &b.1)));
-        for (method, desc, synthetic, m) in methods {
+        for Forwarded { name, desc, synthetic, method, target } in self.forwarded(module, companion) {
+            let m = if self.l.is_bridge(method) { target } else { method };
             let mut code = Code::new(0);
             code.field(
                 FieldOp::GetStatic,
@@ -67,12 +63,11 @@ impl Gen<'_, '_> {
                 code.load(param, slot);
                 slot += classfile::value_slots(param) as u16;
             }
-            code.invoke(Invoke::Virtual, &mut cf.pool, &module_name, &method, &desc);
+            code.invoke(Invoke::Virtual, &mut cf.pool, &module_name, &name, &desc);
             code.ret(result);
-            let target = self.l.mixed_in_from(m).unwrap_or(m);
             let varargs = if self.l.is_varargs_forwarder(target) { ACC_VARARGS } else { 0 };
             let flags = ACC_PUBLIC | ACC_STATIC | varargs | if synthetic { ACC_SYNTHETIC } else { 0 };
-            cf.method(flags, &method, &desc, Some(code));
+            cf.method(flags, &name, &desc, Some(code));
             self.emit_method_annotations(cf, m);
             let this = self.l.u.this_type(module);
             let unflattened = self.l.unflattened_info(target);
@@ -80,107 +75,19 @@ impl Gen<'_, '_> {
             self.exceptions(cf, m);
             let thrown = self.signature_thrown(m);
             let member = Member { forwarder: true, ..self.signed_member(target, target) };
-            let scope = self.class_type_vars(m);
             if !self.l.is_mixin_accessor(m)
-                && !self.l.is_bridge(m)
+                && !self.made_after_erasure(target)
+                && (unflattened.is_some() || self.erases_as_declared(target, info, &desc))
                 && let Some(sig) = self.member_signature(member, info, &desc, &thrown)
-                && (unflattened.is_some() || super::signatures::erases_to(&sig, &desc, &scope))
             {
                 cf.member_signature(Last::Method, &sig);
             }
         }
     }
 
-    /// The names and descriptors of the methods of `module` forwarded to, each with whether its
-    /// forwarder is synthetic: the members dotty's `addForwarders` takes, but those of names the
-    /// erased companion has (a primitive class's has no parents).
-    fn forwarded(
-        &mut self,
-        module: SymbolId,
-        companion: Option<SymbolId>,
-    ) -> Vec<(String, String, bool, SymbolId)> {
-        let mut conflicting = HashSet::new();
-        let erased_bases =
-            |u: &mut tasty::Universe, c| match PRIMITIVE_VALUE_CLASSES.contains(&u.full_name(c).as_str()) {
-                true => vec![c],
-                false => u.linearization(c),
-            };
-        for c in companion.map(|c| erased_bases(self.l.u, c)).unwrap_or_default() {
-            for m in self.l.u.decls(c).unwrap_or_default() {
-                if self.l.u.symbol(m).kind.is_term() {
-                    conflicting.insert(method_name(self.l.u, m));
-                }
-            }
-        }
-        let plain = ["java.lang.Object", "scala.Any", "scala.AnyRef", "scala.Matchable"];
-        let mut seen = HashSet::new();
-        let mut out = Vec::new();
-        for c in self.l.u.linearization(module) {
-            let full = self.l.u.full_name(c);
-            if plain.contains(&full.as_str()) || full.starts_with("scala.scalanative.") {
-                continue;
-            }
-            self.l.enter_specialized_applies(c);
-            for m in self.l.u.decls(c).unwrap_or_default() {
-                if !self.is_method_member(m) {
-                    continue;
-                }
-                let (name, desc) = (method_name(self.l.u, m), method_descriptor(self.l.u, m));
-                if !seen.insert((name.clone(), desc.clone())) || !self.has_forwarder(m) {
-                    continue;
-                }
-                if self.l.is_bridge(m) && !self.overrides_concrete(c, &name, &desc) {
-                    continue;
-                }
-                if !conflicting.contains(&name) {
-                    let synthetic = self.l.is_bridge(m) || name.contains(name_kinds::TRAIT_SETTER_SEPARATOR);
-                    out.push((name, desc, synthetic, m));
-                }
-            }
-        }
-        out
-    }
-
-    /// Whether a bridge of class `c` named `name` with descriptor `desc` overrides a method that
-    /// is not deferred (dotty's `nextOverriddenSymbol` of a bridge).
-    fn overrides_concrete(&mut self, c: SymbolId, name: &str, desc: &str) -> bool {
-        for b in self.l.u.linearization(c).into_iter().skip(1) {
-            for m in self.l.u.decls(b).unwrap_or_default() {
-                if self.is_method_member(m)
-                    && method_name(self.l.u, m) == name
-                    && method_descriptor(self.l.u, m) == desc
-                {
-                    return self.has_forwarder(m);
-                }
-            }
-        }
-        false
-    }
-
-    /// Whether `m` is a method or a getter, defined in this unit or in a library.
-    fn is_method_member(&self, m: SymbolId) -> bool {
-        let s = self.l.u.symbol(m);
-        let library = s.tree.is_some();
-        s.kind == Kind::Def || s.flags.has(FIELDaccessor) || library && s.kind == Kind::Val
-    }
-
-    /// Whether a forwarder calls member method `m`: neither deferred, a constructor, non-public,
-    /// static, a macro, inline, erased, lifted, nor of an expanded name (a trait setter's name is
-    /// not one, though the name of its value may be).
-    fn has_forwarder(&mut self, m: SymbolId) -> bool {
-        let s = self.l.u.symbol(m);
-        let excluded = [PRIVATE, PROTECTED, PRIVATEqualified, PROTECTEDqualified, STATIC, MACRO, INLINE];
-        let expanded = s.name.contains(name_kinds::EXPAND_SEPARATOR)
-            && !s.name.contains(name_kinds::TRAIT_SETTER_SEPARATOR);
-        let excluded = excluded.iter().any(|&f| s.flags.has(f)) || expanded;
-        let deferred = match s.tree.is_some() {
-            true => self.l.u.body(m).is_none(),
-            false => self.l.u.is_deferred(m),
-        };
-        !excluded
-            && !deferred
-            && !self.l.u.is_constructor(m)
-            && !lower::is_erased(self.l.u, m)
-            && !self.l.is_lifted(m)
+    /// Whether `m`, which a bridge forwards to, is a bridge or mixin forwarder, whose type before
+    /// erasure dotty does not know.
+    fn made_after_erasure(&self, m: SymbolId) -> bool {
+        self.l.is_bridge(m) || self.l.mixed_in_from(m).is_some()
     }
 }

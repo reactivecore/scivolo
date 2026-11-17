@@ -40,7 +40,8 @@ impl Typer<'_> {
         {
             return self.unsupported(id, "context bound of a type without parameters");
         }
-        self.self_refined(splice, tparam, span, ctx)
+        let envelope = self.ast.span(splice).union(self.ast.span(tparam));
+        self.self_refined(splice, tparam, envelope, ctx)
     }
 
     /// Whether type class `t` has an abstract type member `Self`.

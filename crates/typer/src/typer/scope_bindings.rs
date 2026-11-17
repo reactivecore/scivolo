@@ -4,7 +4,6 @@
 //! `DidYouMean.inScopeCandidates`, `memberCandidates`).
 
 use super::Typer;
-use super::imports::ImportEntry;
 use super::java_classes::java_classes;
 use crate::ctx::{Ctx, Level};
 use names::nme;
@@ -55,7 +54,7 @@ impl Typer<'_> {
         if self.unimported(i).is_some() {
             return None;
         }
-        let ImportEntry::Done(info) = &self.imports[i] else { return None };
+        let info = self.import_info(i)?;
         let qual = info.qual;
         let wildcard = info.selectors.iter().any(|s| s.name == nme::WILDCARD || s.name.is_empty());
         let selectors: Vec<(String, String)> =

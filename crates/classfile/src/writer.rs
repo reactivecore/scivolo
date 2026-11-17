@@ -43,13 +43,14 @@ fn attributes(out: &mut Vec<u8>, attrs: &[Laid]) -> Result<(), String> {
     out.extend(count(attrs.len())?);
     for a in attrs {
         out.extend(a.index.to_be_bytes());
-        let mut body = a.body.clone();
+        let len_at = out.len();
+        out.extend([0; 4]);
+        out.extend_from_slice(&a.body);
         if let Some(nested) = &a.nested {
-            attributes(&mut body, nested)?;
+            attributes(out, nested)?;
         }
-        let len = u32::try_from(body.len()).map_err(|_| "an attribute over 4 GiB")?;
-        out.extend(len.to_be_bytes());
-        out.extend(body);
+        let len = u32::try_from(out.len() - len_at - 4).map_err(|_| "an attribute over 4 GiB")?;
+        out[len_at..len_at + 4].copy_from_slice(&len.to_be_bytes());
     }
     Ok(())
 }

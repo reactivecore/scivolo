@@ -7,6 +7,7 @@
 //! `completeConstructor`, `ClassInfo.givenSelfType`).
 
 use super::Typer;
+use super::capture_types::is_retains_like;
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
 use names::nme;
@@ -27,9 +28,7 @@ impl Typer<'_> {
         let sym = self.syms.define(self.u, &text, Kind::Val, cls, f::PRIVATE.or(f::LOCAL));
         self.u.unenter(sym);
         self.syms.by_tree.insert(s, sym);
-        if text != nme::WILDCARD {
-            self.syms.selves.insert(cls, sym);
-        }
+        self.syms.selves.insert(cls, sym);
         self.syms.pending_selves.insert(cls, (s, cctx));
     }
 
@@ -127,11 +126,27 @@ impl Typer<'_> {
             return t;
         }
         self.ensure_self(k);
-        match self.u.given_self_type(k) {
-            Some(_) => self.u.self_type(k),
+        let applied = match self.u.given_self_type(k) {
+            Some(_) => return self.u.self_type(k),
             None if self.u.type_params(k).is_empty() => c,
             None => self.u.this_type(k),
-        }
+        };
+        self.with_self_captures(k, applied)
+    }
+
+    /// Class type `applied` of class `k`, in a capture-checked file with the capture set of `k`'s
+    /// self type `S^{cs}` as `(S & applied)^{cs}` (dotty's `ClassInfo.selfType`).
+    fn with_self_captures(&mut self, k: SymbolId, applied: TypeId) -> TypeId {
+        let Some(&s) = self.syms.selves.get(&k).filter(|_| self.u.keeps_captures) else { return applied };
+        let info = self.u.info(s);
+        let Some((given, annot)) = self.u.annotated(info).filter(|&(_, a)| is_retains_like(self.u, a)) else {
+            return applied;
+        };
+        let parent = match given == applied {
+            true => applied,
+            false => self.u.intern_type(Type::And(given, applied)),
+        };
+        self.u.intern_type(Type::Annotated(parent, annot))
     }
 
     /// Refuses member `sym` selected through `prefix`, not a `this`, if its info refers through
@@ -191,7 +206,8 @@ impl Typer<'_> {
 
     /// The self symbol of class `cls` if `name` names it (dotty's `denotNamed` in `inClassContext`).
     pub fn self_named(&self, cls: SymbolId, name: &str) -> Option<SymbolId> {
-        self.syms.selves.get(&cls).copied().filter(|&s| self.u.symbol(s).name == name)
+        let named = |s: &SymbolId| self.u.symbol(*s).name == name && name != nme::WILDCARD;
+        self.syms.selves.get(&cls).copied().filter(named)
     }
 
     /// A reference to the self of the class owning self symbol `sym`: an identifier of the class

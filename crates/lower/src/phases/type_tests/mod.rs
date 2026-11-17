@@ -129,7 +129,12 @@ fn is_instance_of(
         if not_null::is_not_null(l, expr_tpe, false) {
             return Ok(constant(l, expr, true));
         }
-        let null = l.null_literal(Span::NONE);
+        let mut null = l.null_literal(Span::NONE);
+        if l.explicit_nulls {
+            let object = l.u.class_ref(tasty::defn::OBJECT);
+            let tpt = l.type_tree(object, Span::NONE);
+            null = l.tpd.node(Tree::Typed { expr: null, tpt }, Span::NONE, Some(object), None);
+        }
         let ne = l.select(expr, l.defs.ne, Span::NONE);
         let ne = l.positioned(ne);
         let boolean = l.u.class_ref(tasty::defn::BOOLEAN);
@@ -168,7 +173,7 @@ fn conforms_to_test(l: &mut Lower, tpe: tasty::TypeId, test: tasty::TypeId) -> b
         return conforms_to_test(l, a, test) && conforms_to_test(l, b, test);
     }
     let Some(c) = l.u.class_symbol(test) else { return false };
-    let java = l.u.is_from_jdk_jars(c) || super::mixin::is_jdk(l, c);
+    let java = l.u.is_from_jdk_jars(c) || super::mixin::is_jdk(l, c) || l.u.is_java_defined(c);
     java && !l.u.type_params(c).is_empty() && l.u.base_type(widened, c).is_some()
 }
 

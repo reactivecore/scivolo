@@ -6,54 +6,58 @@
 use crate::ClassFile;
 use crate::attributes::Attribute;
 use crate::pool::Entry;
+use std::borrow::Cow;
 
 impl ClassFile {
     /// The internal names with a `$` of the classes the class, its members, their descriptors and
-    /// signatures, and its code refer to, each once.
+    /// signatures, and its code refer to, each once; not those only in the descriptor of its
+    /// enclosing method.
     pub fn referenced_classes(&self) -> Vec<String> {
-        let mut out = Vec::new();
-        let mut add = |name: String| {
-            if name.contains('$') && !out.contains(&name) {
-                out.push(name);
+        let mut out: Vec<String> = Vec::new();
+        let mut add = |name: &str| {
+            if name.contains('$') && !out.iter().any(|o| o == name) {
+                out.push(name.to_owned());
             }
         };
-        let mut classes: Vec<String> = [&self.name, &self.superclass].into_iter().cloned().collect();
-        classes.extend(self.interfaces.iter().cloned());
-        let mut texts: Vec<String> = Vec::new();
+        let mut classes: Vec<Cow<str>> =
+            [&self.name, &self.superclass].into_iter().chain(&self.interfaces).map(Cow::from).collect();
+        let mut texts: Vec<Cow<str>> = Vec::new();
         let attributes =
             self.fields.iter().chain(&self.methods).flat_map(|m| &m.attributes).chain(&self.attributes);
         for a in attributes {
+            let mut descriptors = Vec::new();
             match a {
-                Attribute::Signature(s) => texts.push(s.clone()),
-                Attribute::Exceptions(cs) => classes.extend(cs.iter().cloned()),
-                Attribute::EnclosingMethod(c, m) => {
-                    classes.push(c.clone());
-                    texts.extend(m.iter().map(|(_, d)| d.clone()));
-                }
-                Attribute::InnerClasses(cs) => {
-                    classes.extend(cs.iter().flat_map(|c| std::iter::once(&c.inner).chain(&c.outer)).cloned())
-                }
+                Attribute::Signature(s) => texts.push(Cow::from(s)),
+                Attribute::Exceptions(cs) => classes.extend(cs.iter().map(Cow::from)),
+                Attribute::EnclosingMethod(c, _) => classes.push(Cow::from(c)),
+                Attribute::InnerClasses(cs) => classes
+                    .extend(cs.iter().flat_map(|c| std::iter::once(&c.inner).chain(&c.outer)).map(Cow::from)),
                 Attribute::Annotations(_, annotations) => {
-                    annotations.iter().for_each(|a| a.descriptors(&mut texts))
+                    annotations.iter().for_each(|a| a.descriptors(&mut descriptors))
                 }
                 Attribute::ParameterAnnotations(_, params) => {
-                    params.iter().flatten().for_each(|a| a.descriptors(&mut texts))
+                    params.iter().flatten().for_each(|a| a.descriptors(&mut descriptors))
                 }
                 _ => {}
             }
+            texts.extend(descriptors.into_iter().map(Cow::Owned));
         }
-        texts.extend(self.fields.iter().chain(&self.methods).map(|m| m.descriptor.clone()));
-        for e in self.pool.entries() {
+        texts.extend(self.fields.iter().chain(&self.methods).map(|m| Cow::from(&m.descriptor)));
+        for (i, e) in (1u16..).zip(self.pool.entries()) {
             match *e {
-                Entry::Class(n) => classes.push(self.pool.text(n)),
-                Entry::NameAndType(_, d) | Entry::MethodType(d) => texts.push(self.pool.text(d)),
+                Entry::Class(n) => classes.push(Cow::Owned(self.pool.text(n))),
+                Entry::MethodType(d) => texts.push(Cow::Owned(self.pool.text(d))),
+                Entry::Fieldref(..)
+                | Entry::Methodref(..)
+                | Entry::InterfaceMethodref(..)
+                | Entry::InvokeDynamic(..) => texts.push(Cow::Owned(self.pool.member_parts(i).2)),
                 _ => {}
             }
         }
         for c in classes {
             match c.starts_with('[') {
                 true => texts.push(c),
-                false => add(c),
+                false => add(&c),
             }
         }
         for t in texts {
@@ -74,7 +78,7 @@ impl Signature<'_> {
         self.s.get(self.i).copied().unwrap_or(b';')
     }
 
-    fn all(&mut self, add: &mut impl FnMut(String)) {
+    fn all(&mut self, add: &mut impl FnMut(&str)) {
         if self.peek() == b'<' {
             self.i += 1;
             while self.i < self.s.len() && self.peek() != b'>' {
@@ -98,7 +102,7 @@ impl Signature<'_> {
         }
     }
 
-    fn ty(&mut self, add: &mut impl FnMut(String)) {
+    fn ty(&mut self, add: &mut impl FnMut(&str)) {
         match self.peek() {
             b'L' => {
                 self.i += 1;
@@ -119,7 +123,7 @@ impl Signature<'_> {
                         }
                         self.i += 1;
                     }
-                    add(name.clone());
+                    add(&name);
                     if self.peek() != b'.' {
                         break;
                     }
@@ -145,7 +149,7 @@ mod tests {
 
     fn names(s: &str) -> Vec<String> {
         let mut out = Vec::new();
-        Signature { s: s.as_bytes(), i: 0 }.all(&mut |n| out.push(n));
+        Signature { s: s.as_bytes(), i: 0 }.all(&mut |n| out.push(n.to_owned()));
         out
     }
 

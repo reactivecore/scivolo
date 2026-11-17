@@ -23,6 +23,7 @@ mod selects;
 mod sharing;
 mod signed_names;
 mod super_accessor_defs;
+mod super_accessor_infos;
 mod super_accessors;
 mod super_param_aliases;
 mod templates;
@@ -41,6 +42,7 @@ use unit::File;
 use crate::tpd::{TNodeId, Tpd};
 use crate::unpickle::QuoteHole;
 use rustc_hash::{FxHashMap, FxHashSet};
+use std::cell::Cell;
 use syntax::ast::Span;
 use syntax::names::Names;
 use tasty::write::{Addr, Name, Pickler, TreeBuffer};
@@ -85,11 +87,14 @@ pub struct TreePickler<'a> {
     param_tpts: FxHashMap<SymbolId, TNodeId>,
     /// The type of each synthetic type tree pickled with the capture-set annotations its
     /// definition's info has (`retaining::keep_captures`), and of each inferred one with the
-    /// emptied capture sets of the type it was inferred from (`inferred_captures`).
+    /// typer's type with its capture sets emptied (`inferred_captures`).
     kept_captures: FxHashMap<TNodeId, TypeId>,
     /// The class of the definition of each such synthetic type tree, whose `this` its capture
     /// sets may name.
     capture_classes: FxHashMap<TNodeId, SymbolId>,
+    /// The overriding definition of each inferred type tree kept as it is, whose parameters its
+    /// capture sets may name.
+    capture_defs: FxHashMap<TNodeId, SymbolId>,
     /// The class of the super accessor pickled now, whose `this` its type's capture sets may name.
     accessor_class: Option<SymbolId>,
     /// The class of each super accessor's member, by accessor.
@@ -156,28 +161,58 @@ pub fn pickle_quote(
     root: TNodeId,
     holes: &[QuoteHole],
 ) -> Result<Vec<u8>, Refusal> {
-    pickle(cx, root, holes, None, None).map(|(bytes, _)| bytes).map_err(|(_, r)| r)
+    let unread = Cell::new(None);
+    pickle(cx, root, holes, (None, None), &unread).map(|(bytes, _)| bytes).map_err(|(_, r)| r)
 }
 
-/// The TASTy of quote `root` of `source`, `holes` its term holes, with positions.
+/// The TASTy of quote `root` of `source`, `holes` its term holes, with positions. The library
+/// annotation trees of annotated types pickled are read on demand, the quote pickled again after
+/// each.
 pub fn pickle_positioned_quote(
-    cx: (&mut Universe, &Tpd, &Names),
+    (u, tpd, names): (&mut Universe, &mut Tpd, &mut Names),
     root: TNodeId,
     holes: &[QuoteHole],
     source: &QuoteSource,
 ) -> Result<Vec<u8>, Refusal> {
-    pickle(cx, root, holes, Some(source), None).map(|(bytes, _)| bytes).map_err(|(_, r)| r)
+    loop {
+        let unread = Cell::new(None);
+        let pickled = pickle((u, &*tpd, &*names), root, holes, (Some(source), None), &unread);
+        let Some(tree) = unread.take() else {
+            return pickled.map(|(bytes, _)| bytes).map_err(|(_, r)| r);
+        };
+        let read = crate::unpickle::type_annotation(u, tpd, names, tree);
+        tpd.set_library_annotation(tree, read);
+    }
 }
 
-/// The TASTy of `root`: its trees, positions if `source` is given, and the comments and
-/// attributes of a file if `file` is; and the super accessors pickled, each its class and name.
-/// A refusal carries the span of the innermost tree refused that has one, else `root`'s.
+/// The TASTy of `root` as `pickle_trees` gives it, with types normalized as in `file` if given:
+/// keeping capture sets in a capture-checked file.
 fn pickle<'a>(
     (u, tpd, names): (&'a mut Universe, &'a Tpd, &'a Names),
     root: TNodeId,
     holes: &[QuoteHole],
-    source: Option<&QuoteSource>,
-    file: Option<&'a File<'a>>,
+    (source, file): (Option<&QuoteSource>, Option<&'a File<'a>>),
+    unread: &Cell<Option<tasty::AnnotationTree>>,
+) -> Result<(Vec<u8>, Accessors), (Span, Refusal)> {
+    let outer = u.keeps_captures;
+    if let Some(file) = file {
+        u.keeps_captures = file.attributes.features.capture_checking();
+    }
+    let pickled = pickle_trees((&mut *u, tpd, names), root, holes, (source, file), unread);
+    u.keeps_captures = outer;
+    pickled
+}
+
+/// The TASTy of `root`: its trees, positions if `source` is given, and the comments and
+/// attributes of a file if `file` is; and the super accessors pickled, each its class and name.
+/// A refusal carries the span of the innermost tree refused that has one, else `root`'s; one for
+/// a library annotation tree not read yet sets `unread` to it.
+fn pickle_trees<'a>(
+    (u, tpd, names): (&'a mut Universe, &'a Tpd, &'a Names),
+    root: TNodeId,
+    holes: &[QuoteHole],
+    (source, file): (Option<&QuoteSource>, Option<&'a File<'a>>),
+    unread: &Cell<Option<tasty::AnnotationTree>>,
 ) -> Result<(Vec<u8>, Accessors), (Span, Refusal)> {
     let mut pickler = Pickler::default();
     let section = pickler.new_section("ASTs");
@@ -203,6 +238,7 @@ fn pickle<'a>(
         param_tpts: FxHashMap::default(),
         kept_captures: FxHashMap::default(),
         capture_classes: FxHashMap::default(),
+        capture_defs: FxHashMap::default(),
         accessor_class: None,
         accessor_owners: FxHashMap::default(),
         accessor_seen: None,
@@ -235,8 +271,8 @@ fn pickle<'a>(
     };
     let at = |p: &TreePickler| p.refused_at.unwrap_or_else(|| p.tpd.span(root));
     let pickled = p.tree(root);
-    if let (Some(file), Some(tree)) = (file, p.unread) {
-        file.unread.set(Some(tree));
+    if let Some(tree) = p.unread {
+        unread.set(Some(tree));
         return Err((at(&p), library_annotations::UNREAD_ANNOTATION));
     }
     if let Err(refusal) = pickled {

@@ -9,6 +9,8 @@ object K { final val N = 7; def m = 3 }
 
 class Lib {
   def tags: List[String @tagged(3)] = Nil
+  def fives: List[String @tagged(5)] = Nil
+  def threes: Option[String @tagged(3)] = None
   def marks: List[Int @mark] = Nil
   def both(x: Long @tagged(4)): Option[String @named("a")] = None
   val pair: (Int @tagged(1 + 2), String @mark) = (1, "a")

@@ -3,7 +3,7 @@
 //! Generic signatures of members known only by their erased descriptors.
 
 use super::{Boxing, Member, Sig};
-use tasty::{SymbolId, Type, Universe};
+use tasty::{SymbolId, Type, TypeId, Universe};
 
 /// Splits descriptor `desc` into the class types it names (`Lp/C;`, `true`) and the text between.
 pub fn descriptor_parts(desc: &str) -> Vec<(&str, bool)> {
@@ -43,6 +43,26 @@ pub fn erased_member(
 }
 
 impl Sig<'_> {
+    /// Appends `this` type `t`: of a class without type parameters or self type that a generic
+    /// class owns, the class selected from that owner applied to its type parameters, else the
+    /// underlying type (dotty's `ThisType.underlying`).
+    pub fn this_ref(&mut self, t: TypeId, top: bool, boxing: Boxing) {
+        let Type::This(class) = *self.u.ty(t) else { return self.widened(t, top, boxing) };
+        let c = self.u.class_symbol(class).filter(|&c| {
+            self.u.type_params(c).is_empty()
+                && self.u.given_self_type(c).is_none()
+                && self
+                    .u
+                    .symbol(c)
+                    .owner
+                    .is_some_and(|o| self.u.is_class(o) && !self.u.type_params(o).is_empty())
+        });
+        match c {
+            Some(c) => self.member_class(c, ""),
+            None => self.widened(t, top, boxing),
+        }
+    }
+
     /// Appends class `c` of erased type `plain`, selected from its owner applied to its type
     /// parameters if that owner is a generic class (dotty's `classSig` of `c.typeRef`).
     fn member_class(&mut self, c: SymbolId, plain: &str) {

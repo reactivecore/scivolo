@@ -157,6 +157,7 @@ fn pickle_one(
 ) -> Result<(), (Span, Refusal)> {
     let at = typer.tpd.span(f);
     let index = typer.file_of(at);
+    typer.enter_file(index);
     let Some((file, base)) = sources.get(index) else {
         return Err((at, "a file without its source"));
     };

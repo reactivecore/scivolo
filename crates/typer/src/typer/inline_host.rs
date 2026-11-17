@@ -75,8 +75,8 @@ impl Host for Typer<'_> {
         self.inline_ctxs.get(&call).copied()
     }
 
-    fn within(&mut self, ctx: Ctx, locals: Vec<(String, SymbolId)>) -> Ctx {
-        Ctx { level: self.levels.push(Some(ctx.level), Level::Scope(locals)), ..ctx }
+    fn within(&mut self, ctx: Ctx, level: Level) -> Ctx {
+        Ctx { level: self.levels.push(Some(ctx.level), level), ..ctx }
     }
 
     fn within_import(&mut self, ctx: Ctx, path: (TypeId, TNodeId), selectors: Vec<ImportSelector>) -> Ctx {

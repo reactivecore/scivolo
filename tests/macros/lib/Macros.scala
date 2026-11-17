@@ -341,6 +341,12 @@ object TypeShapes:
     val tuple = defn.isTupleClass(TypeRepr.of[(Int, String)].typeSymbol) && !defn.isTupleClass(some.typeSymbol)
     Expr(List(listOfInt, applied, value, ref, tuple, defn.ScalaPackage.name, defn.RepeatedParamClass.name).mkString(" "))
 
+  inline def dealiasedAndSimplified[T]: String = ${ dealiasedAndSimplifiedImpl[T] }
+  def dealiasedAndSimplifiedImpl[T: Type](using Quotes): Expr[String] =
+    import quotes.reflect.*
+    val t = TypeRepr.of[T]
+    Expr(s"${t.dealias.show}; ${t.simplified.show}")
+
 object Members:
   inline def structure[T]: String = ${ structureImpl[T] }
   def structureImpl[T: Type](using Quotes): Expr[String] =

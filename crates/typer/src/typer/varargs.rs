@@ -21,6 +21,8 @@ pub struct Varargs {
     /// The sequence argument `xs = ys*` of a call with named or default arguments, passed instead
     /// of elements.
     pub seq: Option<NodeId>,
+    /// The value of `seq` as overload resolution typed it.
+    pub seq_pre: Option<TNodeId>,
 }
 
 impl Typer<'_> {
@@ -37,7 +39,7 @@ impl Typer<'_> {
     ) -> Result<TNodeId, &'static str> {
         if let Some(seq) = v.seq {
             let elem = self.from_java_object(v.meth, v.elem);
-            return Ok(self.named_sequence_arg(seq, elem, ctx));
+            return Ok(self.named_sequence_arg(seq, v.seq_pre, elem, ctx));
         }
 
         let elems = match self.is_open(v.result) {

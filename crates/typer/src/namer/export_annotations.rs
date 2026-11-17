@@ -58,11 +58,21 @@ impl Typer<'_> {
     /// Gives `to` the annotations of `from` in reverse order, of a member only those an export
     /// forwarder takes.
     fn copy_annotations(&mut self, from: SymbolId, to: SymbolId, member: bool) {
+        self.copy_annotations_where(from, to, |t, class| !member || t.is_forwarded_annotation(class));
+    }
+
+    /// Gives `to` the annotations of `from` of the classes `keep` selects, in reverse order.
+    pub fn copy_annotations_where(
+        &mut self,
+        from: SymbolId,
+        to: SymbolId,
+        keep: impl Fn(&mut Self, SymbolId) -> bool,
+    ) {
         let mut classes = Vec::new();
         let queued: Vec<_> = self.syms.annotation_trees.iter().filter(|a| a.0 == from).copied().collect();
         for (_, annot, ctx) in queued.into_iter().rev() {
             let Some((class, _)) = self.annotation_class(annot, ctx) else { continue };
-            if !member || self.is_forwarded_annotation(class) {
+            if keep(self, class) {
                 classes.push(class);
                 self.syms.annotation_trees.push((to, annot, ctx));
             }
@@ -71,7 +81,7 @@ impl Typer<'_> {
         let typed = self.syms.annotations.get(&from).cloned().unwrap_or_default();
         for annot in typed.into_iter().rev() {
             let Some(class) = self.u.class_symbol(self.tpd.tpe(annot)) else { continue };
-            if !member || self.is_forwarded_annotation(class) {
+            if keep(self, class) {
                 classes.push(class);
                 self.syms.annotations.entry(to).or_default().push(annot);
                 self.tpd.annotate(to, annot);

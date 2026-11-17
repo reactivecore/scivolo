@@ -126,6 +126,9 @@ impl Universe {
             return None;
         }
         let statics = s.flags.has(OBJECT);
+        if !self.full_name_starts_with(c, "java.") && !self.full_name_starts_with(c, "javax.") {
+            return None;
+        }
         let full = self.full_name(c);
         let full = if statics { full.strip_suffix('$').unwrap_or(&full) } else { &full };
         let java = full.starts_with("java.") || full.starts_with("javax.");

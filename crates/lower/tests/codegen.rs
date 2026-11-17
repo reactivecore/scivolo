@@ -300,3 +300,50 @@ def @M$::tryFinally(scala.Function0): int : (@M$, @scala.Function0) => int {
         ],
     );
 }
+
+#[test]
+fn arrays_of_parameters_bounded_by_applied_higher_kinded_parameters() {
+    let source = r#"trait Marker
+object C {
+  def f[F[x] <: Seq[x], B <: F[Int]](x: Array[B]): Unit = ()
+  def m[K[x] <: x](a: K[Int]): K[Int] = a
+  def n[K[x] <: x, B <: K[Marker]](a: Array[B]): Unit = ()
+  def n2[K[x] <: x, B <: K[Marker]](a: B & java.io.Serializable): Unit = ()
+}"#;
+    let Some(dump) = lowered(source, "C$") else { return };
+    assert_defs(
+        &dump,
+        &[
+            r"
+def @C$::f(array[scala.collection.immutable.Seq]): unit : (@C$, array[@scala.collection.immutable.Seq]) => unit {
+%3(%2 <this> : @C$, %1 <x> : array[@scala.collection.immutable.Seq]):
+  ret unit
+}",
+            r"
+def @C$::m(int): int : (@C$, int) => int {
+%3(%2 <this> : @C$, %1 <a> : int):
+  ret %1 <a> : int
+}",
+            r"
+def @C$::n(array[Marker]): unit : (@C$, array[@Marker]) => unit {
+%3(%2 <this> : @C$, %1 <a> : array[@Marker]):
+  ret unit
+}",
+            r"
+def @C$::n2(Marker): unit : (@C$, @Marker) => unit {
+%3(%2 <this> : @C$, %1 <a> : @Marker):
+  ret unit
+}",
+        ],
+    );
+}
+
+#[test]
+fn jdk_overrides_javalib_lacks_are_called_on_their_class() {
+    let source = "object R { def r = java.util.concurrent.ThreadLocalRandom.current()\n  \
+                  def f(n: Int) = r.nextInt(0, n) + r.nextLong(0L, n) + r.nextDouble(1.0) }";
+    let Some(dump) = lowered(source, "R$") else { return };
+    for sig in ["int, int) => int", "long, long) => long", "double) => double"] {
+        assert!(dump.contains(&format!("call[(@java.util.concurrent.ThreadLocalRandom, {sig}]")), "{dump}");
+    }
+}

@@ -3,7 +3,6 @@
 //! Calls of the signature polymorphic methods of `MethodHandle` and `VarHandle`, typed by the
 //! types at the call (dotty's `simpleApply` on a signature polymorphic method).
 
-use super::avoid_wildcards::has_part;
 use super::{Pt, Typer};
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::Tree;
@@ -104,10 +103,10 @@ impl Typer<'_> {
     /// Retypes call `t` as the qualifier of a cast whose expected type is `pt`, as
     /// `val s: String = mh.invoke(x).asInstanceOf[String]`: a result of `Any`, given for no
     /// expected type, becomes `pt` with its wildcards avoided, without instantiating its type
-    /// variables (dotty's `SelectionProto(asInstanceOf, PolyProto(_, resTp))`).
+    /// variables (dotty's `SelectionProto(asInstanceOf, PolyProto(_, resTp))`); `zonk_trees`
+    /// instantiates them in the instance's type, as `T` in `id(mh.invoke(x).asInstanceOf[String])`.
     ///
-    /// Refuses a cast that is applied or eta-expanded, or expected to be of a type that mentions
-    /// type variables not yet inferred, as `id(mh.invoke(x).asInstanceOf[String])`.
+    /// Refuses a cast that is applied or eta-expanded.
     pub fn signature_polymorphic_cast(&mut self, t: TNodeId, pt: Pt) -> Result<(), &'static str> {
         let T::Apply { fun, .. } = *self.tpd.tree(t) else { return Ok(()) };
         let Some(instance) = self.tpd.sym(fun) else { return Ok(()) };
@@ -126,10 +125,6 @@ impl Typer<'_> {
             },
             _ => return Err("cast of a signature polymorphic call without type arguments"),
         };
-        let result = self.zonk(result);
-        if has_part(self.u, result, |u, part| u.var(part).is_some()) {
-            return Err("cast of a signature polymorphic call expected to be of an inferred type");
-        }
         let binder = self.u.fresh_binder();
         let info = self.u.intern_method(binder, &params, result, false, false);
         self.u.set_info(instance, info);

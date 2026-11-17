@@ -42,6 +42,42 @@ fn sources_refer_to_each_other_and_errors_name_their_file() {
 }
 
 #[test]
+fn qualified_protected_members_are_read_inside_their_qualifier_without_accessors() {
+    let Some(jars) = jars() else { return };
+    let m = SourceFile::new("m.scala", "package p.q\nclass M(protected[p] var elems: Array[Long])");
+    let u = SourceFile::new("u.scala", "package p.r\nobject U { def f(m: p.q.M) = m.elems.length }");
+    let u = dump(&jars, &[m, u], "p.r.U$");
+    assert!(!u.contains("protected$"), "{u}");
+    let c = "package p.q\nclass C { protected[C] def s = 1 }\nobject C { def f(c: C) = c.s }\n\
+             object O { protected[O] def t = 2 }\nclass O { def g = O.t }";
+    let c = SourceFile::new("c.scala", c);
+    for name in ["p.q.C$", "p.q.O"] {
+        let d = dump(&jars, std::slice::from_ref(&c), name);
+        assert!(!d.contains("protected$"), "the qualifier's companion: {d}");
+    }
+}
+
+#[test]
+fn imports_are_typed_only_when_their_selectors_may_name_what_is_looked_up() {
+    let Some(jars) = jars() else { return };
+    let a = SourceFile::new("a.scala", "object A { def g = p.V.f }");
+    let p = "package p\nimport p.T.X\nimport q.D\nimport q.E\nobject T extends D { class X }\n\
+             object V { def f: E = new E {} }";
+    let q = SourceFile::new("q.scala", "package q\ntrait D\ntrait E");
+    let a = dump(&jars, &[a, SourceFile::new("p.scala", p), q], "A$");
+    assert!(a.contains("@p.V$"), "{a}");
+    let a = SourceFile::new("a.scala", "object A { val x = B.h }");
+    let b = "import scala.collection.mutable.ListBuffer\nobject B { def h = ListBufer }";
+    let mut u = Universe::open(&jars).unwrap();
+    let sources = [a, SourceFile::new("b.scala", b)];
+    let error = lower::compile_sources(&mut u, &sources, Config::from_options(&[]), None).err().unwrap().what;
+    assert!(
+        error.contains("Not found: ListBufer - did you mean ListBuffer?"),
+        "an untyped import's hint: {error}"
+    );
+}
+
+#[test]
 fn a_refused_file_leaves_out_itself_and_the_files_needing_it() {
     let Some(jars) = jars() else { return };
     let sources = [
@@ -284,4 +320,129 @@ fn library_static_members_and_annotated_switch_selectors() {
     let dump = dump(&jars, &[source], "S$");
     assert!(dump.contains("@java.time.Instant::static ofEpochMilli(long)"), "{dump}");
     assert!(dump.contains("switch"), "{dump}");
+}
+
+#[test]
+fn javalib_names_members_of_jdk_classes_scala_native_renames() {
+    let Some(mut jars) = jars() else { return };
+    let jdk = jars.len()..jars.len() + 1;
+    jars.push(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../libs/jdk-stubs.jar"));
+    let source = SourceFile::new(
+        "loader.scala",
+        "package java.lang\nclass Loader { def name: String = this.getClass().getName() }",
+    );
+    let mut u = Universe::open(&jars).unwrap();
+    u.set_jdk_jars(jdk);
+    u.set_javalib_sources();
+    let refusal = lower::compile(&mut u, &source, &[]).err().map(|r| r.what);
+    assert_eq!(refusal, None, "java.lang.Class is public as the JDK's");
+}
+
+const LEGACY_UNAPPLY: &str = "package legacy
+case class Wrap[T](t: T)
+class Dummy
+trait Functor[F[_]]
+object M {
+  type Apply[T[_]] = T[Dummy]
+  type Unapply[F[_[_]], T] = T match { case Wrap[Apply[a]] => F[a] }
+  val f: Unapply[Functor, Wrap[List[Dummy]]] = new Functor[List] {}
+}";
+
+#[test]
+fn match_types_reduce_by_the_rules_of_the_code_at_hand() {
+    let Some(jars) = jars() else { return };
+    let mut u = Universe::open(&jars).unwrap();
+    let sources = [SourceFile::new("a.scala", LEGACY_UNAPPLY)];
+    let cfg = Config::from_options(&["-source:3.3"]);
+    lower::compile_sources(&mut u, &sources, cfg, None).map_err(|r| r.what).unwrap();
+    let m = u.package("legacy").and_then(|p| u.decl(p, "M$").ok()).unwrap();
+    let m = *m.iter().find(|&&c| u.symbol(c).kind == tasty::Kind::Class).unwrap();
+    let unapply = u.decl(m, "Unapply").unwrap()[0];
+    let unapply = u.intern_type(tasty::Type::Sym(None, unapply));
+    let (functor, wrap, dummy) =
+        (u.class_ref("legacy.Functor"), u.class_ref("legacy.Wrap"), u.class_ref("legacy.Dummy"));
+    let list = u.class_ref("scala.collection.immutable.List");
+    let list_dummy = u.intern_applied(list, &[dummy]);
+    let scrutinee = u.intern_applied(wrap, &[list_dummy]);
+    let t = u.intern_applied(unapply, &[functor, scrutinee]);
+
+    assert_eq!(u.match_type_rules, tasty::MatchTypeRules::Spec, "the 3.3 unit's rules left behind");
+    assert_eq!(u.try_normalize(t), None, "a 3.9 reduction of a pattern outside SIP-56");
+    u.match_type_rules = tasty::MatchTypeRules::Legacy;
+    let reduced = u.try_normalize(t).map(|r| u.show(r));
+    assert!(reduced.is_some_and(|r| r.contains("Functor") && r.contains("List")), "a 3.3 reduction");
+    u.match_type_rules = tasty::MatchTypeRules::Both;
+    u.reductions_exhausted = false;
+    assert_eq!(u.try_normalize(t), None, "differing rules refused");
+    assert!(u.reductions_exhausted);
+
+    let dummy_class = u.class_symbol(dummy).unwrap();
+    for _ in 0..2 {
+        assert_eq!(u.base_type(t, dummy_class), None);
+    }
+    u.reductions_exhausted = false;
+    assert_eq!(u.base_type(t, dummy_class), None);
+    assert!(u.reductions_exhausted, "a remembered base type hides the refused reduction");
+}
+
+#[test]
+fn overloads_of_the_library_see_aliases_of_the_unit_not_yet_completed() {
+    let Some(jars) = jars() else { return };
+    let aliases = "package scala.scalanative\npackage object unsafe {\n  type CInt = Int\n  \
+                   type CVoidPtr = Ptr[?]\n  type CSize = unsigned.USize\n}";
+    let call = "import scala.scalanative.unsafe.{CSize, Ptr}\nobject T {\n  \
+                def f(p: Ptr[Byte], n: CSize) = scala.scalanative.runtime.ffi.memset(p, 0, n)\n}";
+    let sources = [SourceFile::new("t.scala", call), SourceFile::new("unsafe.scala", aliases)];
+    let t = dump(&jars, &sources, "T$");
+    assert!(t.contains("unbox[@scala.scalanative.unsigned.USize]") && t.contains("extern memset"), "{t}");
+}
+
+#[test]
+fn inline_accessors_of_members_of_another_file_take_their_offset_in_their_own_file() {
+    let Some(jars) = jars() else { return };
+    let p = SourceFile::new("p.scala", "package p\n\nclass P {\n  private[p] def raw: Int = 1\n}\n");
+    let c = SourceFile::new("c.scala", "package p\n\ntrait C {\n  inline def f(x: P): Int = x.raw\n}\n");
+    let c = dump(&jars, &[c, p], "p.C");
+    let accessor = &c[c.find("inline$raw$i1").expect("the accessor")..];
+    assert!(accessor.contains("@ c.scala:3:17"), "{accessor}");
+}
+
+#[test]
+fn inline_accessors_at_an_offset_past_their_file_end_stay_in_their_file() {
+    let Some(jars) = jars() else { return };
+    let p = format!("package p\n\n// {}\nclass P {{\n  private[p] def raw: Int = 1\n}}\n", "x".repeat(80));
+    let p = SourceFile::new("p.scala", p);
+    let c = SourceFile::new("c.scala", "package p\n\ntrait C {\n  inline def f(x: P): Int = x.raw\n}\n");
+    let c = dump(&jars, &[c, p], "p.C");
+    let accessor = &c[c.find("inline$raw$i1").expect("the accessor")..];
+    assert!(accessor.contains("@ c.scala:5:0") && !accessor.contains("@ p.scala"), "{accessor}");
+}
+
+#[test]
+fn discarded_values_leave_the_other_files_definitions_uncompleted() {
+    let Some(jars) = jars() else { return };
+    let a = "package p\nobject A {\n  def f(): Unit = 1\n  def g(): Unit = 2\n  def h(): Unit = 3\n}\n";
+    let c = "package p\nclass marker extends scala.annotation.StaticAnnotation\nobject C {\n  \
+             import Impl.*\n  opaque type BL[T] = Impl.BL\n  def make[T]: BL[T] = Impl.mk()\n  \
+             @marker private object Impl {\n    type BL = Int\n    def mk(): BL = 1\n  }\n}\n";
+    for order in [["a.scala", "c.scala"], ["c.scala", "a.scala"]] {
+        let sources = order.map(|name| SourceFile::new(name, if name == "a.scala" { a } else { c }));
+        dump(&jars, &sources, "p.C$");
+    }
+}
+
+#[test]
+fn overloads_see_the_type_members_their_prefix_overrides() {
+    let Some(jars) = jars() else { return };
+    let a = "package p\nabstract class BB extends Buf {\n  \
+             def put(i: Int, src: BB) = Gen[BB](this).put(i, src)\n  private[p] type BT = BB\n}\n";
+    let b = "package p\nabstract class Buf {\n  private[p] type BT >: this.type <: Buf\n}\n\
+             final class Gen[B <: Buf](val self: B) extends AnyVal {\n  import self._\n  \
+             def put(i: Int, src: BT): BT = src\n  def put(i: Int, src: Array[Int]): BT = self\n}\n\
+             object Gen { def apply[B <: Buf](self: B): Gen[B] = new Gen(self) }\n";
+    for order in [["a.scala", "b.scala"], ["b.scala", "a.scala"]] {
+        let sources = order.map(|name| SourceFile::new(name, if name == "a.scala" { a } else { b }));
+        let bb = dump(&jars, &sources, "p.BB");
+        assert!(bb.contains("put$extension(p.Buf, int, p.Buf)"), "{bb}");
+    }
 }

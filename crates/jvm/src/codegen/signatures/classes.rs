@@ -48,14 +48,19 @@ impl Sig<'_> {
     }
 
     /// The class `t` stands for (dotty's `classSymbol`): of a type lambda its result's, of an
-    /// intersection the side deriving from the other, of a union `union_class`, of a type member of
-    /// a refinement its bound's; `depth` bounds the members followed.
+    /// intersection the side deriving from the other, of a union `union_class`, of a refinement its
+    /// parent's, of a type member of a refinement, an abstract type or a type parameter, also
+    /// applied, its bound's; `depth` bounds the members followed.
     fn class_of(&mut self, t: TypeId, depth: u32) -> Option<SymbolId> {
         let depth = depth.checked_sub(1)?;
         let t = self.u.dealias(t);
         let unresolved = self.u.resolve_ref(t).is_none();
-        match *self.u.ty(t) {
-            Type::Lambda { result, .. } | Type::Bounds(_, result) => self.class_of(result, depth),
+        let ty = *self.u.ty(t);
+        match ty {
+            Type::Lambda { result, .. }
+            | Type::Bounds(_, result)
+            | Type::Refined(result, _, _)
+            | Type::Rec(_, result) => self.class_of(result, depth),
             Type::And(a, b) => {
                 let (a, b) = (self.class_of(a, depth)?, self.class_of(b, depth)?);
                 match (self.u.derives_from(a, b), self.u.derives_from(b, a)) {
@@ -65,9 +70,20 @@ impl Sig<'_> {
                 }
             }
             Type::Or(a, b, _) => self.union_class(t, (a, b), depth),
+            Type::Param(b, i) => {
+                let (_, bounds) = self.poly_param(b, i)?;
+                self.class_of(bounds, depth)
+            }
+            Type::Applied(tycon, _) if self.u.param_ref(tycon).is_some() => match self.upper_bounded(t) {
+                applied if applied == t => self.class_of(tycon, depth),
+                applied => self.class_of(applied, depth),
+            },
             Type::TypeRef(p, n) if unresolved => {
                 let info = self.u.refinement_named(p, n)?;
                 self.class_of(info, depth)
+            }
+            Type::Sym(..) | Type::TypeRef(..) if let Some(hi) = self.u.abstract_upper(t) => {
+                self.class_of(hi, depth)
             }
             _ => self.u.class_symbol(t),
         }
@@ -125,8 +141,9 @@ impl Sig<'_> {
             let hi = self.u.bounds(*bounds).map_or(*bounds, |(_, hi)| hi);
             let mut parts = Vec::new();
             self.and_parts(hi, &mut parts);
-            let whole = self.glb_erasure(&parts);
-            let repr = parts.iter().position(|&p| self.u.erase(p) == whole).unwrap_or(0);
+            let bounded: Vec<TypeId> = parts.iter().map(|&p| self.upper_bounded(p)).collect();
+            let whole = self.glb_erasure(&bounded);
+            let repr = bounded.iter().position(|&p| self.u.erase(p) == whole).unwrap_or(0);
             self.out.push(':');
             if self.is_trait(parts[repr]) {
                 self.out.push(':');

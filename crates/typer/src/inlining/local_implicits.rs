@@ -4,19 +4,24 @@
 //! scope of, in whose scope a search runs.
 
 use super::{Inlining, Unsupported};
-use crate::ctx::Ctx;
+use crate::ctx::{Ctx, Level};
 use crate::tpd::{MatchKind, TNodeId, Tpd, Tree as T};
 use crate::typer::stability::is_stable_path;
 use rustc_hash::FxHashMap;
-use tasty::tags::{GIVEN, IMPLICIT, MACRO};
-use tasty::{SymbolId, Universe};
+use tasty::tags::{GIVEN, IMPLICIT, MACRO, PARAMsetter};
+use tasty::{Kind, Symbol, SymbolId, Universe};
 
-/// A scope inside the code being expanded: the implicits a block's statements define, or an
-/// import statement.
+/// A scope inside the code being expanded: the implicits a block's statements define, an import
+/// statement, the body of a local class, whose members a search sees through `C.this`, the
+/// parents of one, which see its implicit parameters owned by its primary constructor, or a
+/// secondary constructor of one, where searches are refused.
 #[derive(Clone)]
 pub enum Scope {
     Implicits(Vec<SymbolId>),
     Import(TNodeId),
+    Class(SymbolId),
+    SuperCall { constr: SymbolId, params: Vec<SymbolId> },
+    Constructor,
 }
 
 impl Inlining<'_> {
@@ -48,12 +53,20 @@ impl Inlining<'_> {
 
     /// `ctx` inside `scope`.
     pub fn within_scope(&mut self, ctx: Ctx, scope: Scope) -> Ctx {
+        let by_name = |i: &Self, defs: Vec<SymbolId>| {
+            Level::Scope(defs.into_iter().map(|s| (i.u.symbol(s).name.clone(), s)).collect())
+        };
         let imp = match scope {
-            Scope::Implicits(defs) => {
-                let locals = defs.into_iter().map(|s| (self.u.symbol(s).name.clone(), s)).collect();
-                return self.host.within(ctx, locals);
-            }
+            Scope::Implicits(defs) => return self.host.within(ctx, by_name(self, defs)),
             Scope::Import(imp) => imp,
+            Scope::Class(cls) => {
+                let owner = self.owner.unwrap_or(cls);
+                return self.host.within(ctx, Level::Members(cls)).with_owner(owner);
+            }
+            Scope::SuperCall { constr, params } => {
+                return self.host.within(ctx, by_name(self, params)).with_owner(constr);
+            }
+            Scope::Constructor => return ctx,
         };
         let T::Import { expr, selectors, .. } = *self.tpd.tree(imp) else { return ctx };
         let name = |i: &Self, t: TNodeId| match i.tpd.tree(t) {
@@ -98,6 +111,7 @@ impl Inlining<'_> {
         let has = |t: Option<TNodeId>| t.is_some_and(|t| self.has_implicit_def(t));
         match *self.tpd.tree(t) {
             T::Match { selector, kind: MatchKind::Inline, .. } => has(selector),
+            T::TypeDef { rhs, .. } if matches!(self.tpd.tree(rhs), T::Template { .. }) => false,
             T::DefDef { rhs, .. } => has(rhs),
             T::CaseDef { guard, body, .. } => has(guard) || has(Some(body)),
             T::Block { stats, expr } => {
@@ -110,9 +124,9 @@ impl Inlining<'_> {
         }
     }
 
-    /// Adds the scope of the implicits that the statements of block `t` define, or the pattern
-    /// of case `t` binds, to `scopes` if there are any; the number of scopes before (dotty's
-    /// `InlineTyper.index`, `Typer.indexPattern`).
+    /// Adds the scope of the implicits that the statements of block `t` define, the pattern of
+    /// case `t` binds, or the members of the class whose body `t` is, to `scopes`; the number of
+    /// scopes before (dotty's `InlineTyper.index`, `Typer.indexPattern`, a class body's context).
     pub fn enter_implicits(&mut self, t: TNodeId) -> usize {
         let mark = self.scopes.len();
         let mut defined = Vec::new();
@@ -122,12 +136,45 @@ impl Inlining<'_> {
                 defined.extend(defs.filter_map(|&s| self.tpd.sym(s)));
             }
             T::CaseDef { pat, .. } => self.implicit_defs(pat, &mut defined),
+            T::Template { .. } => {
+                if let Some(cls) = self.enclosing_class {
+                    self.scopes.push(Scope::Class(cls));
+                }
+            }
             _ => {}
         }
         if !defined.is_empty() {
             self.scopes.push(Scope::Implicits(defined));
         }
         mark
+    }
+
+    /// Runs `retype` on part `c` of tree `t`: a parent of class body `t` in a `SuperCall` scope, a
+    /// secondary constructor in a `Constructor` one (dotty's `superCallContext`, `thisCallArgContext`).
+    pub fn in_class_part<R>(&mut self, (t, c): (TNodeId, TNodeId), retype: impl FnOnce(&mut Self) -> R) -> R {
+        let (&T::Template { constr, parents, .. }, Some(&Scope::Class(cls))) =
+            (self.tpd.tree(t), self.scopes.last())
+        else {
+            return retype(self);
+        };
+
+        let scope = if self.tpd.items(parents).contains(&c) {
+            let param = |s: &Symbol| s.kind == Kind::Param || s.kind == Kind::Val && s.flags.has(PARAMsetter);
+            let decls = self.u.decls(cls).unwrap_or_default().into_iter();
+            let params =
+                decls.filter(|&d| param(self.u.symbol(d)) && self.u.symbol(d).is_implicit()).collect();
+            Scope::SuperCall { constr: self.tpd.sym(constr).unwrap_or(cls), params }
+        } else if c != constr && self.tpd.sym(c).is_some_and(|s| self.u.is_constructor(s)) {
+            Scope::Constructor
+        } else {
+            return retype(self);
+        };
+
+        let at = self.scopes.len() - 1;
+        let class = std::mem::replace(&mut self.scopes[at], scope);
+        let result = retype(self);
+        self.scopes[at] = class;
+        result
     }
 
     pub fn is_implicit_def(&self, t: TNodeId) -> bool {
@@ -141,7 +188,7 @@ impl Inlining<'_> {
 }
 
 /// Adds the given and implicit terms `t` defines to `found`.
-fn implicit_defs(tpd: &Tpd, u: &Universe, t: TNodeId, found: &mut Vec<SymbolId>) {
+pub fn implicit_defs(tpd: &Tpd, u: &Universe, t: TNodeId, found: &mut Vec<SymbolId>) {
     found.extend(tpd.sym(t).filter(|_| is_implicit_def(tpd, u, t)));
     for c in tpd.children(t) {
         implicit_defs(tpd, u, c, found);
@@ -155,48 +202,4 @@ pub fn is_implicit_def(tpd: &Tpd, u: &Universe, t: TNodeId) -> bool {
         let flags = u.symbol(s).flags;
         flags.has(GIVEN) || flags.has(IMPLICIT)
     })
-}
-
-/// Determines the scopes of the given and implicit terms `t` defines in whose scope `call` is,
-/// outermost first: `t` if it defines one, then for each tree containing `call` the terms its
-/// children define, or a case's pattern binds; `None` if `t` does not contain `call`.
-pub fn implicit_scopes_at(
-    tpd: &Tpd,
-    u: &Universe,
-    (t, call): (TNodeId, TNodeId),
-) -> Option<Vec<Vec<SymbolId>>> {
-    let mut scopes = Vec::new();
-    if !scopes_within(tpd, u, (t, call), &mut scopes) {
-        return None;
-    }
-    scopes.extend(tpd.sym(t).filter(|_| is_implicit_def(tpd, u, t)).map(|s| vec![s]));
-    scopes.reverse();
-    Some(scopes)
-}
-
-/// Adds the scopes of `implicit_scopes_at` inside `t` to `found`, innermost first; whether `t`
-/// contains `call`.
-fn scopes_within(
-    tpd: &Tpd,
-    u: &Universe,
-    (t, call): (TNodeId, TNodeId),
-    found: &mut Vec<Vec<SymbolId>>,
-) -> bool {
-    if t == call {
-        return true;
-    }
-    let children = tpd.children(t);
-    if !children.iter().any(|&c| scopes_within(tpd, u, (c, call), found)) {
-        return false;
-    }
-    let mut defined = Vec::new();
-    match *tpd.tree(t) {
-        T::CaseDef { pat, .. } => implicit_defs(tpd, u, pat, &mut defined),
-        _ => defined
-            .extend(children.into_iter().filter(|&c| is_implicit_def(tpd, u, c)).filter_map(|c| tpd.sym(c))),
-    }
-    if !defined.is_empty() {
-        found.push(defined);
-    }
-    true
 }

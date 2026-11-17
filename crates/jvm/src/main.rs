@@ -11,8 +11,8 @@ use tasty::Universe;
 /// Compiles Scala files through the Rust frontend into JVM class files and TASTy files; the
 /// files are typed as one unit, with the options of their `//> using options` directives. Java
 /// files among them are parsed for their declarations, which the Scala files see, and compiled by
-/// javac after them. When the frontend refuses a file, the refused files are reported, nothing is
-/// written and the run fails.
+/// javac after them, if there is one, into the output directory or jar. When the frontend refuses
+/// a file, the refused files are reported, nothing is written and the run fails.
 ///
 /// Environment: SCIVOLO_LIBS holds the library jars (default: the distribution's, else the
 /// Coursier cache).
@@ -32,7 +32,8 @@ struct Cli {
     /// The jar manifest's `Main-Class` (dotty's `-Xmain-class`).
     #[arg(long)]
     main_class: Option<String>,
-    /// The sources are Scala's library's: its classes are compiled in the same run.
+    /// The sources are Scala's library's: its classes are compiled in the same run, against the
+    /// JDK 17 API as its build's `-java-output-version 17`.
     #[arg(long)]
     scalalib: bool,
     /// A compiler option of all sources, checked as the options of their directives.
@@ -71,6 +72,7 @@ fn main() {
         u.use_java_sources(java_sources.clone());
         if scalalib {
             u.set_same_run_jar(0);
+            u.set_jdk_17_view();
         }
         u
     };
@@ -101,12 +103,18 @@ fn main() {
     let Isolated { out: classes, refused, typings, .. } =
         lower::compile_isolated(&mut open, &sources, config, macros, backend)
             .unwrap_or_else(|e| fail(&message(&e)));
+    javac::check_clashes(&java_sources, classes.iter().map(|c| c.name.as_str())).unwrap_or_else(|e| fail(&e));
     if refused.is_empty() || leave_out_refused {
         write(&out, &entries(&classes), main_class.as_deref());
     }
     if refused.is_empty() && !java.is_empty() {
         let classpath: Vec<PathBuf> = std::iter::once(library[0].clone()).chain(cp).collect();
-        javac::compile(&java, &out, &classpath).unwrap_or_else(|e| fail(&e));
+        let java_classes = javac::compile(&java, &out, &classpath).unwrap_or_else(|e| fail(&e));
+        if !java_classes.is_empty() {
+            let mut all = entries(&classes);
+            all.extend(java_classes.iter().map(|(name, bytes)| (name.clone(), &bytes[..])));
+            write(&out, &all, main_class.as_deref());
+        }
     }
     if leave_out_refused {
         eprintln!("typings: {typings}");

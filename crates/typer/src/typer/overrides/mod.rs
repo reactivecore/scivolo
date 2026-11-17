@@ -5,10 +5,13 @@
 
 mod abstract_members;
 mod inherited_conflicts;
+mod inherited_pairs;
 mod member_overrides;
 mod name_clashes;
 mod override_kinds;
 mod overrides_nothing;
+mod result_conformance;
+mod result_types;
 
 use super::Typer;
 use crate::symbols::Syms;
@@ -20,7 +23,7 @@ use tasty::{Kind, SymbolId, TypeId, Universe};
 /// The override checks of one class (dotty's `RefChecks.checkAllOverrides` with
 /// `checkNoAbstractMembers` and `ElimErasedValueType.checkNoClashes`): refuses the class at its
 /// span when two of its methods clash, a member overrides another it may not or without
-/// `override`, an `override` member overrides nothing, it inherits conflicting members, or it is
+/// `override` or with an incompatible type, an `override` member overrides nothing, it inherits conflicting members, or it is
 /// concrete with an abstract member left unimplemented. A class with a macro annotation keeps its
 /// last check until the annotations expanded.
 pub struct OverrideChecks {
@@ -63,8 +66,11 @@ impl OverrideChecks {
         if let Some(what) = self.name_clash(t) {
             t.unsupported_at(self.span, what);
         }
-        if let Some(what) = self.member_refusal(t, own) {
+        if let Some(what) = self.member_refusal(t, own.clone()) {
             return t.unsupported_at(self.span, what);
+        }
+        if !t.diags.has_errors() && self.incompatible_type(t, &own) {
+            return t.unsupported_at(self.span, "override with an incompatible type");
         }
         if self.overrides_nothing(t) {
             return t.unsupported_at(self.span, "member overriding nothing");

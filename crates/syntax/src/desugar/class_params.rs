@@ -5,7 +5,6 @@
 //! `derivedTermParam`).
 
 use super::Desugar;
-use super::context_bounds::WITNESS_NAMES;
 use crate::ast::flags;
 use crate::ast::modifiers::Modifiers;
 use crate::ast::tree::DerivedKind;
@@ -30,7 +29,7 @@ impl Desugar<'_> {
                     .items(annotations)
                     .iter()
                     .copied()
-                    .filter(|&a| matches!(*self.ast.tree(a), Tree::TypedSplice { sym } if self.text(sym) == WITNESS_NAMES))
+                    .filter(|&a| self.is_witness_names(a))
                     .collect();
                 if kept.len() == annotations.len() { annotations } else { self.list(&kept) }
             }

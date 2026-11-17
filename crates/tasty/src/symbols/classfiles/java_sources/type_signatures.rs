@@ -2,8 +2,9 @@
 
 use super::class_info::{OBJECT, Signatures};
 use super::resolve::{Resolved, resolve};
-use super::syntax::{Arg, Type};
+use super::syntax::{Arg, Type, TypeParam};
 use crate::symbols::Universe;
+use classfile::ACC_STATIC;
 
 impl Signatures<'_> {
     /// Determines the generic signature and descriptor of type `t`; the refusal of a name not
@@ -48,14 +49,30 @@ impl Signatures<'_> {
     }
 
     /// The type arguments of each class of `c$D$E` as name `parts` writes them, outermost first.
-    /// An inner class named alone inside its generic outer class gets none for the outer class,
-    /// unlike javac's signature: the reader then enters it as `Outer.this.Inner`, the type
-    /// dotty gives it in a Java unit.
+    /// An inner class named without arguments for an enclosing generic class it is in gets that
+    /// class's type parameters, as javac writes it: the reader then enters `Outer[T]#Inner`, the
+    /// widened prefix dotty gives it in a Java unit (`javaTypeRef`).
     fn class_args(&self, c: &str, parts: &[(String, Vec<Arg>)]) -> Vec<Vec<Arg>> {
-        let count = c.rsplit('/').next().unwrap_or(c).split('$').count();
-        let mut args = vec![Vec::new(); count];
+        let (package, classes) = c.rsplit_once('/').map_or(("", c), |(p, n)| (p, n));
+        let names: Vec<&str> = classes.split('$').collect();
+        let mut args = vec![Vec::new(); names.len()];
         for (slot, (_, written)) in args.iter_mut().rev().zip(parts.iter().rev()) {
             slot.clone_from(written);
+        }
+        let enclosing = self.scope.at.enclosing();
+        for i in 0..names.len().saturating_sub(1) {
+            let outer = names[..=i].join("$");
+            let outer = if package.is_empty() { outer } else { format!("{package}/{outer}") };
+            let inner = format!("{outer}${}", names[i + 1]);
+            let is_inner = self.sources.located(&inner).is_some_and(|l| l.class().access & ACC_STATIC == 0);
+            let Some(at) = self.sources.located(&outer).filter(|_| is_inner && args[i].is_empty()) else {
+                continue;
+            };
+            let params = &at.class().type_params;
+            if enclosing.contains(&outer) && params.iter().all(|p| self.scope.vars.contains(&p.name)) {
+                let var = |p: &TypeParam| Arg::Type(Type::Named(vec![(p.name.clone(), Vec::new())]));
+                args[i] = params.iter().map(var).collect();
+            }
         }
         args
     }

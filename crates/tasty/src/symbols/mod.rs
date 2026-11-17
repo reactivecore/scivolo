@@ -12,6 +12,7 @@ mod class_access;
 mod classes;
 mod classfiles;
 mod companions;
+mod context_memo;
 mod define;
 pub mod defn;
 mod encoded_names;
@@ -50,6 +51,7 @@ mod seen;
 mod selves;
 mod symbol;
 mod table;
+mod type_params;
 mod varargs;
 mod variance;
 
@@ -82,7 +84,7 @@ pub struct Universe {
     packages: FxHashMap<String, SymbolId>,
     /// Per package, the files not loaded yet: the file name without `.tasty`, and its path.
     pending: FxHashMap<SymbolId, Vec<(String, String)>>,
-    pending_stems: FxHashMap<SymbolId, pending::PendingStems>,
+    pending_stems: pending::Stems,
     /// Per package, its package objects' classes, with the generation and number of
     /// declarations they were found at.
     package_objects: FxHashMap<SymbolId, ((u64, usize), Vec<SymbolId>)>,
@@ -106,6 +108,14 @@ pub struct Universe {
     gadt: GadtConstraint,
     parents: FxHashMap<SymbolId, Vec<TypeId>>,
     linearizations: FxHashMap<SymbolId, Vec<SymbolId>>,
+    /// The type of `this` of each class `this_type` was asked for.
+    this_types: FxHashMap<SymbolId, TypeId>,
+    /// The base types found, by type and base class.
+    base_types: context_memo::ContextMemo<(TypeId, SymbolId), Option<TypeId>>,
+    /// The types of members as seen from prefixes, by prefix and member.
+    member_infos: context_memo::ContextMemo<(TypeId, SymbolId), TypeId>,
+    /// The type parameters of each class and method that declares some, in order.
+    declared_type_params: FxHashMap<SymbolId, Vec<SymbolId>>,
     /// Per class and base class, whether the class's parents give the base different types.
     disagreeing_bases: FxHashMap<(SymbolId, SymbolId), bool>,
     /// The abstract methods and values among the symbols defined outside TASTy.
@@ -129,6 +139,8 @@ pub struct Universe {
     classfile_classes: FxHashSet<SymbolId>,
     /// The descriptor of each member entered from them.
     classfile_descriptors: FxHashMap<SymbolId, String>,
+    /// The fields entered from them that are enum constants (`ACC_ENUM`).
+    classfile_enum_fields: FxHashSet<SymbolId>,
     /// The retention of each annotation class entered from them.
     classfile_annotations: FxHashMap<SymbolId, classfiles::Retention>,
     /// The internal name of the container class of each `@Repeatable` annotation class of them.
@@ -182,6 +194,8 @@ pub struct Universe {
     binders: u32,
     /// The declared variances of the type lambdas made outside TASTy that declare them.
     lambda_variances: FxHashMap<Binder, Vec<i8>>,
+    /// The type lambdas made outside TASTy whose variances are structural.
+    structural_lambdas: FxHashSet<Binder>,
     unions: Unions,
     joint_members: joint::JointMembers,
     /// How many steps comparisons have taken computing atoms and `Nothing`-ness.
@@ -192,6 +206,11 @@ pub struct Universe {
     pub reductions_left: u32,
     /// Whether a reduction was refused: over a budget, or reaching its own match type again.
     pub reductions_exhausted: bool,
+    /// How the cases of match types are matched, by the source version of the code at hand.
+    pub match_type_rules: crate::MatchTypeRules,
+    /// Whether normalized types keep capture-checking annotations: in a capture-checked file
+    /// (ADR 0126).
+    pub keeps_captures: bool,
     /// Whether `erase` erases as Scala 2 does, for the signature of a Scala 2 symbol.
     scala2_erasure: bool,
 }
@@ -344,9 +363,9 @@ impl Universe {
         self.types.intern(t)
     }
 
-    /// Gives `to`, annotated type `from` with its parent mapped, `from`'s annotation tree.
-    pub fn carry_annotation_tree(&mut self, from: TypeId, to: TypeId) {
-        self.types.carry_annotation_tree(from, to);
+    /// Returns `to`, annotated type `from` with its parent mapped, with `from`'s annotation tree.
+    pub fn carry_annotation_tree(&mut self, from: TypeId, to: TypeId) -> TypeId {
+        self.types.carry_annotation_tree(from, to)
     }
 
     /// The id of name `text` in the name table of the types.

@@ -1,5 +1,6 @@
 //! Decoding the types of a file's type trees, types and paths.
 
+mod annotations;
 mod defs;
 mod lambdas;
 mod match_type;
@@ -92,15 +93,15 @@ impl<'a> Decoder<'a> {
         self.depth += 1;
         let t = self.decode(id);
         self.depth -= 1;
-        let annotated = self.types.intern(t);
         if let (Type::Annotated(_, class), &[_, tree]) = (t, self.ast.kids(id))
             && matches!(self.ast.tag(id), ANNOTATEDtype | ANNOTATEDtpt)
             && !matches!(self.types.get(class), Type::Other(_))
+            && !self.is_retains_like(class)
         {
             let tree = super::AnnotationTree { file: self.file, node: tree };
-            self.types.record_annotation_tree(annotated, tree, (self.ast, self.names));
+            return self.types.annotated_with_tree(t, tree);
         }
-        annotated
+        self.types.intern(t)
     }
 
     /// Whether `tycon` is `scala.&` (`true`) or `scala.|` (`false`).
@@ -114,16 +115,6 @@ impl<'a> Decoder<'a> {
             nme::AND => Some(true),
             nme::OR => Some(false),
             _ => None,
-        }
-    }
-
-    /// The class tree of the annotation term at `id`: what its constructor call instantiates.
-    fn annotation_class(&self, id: NodeId) -> Option<NodeId> {
-        let ast = self.ast;
-        let id = ast.deref(id);
-        match ast.tag(id) {
-            NEW => ast.kids(id).first().copied(),
-            _ => ast.kids(id).iter().find_map(|&k| self.annotation_class(k)),
         }
     }
 
@@ -171,13 +162,7 @@ impl<'a> Decoder<'a> {
                     [] => Type::Other(n.tag),
                 }
             }
-            ANNOTATEDtype | ANNOTATEDtpt => {
-                let annotation = match k.get(1).and_then(|&a| self.annotation_class(a)) {
-                    Some(class) => self.ty(class),
-                    None => self.intern(Type::Other(n.tag)),
-                };
-                Type::Annotated(self.kid(id, 0), annotation)
-            }
+            ANNOTATEDtype | ANNOTATEDtpt => Type::Annotated(self.kid(id, 0), self.annotation(id)),
             ANDtype => Type::And(self.kid(id, 0), self.kid(id, 1)),
             ORtype => Type::Or(self.kid(id, 0), self.kid(id, 1), false),
             BYNAMEtype | BYNAMEtpt => Type::ByName(self.kid(id, 0)),

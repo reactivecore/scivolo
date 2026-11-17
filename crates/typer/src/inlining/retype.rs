@@ -144,6 +144,7 @@ impl Inlining<'_> {
                 let call = if let T::Inlined { call, .. } = *self.tpd.tree(t) { call } else { None };
                 let (inner, within) = self.owners_within(t, owner);
                 let outer_class = std::mem::replace(&mut self.enclosing_class, within);
+                let outer_owner = self.owner.replace(inner);
                 let mut failed = None;
                 let mark = self.enter_implicits(t);
                 let unadapted = match *self.tpd.tree(t) {
@@ -154,13 +155,16 @@ impl Inlining<'_> {
                 let selected = unadapted.map(|f| self.tpd.sym(self.tpd.meth_part(f)));
                 map_children(self, t, &mut |i, c| match Some(c) == call {
                     true => c,
-                    false => i.retype_part(c, args, inner, Some(c) != unadapted).unwrap_or_else(|e| {
-                        failed.get_or_insert(e);
-                        c
-                    }),
+                    false => i
+                        .in_class_part((t, c), |i| i.retype_part(c, args, inner, Some(c) != unadapted))
+                        .unwrap_or_else(|e| {
+                            failed.get_or_insert(e);
+                            c
+                        }),
                 });
                 self.scopes.truncate(mark);
                 self.enclosing_class = outer_class;
+                self.owner = outer_owner;
                 failed.map_or(Ok(()), Err)?;
                 if let Some(before) = selected {
                     self.reapply(t, before);

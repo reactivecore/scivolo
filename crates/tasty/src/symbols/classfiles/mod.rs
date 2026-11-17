@@ -82,6 +82,12 @@ impl Universe {
         self.classfile_classes.contains(&s) || self.classfile_descriptors.contains_key(&s)
     }
 
+    /// Whether value `s` may be an enum constant as far as class files say: not a field entered
+    /// from one without `ACC_ENUM` (dotty's `JavaEnumValue`).
+    pub fn may_be_enum_constant(&self, s: SymbolId) -> bool {
+        !self.classfile_descriptors.contains_key(&s) || self.classfile_enum_fields.contains(&s)
+    }
+
     /// The retention of `c` if it is an annotation class entered from a JDK class file.
     pub fn classfile_retention(&self, c: SymbolId) -> Option<Retention> {
         self.classfile_annotations.get(&c).copied()

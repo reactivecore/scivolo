@@ -240,6 +240,11 @@ fn arrays_of_type_members_cast_as_dotty_on_the_jvm() {
 }
 
 #[test]
+fn arrays_of_overridden_higher_kinded_members_erase_as_dotty_on_the_jvm() {
+    runs_on_the_jvm("hkmemberarrays", "Hkmemberarrays");
+}
+
+#[test]
 fn private_objects_keep_their_names_on_the_jvm() {
     runs_on_the_jvm("privateobjects", "Privateobjects");
 }
@@ -458,6 +463,64 @@ fn a_tuple_class_of_the_unit_extends_its_generic_tuple() {
 }
 
 #[test]
+fn var_handles_of_mixed_in_lazy_values_come_first() {
+    let code = "trait T { lazy val t: String = \"t\" }\n\
+                class Lz extends T { lazy val a: String = \"a\"; lazy val b: String = \"b\" }\n";
+    let sources = written("lazyhandles-src", &[("lz.scala", code)]);
+    let (out, compiled) = compile("lazyhandles", &sources[0]);
+    assert!(compiled.status.success(), "{}", String::from_utf8_lossy(&compiled.stderr));
+    let class = std::fs::read(out.join("Lz.class")).expect("Lz.class");
+    let at = |n: &str| class.windows(n.len()).position(|w| w == n.as_bytes()).expect(n);
+    assert!(at("t$lzy1$lzyHandle") < at("b$lzy1$lzyHandle"));
+    assert!(at("b$lzy1$lzyHandle") < at("a$lzy1$lzyHandle"));
+}
+
+#[test]
+fn a_pattern_of_a_generic_java_class_its_scrutinee_conforms_to_tests_null() {
+    let java = "package jn;\nabstract class MainN<K, V> {}\n";
+    let scala = "package jn\nclass Use[K, V] { def h(p: MainN[K, V]): Int = p match { case vn: MainN[?, ?] => 2 } }\n";
+    let sources = written("javapattern-src", &[("MainN.java", java), ("Use.scala", scala)]);
+    let (out, compiled) = compile_all("javapattern", &sources);
+    let stderr = String::from_utf8_lossy(&compiled.stderr);
+    let javac = Command::new("javac").arg("--version").output().is_ok();
+    assert!(compiled.status.success() || !javac && stderr.contains("javac"), "{stderr}");
+    let class = std::fs::read(out.join("jn/Use.class")).expect("jn/Use.class");
+    let null_test = [0x2b, 0x4d, 0x2c, 0xc6];
+    assert!(class.windows(4).any(|w| w == null_test), "no `ifnull` on the scrutinee");
+}
+
+#[test]
+fn the_enclosing_method_descriptor_adds_no_inner_class() {
+    let code = "class Enc {\n  def sp: java.util.Map.Entry[String, String] =\n    \
+                new java.util.AbstractMap.SimpleEntry[String, String](\"a\", \"b\") {}\n}\n";
+    let sources = written("enclosingmethod-src", &[("enc.scala", code)]);
+    let (out, compiled) = compile("enclosingmethod", &sources[0]);
+    assert!(compiled.status.success(), "{}", String::from_utf8_lossy(&compiled.stderr));
+    let class = std::fs::read(out.join("Enc$$anon$1.class")).expect("Enc$$anon$1.class");
+    let entry = [&[1, 0, 19][..], b"java/util/Map$Entry"].concat();
+    assert!(!class.windows(entry.len()).any(|w| w == entry), "an InnerClasses entry of Map$Entry");
+}
+
+#[test]
+fn the_library_sees_the_jdk_17_api() {
+    let code = "package p\nabstract class E extends java.util.concurrent.Executor\n\
+                trait T extends java.util.concurrent.ExecutorService\n\
+                abstract class A extends E with T\n";
+    let sources = written("jdk17view", &[("a.scala", code)]);
+    let out = root().join("tmp/jvm-test/jdk17view-out");
+    let _ = std::fs::remove_dir_all(&out);
+    let run = Command::new(env!("CARGO_BIN_EXE_scivolo-jvm"))
+        .args(["--scalalib", "-d"])
+        .arg(&out)
+        .args(&sources)
+        .output()
+        .expect("running scivolo-jvm");
+    assert!(run.status.success(), "{}", String::from_utf8_lossy(&run.stderr));
+    let class = std::fs::read(out.join("p/A.class")).expect("p/A.class");
+    assert!(!class.windows(5).any(|w| w == b"close"), "a forwarder to JDK 19's ExecutorService.close");
+}
+
+#[test]
 fn a_tuple_class_with_a_class_parent_is_refused() {
     let code = "package scala\nimport scala.language.`2.13`\nabstract class Base\n\
                 final case class Tuple2[+T1, +T2](_1: T1, _2: T2) extends Base with Product2[T1, T2]\n";
@@ -554,15 +617,4 @@ fn a_refused_file_refuses_the_unit() {
         .expect("running scivolo-jvm");
     assert!(!left_out.status.success());
     assert!(out.join("run.class").exists(), "{}", String::from_utf8_lossy(&left_out.stderr));
-}
-
-#[test]
-fn a_cast_signature_polymorphic_call_of_an_inferred_type_is_refused() {
-    if Command::new("java").arg("-version").output().is_err() {
-        eprintln!("no java on the PATH: skipped");
-        return;
-    }
-    let code = "object R { def id[T](x: T): T = x; \
-        def f = id(java.lang.invoke.MethodHandles.identity(classOf[String]).invoke(\"a\").asInstanceOf[String]) }";
-    refuses("refusedpolymorphic", code, "expected to be of an inferred type");
 }

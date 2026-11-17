@@ -3,8 +3,8 @@
 
 Usage: scripts/lib-jar.py MODULE (one of lib-compile.py's MODULES)
 
-Lowers each of the module's Scala 3 source directories as one unit, as lib-compile.py does each
-file, and writes tmp/lib/MODULE/<the published jar's name>: that NIR, the resources under
+Lowers each of the module's Scala 3 source directories as one unit (all of nativelib's together),
+as lib-compile.py does each file, and writes tmp/lib/MODULE/<the published jar's name>: that NIR, the resources under
 src/main/resources/scala-native verbatim, the published jar's TASTy and a manifest as sbt writes
 it. scalalib's files are lowered one by one, as lib-compile.py does; its jar takes the NIR of the
 classes Scala Native's build takes from Scala 2.13 from the published jar, and that of the classes
@@ -35,17 +35,24 @@ Implementation-URL: http://www.scala-native.org
 {main}
 """
 SCALALIB_MAIN = "Main-Class: scala.util.Properties\n"
+# The modules whose source directories are lowered as one unit, as Scala Native's build does.
+JOINT = {"nativelib"}
 
 
 def lower(module, stage):
-    """Lowers the module's source directories into `stage`; exits with the frontend's error."""
+    """Lowers the module's source directories into `stage`, those of JOINT as one unit; exits with
+    the frontend's error."""
+    units = []
     for name in lib.SOURCE_DIRS:
         root = lib.SN / module / "src/main" / name
-        files = sorted(root.rglob("*.scala"))
-        if not files:
-            continue
+        unit = [(root, f) for f in sorted(root.rglob("*.scala"))]
+        if unit:
+            units.append((name, unit))
+    if module in JOINT:
+        units = [("all", [pair for _, unit in units for pair in unit])]
+    for name, unit in units:
         out = stage.parent / f"nir-{name}"
-        r = subprocess.run(lib.lower_cmd(module, root, files, out), capture_output=True, text=True, errors="replace",
+        r = subprocess.run(lib.lower_cmd(module, unit, out), capture_output=True, text=True, errors="replace",
                            env=lib.ENV)
         if r.returncode != 0:
             sys.exit(f"{module}/{name}: {r.stderr.strip()[:500]}")
@@ -56,14 +63,14 @@ def lower_scalalib(stage):
     """Lowers each scalalib file on its own into `stage` but the classes of SPECIALIZED; returns
     the files refused and the NIR files written by more than one file."""
     units = lib.units("scalalib", "")
-    lib.link_scalalib_root(units[0][0])
+    lib.link_scalalib_root(units[0][0][0])
     env = lib.ENV | {"SCIVOLO_LIBS": str(scalalib_sources.libs(lib.ORACLE_JARS))}
 
     def one(unit):
-        root, files = unit
-        out = stage.parent / "out" / str(files[0].relative_to(root)).removesuffix(".scala")
-        state, reason, stdout = lib.run(lib.lower_cmd("scalalib", root, files, out), lib.TIMEOUT * len(files), env)
-        return files[0].relative_to(root), state, reason, out, stdout.split()
+        root, first = unit[0]
+        out = stage.parent / "out" / str(first.relative_to(root)).removesuffix(".scala")
+        state, reason, stdout = lib.run(lib.lower_cmd("scalalib", unit, out), lib.TIMEOUT * len(unit), env)
+        return first.relative_to(root), state, reason, out, stdout.split()
 
     refused, twice = [], []
     with concurrent.futures.ThreadPoolExecutor(lib.JOBS) as pool:

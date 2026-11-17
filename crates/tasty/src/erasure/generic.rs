@@ -72,7 +72,7 @@ impl Universe {
 
     /// The alias or class by which the class of the prefix of abstract type reference `t`
     /// overrides it (dotty's `dealias` of a member found through the prefix).
-    fn overriding_member(&mut self, t: TypeId) -> Option<TypeId> {
+    pub fn overriding_member(&mut self, t: TypeId) -> Option<TypeId> {
         let prefix = match *self.ty(t) {
             Type::Sym(p, _) => p?,
             Type::TypeRef(p, _) => p,
@@ -107,9 +107,19 @@ impl Universe {
             | Type::Rec(_, u)
             | Type::Alias(u)
             | Type::Bounds(_, u) => self.holder(u),
-            Type::Applied(c, args) => {
-                let args = self.types_of(args).to_vec();
-                match self.expand(c, &args).or_else(|| self.expand_opaque(c, &args)) {
+            Type::Applied(c, list) => {
+                let args = self.types_of(list).to_vec();
+                let alias = self.expand(c, &args);
+                if alias.is_none()
+                    && let Some(member) = self.overriding_member(c)
+                {
+                    let applied = self.intern_type(Type::Applied(member, list));
+                    let reduced = self.dealias_step(applied);
+                    return self.holder(reduced);
+                }
+                let expanded =
+                    alias.or_else(|| self.expand_opaque(c, &args)).or_else(|| self.expand_upper(c, &args));
+                match expanded {
                     Some(u) => self.holder(u),
                     None => self.holder(c),
                 }
@@ -131,6 +141,9 @@ impl Universe {
                         _ => Holder::Object,
                     };
                 }
+                if let Some(alias) = self.overriding_member(t) {
+                    return self.holder(alias);
+                }
                 let Some(s) = self.referenced(t) else { return Holder::None };
                 let info = self.seen_info(t, s);
                 if self.lambda(info).is_some() { Holder::None } else { self.holder(info) }
@@ -140,14 +153,16 @@ impl Universe {
     }
 
     /// The info of type `s` that reference `t` names: an opaque type's alias, a type member's bounds
-    /// seen from the prefix of `t` (dotty's `translucentSuperType`).
+    /// seen from the prefix of `t` or given by a refinement of the prefix's type (dotty's
+    /// `translucentSuperType`).
     fn seen_info(&mut self, t: TypeId, s: SymbolId) -> TypeId {
         if let Some(alias) = self.opaque_alias(s) {
             return alias;
         }
-        match *self.ty(t) {
-            Type::Sym(Some(p), _) if self.symbol(s).kind == Kind::Type => self.member_info(p, s),
-            _ => self.info(s),
-        }
+        let prefix = match *self.ty(t) {
+            Type::Sym(Some(p), _) | Type::TypeRef(p, _) if self.symbol(s).kind == Kind::Type => p,
+            _ => return self.info(s),
+        };
+        self.refined_member_info(prefix, s)
     }
 }
