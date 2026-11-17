@@ -113,17 +113,34 @@ fn value_classes_erase_to_their_underlying_value_or_class() {
     assert!(u.is_value_class(rich_int) && !u.is_value_class(int));
 }
 
-/// `[A <: hi_a, B <: hi_b](b: B): A`, `hi_b` made from `A`.
-fn poly(u: &mut Universe, hi_a: TypeId, hi_b: fn(&mut Universe, TypeId) -> TypeId) -> TypeId {
+/// A type made from a type parameter.
+type Of = fn(&mut Universe, TypeId) -> TypeId;
+
+/// `[A <: hi_a, B <: hi_b](b: param): A`, `hi_b` made from `A`, `param` from `B`.
+fn poly(u: &mut Universe, hi_a: TypeId, hi_b: Of, param: Of) -> TypeId {
     let (types, terms) = (Binder(FileId(u32::MAX), 1), Binder(FileId(u32::MAX), 2));
     let (a, b) = (u.intern_type(Type::Param(types, 0)), u.intern_type(Type::Param(types, 1)));
     let bounds_a = u.intern_type(Type::Bounds(NOTHING, hi_a));
     let hi_b = hi_b(u, a);
     let bounds_b = u.intern_type(Type::Bounds(NOTHING, hi_b));
     let params = [(u.intern_name("A"), bounds_a), (u.intern_name("B"), bounds_b)];
-    let b_name = u.intern_name("b");
-    let method = u.intern_method(terms, &[(b_name, b)], a, false, false);
+    let (b_name, param) = (u.intern_name("b"), param(u, b));
+    let method = u.intern_method(terms, &[(b_name, param)], a, false, false);
     u.intern_poly(types, &params, method)
+}
+
+fn same(_: &mut Universe, t: TypeId) -> TypeId {
+    t
+}
+
+fn and_serializable(u: &mut Universe, t: TypeId) -> TypeId {
+    let serializable = u.class_ref("java.io.Serializable");
+    u.intern_type(Type::And(t, serializable))
+}
+
+fn and_animal(u: &mut Universe, t: TypeId) -> TypeId {
+    let animal = u.class_ref("oracle.Animal");
+    u.intern_type(Type::And(t, animal))
 }
 
 fn array_of(u: &mut Universe, elem: TypeId) -> TypeId {
@@ -138,13 +155,32 @@ fn type_parameters_erase_to_their_bounds() {
         ["scala.Array[scala.Int]", "scala.Int", "scala.Any"].map(|t| parse(&mut u, t));
     let (ints, object) = (array(Erased::Prim('i')), class("java.lang.Object"));
     let dotty = [
-        (int_array, (|_, a| a) as fn(&mut Universe, TypeId) -> TypeId, ints.clone(), ints.clone()),
+        (int_array, same as Of, ints.clone(), ints.clone()),
         (any, array_of, object.clone(), object),
         (int, array_of, ints, Erased::Prim('i')),
     ];
     for (hi_a, hi_b, param, result) in dotty {
-        let t = poly(&mut u, hi_a, hi_b);
+        let t = poly(&mut u, hi_a, hi_b, same);
         assert_eq!(u.erased_method_type(t), (vec![param], result), "{}", u.show(t));
+    }
+}
+
+#[test]
+fn type_parameters_bounded_by_type_parameters_erase_to_the_last_bound() {
+    let Some(mut u) = universe() else { return };
+    let [dog, any] = ["oracle.Dog", "scala.Any"].map(|t| parse(&mut u, t));
+    let (dogs, object) = (class("oracle.Dog"), class("java.lang.Object"));
+    let dotty = [
+        (dog, and_serializable as Of, dogs.clone()),
+        (dog, and_animal, dogs.clone()),
+        (dog, array_of, array(dogs.clone())),
+        (any, and_serializable, object.clone()),
+        (any, array_of, object),
+    ];
+    for (hi_a, param, erased) in dotty {
+        let t = poly(&mut u, hi_a, same, param);
+        let result = u.erase(hi_a);
+        assert_eq!(u.erased_method_type(t), (vec![erased], result), "{}", u.show(t));
     }
 }
 

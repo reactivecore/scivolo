@@ -9,8 +9,8 @@ use crate::{Binder, Universe};
 impl Universe {
     /// `t` with its type parameters replaced by their upper bounds, given the bounds of the
     /// parameters of each polymorphic type; within `t` and those bounds, only those bounded by a
-    /// class or a type lambda, whose application is reduced until its constructor is no such
-    /// parameter.
+    /// class, also through other parameters, or by a type lambda, whose application is reduced
+    /// until its constructor is no such parameter.
     pub fn upper_bound(&mut self, t: TypeId, bounds: &[(Binder, Vec<TypeId>)]) -> TypeId {
         self.upper_bound_except(t, bounds, &[])
     }
@@ -27,9 +27,11 @@ impl Universe {
         let mut t = self.map_type(t, &mut |u, x| match *u.ty(x) {
             Type::Param(b, i) if !reduced.contains(&(b, i)) => {
                 let param_bounds = bound(b, i)?;
-                let (_, hi) = u.bounds(param_bounds)?;
+                let (lo, hi) = u.bounds(param_bounds)?;
                 let seen = [reduced, &[(b, i)]].concat();
-                (!u.is_generic(param_bounds)).then(|| u.upper_bound_except(hi, bounds, &seen))
+                let hi = u.upper_bound_except(hi, bounds, &seen);
+                let bounded = u.intern_type(Type::Bounds(lo, hi));
+                (!u.is_generic(bounded)).then_some(hi)
             }
             Type::Applied(..) => {
                 let (mut applied, mut seen) = (x, reduced.to_vec());
