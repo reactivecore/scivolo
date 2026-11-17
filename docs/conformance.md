@@ -251,13 +251,13 @@ The VM fixes javalib bugs in its library overlay (`overlay/src`, ADR 0009).
 
 | Outcome | tests/programs | tests/pos | tests/neg |
 |---|---:|---:|---:|
-| passed | 262 | 2495 | 1277 |
-| differ | 35 | 113 | 0 |
+| passed | 264 | 2504 | 1276 |
+| differ | 33 | 113 | 0 |
 | warnings differ | 0 | 9 | 0 |
-| accepted (neg) | 0 | 0 | 21 |
-| unsupported | 1 | 408 | 0 |
+| accepted (neg) | 0 | 0 | 22 |
+| unsupported | 1 | 399 | 0 |
 | crashed | 0 | 0 | 0 |
-| skipped | 37 | 351 | 496 |
+| skipped | 39 | 351 | 496 |
 
 ## M4: dotty `tests/run`
 
@@ -309,9 +309,9 @@ Results:
 
 | Outcome | Tests |
 |---|---:|
-| passed | 1497 |
+| passed | 1496 |
 | wrong output | 0 |
-| crashed | 0 |
+| crashed | 1 |
 | timeout | 0 |
 | lowering refused | 0 |
 | typer refused | 9 |
@@ -330,7 +330,8 @@ Results:
   string. `Runtime.totalMemory`,
   `maxMemory` and `freeMemory`, which Scala Native's javalib lacks and the overlay adds (ADR
   0008), are typed through `libs/jdk-stubs/JdkMemberDeclarations.scala`.
-- **`tests/run-macros`** (`just dotty-lower-report "" run-macros`): 310 of 321
+- **Crashed:** `i22888`, as on the JVM.
+- **`tests/run-macros`** (`just dotty-lower-report "" run-macros`): 311 of 321
   pass; the typer refuses two for classes Scala Native's javalib lacks, a platform limit:
   `java.lang.SuppressWarnings` (`annot-java-tree`) and `java.text.SimpleDateFormat`
   (`f-interpolator-tests`); 8 are skipped.
@@ -390,28 +391,26 @@ Results:
 
 | Outcome | tests/run | tests/run-macros |
 |---|---:|---:|
-| passed | 1673 | 317 |
+| passed | 1685 | 320 |
 | wrong output | 0 | 0 |
 | verify error | 0 | 0 |
-| linkage error | 2 | 0 |
+| linkage error | 0 | 0 |
 | crashed | 2 | 0 |
 | timeout | 0 | 0 |
-| frontend crashed | 3 | 0 |
+| frontend crashed | 0 | 0 |
 | jvm refused | 0 | 0 |
-| lowering refused | 1 | 0 |
-| typer refused | 16 | 3 |
+| lowering refused | 0 | 0 |
+| typer refused | 10 | 0 |
 | skipped | 14 | 1 |
 | **total** | **1711** | **321** |
 
-- **Typer refused (run):** the nine of the VM's report, TASTy pickling of a type lambda's bounds
-  (`enum-values`), and in tests with Java sources a Java type not found (`t3452e`, `t6138`,
-  `t6138-2`, `i17255`), `@BeanProperty` (`i15318`) and adaptation (`i19619`).
-- **Typer refused (run-macros):** the annotations of a symbol defined outside the unit
-  (`annot-arg-value-in-java`), `Symbol.paramSymss` of a method whose parameters the frontend
-  lacks (`i20052`).
-- **Tests with Java sources:** all pass but the six the typer refuses (see above).
+- **Typer refused (run):** the nine of the VM's report and TASTy pickling of a type lambda's
+  bounds (`enum-values`).
+- **Tests with Java sources:** all pass.
 - **Crash:** `lambda-serialization-gc` casts the application class loader to `URLClassLoader`,
-  which fails for scalac's class files too, as the runner does not load tests through one.
+  which fails for scalac's class files too, as the runner does not load tests through one;
+  `i22888` stores an `Array[Int]` in a field of an applied higher-kinded type erased to
+  `Object[]` (`ClassCastException`, open).
 - **Difference from dotty (open, not accepted):** a macro runs from its Scala Native build in the VM, so a
   macro implementation that reads the platform (`System.getProperty`, `scala.util.Properties`,
   runtime class names) sees Scala Native's; what it reflects on (`Symbol`s, types) is the JVM
@@ -452,23 +451,16 @@ the optimizer (1883 of its 3134 classes dotty also writes differ in code from do
 
 | Outcome | Files | Classes |
 |---|---:|---:|
-| same | 598 | 3178 |
-| attributes differ | 29 | 39 |
-| code differs | 21 | 37 |
-| refused | 1 | |
+| same | 524 | 2193 |
+| attributes differ | 17 | 21 |
+| code differs | 3 | 3 |
+| refused | 105 | |
 
-- **Refused:** a static member of a qualifier with effects (`TrieMap`).
-- **Code differs:** static forwarders to bridges and mixin forwarders of other files' classes,
-  which dotty sees only when those classes are compiled in the same run, ours never (dotty
-  compiling the file alone writes ours): the forwarders `from` of `immutable.IndexedSeq`,
-  `LinearSeq` and `Seq` to the bridges of `SeqFactory.Delegate` (the published jar has them
-  too), `Nil.isDefinedAt`, and the generic signatures of `Nil`'s and `Vector0`'s
-  `iterableFactory` and `view`. The pickled quotes of `scala.quoted.ToExpr` and `FromExpr`
-  (strings of TASTy), the class `mutable.SortedMapOps` names as owner of its call of `clone()`,
-  Scala 2's `@inline` `Enumeration.Value` inlined (`RoundingMode`), and branches of pattern
-  matches and inlined `.nn` (`StepperHasParStream`, `CollisionProofHashMap`, `BasicIO`; dotty
-  compiling those files alone differs from ours too); `ArrayBuffer`, `ExecutionContextImpl` and
-  `Regex`.
+- **Refused:** an inferred type to which dotty's typer may give capture sets not told into
+  TASTy (#276); without that refusal, 82 of these files are the same as dotty's.
+- **Code differs:** the pickled quotes of `scala.quoted.FromExpr` (strings of TASTy), branches
+  of pattern matches (`BasicIO`; dotty compiling it alone differs from ours too) and
+  `ExecutionContextImpl`.
 - **Attributes differ:** mostly line numbers (of extension method calls and implicit
   conversions, of the `()` ending a secondary constructor); `InnerClasses` entries, a
   `LocalVariableTable` entry, a `Deprecated` attribute and a method's flags.
