@@ -48,6 +48,13 @@ fn qualified_protected_members_are_read_inside_their_qualifier_without_accessors
     let u = SourceFile::new("u.scala", "package p.r\nobject U { def f(m: p.q.M) = m.elems.length }");
     let u = dump(&jars, &[m, u], "p.r.U$");
     assert!(!u.contains("protected$"), "{u}");
+    let c = "package p.q\nclass C { protected[C] def s = 1 }\nobject C { def f(c: C) = c.s }\n\
+             object O { protected[O] def t = 2 }\nclass O { def g = O.t }";
+    let c = SourceFile::new("c.scala", c);
+    for name in ["p.q.C$", "p.q.O"] {
+        let d = dump(&jars, std::slice::from_ref(&c), name);
+        assert!(!d.contains("protected$"), "the qualifier's companion: {d}");
+    }
 }
 
 #[test]
@@ -59,6 +66,15 @@ fn imports_are_typed_only_when_their_selectors_may_name_what_is_looked_up() {
     let q = SourceFile::new("q.scala", "package q\ntrait D\ntrait E");
     let a = dump(&jars, &[a, SourceFile::new("p.scala", p), q], "A$");
     assert!(a.contains("@p.V$"), "{a}");
+    let a = SourceFile::new("a.scala", "object A { val x = B.h }");
+    let b = "import scala.collection.mutable.ListBuffer\nobject B { def h = ListBufer }";
+    let mut u = Universe::open(&jars).unwrap();
+    let sources = [a, SourceFile::new("b.scala", b)];
+    let error = lower::compile_sources(&mut u, &sources, Config::from_options(&[]), None).err().unwrap().what;
+    assert!(
+        error.contains("Not found: ListBufer - did you mean ListBuffer?"),
+        "an untyped import's hint: {error}"
+    );
 }
 
 #[test]
