@@ -78,7 +78,7 @@ impl Cmp<'_> {
                 let Type::MatchCase(pat, body) = *self.u.ty(result) else {
                     return Spec::Unsupported;
                 };
-                if self.u.legacy_match_types {
+                if self.u.match_type_rules == super::MatchTypeRules::Legacy {
                     let params = self.u.params_of(params).to_vec();
                     return Spec::Legacy(Legacy { binder, params, pat, body });
                 }

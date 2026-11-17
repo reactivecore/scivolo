@@ -22,7 +22,7 @@ pub mod write;
 pub use erasure::{Erased, PRIMITIVE_VALUE_CLASSES};
 pub use gadt::{Entry as GadtEntry, GadtChanges, GadtConstraint, Registered, Unification};
 pub use positions::{TastySpan, decode_positions, line_sizes};
-pub use subtype::{Changes, Mark, NoVars, NullMode, TypeVars};
+pub use subtype::{Changes, Mark, MatchTypeRules, NoVars, NullMode, TypeVars};
 pub use symbols::{
     ANY, BodyInfo, Defn, Error as LoadError, FileId, Flags, JavaSources, Kind, MAX_IMPLEMENTED_ARITY,
     NOTHING, PACKAGE_TABLE, Retention, SYMBOL_TABLE_VERSION, SourceAnnotation, SourceArg, Symbol, SymbolId,

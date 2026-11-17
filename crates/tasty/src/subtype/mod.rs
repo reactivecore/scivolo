@@ -33,6 +33,7 @@ mod third;
 mod unions;
 mod walk;
 
+pub use match_types::MatchTypeRules;
 pub use no_vars::NoVars;
 pub use null::NullMode;
 pub use unions::Unions;

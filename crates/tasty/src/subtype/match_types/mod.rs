@@ -11,11 +11,13 @@ mod legacy;
 mod named_from;
 mod ops;
 mod reduce;
+mod rules;
 mod spec;
 mod widening;
 
 pub use case_vars::CASE_VARS;
 pub use legacy::CaseLambda;
+pub use rules::MatchTypeRules;
 
 use super::refs::Meaning;
 use super::{Cmp, NoVars};
@@ -171,7 +173,7 @@ impl Cmp<'_> {
         let scrutinee = self.fixed(scrutinee);
         let scrutinee = self.normal(scrutinee);
         let cases = self.u.types_of(cases).to_vec();
-        let reduced = self.match_cases(scrutinee, &cases);
+        let reduced = self.match_cases_by_rules(scrutinee, &cases);
         self.frozen = frozen;
         self.reductions -= 1;
         self.u.reducing -= 1;

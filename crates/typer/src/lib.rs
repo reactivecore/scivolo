@@ -33,7 +33,7 @@ use tpd::{TNodeId, Tpd};
 
 pub use completion::Request;
 pub use finish::SyntheticMembers;
-pub use typer::{RETAINED_BODY, Typer, approx, fold_binop, fold_unop, fully_simplified};
+pub use typer::{RETAINED_BODY, Typer, approx, fold_binop, fold_unop, fully_simplified, match_type_rules};
 
 /// Why a unit takes the JVM frontend instead.
 pub enum Fallback {
@@ -116,6 +116,20 @@ impl Units {
         (root, cfg): (NodeId, syntax::config::Config),
         macros: Option<&mut dyn Macros>,
     ) -> Result<Typed, Fallback> {
+        let outer = u.match_type_rules;
+        let typed = self.type_one_unit(u, ast, (names, fresh), (root, cfg), macros);
+        u.match_type_rules = outer;
+        typed
+    }
+
+    fn type_one_unit(
+        &mut self,
+        u: &mut Universe,
+        ast: &mut Ast,
+        (names, fresh): (&mut Names, &mut FreshNames),
+        (root, cfg): (NodeId, syntax::config::Config),
+        macros: Option<&mut dyn Macros>,
+    ) -> Result<Typed, Fallback> {
         self.refused.clear();
         self.errors = Diagnostics::default();
         let mut typer = Typer::new(u, (ast, root), (names, fresh), cfg, &mut self.syms)
@@ -131,6 +145,20 @@ impl Units {
     /// features and source version, expanding macro calls through `macros`. The result's root is
     /// a package clause of the root package holding the typed units.
     pub fn type_units(
+        &mut self,
+        u: &mut Universe,
+        ast: &mut Ast,
+        (names, fresh): (&mut Names, &mut FreshNames),
+        units: &[SourceUnit],
+        macros: Option<&mut dyn Macros>,
+    ) -> Result<Typed, Fallback> {
+        let outer = u.match_type_rules;
+        let typed = self.type_source_units(u, ast, (names, fresh), units, macros);
+        u.match_type_rules = outer;
+        typed
+    }
+
+    fn type_source_units(
         &mut self,
         u: &mut Universe,
         ast: &mut Ast,

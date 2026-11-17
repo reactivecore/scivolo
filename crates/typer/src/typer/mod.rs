@@ -419,6 +419,14 @@ pub struct Typer<'a> {
 /// How many `typed` calls may be in progress at once.
 const MAX_DEPTH: u32 = 400;
 
+/// Determines the rules that match match type cases in code of source version `v`.
+pub fn match_type_rules(v: SourceVersion) -> tasty::MatchTypeRules {
+    match v.legacy_match_types() {
+        true => tasty::MatchTypeRules::Legacy,
+        false => tasty::MatchTypeRules::Spec,
+    }
+}
+
 /// Refuses source versions before 3.3 and migrating ones.
 pub fn check_source_version(v: SourceVersion) -> Result<(), String> {
     match v.is_at_least(SourceVersion::V3_3) && !v.migrating {
@@ -439,7 +447,7 @@ impl<'a> Typer<'a> {
         check_source_version(v)?;
         let defn = u.enter_library_defn()?;
         u.reductions_exhausted = false;
-        u.legacy_match_types = !v.is_at_least(SourceVersion::V3_4);
+        u.match_type_rules = match_type_rules(v);
         let mut syms = std::mem::take(syms);
         let ops = u.package(nme::OPS_PACKAGE);
         syms.throw_method = syms.throw_method.or_else(|| entered(u, ops?, nme::THROW, Kind::Def));
