@@ -74,7 +74,8 @@ impl Cmp<'_> {
     }
 
     /// `a & b`, merged into one application of a common constructor where the merged arguments
-    /// give a type below both.
+    /// give a type below both; of an annotated type, its parent's with the other type, `(A & B)`
+    /// of `A @x & B` and `B @x & A` (dotty's `distributeAnd` both ways).
     fn and_type(&mut self, a: TypeId, b: TypeId) -> TypeId {
         if let (Some((c1, args1)), Some((c2, args2))) = (self.u.applied(a), self.u.applied(b))
             && let (args1, args2) = (args1.to_vec(), args2.to_vec())
@@ -93,7 +94,7 @@ impl Cmp<'_> {
         }
         match (*self.u.ty(a), *self.u.ty(b)) {
             (Type::Annotated(x, _), _) => self.glb(x, b),
-            (_, Type::Annotated(y, _)) => self.glb(a, y),
+            (_, Type::Annotated(y, _)) => self.glb(y, a),
             (Type::ByName(x), Type::ByName(y)) => {
                 let both = self.glb(x, y);
                 self.u.intern_type(Type::ByName(both))

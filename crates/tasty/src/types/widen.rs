@@ -150,10 +150,18 @@ impl Universe {
         }
     }
 
-    /// The type of `this` in class `c` with its given self type (dotty's `ClassInfo.selfType`).
+    /// The type of `this` in class `c` with its given self type, a capture set of that type around
+    /// both, `(S & C)^{cs}` of `S^{cs}` (dotty's `ClassInfo.selfType`).
     pub fn self_type(&mut self, c: SymbolId) -> TypeId {
         let applied = self.this_type(c);
-        self.given_self_type(c).map_or(applied, |s| self.intern_type(Type::And(s, applied)))
+        let Some(given) = self.given_self_type(c) else { return applied };
+        match self.annotated(given).filter(|&(_, a)| self.is_capture_set(a)) {
+            Some((inner, set)) => {
+                let both = self.intern_type(Type::And(inner, applied));
+                self.intern_type(Type::Annotated(both, set))
+            }
+            None => self.intern_type(Type::And(given, applied)),
+        }
     }
 
     /// The class type of a constant with tag `tag`.

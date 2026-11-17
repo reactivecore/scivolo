@@ -106,7 +106,6 @@ impl TreePickler<'_> {
         }
         self.keep_captures(sym, tpt)?;
         self.keep_overriding_captures(sym, tpt);
-        self.check_this_captures(Some(tpt), rhs)?;
         self.with_length(tag, &mut |p| {
             p.name(&local_name(p.u, sym));
             if let Some(paramss) = paramss {

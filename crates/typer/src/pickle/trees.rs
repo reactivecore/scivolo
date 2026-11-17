@@ -99,10 +99,7 @@ impl TreePickler<'_> {
             T::Closure { env, meth, tpt } if env.is_empty() => {
                 self.node(LAMBDA, &[&[meth][..], &tpt.into_iter().collect::<Vec<_>>()].concat(), &[])
             }
-            T::Match { selector, cases, kind } => {
-                self.check_this_captures(None, selector)?;
-                self.match_(selector, cases, kind)
-            }
+            T::Match { selector, cases, kind } => self.match_(selector, cases, kind),
             T::CaseDef { pat, guard, body } => self.case_def(pat, guard, body),
             T::Try { expr, cases, finalizer } => self.try_(expr, cases, finalizer),
             T::Bind { body, .. } => self.bind(id, body),

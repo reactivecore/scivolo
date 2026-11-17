@@ -9,7 +9,7 @@ const RETAINS: &str = "scala.annotation.retains";
 
 impl Universe {
     /// Determines whether annotation type `annot` is a capture set.
-    fn is_capture_set(&mut self, annot: TypeId) -> bool {
+    pub fn is_capture_set(&mut self, annot: TypeId) -> bool {
         self.class_symbol(annot).is_some_and(|c| self.full_name_starts_with(c, RETAINS))
     }
 
