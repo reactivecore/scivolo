@@ -141,9 +141,8 @@ The VM fixes javalib bugs in its library overlay (`overlay/src`, ADR 0009).
     - A class extending the trait calls its empty `$init$` when compiled with the trait, not
       against its TASTy: nativelib's `unsafe/package$` and `UnsafePackageCompat`.
     - Fix: `defKind` of `ExtMethods` as of its methods. Frontend: as dotty; `just lib-compile
-      nativelib` reads `UnsafePackageCompat` from TASTy until #196, so `unsafe/package$` lacks the
-      call and `unsafe/package`'s forwarders to its members have the object's position, as in
-      separate compilation.
+      nativelib` lowers `UnsafePackageCompat` with `unsafe/package.scala` as one unit, as Scala
+      Native's joint build does.
 11. **`super[Q].m` of a `@targetName` member crashes `ResolveSuper`** (dotty 3.9.0,
     `compiler/src/dotty/tools/dotc/transform/ResolveSuper.scala:89`, `decomposeSuperName`).
     - Trait `P extends Q` with `@targetName("tn") def n` calling `P.super[Q].n` from a nested
@@ -509,30 +508,24 @@ clib, posixlib, scalalib, javalib and nativelib pass Scala Native's unit tests o
 the published ones (`just lib-jar-report`). `lib-compile` lowers javalib's `WindowsPath.scala`
 and `WindowsPathParser.scala` as one unit, as Scala Native's build does: alone, the join of
 `PathType`'s case objects read from TASTy also has their `Mirror.Singleton` parent and erases to
-it, as in dotty's separate compilation. Left in nativelib, whose `scala-3` sources are a unit of
-their own:
-
-- `unsafe/package{,$}`: as dotty compiles them against `UnsafePackageCompat`'s TASTy, without
-  the call of its empty `$init$` that Scala Native's joint build has (case 3, upstream bug 10).
-- `UnsafePackageCompat`: the position of its inline accessor `inline$rawptr$i1` (open, not
-  accepted): ours the template's end, Scala Native's 11:19 inside a doc comment, an offset of
-  another file of its joint build taken in the trait's source. dotty positions the accessor of a
-  member defined in another file of the run at that member's point taken as an offset in the
-  accessor owner's source (`AccessProxies.accessorDef`, nscplugin's `fromSpan`); ours, in the
-  member's own file (`inline_accessors::accessor_span`).
+it, as in dotty's separate compilation. Likewise nativelib's `UnsafePackageCompat.scala`,
+`unsafe/package.scala` and `unsafe/Ptr.scala`: alone, `unsafe/package$` lacks the call of the
+trait's empty `$init$` (upstream bug 10), and the inline accessor `inline$rawptr$i1` sits at the
+template's end, as dotty places the accessor of a member read from TASTy. Together, it sits at
+`Ptr.rawptr`'s offset taken in the trait's source, inside a doc comment, as dotty places the
+accessor of a member of another file of the run (`AccessProxies.accessorDef`).
 
 `just lib-compile scalalib` lowers each file of Scala Native's scalalib alone against Scala's
 library, its `LazyVals` replaced by Scala Native's (`scripts/scalalib_sources.py`). As in Scala
 Native's build of the whole module, a selection of a synthetic member of a case class of Scala's
 library (`(a, b).hashCode()`) selects the member it overrides (`Any.hashCode`): those members do
 not exist yet while a class of the same run is typed. `ToExpr$ArrayOf*ToExpr$` (8),
-`ToExpr$BigIntToExpr$` and `ToExpr$MapToExpr` differ in quote type sharing (case 1, as in
-**Quote type sharing** above, types shared across the files of the whole-module build);
-scala-cli's build of `ToExpr.scala` alone has the quotes of all 106 classes as ours, up to
-positions. Open: `FromExpr$MapFromExpr`'s quotes differ beyond positions; `CNode` calls
-`RandomGenerator.nextInt(int, int)`
-where Scala Native, compiling against the JDK, calls `ThreadLocalRandom`'s override, which
-javalib lacks.
+`ToExpr$BigIntToExpr$`, `ToExpr$MapToExpr` and `FromExpr$MapFromExpr` differ in quote type
+sharing (case 1, as in **Quote type sharing** above, types shared across the files of the
+whole-module build); scala-cli's builds of `ToExpr.scala` and `FromExpr.scala` alone have their
+quotes as ours, up to the source path. Open: `scala/package$`'s lazy val `AnyRef` positions the
+object loaded for its lock release at the lazy val's end where dotty, also compiling
+`package.scala` alone, has the lazy val's.
 
 ## Native executables
 
