@@ -25,7 +25,8 @@ struct Clause {
 }
 
 /// Whether the result type of member `d` conforms to that of member `m`, both seen from `prefix`
-/// in the class of `site`, else with abstract types replaced by the aliases overriding them.
+/// in the class of `site`, else with abstract types replaced by the aliases overriding them and a
+/// type parameter result by its bound; results with type lambdas are not compared.
 fn results_conform(t: &mut Typer<'_>, (site, prefix): (TypeId, TypeId), d: SymbolId, m: SymbolId) -> bool {
     let (mut rd, mut rm) = (t.u.own_member_info(prefix, d), t.u.own_member_info(prefix, m));
     let (td, tm) = (t.u.type_params(d), t.u.type_params(m));
