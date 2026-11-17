@@ -554,7 +554,8 @@ impl<'a> Typer<'a> {
         let vars = self.constraint.count();
         let top_only = crate::ctx::Mode::APPLY_QUALIFIER
             .with(crate::ctx::Mode::ASSIGNMENT_LHS)
-            .with(crate::ctx::Mode::SINGLETON_REF);
+            .with(crate::ctx::Mode::SINGLETON_REF)
+            .with(crate::ctx::Mode::REDUNDANT_APPLY);
         let inner = ctx.with_mode(ctx.mode.without(top_only));
         let (tree, ahead) = match self.contextual_function(id, pt, inner) {
             Some(t) => (t, false),
