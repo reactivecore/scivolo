@@ -70,7 +70,10 @@ impl Sig<'_> {
                 let (_, bounds) = self.poly_param(b, i)?;
                 self.class_of(bounds, depth)
             }
-            Type::Applied(tycon, _) if self.u.param_ref(tycon).is_some() => self.class_of(tycon, depth),
+            Type::Applied(tycon, _) if self.u.param_ref(tycon).is_some() => match self.upper_bounded(t) {
+                applied if applied == t => self.class_of(tycon, depth),
+                applied => self.class_of(applied, depth),
+            },
             Type::TypeRef(p, n) if unresolved => {
                 let info = self.u.refinement_named(p, n)?;
                 self.class_of(info, depth)
