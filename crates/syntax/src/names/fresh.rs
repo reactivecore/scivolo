@@ -92,3 +92,29 @@ impl FreshNames {
         &mut files[file]
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{FreshNames, Names};
+
+    #[test]
+    fn reset_and_raise_restore_and_merge_counters() {
+        let (mut fresh, mut names) = (FreshNames::default(), Names::default());
+        let mut next = |fresh: &mut FreshNames, file, prefix| {
+            let name = fresh.next_in(file, &mut names, prefix);
+            names.text(name).to_owned()
+        };
+        next(&mut fresh, 1, "x$");
+        let before = fresh.counters();
+        next(&mut fresh, 1, "x$");
+        next(&mut fresh, 0, "y$");
+        let after = fresh.counters();
+        fresh.reset_counters(before.clone());
+        assert_eq!(next(&mut fresh, 1, "x$"), "x$2");
+        fresh.raise_counters(after);
+        assert_eq!(next(&mut fresh, 1, "x$"), "x$3");
+        assert_eq!(next(&mut fresh, 0, "y$"), "y$2");
+        fresh.reset_counters(before);
+        assert_eq!(next(&mut fresh, 1, "x$"), "x$2");
+    }
+}

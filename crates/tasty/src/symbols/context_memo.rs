@@ -75,7 +75,7 @@ pub fn remembered<K: Hash + Eq, V: Copy>(
 
 fn context(u: &Universe) -> Option<MemoContext> {
     let free = u.gadt.is_empty() && u.merging_bases.is_empty() && u.resolving == 0 && u.reducing == 0;
-    free.then(|| MemoContext {
+    free.then_some(MemoContext {
         generation: u.generation,
         owner: u.comparison_owner,
         null_mode: u.null_mode,
