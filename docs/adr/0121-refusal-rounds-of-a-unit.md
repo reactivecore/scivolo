@@ -21,10 +21,7 @@ lowering of a refused file adds for the classes of other files.
     their refusals are found in the same round;
   - the lowering stops at its first refusal: its phases walk the whole unit and share state
     across files (super accessors, bridges, lifted classes), so a phase cannot drop one file
-    and go on;
-  - in a round with refusals or type errors, the lowering and backend also run on the files
-    without them (`Units::kept`), their output dropped, so that their first refusal is found
-    in the same round; a refusal there in no file, or a panic, is ignored.
+    and go on.
 - The refused files are blanked and the unit typed again in a fresh universe: the files
   that need a refused one see it missing, as a build without it would, and the lowering
   runs over the trees of exactly the accepted files.
@@ -45,5 +42,4 @@ lowering of a refused file adds for the classes of other files.
 - The checks after typing run, unlike dotty's, beside type errors, and may report errors
   dotty does not (a variance error at an error type); a unit with type errors is refused
   either way, so only the messages differ.
-- Each lowering refusal but the first of a round with other refusals costs a round. A round
-  with refusals also lowers its kept files, whose output is dropped.
+- Each lowering refusal costs a round.
