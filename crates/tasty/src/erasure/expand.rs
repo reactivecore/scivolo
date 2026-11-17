@@ -62,7 +62,7 @@ impl Universe {
 
     /// `t` with the parameters of lambda `binder`, named `names`, replaced by `args`.
     pub fn subst(&mut self, t: TypeId, binder: crate::Binder, names: &[NameId], args: &[TypeId]) -> TypeId {
-        self.map_type(t, &mut |u, x| match *u.ty(x) {
+        self.map_type_and_kept_sets(t, &mut |u, x| match *u.ty(x) {
             Type::Local(b, n) if b.0 == binder.0 => {
                 names.iter().position(|&m| m == n).and_then(|i| args.get(i).copied())
             }

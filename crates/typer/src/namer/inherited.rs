@@ -4,6 +4,7 @@
 //! `inherited` of dotty's `Namer.inferredResultType`).
 
 use crate::typer::Typer;
+use crate::typer::dependent_params::clause_param;
 use syntax::ast::Tree;
 use syntax::ast::flags as f;
 use tasty::{Kind, NameId, SymbolId, Type, TypeId};
@@ -156,6 +157,10 @@ impl Typer<'_> {
             let start = refs.len();
             refs.extend(clause.iter().map(|&p| self.ref_type(None, p)));
             t = self.u.subst(result, binder, &names, &refs[start..]);
+            let own = &refs[start..];
+            t = self.u.map_with_capture_sets(t, &mut |u, x| {
+                clause_param(u, x, (binder, &names), Some(m)).and_then(|i| own.get(i).copied())
+            });
         }
         t = self.subst_syms(t, &their_types, &targs);
         t = self.subst_syms(t, &their_values, &refs);
@@ -173,12 +178,13 @@ impl Typer<'_> {
         }
     }
 
-    /// `t` with references to `from` replaced by `to` if both have the same length.
+    /// `t` with references to `from` replaced by `to` if both have the same length, in its capture
+    /// sets too.
     fn subst_syms(&mut self, t: TypeId, from: &[SymbolId], to: &[TypeId]) -> TypeId {
         if from.len() != to.len() {
             return t;
         }
-        self.u.map_type(t, &mut |u, x| match u.sym_ref(x) {
+        self.u.map_with_capture_sets(t, &mut |u, x| match u.sym_ref(x) {
             Some((None, s)) => from.iter().position(|&p| p == s).map(|i| to[i]),
             _ => None,
         })

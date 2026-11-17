@@ -58,7 +58,7 @@ on a shared machine; CPU is user + sys, so scalac's includes its JIT and GC thre
 | | | scivolo-lower | 0 | 0.20 | 0.19 | 54 |
 | | | scalac cold | | 3.56 | 12.80 | 318 |
 | | | scalac warm | | 0.44 | 1.94 | 625 |
-| Scala's library (JVM) | 649 | scivolo-jvm, file by file | 1 | 51.4 | 51.0 | 140 |
+| Scala's library (JVM) | 649 | scivolo-jvm | 21 | 25.9 | 25.3 | 735 |
 | | | scalac cold | | 16.7 | 74.8 | 1,388 |
 | | | scalac warm | | 6.4 | 10.6 | 2,163 |
 | javalib (Native) | 601 | scivolo-lower | 2 | 84.9 | 84.9 | 2,174 |
@@ -68,13 +68,14 @@ on a shared machine; CPU is user + sys, so scalac's includes its JIT and GC thre
 - Against cold scalac, scivolo is 13–24× faster in wall time on tasty-core and upickle-core
   (minima of 5 runs on a quiet machine). Against warm scalac, tasty-core is 2.3× (`scivolo-jvm`)
   and 2.6× (`scivolo-lower`) faster in wall time and 10–11× in CPU time; upickle-core is 1.7×
-  and 2.2× in wall time and 8–10× in CPU time (`scivolo-jvm`: 3.66 G instructions retired),
+  and 2.2× in wall time and 8–10× in CPU time (`scivolo-jvm`: 3.44 G instructions retired),
   `scivolo-jvm` below the 2× goal (#248); #249 (Scala's library)
   and #250 (javalib) name the hot spots of the others.
-- Scala's library row is file by file. `just bench-compile scalalib` compiles all 649 files as
-  one unit; that takes 34.3 s CPU, 10 files are refused and each refusal round types the unit
-  again, 3 typings in all (#249). scalac compiles its Scala and Java sources as one
-  unit: its rows are not comparable.
+- Scala's library: `scivolo-jvm` compiles the 649 files as one unit on a loaded machine (306 G
+  instructions retired); 21 files are refused (10 capture sets of #285, 3 quotes under capture
+  checking, 8 typer gaps of the whole unit) and each refusal round types the unit again, 3
+  typings in all (#249). scalac compiles its Scala and Java sources as one unit: its rows are
+  not comparable.
 - javalib's two refused files are left out after one typing of the unit (127.6 s CPU on a
   loaded machine), and scalac compiles it to class files without Scala Native's plugin: its
   rows are not comparable either.

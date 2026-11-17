@@ -417,3 +417,32 @@ fn inline_accessors_at_an_offset_past_their_file_end_stay_in_their_file() {
     let accessor = &c[c.find("inline$raw$i1").expect("the accessor")..];
     assert!(accessor.contains("@ c.scala:5:0") && !accessor.contains("@ p.scala"), "{accessor}");
 }
+
+#[test]
+fn discarded_values_leave_the_other_files_definitions_uncompleted() {
+    let Some(jars) = jars() else { return };
+    let a = "package p\nobject A {\n  def f(): Unit = 1\n  def g(): Unit = 2\n  def h(): Unit = 3\n}\n";
+    let c = "package p\nclass marker extends scala.annotation.StaticAnnotation\nobject C {\n  \
+             import Impl.*\n  opaque type BL[T] = Impl.BL\n  def make[T]: BL[T] = Impl.mk()\n  \
+             @marker private object Impl {\n    type BL = Int\n    def mk(): BL = 1\n  }\n}\n";
+    for order in [["a.scala", "c.scala"], ["c.scala", "a.scala"]] {
+        let sources = order.map(|name| SourceFile::new(name, if name == "a.scala" { a } else { c }));
+        dump(&jars, &sources, "p.C$");
+    }
+}
+
+#[test]
+fn overloads_see_the_type_members_their_prefix_overrides() {
+    let Some(jars) = jars() else { return };
+    let a = "package p\nabstract class BB extends Buf {\n  \
+             def put(i: Int, src: BB) = Gen[BB](this).put(i, src)\n  private[p] type BT = BB\n}\n";
+    let b = "package p\nabstract class Buf {\n  private[p] type BT >: this.type <: Buf\n}\n\
+             final class Gen[B <: Buf](val self: B) extends AnyVal {\n  import self._\n  \
+             def put(i: Int, src: BT): BT = src\n  def put(i: Int, src: Array[Int]): BT = self\n}\n\
+             object Gen { def apply[B <: Buf](self: B): Gen[B] = new Gen(self) }\n";
+    for order in [["a.scala", "b.scala"], ["b.scala", "a.scala"]] {
+        let sources = order.map(|name| SourceFile::new(name, if name == "a.scala" { a } else { b }));
+        let bb = dump(&jars, &sources, "p.BB");
+        assert!(bb.contains("put$extension(p.Buf, int, p.Buf)"), "{bb}");
+    }
+}

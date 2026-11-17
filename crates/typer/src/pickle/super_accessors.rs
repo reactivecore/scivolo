@@ -7,7 +7,7 @@
 
 use super::member_tpts::member_tpts;
 use super::names::expanded_prefix_name;
-use super::super_accessor_defs::accessor_info;
+use super::super_accessor_infos::accessor_info;
 use super::{Refusal, TreePickler};
 use crate::defn::type_ref;
 use crate::protected_access::super_accessor_needed;

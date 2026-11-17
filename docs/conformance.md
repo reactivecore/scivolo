@@ -250,13 +250,13 @@ The VM fixes javalib bugs in its library overlay (`overlay/src`, ADR 0009).
 
 | Outcome | tests/programs | tests/pos | tests/neg |
 |---|---:|---:|---:|
-| passed | 264 | 2504 | 1276 |
-| differ | 33 | 113 | 0 |
+| passed | 265 | 2509 | 1277 |
+| differ | 32 | 111 | 0 |
 | warnings differ | 0 | 9 | 0 |
-| accepted (neg) | 0 | 0 | 22 |
-| unsupported | 1 | 399 | 0 |
+| accepted (neg) | 0 | 0 | 21 |
+| unsupported | 1 | 396 | 0 |
 | crashed | 0 | 0 | 0 |
-| skipped | 39 | 351 | 496 |
+| skipped | 41 | 351 | 496 |
 
 ## M4: dotty `tests/run`
 
@@ -308,12 +308,12 @@ Results:
 
 | Outcome | Tests |
 |---|---:|
-| passed | 1497 |
+| passed | 1495 |
 | wrong output | 0 |
 | crashed | 0 |
 | timeout | 0 |
-| lowering refused | 0 |
-| typer refused | 9 |
+| lowering refused | 3 |
+| typer refused | 8 |
 | parser refused | 0 |
 | macro refused | 0 |
 | frontend crashed | 0 |
@@ -321,12 +321,15 @@ Results:
 | skipped | 173 |
 | **total** | **1711** |
 
-- **Typer refused:** one each for a local type escaping through a type variable (`Parser`), an
-  inline expansion of a type referring to a binding (`i13332shapeless`), adaptation, `.apply` of
-  a method's partial application (`drop-apply-optimization`), a divergence check through a conversion (`errorhandling`), a
-  context bound companion (`given-disambiguation`), `Printer.TypeReprStructure` of a type the
-  frontend does not print, the unresolved name `AnyNamedTuple`, `typeChecks` of a non-constant
-  string. `Runtime.totalMemory`,
+- **Typer refused:** a parent refinement of a tracked parameter (`i21213`, `i21213-min`); one each
+  for a local type escaping through a type variable (`Parser`), an inline expansion of a type
+  referring to a binding (`i13332shapeless`), a divergence check through a conversion
+  (`errorhandling`), `Printer.TypeReprStructure` of a type the frontend does not print, an inline
+  call of an object with opaque types in an inline expansion (`named-tuples-strawman-2`),
+  `typeChecks` of a non-constant string.
+- **Lowering refused:** a `TypeDef` in an expression (`i11050`, `i13332intersection`,
+  `typeclass-derivation3`), left by summons in local classes of inline bodies (#278).
+- `Runtime.totalMemory`,
   `maxMemory` and `freeMemory`, which Scala Native's javalib lacks and the overlay adds (ADR
   0008), are typed through `libs/jdk-stubs/JdkMemberDeclarations.scala`.
 - **`tests/run-macros`** (`just dotty-lower-report "" run-macros`): 311 of 321
@@ -389,21 +392,21 @@ Results:
 
 | Outcome | tests/run | tests/run-macros |
 |---|---:|---:|
-| passed | 1686 | 320 |
+| passed | 1685 | 320 |
 | wrong output | 0 | 0 |
 | verify error | 0 | 0 |
 | linkage error | 0 | 0 |
 | crashed | 1 | 0 |
 | timeout | 0 | 0 |
 | frontend crashed | 0 | 0 |
-| jvm refused | 0 | 0 |
+| jvm refused | 3 | 0 |
 | lowering refused | 0 | 0 |
-| typer refused | 10 | 0 |
+| typer refused | 8 | 0 |
 | skipped | 14 | 1 |
 | **total** | **1711** | **321** |
 
-- **Typer refused (run):** the nine of the VM's report and TASTy pickling of a type lambda's
-  bounds (`enum-values`).
+- **Typer refused (run):** the eight of the VM's report.
+- **JVM refused (run):** the VM's three lowering refusals, as a `TypeDef` on the JVM.
 - **Tests with Java sources:** all pass.
 - **Crash:** `lambda-serialization-gc` casts the application class loader to `URLClassLoader`,
   which fails for scalac's class files too, as the runner does not load tests through one.
@@ -447,16 +450,19 @@ the optimizer (1883 of its 3134 classes dotty also writes differ in code from do
 
 | Outcome | Files | Classes |
 |---|---:|---:|
-| same | 524 | 2193 |
-| attributes differ | 17 | 21 |
-| code differs | 3 | 3 |
-| refused | 105 | |
+| same | 603 | 3071 |
+| attributes differ | 27 | 36 |
+| code differs | 9 | 21 |
+| refused | 10 | |
 
-- **Refused:** an inferred type to which dotty's typer may give capture sets not told into
-  TASTy (#276); without that refusal, 82 of these files are the same as dotty's.
-- **Code differs:** the pickled quotes of `scala.quoted.FromExpr` (strings of TASTy), branches
-  of pattern matches (`BasicIO`; dotty compiling it alone differs from ours too) and
-  `ExecutionContextImpl`.
+- **Refused:** pickling a capture set that refers to other than static definitions into TASTy
+  (#285): `PartialFunction`, `collection.IndexedSeq`, `Iterable`, `IterableOnce`, `Iterator`,
+  `Seq`, `StrictOptimizedIterableOps`, `View`, `immutable.LazyListIterable`, `mutable.Buffer`.
+- **Code differs:** the pickled quotes of `scala.quoted.FromExpr` and `ToExpr` (strings of
+  TASTy), branches of pattern matches (`BasicIO`, dotty compiling it alone differs from ours
+  too; `CollisionProofHashMap`), `ExecutionContextImpl`, static forwarders (`from`,
+  `iterableFactory`, `isDefinedAt`) of `immutable.List`, `immutable.Seq` and `Vector`, and a
+  `superArg` lambda of `ArrayBufferView`.
 - **Attributes differ:** mostly line numbers (of extension method calls and implicit
   conversions, of the `()` ending a secondary constructor); `InnerClasses` entries, a
   `LocalVariableTable` entry, a `Deprecated` attribute and a method's flags.
@@ -497,12 +503,12 @@ own 35 files have no scala-cli oracle (Scala 3.9 reports cyclic references in `A
 | Module | Files lowered | NIR same | var-order | differ |
 |---|---:|---:|---:|---:|
 | javalib | 601 of 601 | 3,414 | 82 | |
-| nativelib | 103 of 103 | 706 | 10 | 3 |
+| nativelib | 103 of 103 | 709 | 10 | |
 | auxlib | 15 of 15 | 85 | | |
 | clib | 21 of 21 | 115 | | |
 | posixlib | 67 of 67 | 270 | | |
 | windowslib | 34 | 130 | | |
-| scalalib | 649 of 649 | 4,379 | 17 | 13 |
+| scalalib | 649 of 649 | 4,381 | 17 | 11 |
 
 clib, posixlib, scalalib, javalib and nativelib pass Scala Native's unit tests on our jars as on
 the published ones (`just lib-jar-report`). `lib-compile` lowers javalib's `WindowsPath.scala`
@@ -515,7 +521,8 @@ template's end, as dotty places the accessor of a member read from TASTy. Togeth
 `Ptr.rawptr`'s offset taken in the trait's source, inside a doc comment, as dotty places the
 accessor of a member of another file of the run (`AccessProxies.accessorDef`). An offset past
 the end of that source sits at its end, where dotty's column runs on along the last line
-(case 1: a debug position, not representable in a unit's offsets).
+(case 1: a debug position, not representable in a unit's offsets). `lib-jar nativelib` lowers all
+of nativelib's source directories as one unit, as Scala Native's build does.
 
 `just lib-compile scalalib` lowers each file of Scala Native's scalalib alone against Scala's
 library, its `LazyVals` replaced by Scala Native's (`scripts/scalalib_sources.py`). As in Scala
@@ -525,10 +532,7 @@ not exist yet while a class of the same run is typed. `ToExpr$ArrayOf*ToExpr$` (
 `ToExpr$BigIntToExpr$`, `ToExpr$MapToExpr` and `FromExpr$MapFromExpr` differ in quote type
 sharing (case 1, as in **Quote type sharing** above, types shared across the files of the
 whole-module build); scala-cli's builds of `ToExpr.scala` and `FromExpr.scala` alone have their
-quotes as ours, up to the source path. Open: `scala/package$`'s lazy val `AnyRef` positions the
-object loaded for its lock release at the lazy val's end where dotty, also compiling
-`package.scala` alone, has the lazy val's: nscplugin desugars each `Ident` of a package object's
-field once (`cachedDesugarIdent`), so every later load of the object takes the first one's span.
+quotes as ours, up to the source path.
 
 ## Native executables
 

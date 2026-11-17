@@ -38,7 +38,7 @@ impl Typer<'_> {
         let pt = inherited.or(default).or(approx).map_or(Pt::Any, Pt::Type);
         let typed = self.typed(rhs, pt, ctx);
         self.typed_ahead(rhs, typed, ctx);
-        let mut tpe = self.tpd.tpe(typed);
+        let mut tpe = self.unit_dealiased(self.tpd.tpe(typed));
         let inline_param = self.syms.flags.get(&sym).is_some_and(|fl| fl.is(syntax::ast::flags::INLINE));
         if inherited.is_none()
             && let Some(d) = default.filter(|_| exact && !by_name && !inline_param)
@@ -60,6 +60,7 @@ impl Typer<'_> {
             return tpe;
         }
         let widened = self.widen_rhs(sym, tpe);
+        let widened = self.unit_dealiased(widened);
         let widened = self.simplified_inferred_as(widened, raw_default.is_some());
         if self.keeps_rhs_type(sym) && matches!(self.u.ty(widened), Type::Constant(..) | Type::Str(_)) {
             return self.fully_defined_rhs(widened, rhs);
@@ -88,6 +89,20 @@ impl Typer<'_> {
             self.unsupported(rhs, what);
             t
         })
+    }
+
+    /// `Unit` for a right-hand side type `t` that is `Unit` annotated in a capture-checked file,
+    /// else `t` (dotty's `dealiasIfUnit`).
+    fn unit_dealiased(&mut self, t: TypeId) -> TypeId {
+        let mut inner = t;
+        while let Some((parent, _)) = self.u.annotated(inner) {
+            inner = parent;
+        }
+        let unit = self.u.class_symbol(inner).is_some_and(|c| self.u.full_name(c) == tasty::defn::UNIT);
+        match self.u.keeps_captures && inner != t && unit {
+            true => inner,
+            false => t,
+        }
     }
 
     /// Whether `t` is the singleton type of a constant of a Java enum of a class file or the JDK,

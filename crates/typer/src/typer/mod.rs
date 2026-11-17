@@ -454,6 +454,7 @@ impl<'a> Typer<'a> {
         let defn = u.enter_library_defn()?;
         u.reductions_exhausted = false;
         u.match_type_rules = match_type_rules(v);
+        u.keeps_captures = cfg.features.capture_checking();
         let mut syms = std::mem::take(syms);
         let ops = u.package(nme::OPS_PACKAGE);
         syms.throw_method = syms.throw_method.or_else(|| entered(u, ops?, nme::THROW, Kind::Def));
