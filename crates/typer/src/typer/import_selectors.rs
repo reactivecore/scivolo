@@ -56,30 +56,30 @@ impl Typer<'_> {
         Some((name, rename))
     }
 
-    /// Whether import `i`, if its path is not typed yet, has a selector making a member visible
-    /// as `name`.
+    /// Whether import `i`, if its path is not typed yet or being typed, has a selector making a
+    /// member visible as `name`.
     pub fn may_import_named(&self, i: usize, name: &str) -> bool {
-        let ImportEntry::Pending { tree, .. } = self.imports[i] else { return true };
+        let Some(tree) = self.imports[i].untyped() else { return true };
         let Tree::Import { selectors, .. } = *self.ast.tree(tree) else { return true };
         self.ast.items(selectors).iter().any(|&s| {
             self.selector_names(s).is_some_and(|(_, rename)| rename == name && rename != nme::WILDCARD)
         })
     }
 
-    /// Whether import `i`, if its path is not typed yet, has a wildcard or `given` selector
-    /// (dotty's `ImportInfo.isWildcardImport`).
+    /// Whether import `i`, if its path is not typed yet or being typed, has a wildcard or `given`
+    /// selector (dotty's `ImportInfo.isWildcardImport`).
     pub fn may_import_wild(&self, i: usize) -> bool {
-        let ImportEntry::Pending { tree, .. } = self.imports[i] else { return true };
+        let Some(tree) = self.imports[i].untyped() else { return true };
         let Tree::Import { selectors, .. } = *self.ast.tree(tree) else { return true };
         self.ast.items(selectors).iter().any(|&s| {
             self.selector_names(s).is_some_and(|(name, _)| name == nme::WILDCARD || name.is_empty())
         })
     }
 
-    /// Whether import `i`, if its path is not typed yet, has a path ending in a name whose import
-    /// may hide a root import (dotty's `ImportInfo.unimported`, `ShadowableImportNames`).
+    /// Whether import `i`, if its path is not typed yet or being typed, has a path ending in a
+    /// name whose import may hide a root import (dotty's `ImportInfo.unimported`, `ShadowableImportNames`).
     pub fn may_unimport(&self, i: usize) -> bool {
-        let ImportEntry::Pending { tree, .. } = self.imports[i] else { return true };
+        let Some(tree) = self.imports[i].untyped() else { return true };
         let Tree::Import { expr, .. } = *self.ast.tree(tree) else { return true };
         match *self.ast.tree(expr) {
             Tree::Ident { name } | Tree::Select { name, .. } => self.text(name.name) == SHADOWABLE_IMPORT,
