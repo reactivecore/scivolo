@@ -323,16 +323,21 @@ Results:
 | **total** | **1711** |
 
 - **Typer refused:** one each for a local type escaping through a type variable (`Parser`), an
-  inline expansion of a type referring to a binding (`i13332shapeless`), adaptation, source
-  versions other than 3.7 to 3.9, a divergence check through a conversion (`errorhandling`), a
+  inline expansion of a type referring to a binding (`i13332shapeless`), adaptation, `.apply` of
+  a method's partial application (`drop-apply-optimization`), a divergence check through a conversion (`errorhandling`), a
   context bound companion (`given-disambiguation`), `Printer.TypeReprStructure` of a type the
   frontend does not print, the unresolved name `AnyNamedTuple`, `typeChecks` of a non-constant
   string. `Runtime.totalMemory`,
   `maxMemory` and `freeMemory`, which Scala Native's javalib lacks and the overlay adds (ADR
   0008), are typed through `libs/jdk-stubs/JdkMemberDeclarations.scala`.
 - **`tests/run-macros`** (`just dotty-lower-report "" run-macros`): 310 of 321
-  pass; the typer refuses 3 (the unresolved name `SuppressWarnings`, a member not found
-  (`f-interpolator-tests`), a source version other than 3.7 to 3.9), 8 are skipped.
+  pass; the typer refuses two for classes Scala Native's javalib lacks, a platform limit:
+  `java.lang.SuppressWarnings` (`annot-java-tree`) and `java.text.SimpleDateFormat`
+  (`f-interpolator-tests`); 8 are skipped.
+- **`-source 3.3` to `3.6`:** below 3.4 match types reduce as dotty's legacy matching does (a
+  case with captures matched by a subtype comparison); the typer refuses ranking two implicits
+  below 3.7 and an implicit defined after the search below 3.6 (dotty's old schemes). Earlier and
+  migrating versions are refused.
 - **`-source future`:** typed as 3.9 with the parser's new-syntax rules; the typer refuses
   alphanumeric infix calls, types and extractor patterns not declared `infix`, which it warns
   about otherwise, and checks no other `future` rule.
@@ -399,7 +404,7 @@ Results:
   `t6138-2`, `i17255`), `@BeanProperty` (`i15318`) and adaptation (`i19619`).
 - **Typer refused (run-macros):** the annotations of a symbol defined outside the unit
   (`annot-arg-value-in-java`), `Symbol.paramSymss` of a method whose parameters the frontend
-  lacks (`i20052`), a source version.
+  lacks (`i20052`).
 - **Tests with Java sources:** all pass but the six the typer refuses (see above).
 - **Crash:** `lambda-serialization-gc` casts the application class loader to `URLClassLoader`,
   which fails for scalac's class files too, as the runner does not load tests through one.
