@@ -472,15 +472,13 @@ fn var_handles_of_mixed_in_lazy_values_come_first() {
 
 #[test]
 fn a_pattern_of_a_generic_java_class_its_scrutinee_conforms_to_tests_null() {
-    if Command::new("javac").arg("--version").output().is_err() {
-        eprintln!("no javac on the PATH: skipped");
-        return;
-    }
     let java = "package jn;\nabstract class MainN<K, V> {}\n";
     let scala = "package jn\nclass Use[K, V] { def h(p: MainN[K, V]): Int = p match { case vn: MainN[?, ?] => 2 } }\n";
     let sources = written("javapattern-src", &[("MainN.java", java), ("Use.scala", scala)]);
     let (out, compiled) = compile_all("javapattern", &sources);
-    assert!(compiled.status.success(), "{}", String::from_utf8_lossy(&compiled.stderr));
+    let stderr = String::from_utf8_lossy(&compiled.stderr);
+    let javac = Command::new("javac").arg("--version").output().is_ok();
+    assert!(compiled.status.success() || !javac && stderr.contains("javac"), "{stderr}");
     let class = std::fs::read(out.join("jn/Use.class")).expect("jn/Use.class");
     let null_test = [0x2b, 0x4d, 0x2c, 0xc6];
     assert!(class.windows(4).any(|w| w == null_test), "no `ifnull` on the scrutinee");
