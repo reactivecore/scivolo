@@ -1,6 +1,5 @@
 //! Several source files through the whole frontend as one unit, each referring to the others.
 
-use crate::unit_lowering::{lowered, lowered_kept};
 use crate::{NirFile, Refusal};
 use syntax::ast::Ast;
 use syntax::config::Config;
@@ -97,16 +96,8 @@ pub fn compile_attributed<R>(
         typer.tasty_sources = Some(copies.collect());
     }
     let typed = typer.type_units(u, &mut ast, (&mut names, &mut fresh), &units, macros);
-    let cfgs: Vec<Config> = match units.is_empty() {
-        true => vec![cfg],
-        false => units.iter().map(|unit| unit.cfg).collect(),
-    };
-    let unit = (files, cfgs.as_slice());
-    let mut attributed = match typed {
-        Ok(typed) => {
-            return lowered(u, typed, (&mut names, &mut fresh), unit, (backend, generate))
-                .map_err(|a| vec![a]);
-        }
+    let mut typed = match typed {
+        Ok(typed) => typed,
         Err(Fallback::Unsupported { what, at }) => {
             let all = match typer.refused.is_empty() {
                 true => vec![(at, what)],
@@ -118,14 +109,31 @@ pub fn compile_attributed<R>(
             });
             let mut attributed: Vec<Attributed> = attributed.collect();
             attributed.extend(type_errors(&std::mem::take(&mut typer.errors), &sources));
-            attributed
+            return Err(attributed);
         }
-        Err(Fallback::Errors(diags)) => type_errors(&diags, &sources),
+        Err(Fallback::Errors(diags)) => return Err(type_errors(&diags, &sources)),
     };
-    if let Some(kept) = typer.kept.take() {
-        attributed.extend(lowered_kept(u, kept, (&mut names, &mut fresh), unit, (backend, generate)));
-    }
-    Err(attributed)
+    let located = Sources::new(files).map_err(|e| whole(refused(e)))?;
+    let cfgs: Vec<Config> = match units.is_empty() {
+        true => vec![cfg],
+        false => units.iter().map(|unit| unit.cfg).collect(),
+    };
+    let sources = (sources, cfgs.as_slice());
+    let pickles = std::mem::take(&mut typed.pickles);
+    let mut in_backend = false;
+    let generate = |l: &mut crate::Lower, root| generate(l, root, pickles).inspect_err(|_| in_backend = true);
+    let trees = (&mut typed.tpd, &mut typed.diags);
+    let lowered =
+        crate::lower_trees(u, trees, typed.root, (&mut names, &mut fresh), sources, (backend, generate));
+    let out = lowered.map_err(|e| {
+        let stage = match in_backend && backend == crate::Backend::Jvm {
+            true => "the JVM backend",
+            false => "the lowering",
+        };
+        let what = format!("{stage} does not support {}{}", e.what, at_point(&located, e.at));
+        vec![Attributed { refusal: refused(what), files: file_at(&located, e.at) }]
+    })?;
+    Ok((out, typed.diags))
 }
 
 /// The refusal for the errors among `diags`, if any, in the files they are in, none if one of them
@@ -145,7 +153,7 @@ fn type_errors(diags: &Diagnostics, sources: &Sources) -> Vec<Attributed> {
 }
 
 /// The index of the file the point of `at` is in, if it has one in `sources`.
-pub fn file_at(sources: &Sources, at: syntax::ast::Span) -> Vec<usize> {
+fn file_at(sources: &Sources, at: syntax::ast::Span) -> Vec<usize> {
     match at.exists() && !at.is_in_other_source() {
         true => vec![sources.index(at.without_inlined_call().point())],
         false => Vec::new(),
@@ -158,13 +166,12 @@ fn copy(f: &SourceFile) -> SourceFile {
     copy
 }
 
-/// Makes refusal `what` without diagnostics.
-pub fn refused(what: String) -> Refusal {
+fn refused(what: String) -> Refusal {
     Refusal { what, diags: Diagnostics::default() }
 }
 
 /// ` at FILE:LINE:COLUMN` of the point of `at`, if it has one in `sources`.
-pub fn at_point(sources: &Sources, at: syntax::ast::Span) -> String {
+fn at_point(sources: &Sources, at: syntax::ast::Span) -> String {
     match at.exists() && !at.is_in_other_source() {
         true => format!(" at {}", position(sources, at.without_inlined_call().point())),
         false => String::new(),

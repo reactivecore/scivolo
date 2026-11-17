@@ -11,7 +11,6 @@ pub mod output;
 mod phases;
 mod symbols;
 mod unit_files;
-mod unit_lowering;
 mod units;
 
 pub use codegen::names::{mapped as jdk_class_name, unmapped as jdk_class_source_name};
