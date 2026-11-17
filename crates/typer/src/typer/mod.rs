@@ -22,6 +22,7 @@ mod avoid;
 mod avoid_captures;
 mod avoid_wildcards;
 mod base_completion;
+mod bean_properties;
 mod by_name_repeated;
 mod call_types;
 mod callee_types;

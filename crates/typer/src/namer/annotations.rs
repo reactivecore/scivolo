@@ -16,7 +16,7 @@ use tasty::{Kind, SymbolId, TypeId};
 
 /// The annotation classes refused: those whose meaning dotty's later phases implement and the
 /// lowering does not. A backend's own annotations are its code generator's to read or refuse.
-const REFUSED: [&str; 3] = ["scala.native", "scala.beans.BeanProperty", "scala.beans.BooleanBeanProperty"];
+const REFUSED: [&str; 1] = ["scala.native"];
 
 impl Typer<'_> {
     /// Records the classes of the annotations of definition `tree` on its symbol `sym` in the
