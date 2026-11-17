@@ -1,17 +1,16 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/backend/jvm/BCodeBodyBuilder.scala
-//! What the JVM backend can call, and the class a call names (dotty's `genApply` and
-//! `genCallMethod`).
+//! What the JVM backend can call (dotty's `genApply` and `genCallMethod`).
 
 use super::body::Body;
-use super::descriptors::{NOTHING, class_descriptor, descriptor, internal};
+use super::descriptors::{NOTHING, class_descriptor};
 use super::{Gen, unsupported};
 use classfile::{ATHROW, FieldOp};
 use lower::Result;
 use names::nme;
 use syntax::ast::Span;
 use tasty::tags::{INLINE, MACRO};
-use tasty::{Erased, SymbolId, Type};
+use tasty::{SymbolId, Type};
 use typer::tpd::{List, TNodeId, Tree};
 
 /// The class or array type a virtual call names.
@@ -19,9 +18,6 @@ pub enum Receiver {
     Class(SymbolId),
     Array(String),
 }
-
-/// `Object`'s methods a trait may override.
-const OBJECT_METHODS: [&str; 5] = [nme::EQUALS, nme::HASH_CODE, nme::TO_STRING, nme::CLONE, nme::FINALIZE];
 
 /// After a call returning `Nothing$` an `athrow`, after one returning `Null$` a `null` in place
 /// of its value (dotty's `adapt`).
@@ -124,45 +120,6 @@ impl Gen<'_, '_> {
         let class = b.method.and_then(|m| self.l.u.symbol(m).owner);
         let class = class.or_else(|| named.and_then(|n| self.classes.get(n).copied().flatten()));
         class.is_some_and(|o| self.l.u.is_class(o) && self.l.u.derives_from(o, c))
-    }
-
-    /// The class a virtual call of `m` on `qualifier` names: the qualifier's erased class (its
-    /// class for `super`), `Object` or the array type for an array, `m`'s trait for a trait method
-    /// overriding one of `Object`; none where the qualifier's type erases to no class of its own or
-    /// to one not deriving from `m`'s owner, as a by-name parameter's.
-    pub fn receiver_class(&mut self, qualifier: TNodeId, m: SymbolId) -> Option<Receiver> {
-        let owner = self.l.u.symbol(m).owner?;
-        let t = self.l.tpd.tpe(qualifier);
-        let t = self.l.u.widen(t);
-        let erased = match self.l.tpd.tree(qualifier) {
-            Tree::Super { .. } => self.l.u.erase(t),
-            _ => lower::erased_type(self.l, qualifier),
-        };
-        match erased {
-            e @ Erased::Array(_) if self.l.u.symbol(m).name == nme::CLONE => {
-                Some(Receiver::Array(descriptor(&e)))
-            }
-            Erased::Array(_) => Some(Receiver::Array("java/lang/Object".into())),
-            Erased::Class(name) => {
-                let c = match self.l.u.class_symbol(t) {
-                    Some(c) => c,
-                    None => self.resolve_class(&internal(&name))?,
-                };
-                let c = match self.l.u.binary_name(c) == name {
-                    true => c,
-                    false => {
-                        self.l.u.linearization(c).into_iter().find(|&b| self.l.u.binary_name(b) == name)?
-                    }
-                };
-                if !self.l.u.derives_from(c, owner) {
-                    return None;
-                }
-                let object_method = OBJECT_METHODS.contains(&self.l.u.symbol(m).name.as_str());
-                let trait_override = c != owner && self.l.u.is_trait(c) && self.l.u.is_trait(owner);
-                Some(Receiver::Class(if trait_override && object_method { owner } else { c }))
-            }
-            _ => None,
-        }
     }
 
     pub fn load_this(&mut self, b: &mut Body) -> i32 {

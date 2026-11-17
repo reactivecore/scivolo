@@ -179,6 +179,21 @@ fn inherited_java_fields_are_named_in_the_qualifier_class() {
 }
 
 #[test]
+fn a_clone_of_another_erased_result_is_called_on_the_qualifier_trait() {
+    let source =
+        "trait Cl[+C <: AnyRef] extends Cloneable { override def clone(): C = super.clone().asInstanceOf[C] }
+        trait MO[C <: MO[C]] extends Cl[C] { override def clone(): C = this.asInstanceOf[C] }
+        trait SMO[C <: MO[C]] extends MO[C] { def up: C = clone() }";
+    with_gen(source, |g, root| {
+        let mut pool = Pool::default();
+        let code = code_in(g, root, "up", &mut pool);
+        assert_eq!(code[..2], [0x2a, 0xb9]);
+        let method = pool.member_parts(u16::from_be_bytes([code[2], code[3]]));
+        assert_eq!(method, ("SMO".into(), "clone".into(), "()LMO;".into()));
+    });
+}
+
+#[test]
 fn enumeration_values_keep_their_call_without_a_name() {
     let source = "object Color extends Enumeration { def up: Value = { val Up = Value(1); Up } }";
     let bytes = [0xb2, 0, 0, 0x04, 0xb6, 0, 0, 0x4c, 0x2b, 0xb0];
