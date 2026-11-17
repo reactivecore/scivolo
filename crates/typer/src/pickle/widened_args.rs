@@ -27,16 +27,18 @@ impl TreePickler<'_> {
     /// its capture sets, other expressions (`id(mk(c))`, `id(id(b))`) none at the top. A path is
     /// one only outside closure method `local`. `None` for branches mixing paths and other
     /// expressions, a block ending in a path, and a path's set when type parameter `param` occurs
-    /// other than covariantly in the method's result `result` (an expected type bounds it below).
+    /// other than covariantly in the method's result `result`, `None` for a call without an
+    /// expected type (an expected type may bound it below).
     pub fn widened_arg(
         &mut self,
         (arg, c): (TNodeId, Captured),
         local: Option<SymbolId>,
-        (result, param): (TypeId, IsParam<'_>),
+        (result, param): (Option<TypeId>, IsParam<'_>),
     ) -> Option<Captured> {
         let Captured::With(t) = c else { return Some(c) };
         match self.path(arg, local)? {
             Path::Kept => {
+                let Some(result) = result else { return Some(c) };
                 let result = resolve_class_params(self.u, result);
                 only_covariant(self.u, result, param).then_some(c)
             }
