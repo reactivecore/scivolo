@@ -78,6 +78,7 @@ impl Typer<'_> {
                         tpe
                     }
                 };
+                tpe = self.without_refinements(tpe);
             }
             let direct = self.u.dealias(tpe) == tpe;
             let class_ctor = self.u.class_symbol(tpe).is_some_and(|c| direct || self.u.is_trait(c));

@@ -95,6 +95,7 @@ mod harmonize;
 mod ident_hint;
 mod idents;
 mod implicits;
+mod import_paths;
 mod import_selectors;
 mod import_tree;
 mod imports;
