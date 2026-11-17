@@ -125,12 +125,13 @@ impl Typer<'_> {
     }
 
     /// Completes the unit's type members not yet completed that `a` or `b` refer to by name, as
-    /// library types do; whether there were any.
+    /// library types do, or select from a prefix whose class overrides them, as `p.T` for
+    /// `p: C` and `C`'s `type T = D`; whether there were any.
     pub fn complete_named_type_members(&mut self, a: TypeId, b: TypeId) -> bool {
         let mut named = Vec::new();
         for t in [a, b] {
             self.u.map_type(t, &mut |u, part| {
-                if matches!(u.ty(part), Type::TypeRef(..)) {
+                if matches!(u.ty(part), Type::TypeRef(..) | Type::Sym(Some(_), _)) {
                     named.push(part);
                 }
                 None
@@ -138,7 +139,11 @@ impl Typer<'_> {
         }
         let mut any = false;
         for part in named {
-            let Some(s) = self.u.resolve_ref(part) else { continue };
+            let s = match *self.u.ty(part) {
+                Type::Sym(Some(prefix), s) => self.overriding_type_member(prefix, s),
+                _ => self.u.resolve_ref(part),
+            };
+            let Some(s) = s else { continue };
             if self.u.symbol(s).kind == Kind::Type
                 && matches!(self.syms.completions.get(&s), Some(Completion::Pending { .. }))
             {
@@ -147,6 +152,17 @@ impl Typer<'_> {
             }
         }
         any
+    }
+
+    /// The type member named as type member `s` of the class of `prefix`'s underlying type.
+    fn overriding_type_member(&mut self, prefix: TypeId, s: SymbolId) -> Option<SymbolId> {
+        if self.u.symbol(s).kind != Kind::Type {
+            return None;
+        }
+        let widened = self.u.widen(prefix);
+        let class = self.u.class_symbol(widened)?;
+        let name = self.u.symbol(s).name.clone();
+        self.u.member_where(class, &name, |u, m| u.symbol(m).kind == Kind::Type).first().copied()
     }
 
     /// Completes class `c` and the unit's classes among its base classes.
