@@ -4,6 +4,7 @@
 mod aligned;
 mod annotations;
 mod any_members;
+mod base_type_memo;
 mod base_types;
 mod bodies;
 mod builtin;
@@ -109,6 +110,7 @@ pub struct Universe {
     linearizations: FxHashMap<SymbolId, Vec<SymbolId>>,
     /// The type of `this` of each class `this_type` was asked for.
     this_types: FxHashMap<SymbolId, TypeId>,
+    base_types: base_type_memo::BaseTypeMemo,
     /// The type parameters of each class and method that declares some, in order.
     declared_type_params: FxHashMap<SymbolId, Vec<SymbolId>>,
     /// Per class and base class, whether the class's parents give the base different types.
