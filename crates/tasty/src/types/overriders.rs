@@ -97,8 +97,9 @@ impl Universe {
         found
     }
 
-    /// The class of term `prefix`'s type, or of `prefix` a `this`, if it is a proper subclass of
-    /// type member `s`'s owner, and that owner.
+    /// The class of term `prefix`'s type, of `prefix` a `this`, or `prefix` a class type (the
+    /// prefix of a projection `C#T`), if it is a proper subclass of type member `s`'s owner, and
+    /// that owner.
     fn overriding_class(&mut self, prefix: TypeId, s: SymbolId) -> Option<(SymbolId, SymbolId)> {
         if self.symbol(s).kind != Kind::Type {
             return None;
@@ -110,6 +111,7 @@ impl Universe {
                 self.term_type(Some(p), term)
             }
             Type::This(c) => c,
+            Type::Sym(None, c) if self.symbol(c).kind == Kind::Class => prefix,
             _ => return None,
         };
         let base = self.symbol(s).owner?;

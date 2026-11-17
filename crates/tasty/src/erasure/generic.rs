@@ -107,11 +107,18 @@ impl Universe {
             | Type::Rec(_, u)
             | Type::Alias(u)
             | Type::Bounds(_, u) => self.holder(u),
-            Type::Applied(c, args) => {
-                let args = self.types_of(args).to_vec();
-                let expanded = (self.expand(c, &args))
-                    .or_else(|| self.expand_opaque(c, &args))
-                    .or_else(|| self.expand_upper(c, &args));
+            Type::Applied(c, list) => {
+                let args = self.types_of(list).to_vec();
+                let alias = self.expand(c, &args);
+                if alias.is_none()
+                    && let Some(member) = self.overriding_member(c)
+                {
+                    let applied = self.intern_type(Type::Applied(member, list));
+                    let reduced = self.dealias_step(applied);
+                    return self.holder(reduced);
+                }
+                let expanded =
+                    alias.or_else(|| self.expand_opaque(c, &args)).or_else(|| self.expand_upper(c, &args));
                 match expanded {
                     Some(u) => self.holder(u),
                     None => self.holder(c),
@@ -133,6 +140,9 @@ impl Universe {
                         Some(Erased::Prim(p)) => Holder::Prim(p),
                         _ => Holder::Object,
                     };
+                }
+                if let Some(alias) = self.overriding_member(t) {
+                    return self.holder(alias);
                 }
                 let Some(s) = self.referenced(t) else { return Holder::None };
                 let info = self.seen_info(t, s);
