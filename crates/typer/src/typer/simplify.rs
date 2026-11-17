@@ -21,6 +21,13 @@ pub fn simplified(u: &mut tasty::Universe, t: TypeId) -> TypeId {
     simplify(u, t, false)
 }
 
+/// Simplifies `t` with its match types reduced and compile-time operations folded everywhere
+/// (dotty's `Type.simplified`).
+pub fn fully_simplified(u: &mut tasty::Universe, t: TypeId) -> TypeId {
+    let t = normalize_all(u, t);
+    simplify(u, t, false)
+}
+
 impl Typer<'_> {
     /// `simplified`, match types reduced and compile-time operations folded too; a reduction
     /// that reaches its own type again is outside the subset.

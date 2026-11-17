@@ -9,7 +9,7 @@ use crate::symbols::Completion;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::flags::CASE;
 use syntax::ast::{NodeId, Span, TName, Tree};
-use tasty::{ANY, Kind, NOTHING, SymbolId, Type, TypeId};
+use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
     /// Type argument `id`, the `i`th of `tycon`: a wildcard without bounds for a parameter of a
@@ -42,7 +42,7 @@ impl Typer<'_> {
         let wild = TName { name: self.name(names::nme::WILDCARD), is_type: false };
         let bounds = match self.lambda_sub_param_bounds(tycon, i) {
             Ok(Some(bounds)) => bounds,
-            _ => self.u.intern_type(Type::Bounds(NOTHING, ANY)),
+            _ => self.pattern_var_bounds(tycon, i),
         };
         let at = Span::synthetic(span.start(), span.start());
         (self.tpd.node(T::Ident { name: wild }, at, Some(bounds), None), Some((name, span)))

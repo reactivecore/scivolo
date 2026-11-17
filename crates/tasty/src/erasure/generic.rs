@@ -109,7 +109,10 @@ impl Universe {
             | Type::Bounds(_, u) => self.holder(u),
             Type::Applied(c, args) => {
                 let args = self.types_of(args).to_vec();
-                match self.expand(c, &args).or_else(|| self.expand_opaque(c, &args)) {
+                let expanded = (self.expand(c, &args))
+                    .or_else(|| self.expand_opaque(c, &args))
+                    .or_else(|| self.expand_upper(c, &args));
+                match expanded {
                     Some(u) => self.holder(u),
                     None => self.holder(c),
                 }
