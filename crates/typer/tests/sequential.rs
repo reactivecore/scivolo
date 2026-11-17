@@ -650,6 +650,18 @@ fn type_members_parameters_refine_as_aliases_are_refused() {
 }
 
 #[test]
+fn context_bound_companions_beside_inherited_terms_are_refused() {
+    let Some(mut u) = universe() else { return };
+    let flagged = &["-source", "future", "-language:experimental.modularity"];
+    let text = "trait M:\n  type Self\n  def unit: Self\ntrait B:\n  val XX: M { type Self = Int } = \
+                null\ntrait AA extends B:\n  type XX: M\n  def x = XX.unit\n";
+    assert_eq!(
+        type_unit_with(&mut u, &mut Units::default(), ("t.scala", text), flagged),
+        Err("unsupported context bound companion beside a term member of its name".to_owned())
+    );
+}
+
+#[test]
 fn context_bound_parameters_dotty_infers_as_tracked_are_refused() {
     let flagged = &["-source", "future", "-language:experimental.modularity"];
     let refused = Err("unsupported context bound parameter dotty infers as tracked".to_owned());

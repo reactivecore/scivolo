@@ -11,7 +11,7 @@ use super::{Pt, Typer};
 use crate::ctx::{Ctx, Level, LevelId};
 use crate::tpd::TNodeId;
 use syntax::ast::tree::ModsId;
-use syntax::ast::{List, NodeId, TName, Tree};
+use syntax::ast::{NodeId, TName, Tree};
 use syntax::desugar::witness_names;
 use tasty::{Kind, SymbolId, Type};
 
@@ -32,6 +32,25 @@ impl Typer<'_> {
     pub fn check_no_cb_companion(&mut self, l: LevelId, name: Name, ctx: Ctx) -> Result<(), &'static str> {
         if !name.is_type && !self.cb_types_at(l, name.text, ctx).is_empty() {
             return Err(CB_COMPANION);
+        }
+        Ok(())
+    }
+
+    /// Refuses term `name` at the members level `l` of a class if the class has both a context
+    /// bound companion and a term member of that name, as an inherited `val XX` beside
+    /// `type XX: M`.
+    pub fn check_no_shadowed_cb_companion(
+        &mut self,
+        l: LevelId,
+        name: Name,
+        ctx: Ctx,
+    ) -> Result<(), &'static str> {
+        if name.is_type || self.syms.witnessed.is_empty() || !matches!(self.levels.get(l), Level::Members(_))
+        {
+            return Ok(());
+        }
+        if !self.cb_types_at(l, name.text, ctx).is_empty() && self.defined(l, name, ctx).is_some() {
+            return Err("context bound companion beside a term member of its name");
         }
         Ok(())
     }
@@ -160,32 +179,6 @@ impl Typer<'_> {
         let select = self.ast.node(Tree::Select { qualifier, name });
         self.ast.with_span(select, self.ast.span(id));
         self.typed(select, pt, ctx)
-    }
-
-    /// Whether `qual` is a term parameter of a method with type parameters whose type refines
-    /// type member `name` as an alias, as `tc.Self` in `def f[T: TC as tc](y: tc.Self)`, which
-    /// dotty reduces to the alias in the parameter types of a later clause when the method is
-    /// type-applied.
-    pub fn is_aliased_param_member(&mut self, qual: TNodeId, name: &str) -> bool {
-        let Type::Sym(_, param) = *self.u.ty(self.tpd.tpe(qual)) else { return false };
-        let method = self.u.symbol(param).owner;
-        let tree = method.and_then(|m| self.syms.def_trees.get(&m).copied());
-        let Some(&Tree::DefDef { paramss, .. }) = tree.map(|t| self.ast.tree(t)) else { return false };
-        let clauses = self.ast.clause_items(paramss);
-        let first = |&c: &List| self.ast.items(c).first().map(|&p| self.ast.tree(p));
-        if self.u.symbol(param).kind != Kind::Param
-            || !clauses.iter().any(|c| matches!(first(c), Some(Tree::TypeDef { .. })))
-        {
-            return false;
-        }
-        let mut t = self.u.info(param);
-        while let Type::Refined(parent, refined, info) = *self.u.ty(t) {
-            if self.u.name(refined) == name && matches!(self.u.ty(info), Type::Alias(_)) {
-                return true;
-            }
-            t = parent;
-        }
-        false
     }
 
     /// 1 if witness `a` ranks above witness `b` as the more general given, -1 if below, 0 if

@@ -6,9 +6,10 @@
 
 use super::Typer;
 use crate::ctx::Ctx;
+use crate::tpd::TNodeId;
 use names::nme;
-use syntax::ast::Attrs;
 use syntax::ast::flags as f;
+use syntax::ast::{Attrs, List, Tree};
 use syntax::config::Features;
 use tasty::tags::TRACKED;
 use tasty::{Binder, Kind, ParamList, SymbolId, Type, TypeId};
@@ -59,6 +60,32 @@ impl Typer<'_> {
                 .get(a)
                 .is_some_and(|fl| fl.is(f::PARAM_ACCESSOR) && !fl.is_one_of(f::PRIVATE_LOCAL.or(f::MUTABLE)))
         })
+    }
+
+    /// Whether `qual` is a term parameter of a method with type parameters whose type refines
+    /// type member `name` as an alias, as `tc.Self` in `def f[T: TC as tc](y: tc.Self)`, which
+    /// dotty reduces to the alias in the parameter types of a later clause when the method is
+    /// type-applied.
+    pub fn is_aliased_param_member(&mut self, qual: TNodeId, name: &str) -> bool {
+        let Type::Sym(_, param) = *self.u.ty(self.tpd.tpe(qual)) else { return false };
+        let method = self.u.symbol(param).owner;
+        let tree = method.and_then(|m| self.syms.def_trees.get(&m).copied());
+        let Some(&Tree::DefDef { paramss, .. }) = tree.map(|t| self.ast.tree(t)) else { return false };
+        let clauses = self.ast.clause_items(paramss);
+        let first = |&c: &List| self.ast.items(c).first().map(|&p| self.ast.tree(p));
+        if self.u.symbol(param).kind != Kind::Param
+            || !clauses.iter().any(|c| matches!(first(c), Some(Tree::TypeDef { .. })))
+        {
+            return false;
+        }
+        let mut t = self.u.info(param);
+        while let Type::Refined(parent, refined, info) = *self.u.ty(t) {
+            if self.u.name(refined) == name && matches!(self.u.ty(info), Type::Alias(_)) {
+                return true;
+            }
+            t = parent;
+        }
+        false
     }
 
     /// Whether `t` has an abstract type member its refinements do not alias.
