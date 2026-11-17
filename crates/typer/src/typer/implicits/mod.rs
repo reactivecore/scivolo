@@ -4,7 +4,7 @@
 mod alt_types;
 mod as_good;
 mod attempts;
-mod candidates;
+pub(super) mod candidates;
 mod capture;
 mod clauses;
 mod contextual;
@@ -17,7 +17,7 @@ mod measures;
 mod not_given;
 mod parts;
 mod prefilter;
-mod ranking;
+pub(super) mod ranking;
 mod scope;
 mod scope_paths;
 mod search;

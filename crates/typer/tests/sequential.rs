@@ -630,6 +630,57 @@ fn parent_refinements_of_tracked_parameters_are_refused() {
     }
     let untracked = "abstract class Foo(val d: String); class Bar extends Foo(\"bar\")";
     assert_eq!(type_unit_with(&mut u, &mut Units::default(), ("t.scala", untracked), flagged), Ok(()));
+    let unchanged = "abstract class Foo(tracked val d: String); class Bar(x: String) extends Foo(x)";
+    assert!(type_unit_with(&mut u, &mut Units::default(), ("t.scala", unchanged), flagged).is_err());
+}
+
+#[test]
+fn type_members_parameters_refine_as_aliases_are_refused() {
+    let flagged = &["-source", "future", "-language:experimental.modularity"];
+    let refused = Err("unsupported type member a parameter refines as an alias".to_owned());
+    for sig in ["T: TC[S] as tc](x: S, y: tc.Self)", "T: TC[S]](x: S, y: T.Self)"] {
+        let Some(mut u) = universe() else { return };
+        let text = format!("trait TC[T]:\n  type Self\ndef f[S, {sig} = ()\n");
+        assert_eq!(
+            type_unit_with(&mut u, &mut Units::default(), ("t.scala", &text), flagged),
+            refused,
+            "{text}"
+        );
+    }
+}
+
+#[test]
+fn context_bound_companions_beside_inherited_terms_are_refused() {
+    let Some(mut u) = universe() else { return };
+    let flagged = &["-source", "future", "-language:experimental.modularity"];
+    let text = "trait M:\n  type Self\n  def unit: Self\ntrait B:\n  val XX: M { type Self = Int } = \
+                null\ntrait AA extends B:\n  type XX: M\n  def x = XX.unit\n";
+    assert_eq!(
+        type_unit_with(&mut u, &mut Units::default(), ("t.scala", text), flagged),
+        Err("unsupported context bound companion beside a term member of its name".to_owned())
+    );
+}
+
+#[test]
+fn context_bound_parameters_dotty_infers_as_tracked_are_refused() {
+    let flagged = &["-source", "future", "-language:experimental.modularity"];
+    let refused = Err("unsupported context bound parameter dotty infers as tracked".to_owned());
+    let coll = "trait Coll[Self]:\n  type Pos\n";
+    let cases = [
+        (format!("{coll}def first[S: Coll](s: S) = 1\n"), refused.clone()),
+        (format!("{coll}class C[S: Coll](s: S)\n"), refused.clone()),
+        (format!("{coll}given g: [S] => (c: Coll[S]) => Coll[List[S]]:\n  type Pos = Int\n"), refused),
+        (format!("{coll}def first(s: Int) =\n  def local[S: Coll](s: S) = 1\n  2\n"), Ok(())),
+        ("trait Eq[Self]\ndef first[S: Eq](s: S) = 1\n".to_owned(), Ok(())),
+    ];
+    for (text, expected) in cases {
+        let Some(mut u) = universe() else { return };
+        assert_eq!(
+            type_unit_with(&mut u, &mut Units::default(), ("t.scala", &text), flagged),
+            expected,
+            "{text}"
+        );
+    }
 }
 
 #[test]

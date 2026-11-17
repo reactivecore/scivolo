@@ -69,8 +69,10 @@ impl Typer<'_> {
             };
             match *self.levels.get(l) {
                 Level::Scope(_) | Level::Members(_) => {
+                    self.check_no_shadowed_cb_companion(l, name, ctx)?;
                     let Some(found) = self.defined(l, name, ctx).and_then(|f| self.qualifying(f, l, ctx))
                     else {
+                        self.check_no_cb_companion(l, name, ctx)?;
                         if let Level::Members(owner) = *self.levels.get(l)
                             && !name.is_type
                         {

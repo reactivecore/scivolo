@@ -15,6 +15,9 @@ use tasty::{Kind, SymbolId, Type};
 
 impl Typer<'_> {
     pub fn typed_select(&mut self, id: NodeId, qualifier: NodeId, name: TName, pt: Pt, ctx: Ctx) -> TNodeId {
+        if let Some(t) = self.cb_select(id, qualifier, name, pt, ctx) {
+            return t;
+        }
         let path = matches!(self.ast.tree(qualifier), S::Ident { .. } | S::Select { .. });
         let text = self.text(name.name).to_owned();
         let mode = if path { Mode::QUALIFIER } else { Mode::NONE };
@@ -32,6 +35,9 @@ impl Typer<'_> {
         if redundant && self.is_unapplied_method(qual) {
             self.tpd.get_mut(qual).span = self.ast.span(id);
             return qual;
+        }
+        if name.is_type && self.is_aliased_param_member(qual, &text) {
+            return self.unsupported(id, "type member a parameter refines as an alias");
         }
         if self.is_signature_polymorphic_call(qual) {
             if text != nme::AS_INSTANCE_OF {

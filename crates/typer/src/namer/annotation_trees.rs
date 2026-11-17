@@ -5,11 +5,12 @@
 //! are typed (dotty's `annotContext`, `typedAnnotation`, `Checking.checkAnnotClass`).
 
 use crate::ctx::{Ctx, Level};
-use crate::defn::STATIC_ANNOT;
+use crate::defn::{STATIC_ANNOT, type_ref};
 use crate::tpd::{TNodeId, Tree as T};
 use crate::typer::{Pt, Typer};
 use rustc_hash::FxHashMap;
 use syntax::ast::{NodeId, Tree as S};
+use syntax::desugar::witness_names;
 use tasty::{Kind, SymbolId, Type};
 
 impl Typer<'_> {
@@ -58,6 +59,7 @@ impl Typer<'_> {
                     let t = (!self.is_error(typed) && self.check_annot_class(annot, typed)).then_some(typed);
                     if t.is_some() {
                         self.check_annot_args(typed);
+                        self.witness_names_literal(annot, typed);
                     }
                     *typed_trees.entry(annot).or_insert(t)
                 }
@@ -71,6 +73,23 @@ impl Typer<'_> {
             self.tpd.annotate(sym, typed);
         }
         self.syms.annotation_trees.clear();
+    }
+
+    /// Passes the names of `@WitnessNames` annotation `typed`, of tree `annot`, as the bare
+    /// sequence of `java.lang.String`s dotty's `WitnessNamesAnnot` builds.
+    fn witness_names_literal(&mut self, annot: NodeId, typed: TNodeId) {
+        if witness_names(self.ast, self.names, annot).is_none() {
+            return;
+        }
+        let T::Apply { fun, args } = *self.tpd.tree(typed) else { return };
+        let &[arg] = self.tpd.items(args) else { return };
+        let T::Typed { expr, .. } = *self.tpd.tree(arg) else { return };
+        let T::SeqLiteral { elemtpt, .. } = *self.tpd.tree(expr) else { return };
+        let Some(string) = self.u.class_symbol(self.tpd.tpe(elemtpt)) else { return };
+        self.tpd.get_mut(elemtpt).tpe = Some(type_ref(self.u, string));
+        self.tpd.get_mut(expr).span = self.tpd.span(typed);
+        let args = self.tpd.list(&[expr]);
+        self.tpd.get_mut(typed).tree = T::Apply { fun, args };
     }
 
     /// Types annotation tree `annot`, the `new`s within a Java annotation unchecked.
