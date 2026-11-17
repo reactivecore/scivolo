@@ -13,7 +13,7 @@ use crate::symbols::{has, is_effectively_final, is_static};
 use names::{name_kinds, nme};
 use rustc_hash::{FxHashMap, FxHashSet};
 use syntax::ast::Span;
-use tasty::tags::FIELDaccessor;
+use tasty::tags::{FIELDaccessor, STATIC};
 use tasty::{Kind, SymbolId};
 use typer::tpd::{TNodeId, Template, Tree, Walk, traverse_up};
 
@@ -191,7 +191,11 @@ fn substitute(l: &mut Lower, t: TNodeId, calls: &TailCalls) {
                 let this = l.ident(v, span);
                 l.select(this, m, span)
             }
-            (Tree::This { .. }, _, Some(v), _) if sym == Some(calls.class) && !under_super.contains(&s) => {
+            (Tree::This { .. }, _, Some(v), _)
+                if sym == Some(calls.class)
+                    && !under_super.contains(&s)
+                    && !parents.get(&s).is_some_and(|&p| selects_static(l, p)) =>
+            {
                 let span = parents.get(&s).and_then(|&p| l.after_siblings(p, s)).unwrap_or(span);
                 l.ident(v, span)
             }
@@ -199,6 +203,11 @@ fn substitute(l: &mut Lower, t: TNodeId, calls: &TailCalls) {
         };
         l.copy_node(s, new);
     }
+}
+
+/// Whether `t` selects a static member, as a lifted local method that reads no `this`.
+fn selects_static(l: &Lower, t: TNodeId) -> bool {
+    matches!(l.tpd.tree(t), Tree::Select { .. }) && l.tpd.sym(t).is_some_and(|m| has(l.u, m, STATIC))
 }
 
 /// Whether `s` is a member of a class of `bases` an identifier reaches through `this`.

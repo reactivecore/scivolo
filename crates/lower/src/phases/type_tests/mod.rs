@@ -129,7 +129,12 @@ fn is_instance_of(
         if not_null::is_not_null(l, expr_tpe, false) {
             return Ok(constant(l, expr, true));
         }
-        let null = l.null_literal(Span::NONE);
+        let mut null = l.null_literal(Span::NONE);
+        if l.explicit_nulls {
+            let object = l.u.class_ref(tasty::defn::OBJECT);
+            let tpt = l.type_tree(object, Span::NONE);
+            null = l.tpd.node(Tree::Typed { expr: null, tpt }, Span::NONE, Some(object), None);
+        }
         let ne = l.select(expr, l.defs.ne, Span::NONE);
         let ne = l.positioned(ne);
         let boolean = l.u.class_ref(tasty::defn::BOOLEAN);

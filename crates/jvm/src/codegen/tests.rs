@@ -14,6 +14,11 @@ use typer::tpd::{TNodeId, Tree};
 
 /// Runs `f` on the generator of unit `source` and its root; none without the library jars.
 fn with_gen<R>(source: &str, f: impl FnOnce(&mut Gen, TNodeId) -> R) -> Option<R> {
+    with_gen_options(&[], source, f)
+}
+
+/// Runs `f` as `with_gen` does, the unit compiled with compiler options `options`.
+fn with_gen_options<R>(options: &[&str], source: &str, f: impl FnOnce(&mut Gen, TNodeId) -> R) -> Option<R> {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let jars = typer::dump::library_jars(&root.join("ref/libs"));
     if let Some(missing) = jars.iter().find(|j| !j.exists()) {
@@ -29,7 +34,7 @@ fn with_gen<R>(source: &str, f: impl FnOnce(&mut Gen, TNodeId) -> R) -> Option<R
     };
     let sources = [SourceFile::new("t.scala", source)];
     let generated =
-        lower::compile_units(&mut u, &sources, Config::from_options(&[]), None, (Backend::Jvm, generate));
+        lower::compile_units(&mut u, &sources, Config::from_options(options), None, (Backend::Jvm, generate));
     Some(generated.unwrap_or_else(|r| panic!("{}", r.what)).0)
 }
 
@@ -145,6 +150,15 @@ fn conditions_loops_and_iinc_as_dotty_generates_them() {
             assert_eq!(code(g, root, name), bytes, "{name}");
         }
     });
+}
+
+#[test]
+fn explicit_nulls_test_a_pattern_against_a_typed_null() {
+    let source = "object Patterns {
+        def g(x: CharSequence | Null): Int = x match { case s: CharSequence => 1; case _ => 2 }
+    }";
+    let bytes = [0x2b, 0x4d, 0x2c, 0x01, 0xa5, 0, 7, 0x2c, 0x4e, 0x04, 0xac, 0x05, 0xac];
+    with_gen_options(&["-Yexplicit-nulls"], source, |g, root| assert_eq!(code(g, root, "g"), bytes));
 }
 
 #[test]
