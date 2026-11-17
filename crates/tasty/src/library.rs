@@ -6,7 +6,7 @@ use libimage::Image;
 use rustc_hash::FxHashMap;
 use std::borrow::Cow;
 use std::fs::File;
-use std::io::{self, Read};
+use std::io::{self, BufReader, Read};
 use std::path::{Path, PathBuf};
 use zip::ZipArchive;
 
@@ -23,9 +23,9 @@ pub enum Library {
     Image(&'static Image),
 }
 
-/// A jar, or a directory of class files.
+/// A jar, read into memory, or a directory of class files.
 pub enum Archive {
-    Zip(ZipArchive<File>),
+    Zip(ZipArchive<BufReader<File>>),
     Dir(PathBuf),
 }
 
@@ -41,7 +41,7 @@ impl Library {
                 names.into_iter().for_each(|n| _ = files.entry(n).or_insert(i));
                 Archive::Dir(jar.clone())
             } else {
-                let zip = ZipArchive::new(File::open(jar)?).map_err(io::Error::other)?;
+                let zip = ZipArchive::new(BufReader::new(File::open(jar)?)).map_err(io::Error::other)?;
                 for name in zip.file_names() {
                     let name = name.map_err(io::Error::other)?;
                     if name.ends_with(".tasty") {

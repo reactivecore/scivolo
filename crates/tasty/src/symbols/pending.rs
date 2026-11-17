@@ -9,9 +9,17 @@ use names::nme;
 use rustc_hash::FxHashMap;
 use std::borrow::Cow;
 
+/// The stems of the packages' pending files, and the stems a looked-up name stands for.
+#[derive(Default)]
+pub struct Stems {
+    packages: FxHashMap<SymbolId, PendingStems>,
+    /// Per name looked up, its encoded name and its object's class `C$`'s `C`.
+    of_name: FxHashMap<NameId, (NameId, Option<NameId>)>,
+}
+
 /// The stems of a package's pending files, built on the first lookup by name.
 #[derive(Default)]
-pub struct PendingStems {
+struct PendingStems {
     /// How many pending files have each stem.
     counts: FxHashMap<NameId, u32>,
     /// How many pending files hold package objects.
@@ -52,11 +60,7 @@ impl Universe {
         if !self.pending.contains_key(&pkg) {
             return Ok(());
         }
-        let stem = match encoded(self.name(name)) {
-            Cow::Borrowed(_) => name,
-            Cow::Owned(e) => self.intern_name(&e),
-        };
-        let module = module_name(self.name(stem)).map(str::to_owned).map(|m| self.intern_name(&m));
+        let (stem, module) = self.stems_of(name);
         let stems = self.pending_stems(pkg);
         if !stems.counts.contains_key(&stem) && module.is_none_or(|m| !stems.counts.contains_key(&m)) {
             return Ok(());
@@ -93,9 +97,23 @@ impl Universe {
         Ok(self.symbol(owner).decls.clone())
     }
 
+    /// The stem of the file that defines `name`, and of the file of its class if it is an object's.
+    fn stems_of(&mut self, name: NameId) -> (NameId, Option<NameId>) {
+        if let Some(&stems) = self.pending_stems.of_name.get(&name) {
+            return stems;
+        }
+        let stem = match encoded(self.name(name)) {
+            Cow::Borrowed(_) => name,
+            Cow::Owned(e) => self.intern_name(&e),
+        };
+        let module = module_name(self.name(stem)).map(str::to_owned).map(|m| self.intern_name(&m));
+        self.pending_stems.of_name.insert(name, (stem, module));
+        (stem, module)
+    }
+
     fn pending_stems(&mut self, pkg: SymbolId) -> &PendingStems {
         let Universe { pending, pending_stems, types, .. } = self;
-        pending_stems.entry(pkg).or_insert_with(|| {
+        pending_stems.packages.entry(pkg).or_insert_with(|| {
             let mut stems = PendingStems::default();
             for (stem, _) in pending.get(&pkg).into_iter().flatten() {
                 stems.add((types.intern_name(stem), stem), 1);
@@ -114,7 +132,7 @@ impl Universe {
             self.load(&path)?;
             let Some(files) = self.pending.get_mut(&pkg) else { continue };
             let (stem, _) = files.remove(i);
-            if let Some(stems) = self.pending_stems.get_mut(&pkg) {
+            if let Some(stems) = self.pending_stems.packages.get_mut(&pkg) {
                 stems.add((self.types.intern_name(&stem), &stem), -1);
             }
         }

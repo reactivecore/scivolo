@@ -16,7 +16,7 @@ pub fn refuse(l: &Lower, root: TNodeId) -> Result<()> {
         match l.tpd.tree(t) {
             Tree::DefDef { .. } if sym.is_some_and(|s| has(l.u, s, INLINE)) => continue,
             Tree::Ident { .. } | Tree::Select { .. }
-                if sym.is_some_and(|s| QUOTED.contains(&l.u.full_name(s).as_str())) =>
+                if sym.is_some_and(|s| QUOTED.iter().any(|q| l.u.has_full_name(s, q))) =>
             {
                 return unsupported(l.tpd.span(t), "quotes outside the splices of inline methods");
             }

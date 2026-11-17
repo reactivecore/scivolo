@@ -12,7 +12,6 @@ use execute::execute;
 pub use flow::length;
 use flow::{live_ranges, targets};
 use lattice::{Frame, VType};
-use std::collections::BTreeSet;
 
 /// A method's class, internal name, and its static flag, name and descriptor.
 pub struct Method<'a> {
@@ -61,8 +60,8 @@ pub fn stack_map(
         return Err("no code".into());
     }
     let handlers = code.handler_offsets().ok_or("a protected range with a label never placed")?;
-    let mut starts = BTreeSet::from([0]);
-    let mut jumped: BTreeSet<usize> = handlers.iter().map(|h| h[2]).collect();
+    let mut starts = vec![0];
+    let mut jumped: Vec<usize> = handlers.iter().map(|h| h[2]).collect();
     starts.extend(&jumped);
     starts.extend(handlers.iter().flat_map(|h| [h[0], h[1]]));
     starts.extend(code.line_offsets());
@@ -74,19 +73,22 @@ pub fn stack_map(
         starts.extend(to);
         at += length(bytes, at);
     }
+    sorted_set(&mut jumped);
+    sorted_set(&mut starts);
     let labels = starts.clone();
     let (mut at, mut in_block) = (0, true);
     while at < bytes.len() {
-        in_block |= labels.contains(&at);
+        in_block |= labels.binary_search(&at).is_ok();
         let next = at + length(bytes, at);
         let ends = matches!(bytes[at], 0xa7 | 0xaa | 0xab | 0xac..=0xb1 | 0xbf | 0xc8);
         if in_block && (ends || !targets(bytes, at).is_empty()) {
-            starts.insert(next);
+            starts.push(next);
         }
         in_block &= !ends;
         at = next;
     }
-    let starts: Vec<usize> = starts.into_iter().filter(|&s| s < bytes.len()).collect();
+    sorted_set(&mut starts);
+    starts.retain(|&s| s < bytes.len());
     let catches: Vec<VType> = handlers
         .iter()
         .map(|h| {
@@ -117,7 +119,7 @@ pub fn stack_map(
     let (mut frames, mut dead) = (Vec::new(), Vec::new());
     for (i, &start) in starts.iter().enumerate() {
         match flow.ins[i].take() {
-            Some(f) if jumped.contains(&start) => frames.push((start, f)),
+            Some(f) if jumped.binary_search(&start).is_ok() => frames.push((start, f)),
             Some(_) => {}
             None => {
                 let end = starts.get(i + 1).copied().unwrap_or(code.bytes.len());
@@ -132,6 +134,12 @@ pub fn stack_map(
     }
     code.exceptions = live_ranges(&handlers, &dead);
     Ok((!frames.is_empty()).then(|| encode::stack_map_table(&frames, &initial, pool)))
+}
+
+/// Sorts `v` and removes its duplicates.
+fn sorted_set(v: &mut Vec<usize>) {
+    v.sort_unstable();
+    v.dedup();
 }
 
 #[cfg(test)]

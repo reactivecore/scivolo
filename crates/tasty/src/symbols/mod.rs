@@ -82,7 +82,7 @@ pub struct Universe {
     packages: FxHashMap<String, SymbolId>,
     /// Per package, the files not loaded yet: the file name without `.tasty`, and its path.
     pending: FxHashMap<SymbolId, Vec<(String, String)>>,
-    pending_stems: FxHashMap<SymbolId, pending::PendingStems>,
+    pending_stems: pending::Stems,
     /// Per package, its package objects' classes, with the generation and number of
     /// declarations they were found at.
     package_objects: FxHashMap<SymbolId, ((u64, usize), Vec<SymbolId>)>,
