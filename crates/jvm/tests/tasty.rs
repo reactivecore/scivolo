@@ -143,9 +143,9 @@ fn probes_pickle_as_dotty_s() {
 }
 
 /// The annotated types of tests/jvm/tastylib/annotlib.jar, dotty's classes of annotlib/, keep
-/// their library's annotation trees in the TASTy of libraryannotations.scala as in dotty's; one
-/// whose tree refers to a parameter, which dotty maps, is refused, as is one with arguments in a
-/// quote.
+/// their library's annotation trees in the TASTy of libraryannotations.scala as in dotty's, each
+/// type its own, and in the quotes of quotedannotations.scala; one whose tree refers to a
+/// parameter, which dotty maps, is refused.
 #[test]
 fn library_annotations_pickle_as_dotty_s() {
     let out = root().join("tmp/jvm-test/libraryannotations");
@@ -176,16 +176,14 @@ fn library_annotations_pickle_as_dotty_s() {
         "{stderr}"
     );
 
-    let source = out.join("quoted.scala");
-    let quote = "import scala.quoted.*\n\
-        def tags(l: Expr[annotlib.Lib])(using Quotes): Expr[Int] = '{ val t = $l.tags; t.size }";
-    std::fs::write(&source, quote).expect("writing");
-    let run = compile(source.to_str().expect("a path"));
-    let stderr = String::from_utf8_lossy(&run.stderr);
-    assert!(
-        !run.status.success() && stderr.contains("annotation tree with arguments in a quote"),
-        "{stderr}"
-    );
+    let run = compile("tests/jvm/tastylib/quotedannotations.scala");
+    assert!(run.status.success(), "{}", String::from_utf8_lossy(&run.stderr));
+    let ours = std::fs::read(out.join("quotedannotations$package$.class")).expect("our class");
+    let theirs = std::fs::read_to_string(root().join("tests/jvm/tastylib/quotedannotations.quotes"))
+        .expect("dotty's pickled quotes");
+    for quote in theirs.lines().map(str::as_bytes) {
+        assert!(ours.windows(quote.len()).any(|w| w == quote), "a quote differs from dotty's");
+    }
 }
 
 /// An inferred type that dotty's typer may give capture sets which ours cannot tell, through a

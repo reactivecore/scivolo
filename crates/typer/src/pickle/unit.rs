@@ -15,7 +15,7 @@ use std::cell::Cell;
 use syntax::ast::Span;
 use syntax::names::Names;
 use tasty::tags::{IDENTtpt, INLINED};
-use tasty::{AnnotationTree, Kind, SymbolId, Universe};
+use tasty::{Kind, SymbolId, Universe};
 
 const SCALA2STANDARDLIBRARY: u8 = 1;
 const EXPLICITNULLS: u8 = 2;
@@ -48,8 +48,6 @@ pub struct File<'a> {
     pub annotations: &'a FxHashMap<SymbolId, Vec<TNodeId>>,
     /// The top-level class pickled (dotty's `rootCls`).
     pub root_class: SymbolId,
-    /// The library annotation tree the pickling needs read before it is pickled again.
-    pub unread: &'a Cell<Option<AnnotationTree>>,
 }
 
 /// The TASTy of the top-level classes of package clause `root` of `source`, but of the
@@ -75,9 +73,9 @@ pub fn pickle_file(
     for class in classes {
         let Some(sliced) = slice(u, tpd, root, class) else { continue };
         let unread = Cell::new(None);
-        let file = File { attributes, annotations, root_class: class, unread: &unread };
+        let file = File { attributes, annotations, root_class: class };
         let (tasty, super_accessors) = loop {
-            let pickled = pickle((u, &*tpd, &*names), sliced, &[], Some(source), Some(&file));
+            let pickled = pickle((u, &*tpd, &*names), sliced, &[], (Some(source), Some(&file)), &unread);
             let Some(tree) = unread.take() else { break pickled? };
             let read = crate::unpickle::type_annotation(u, tpd, names, tree);
             tpd.set_library_annotation(tree, read);

@@ -175,7 +175,7 @@ fn positioned_read_back(text: &str) -> Result<Span, String> {
     let (bindings, span, tpe) = (tpd.list(&[]), tpd.span(rhss[0]), tpd.get(rhss[0]).tpe);
     let root = tpd.node(Tree::Inlined { call: None, bindings, expansion: rhss[0] }, span, tpe, None);
     let quote_source = QuoteSource::of("t.scala".into(), &source, 0);
-    let bytes = pickle_positioned_quote((&mut u, &tpd, &names), root, &[], &quote_source)?;
+    let bytes = pickle_positioned_quote((&mut u, &mut tpd, &mut names), root, &[], &quote_source)?;
     let uuid_high = &Tasty::parse(&bytes).unwrap().header.uuid[8..];
     assert!(uuid_high.iter().any(|&b| b != 0), "UUID without the hash of the Positions section");
     let unit = u.root();
@@ -237,7 +237,7 @@ fn repickled(u: &mut Universe, owner: SymbolId, file: &str, exact: bool) -> Resu
     let read = quote((&mut *u, &mut tpd, &mut names), bytes.clone(), owner, &[]);
     let Ok(Unpickled::Quote(q)) = read else { return Err(format!("{file} unread: {:?}", read.err())) };
     let source = quote_source(&bytes);
-    let ours = pickle_positioned_quote((u, &tpd, &names), q.root, &q.holes, &source);
+    let ours = pickle_positioned_quote((u, &mut tpd, &mut names), q.root, &q.holes, &source);
     let ours = ours.map_err(|e| format!("{file}: {e}"))?;
     let ((our_names, our_ast), (names, ast)) = (parts(&ours), parts(&bytes));
     if our_names != names {
