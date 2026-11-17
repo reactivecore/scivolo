@@ -322,6 +322,22 @@ fn library_static_members_and_annotated_switch_selectors() {
     assert!(dump.contains("switch"), "{dump}");
 }
 
+#[test]
+fn javalib_names_members_of_jdk_classes_scala_native_renames() {
+    let Some(mut jars) = jars() else { return };
+    let jdk = jars.len()..jars.len() + 1;
+    jars.push(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../libs/jdk-stubs.jar"));
+    let source = SourceFile::new(
+        "loader.scala",
+        "package java.lang\nclass Loader { def name: String = this.getClass().getName() }",
+    );
+    let mut u = Universe::open(&jars).unwrap();
+    u.set_jdk_jars(jdk);
+    u.set_javalib_sources();
+    let refusal = lower::compile(&mut u, &source, &[]).err().map(|r| r.what);
+    assert_eq!(refusal, None, "java.lang.Class is public as the JDK's");
+}
+
 const LEGACY_UNAPPLY: &str = "package legacy
 case class Wrap[T](t: T)
 class Dummy
