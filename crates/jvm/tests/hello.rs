@@ -555,14 +555,3 @@ fn a_refused_file_refuses_the_unit() {
     assert!(!left_out.status.success());
     assert!(out.join("run.class").exists(), "{}", String::from_utf8_lossy(&left_out.stderr));
 }
-
-#[test]
-fn a_cast_signature_polymorphic_call_of_an_inferred_type_is_refused() {
-    if Command::new("java").arg("-version").output().is_err() {
-        eprintln!("no java on the PATH: skipped");
-        return;
-    }
-    let code = "object R { def id[T](x: T): T = x; \
-        def f = id(java.lang.invoke.MethodHandles.identity(classOf[String]).invoke(\"a\").asInstanceOf[String]) }";
-    refuses("refusedpolymorphic", code, "expected to be of an inferred type");
-}

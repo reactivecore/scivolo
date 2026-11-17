@@ -7,6 +7,8 @@ class Foo:
   def tag(s: String): String = s"<$s>"
 
 object Sigpoly:
+  def id[T](x: T): T = x
+
   def main(args: Array[String]): Unit =
     val l = MethodHandles.lookup()
     val neg = l.findVirtual(classOf[Foo], "neg", MethodType.methodType(classOf[Int], classOf[Int]))
@@ -25,6 +27,7 @@ object Sigpoly:
     val tagged: String = tag.invokeExact(foo, "a").asInstanceOf[String]
     val seq: CharSequence = tag.invoke(foo, "b").asInstanceOf[String]
     println(tagged + seq + (tag.invoke(foo, "c").asInstanceOf[String]: String).length)
+    println(id(tag.invoke(foo, "d").asInstanceOf[String]).length)
 
     val ref = new IntRef(1)
     val vh = l.findVarHandle(classOf[IntRef], "elem", classOf[Int])
