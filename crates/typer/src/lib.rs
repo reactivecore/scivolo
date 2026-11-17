@@ -92,6 +92,9 @@ pub struct Units {
     pub refused: Vec<(Span, String)>,
     /// The type errors of the last unit if it was refused for a construct it does not support.
     pub errors: Diagnostics,
+    /// The files of the last unit of several, if it was refused or had type errors, that no
+    /// refusal or error lies in, typed and expanded, for the lowering to find its refusals in.
+    pub kept: Option<Typed>,
 }
 
 impl Units {
@@ -118,6 +121,7 @@ impl Units {
     ) -> Result<Typed, Fallback> {
         self.refused.clear();
         self.errors = Diagnostics::default();
+        self.kept = None;
         let mut typer = Typer::new(u, (ast, root), (names, fresh), cfg, &mut self.syms)
             .map_err(|what| Fallback::Unsupported { at: Span::NONE, what })?;
         typer.macros = macros.map(|m| m as &mut dyn Macros);
@@ -154,6 +158,7 @@ impl Units {
             units.iter().zip(&file_roots).filter(|(_, roots)| !roots.is_empty()).map(|(u, _)| u).collect();
         self.refused = typer::source_versions(ast, &with_code);
         self.errors = Diagnostics::default();
+        self.kept = None;
         if let Some((at, what)) = self.refused.first().cloned() {
             return Err(Fallback::Unsupported { at, what });
         }

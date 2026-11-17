@@ -117,6 +117,30 @@ fn refusals_after_typing_are_collected_from_all_files_at_once() {
 }
 
 #[test]
+fn lowering_refusals_are_found_in_the_round_of_the_typer_refusals() {
+    let Some(jars) = jars() else { return };
+    let interpolated =
+        "class B(val n: Int)\nobject O { implicit def v(b: => B): Int = b.n; def h = f\"${B(3)}%d\" }";
+    let sources = [
+        SourceFile::new("a.scala", "object A { def f = ${ ??? } }".to_owned()),
+        SourceFile::new("b.scala", interpolated.to_owned()),
+        SourceFile::new("c.scala", "object C { def h: Int = 1 }".to_owned()),
+    ];
+    let mut attempts = 0;
+    let mut open = || {
+        attempts += 1;
+        Universe::open(&jars).unwrap()
+    };
+    let isolated = lower::compile_sources_isolated(&mut open, &sources, Config::from_options(&[]), None)
+        .unwrap_or_else(|r| panic!("{}", r.what));
+    let refused: Vec<&str> = isolated.refused.iter().map(|r| r.file.as_str()).collect();
+    assert_eq!(refused, ["a.scala", "b.scala"]);
+    assert!(isolated.refused[1].refusal.what.starts_with("the lowering does not support"));
+    assert!(isolated.out.iter().any(|f| f.name == "C$"));
+    assert_eq!(attempts, 2);
+}
+
+#[test]
 fn library_java_classes_redefined_and_lifted_classes_in_units() {
     let Some(jars) = jars() else { return };
     let dump = |sources: &[SourceFile], name: &str| dump(&jars, sources, name);

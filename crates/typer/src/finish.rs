@@ -7,7 +7,7 @@ use crate::pickle::{ERROR_TYPE, FileAttributes, Pickled, QuoteSource, Refusal, p
 use crate::tpd::TNodeId;
 use crate::{Fallback, Typed, Units};
 use syntax::ast::Span;
-use syntax::diag::{Diagnostic, Level};
+use syntax::diag::{Diagnostic, Diagnostics, Level};
 
 /// Adds the synthetic members of the classes of typed unit `root`, its files starting at the
 /// offsets given but the first (dotty's `SyntheticMembers` as PostTyper runs it), or why it cannot.
@@ -60,6 +60,13 @@ impl Units {
         self.syms.end_unit(typer.u);
         if self.errors_first && typer.diags.has_errors() {
             return Err(Fallback::Errors(typer.diags));
+        }
+        let failed = !self.refused.is_empty() || typer.diags.has_errors();
+        if failed && !self.typer_only && files.len() > 1 {
+            self.kept = self.kept_root(&mut typer, typed, files).map(|root| {
+                let tpd = std::mem::take(&mut typer.tpd);
+                Typed { tpd, root, diags: Diagnostics::default(), pickles: std::mem::take(&mut pickles) }
+            });
         }
         if let Some((at, what)) = self.refused.first().cloned() {
             if typer.diags.has_errors() {
