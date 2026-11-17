@@ -9,7 +9,9 @@
 
 use super::adapt::adapt;
 use super::casts::cast;
-use super::lazy_trees::{assign, block, call, eq, field_ref, if_, local, object, return_, unit, val_def};
+use super::lazy_trees::{
+    assign, block, call, eq, field_read, field_ref, if_, local, object, return_, unit, val_def,
+};
 use super::lazy_vals::{Lazy, null_out};
 use crate::Lower;
 use crate::definitions::{LazyVals, type_ref};
@@ -52,7 +54,7 @@ pub fn init_method(l: &mut Lower, lazy: &Lazy, rhs: TNodeId, info: TypeId, defs:
     let initialize = if_(l, start, evaluate, done, unit);
     let current = local(l, lazy.init, "current", object, false);
     let other = not_uninitialized(l, lazy, &s, current);
-    let field = field_ref(l, lazy);
+    let field = field_read(l, lazy);
     let current_def = val_def(l, current, field);
     let read = l.ident(current, Span::NONE);
     let null = l.null_literal(Span::NONE);
@@ -74,7 +76,7 @@ fn release(l: &mut Lower, lazy: &Lazy, s: &Shared, result: SymbolId) -> TNodeId 
     let defs = s.defs;
     let waiting = type_ref(l.u, defs.waiting);
     let lock = local(l, lazy.init, "lock", waiting, false);
-    let field = field_ref(l, lazy);
+    let field = field_read(l, lazy);
     let field = cast(l, field, &Erased::Class(l.u.binary_name(defs.waiting)));
     let field = l.positioned(field);
     let lock_def = val_def(l, lock, field);

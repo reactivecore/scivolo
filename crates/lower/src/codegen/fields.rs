@@ -101,7 +101,16 @@ impl Gen<'_, '_> {
             return self.gen_apply_static(f, None, &[], self.l.tpd.span(t));
         }
         let ty = self.value_type(self.l.tpd.tpe(t));
-        let obj = self.field_owner(f, qual, self.l.tpd.span(t))?;
+        let obj = match qual {
+            None if !self.is_static_module_field(f) => {
+                let qual_span = self.ident_qualifier_span(t);
+                let saved = self.at_span(qual_span);
+                let obj = self.field_owner(f, qual, self.l.tpd.span(t));
+                self.m.pos = saved;
+                obj?
+            }
+            _ => self.field_owner(f, qual, self.l.tpd.span(t))?,
+        };
         let owner = self.l.u.symbol(f).owner.expect("a field's class");
         if self.is_struct(owner) {
             return self.gen_struct_field(owner, f, obj, self.l.tpd.span(t));
@@ -179,10 +188,17 @@ impl Gen<'_, '_> {
         match qual {
             _ if has(self.l.u, f, STATIC) => Ok(self.gen_module(owner)),
             Some(q) if matches!(self.l.tpd.tree(q), Tree::This { .. }) => self.gen_expr(q),
-            _ if self.l.u.is_static_module(owner) => Ok(self.gen_module(owner)),
+            _ if self.is_static_module_field(f) => Ok(self.gen_module(owner)),
             Some(q) => self.gen_expr(q),
             None => self.this_of(owner, span),
         }
+    }
+
+    /// Whether `f` is a field of a static object other than a lazy value's (dotty's
+    /// `isStaticModuleField`).
+    fn is_static_module_field(&self, f: SymbolId) -> bool {
+        let owner = self.l.u.symbol(f).owner.expect("a field's class");
+        self.l.u.is_static_module(owner) && !self.l.lazy_fields.iter().any(|lazy| lazy.field == f)
     }
 
     /// `lhs = rhs` for a field `lhs`.

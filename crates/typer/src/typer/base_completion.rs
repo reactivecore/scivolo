@@ -3,6 +3,7 @@
 
 use super::Typer;
 use crate::symbols::Completion;
+use rustc_hash::FxHashSet;
 use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
@@ -21,23 +22,80 @@ impl Typer<'_> {
     }
 
     /// Completes the unit's classes and type members not yet completed, members of packages and
-    /// classes, whose parents or aliases a library type may reach, unless a definition is being
-    /// completed; whether there were any.
-    pub fn complete_unit_classes(&mut self) -> bool {
+    /// classes, that `a` or `b` reach through the classes, types and values they refer to, those
+    /// classes' parents and the others' infos, as a library type may reach them, unless a
+    /// definition is being completed; whether there were any.
+    pub fn complete_reached_unit_classes(&mut self, a: TypeId, b: TypeId) -> bool {
         if self.syms.completions.values().any(|c| matches!(c, Completion::Completing(_))) {
             return false;
         }
-        let mut pending: Vec<SymbolId> = (self.syms.completions.iter())
-            .filter(|&(&s, c)| {
-                matches!(c, Completion::Pending { .. })
-                    && matches!(self.u.symbol(s).kind, Kind::Class | Kind::Type)
-            })
-            .filter(|&(&s, _)| self.u.symbol(s).owner.is_some_and(|o| self.u.symbol(o).kind != Kind::Def))
-            .map(|(&s, _)| s)
-            .collect();
-        pending.sort_by_key(|s| s.0);
-        pending.iter().for_each(|&s| self.complete(s));
-        !pending.is_empty()
+        let mut any = false;
+        let mut attempted = FxHashSet::default();
+        loop {
+            let mut pending = self.reached_pending_unit_classes(a, b);
+            pending.retain(|&s| attempted.insert(s));
+            if pending.is_empty() {
+                return any;
+            }
+            pending.sort_by_key(|s| s.0);
+            pending.iter().for_each(|&s| self.complete(s));
+            any = true;
+        }
+    }
+
+    /// The unit's classes and type members not completed yet that `a` or `b` reach through
+    /// completed definitions.
+    fn reached_pending_unit_classes(&mut self, a: TypeId, b: TypeId) -> Vec<SymbolId> {
+        let mut seen = FxHashSet::default();
+        let mut todo = self.referred_types(a);
+        todo.extend(self.referred_types(b));
+        let mut pending = Vec::new();
+        while let Some(s) = todo.pop() {
+            if !seen.insert(s) {
+                continue;
+            }
+            if self.is_pending_unit_class(s) {
+                pending.push(s);
+                continue;
+            }
+            match self.u.symbol(s).kind {
+                Kind::Class => {
+                    for p in self.u.parents(s) {
+                        todo.extend(self.referred_types(p));
+                    }
+                }
+                Kind::Type => {
+                    let info = self.u.info(s);
+                    todo.extend(self.referred_types(info));
+                }
+                Kind::Val if matches!(self.syms.completions.get(&s), None | Some(Completion::Done)) => {
+                    let info = self.u.info(s);
+                    todo.extend(self.referred_types(info));
+                }
+                _ => {}
+            }
+        }
+        pending
+    }
+
+    /// The classes, types and values `t` refers to.
+    fn referred_types(&mut self, t: TypeId) -> Vec<SymbolId> {
+        let mut out = Vec::new();
+        self.u.map_type(t, &mut |u, part| {
+            let s = u.sym_of(part).or_else(|| u.resolve_ref(part));
+            if let Some(s) = s.filter(|&s| matches!(u.symbol(s).kind, Kind::Class | Kind::Type | Kind::Val)) {
+                out.push(s);
+            }
+            None
+        });
+        out
+    }
+
+    /// Whether `s` is a class or type member of the unit not completed yet, outside a method.
+    fn is_pending_unit_class(&self, s: SymbolId) -> bool {
+        matches!(self.syms.completions.get(&s), Some(Completion::Pending { .. }))
+            && matches!(self.u.symbol(s).kind, Kind::Class | Kind::Type)
+            && self.u.symbol(s).owner.is_some_and(|o| self.u.symbol(o).kind != Kind::Def)
     }
 
     /// Completes the classes of the parameter and result types of method `def` and the underlying
@@ -67,12 +125,13 @@ impl Typer<'_> {
     }
 
     /// Completes the unit's type members not yet completed that `a` or `b` refer to by name, as
-    /// library types do; whether there were any.
+    /// library types do, or select from a prefix whose class overrides them, as `p.T` for
+    /// `p: C` and `C`'s `type T = D`; whether there were any.
     pub fn complete_named_type_members(&mut self, a: TypeId, b: TypeId) -> bool {
         let mut named = Vec::new();
         for t in [a, b] {
             self.u.map_type(t, &mut |u, part| {
-                if matches!(u.ty(part), Type::TypeRef(..)) {
+                if matches!(u.ty(part), Type::TypeRef(..) | Type::Sym(Some(_), _)) {
                     named.push(part);
                 }
                 None
@@ -80,7 +139,11 @@ impl Typer<'_> {
         }
         let mut any = false;
         for part in named {
-            let Some(s) = self.u.resolve_ref(part) else { continue };
+            let s = match *self.u.ty(part) {
+                Type::Sym(Some(prefix), s) => self.overriding_type_member(prefix, s),
+                _ => self.u.resolve_ref(part),
+            };
+            let Some(s) = s else { continue };
             if self.u.symbol(s).kind == Kind::Type
                 && matches!(self.syms.completions.get(&s), Some(Completion::Pending { .. }))
             {
@@ -89,6 +152,19 @@ impl Typer<'_> {
             }
         }
         any
+    }
+
+    /// The type member named as type member `s` of the class of `prefix`'s underlying type, if
+    /// other than `s`.
+    fn overriding_type_member(&mut self, prefix: TypeId, s: SymbolId) -> Option<SymbolId> {
+        if self.u.symbol(s).kind != Kind::Type {
+            return None;
+        }
+        let widened = self.u.widen(prefix);
+        let class = self.u.class_symbol(widened)?;
+        let name = self.u.symbol(s).name.clone();
+        let found = self.u.member_where(class, &name, |u, m| u.symbol(m).kind == Kind::Type);
+        found.first().copied().filter(|&m| m != s)
     }
 
     /// Completes class `c` and the unit's classes among its base classes.
