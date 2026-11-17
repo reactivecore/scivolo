@@ -135,9 +135,9 @@ impl Cmp<'_> {
         if self.recur_frozen(hi, b) {
             return true;
         }
-        match self.frozen() {
-            true => self.third_try(a, b),
-            false => self.vars.add_upper(self.u, v, b),
+        match self.can_constrain(v) {
+            false => self.third_try(a, b),
+            true => self.vars.add_upper(self.u, v, b),
         }
     }
 
@@ -178,7 +178,7 @@ impl Cmp<'_> {
     pub fn try_base_type(&mut self, a: TypeId, b: TypeId, c: SymbolId) -> bool {
         let widened = self.u.widen(a);
         match self.u.base_type(widened, c) {
-            Some(base) if base != a => {
+            Some(base) if base != a && self.base_type_ok(a, b) => {
                 let and = matches!(self.u.ty(widened), Type::And(..));
                 match and || matches!(self.u.ty(base), Type::Or(..)) {
                     true => self.either(|s| s.recur(base, b), |s| s.fourth_try(a, b)),

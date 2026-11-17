@@ -192,6 +192,8 @@ pub struct Universe {
     pub reductions_left: u32,
     /// Whether a reduction was refused: over a budget, or reaching its own match type again.
     pub reductions_exhausted: bool,
+    /// How the cases of match types are matched, by the source version of the code at hand.
+    pub match_type_rules: crate::MatchTypeRules,
     /// Whether `erase` erases as Scala 2 does, for the signature of a Scala 2 symbol.
     scala2_erasure: bool,
 }
