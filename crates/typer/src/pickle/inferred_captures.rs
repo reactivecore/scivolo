@@ -14,7 +14,8 @@ use tasty::tags::PRIVATE;
 use tasty::{Binder, Kind, SymbolId, Type, TypeId, Universe};
 
 impl TreePickler<'_> {
-    fn capture_checked(&self) -> bool {
+    /// Whether the file being pickled is capture-checked.
+    pub fn capture_checked(&self) -> bool {
         self.file.is_some_and(|f| f.attributes.features.capture_checking())
     }
 

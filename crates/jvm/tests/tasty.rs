@@ -233,7 +233,8 @@ fn library_annotations_pickle_as_dotty_s() {
 /// A dependent function type whose function type parent dotty gives the capture sets of its
 /// refinement is refused, and so is the inferred function type of a closure whose parameters have
 /// capture sets (`@declared` in dotty's) or whose result's capture sets name its parameter (a
-/// dependent function type in dotty's).
+/// dependent function type in dotty's), and a match on `this` of a class whose self type is its
+/// own with a capture set, which dotty's patterns keep.
 #[test]
 fn untold_capture_sets_are_refused() {
     let out = root().join("tmp/jvm-test/untoldcaptures");
@@ -256,6 +257,11 @@ fn untold_capture_sets_are_refused() {
             "dependentclosure",
             "object F:\n  def g() =\n    val f = (x: Coll) => x.label\n    1\n",
             "a closure whose result's capture sets name its parameters",
+        ),
+        (
+            "selfmatch",
+            "trait G[+A]:\n  self: G[A]^ =>\n  def m(): Int = self match\n    case s: Product => 1\n    case _ => 2\n",
+            "a match on `this` of a class whose self type has a capture set",
         ),
     ];
     for (name, body, refusal) in cases {
