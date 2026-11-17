@@ -54,6 +54,8 @@ class Sigs[A] {
   def chainArray[A <: Marker, B <: A](x: Array[B]): Array[B] = x
   def chainInt[A <: Int, B <: A](x: B & Comparable[B]): B = x
   def chainKind[F[x] <: Seq[x], B <: F[Int]](x: Array[B]): Unit = ()
+  def chainIdentity[K[x] <: x, B <: K[Marker]](x: B & java.io.Serializable): Unit = ()
+  def identityInt[K[x] <: x](a: K[Int]): K[Int] = a
   def unit(): Unit = ()
   def nothing: Nothing = ???
   def anyRef(x: AnyRef, y: Any): Object = x
@@ -141,6 +143,8 @@ const METHODS: &[(&str, &str, Option<&str>)] = &[
             "<F::Lscala/collection/immutable/Seq<Ljava/lang/Object;>;B::Lscala/collection/immutable/Seq<Ljava/lang/Object;>;>([TB;)V",
         ),
     ),
+    ("Sigs", "chainIdentity", Some("<K:Ljava/lang/Object;B::Lsigs/Marker;>(Ljava/io/Serializable;)V")),
+    ("Sigs", "identityInt", Some("<K:Ljava/lang/Object;>(I)I")),
     ("Sigs", "unit", None),
     ("Sigs", "nothing", None),
     ("Sigs", "anyRef", None),
@@ -174,6 +178,8 @@ const DESCRIPTORS: &[(&str, &str, &str)] = &[
     ("Sigs", "chainArray", "([Lsigs/Marker;)[Lsigs/Marker;"),
     ("Sigs", "chainInt", "(I)I"),
     ("Sigs", "chainKind", "([Lscala/collection/immutable/Seq;)V"),
+    ("Sigs", "chainIdentity", "(Ljava/io/Serializable;)V"),
+    ("Sigs", "identityInt", "(I)I"),
 ];
 
 /// The field signatures of `SOURCE` that dotty writes.
