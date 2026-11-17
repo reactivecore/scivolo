@@ -43,9 +43,22 @@ impl Universe {
                     self.erase(t)
                 }
                 Some(t) => self.erase(t),
-                None => self.erase(tycon),
+                None => match self.expand_upper(tycon, args) {
+                    Some(t) if !self.mentions(t, tycon) => self.erase(t),
+                    _ => self.erase(tycon),
+                },
             },
         }
+    }
+
+    /// Whether `t` contains type `part`.
+    fn mentions(&mut self, t: TypeId, part: TypeId) -> bool {
+        let mut found = false;
+        self.map_type(t, &mut |_, x| {
+            found |= x == part;
+            None
+        });
+        found
     }
 
     /// `tycon[args]` with `tycon` an opaque type lambda defined outside TASTy: its right-hand
