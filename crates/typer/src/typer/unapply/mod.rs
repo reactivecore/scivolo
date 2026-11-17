@@ -5,6 +5,7 @@ mod alias;
 mod extractor;
 mod fun;
 mod implicits;
+mod kept_args;
 mod own_type;
 mod product_patterns;
 mod proto;
@@ -14,6 +15,7 @@ mod type_args;
 
 use super::{Pt, Typer};
 use crate::ctx::{Ctx, Mode};
+use kept_args::args_kept;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{List, NodeId, Tree};
 use tasty::TypeId;
@@ -123,7 +125,7 @@ impl UnapplyPattern {
                 && matches!(t.ast.tree(tpt), Tree::AppliedTypeTree { .. })
             {
                 let typed = t.typed_type(tpt, self.ctx.with_mode(Mode::PATTERN_TYPE));
-                if same_shape(t, tpt, typed) {
+                if args_kept(t, tpt, typed) {
                     *elem = t.tpd.tpe(typed);
                 }
             }
@@ -132,24 +134,6 @@ impl UnapplyPattern {
             let sel = t.u.intern_applied(tycon, &elems);
             (self.sel, self.scrutinee) = (sel, sel);
         }
-    }
-}
-
-/// Whether typing type tree `tpt` as `typed` kept its shape: the same type names, selections,
-/// applications and annotated types (dotty's `tpt.args == tpt2.args`, true where typing
-/// reused the untyped trees).
-fn same_shape(t: &Typer<'_>, tpt: NodeId, typed: TNodeId) -> bool {
-    match (t.ast.tree(tpt), t.tpd.tree(typed)) {
-        (Tree::Ident { name: a }, T::Ident { name: b }) => a == b,
-        (Tree::Select { qualifier: a, name: n }, T::Select { qualifier: b, name: m }) => {
-            n == m && same_shape(t, *a, *b)
-        }
-        (Tree::AppliedTypeTree { tpt: a, args: l }, T::AppliedTypeTree { tpt: b, args: m }) => {
-            let (l, m) = (t.ast.items(*l), t.tpd.items(*m));
-            same_shape(t, *a, *b) && l.len() == m.len() && l.iter().zip(m).all(|(&a, &b)| same_shape(t, a, b))
-        }
-        (Tree::Annotated { arg: a, .. }, T::Annotated { arg: b, .. }) => same_shape(t, *a, *b),
-        _ => false,
     }
 }
 
