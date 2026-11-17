@@ -120,6 +120,7 @@ impl TreePickler<'_> {
             }
         }
         let mut found = None;
+        let mut blocks = Vec::new();
         let tellers = args.into_iter().map(Teller::Arg).chain(closures.into_iter().map(Teller::Closure));
         for teller in tellers {
             let c = match teller {
@@ -128,6 +129,7 @@ impl TreePickler<'_> {
                 Teller::Closure((block, formals)) => {
                     let c = self.captured_closure_result(block, (&formals, binder), depth)?;
                     let (e, method) = self.closure_result_expr(block)?;
+                    blocks.push(block);
                     self.widened_arg((e, c), Some(method), (info, &is_param))?
                 }
             };
@@ -135,6 +137,9 @@ impl TreePickler<'_> {
                 return None;
             }
             found = Some(c);
+        }
+        for block in blocks {
+            self.keep_closure_result(block, found?)?;
         }
         for (a, outer_only) in pure {
             let c = match self.captured_in(a, depth)? {

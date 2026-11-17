@@ -3,8 +3,10 @@
 
 use super::TreePickler;
 use super::captured_exprs::Captured;
+use super::retaining::emptied;
 use crate::tpd::{TNodeId, Tree as T};
 use crate::typer::capture_types::has_captures;
+use crate::typer::seen_from::{resolve_class_params, resolve_class_params_keeping_captures};
 use tasty::{Binder, SymbolId, Type, TypeId};
 
 /// A closure's method: its symbol, parameters, result type tree and right-hand side.
@@ -88,6 +90,28 @@ impl TreePickler<'_> {
         let def = self.closure_def(block)?;
         let inferred = matches!(self.tpd.tree(def.tpt), T::TypeTree { inferred: true });
         Some((if inferred { def.rhs } else { def.tpt }, def.method))
+    }
+
+    /// Records result type `c` of the type parameter the method of closure block `block` returns
+    /// for its inferred result type tree, with its capture sets emptied: `B` of the closure of
+    /// `run(i => id(b))`, as `run[B]`. `None` if it is not our type of that tree.
+    pub fn keep_closure_result(&mut self, block: TNodeId, c: Captured) -> Option<()> {
+        let def = self.closure_def(block)?;
+        if !matches!(self.tpd.tree(def.tpt), T::TypeTree { inferred: true }) {
+            return Some(());
+        }
+        self.inferred.free_closures.remove(&def.method);
+        let Captured::With(t) = c else {
+            self.inferred.capture_free.insert(def.tpt);
+            return Some(());
+        };
+        let kept = emptied(self.u, t);
+        let kept = resolve_class_params_keeping_captures(self.u, kept);
+        if resolve_class_params(self.u, kept) != self.tpd.get(def.tpt).tpe? {
+            return None;
+        }
+        self.kept_captures.insert(def.tpt, kept);
+        Some(())
     }
 
     /// Determines whether `t` is a block that ends in a closure.
