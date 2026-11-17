@@ -36,6 +36,15 @@ pub fn field_ref(l: &mut Lower, lazy: &Lazy) -> TNodeId {
     l.positioned(select)
 }
 
+/// `x$lzyN` as dotty's `ref` makes it: an identifier in a static object, else `this.x$lzyN`.
+pub fn field_read(l: &mut Lower, lazy: &Lazy) -> TNodeId {
+    if !l.u.is_static_module(lazy.class) {
+        return field_ref(l, lazy);
+    }
+    let ident = l.ident(lazy.field, Span::NONE);
+    l.positioned(ident)
+}
+
 /// `qual.m(args)`, of `m`'s result type, of `qual`'s type for a constructor.
 pub fn call(l: &mut Lower, qual: TNodeId, m: SymbolId, args: &[TNodeId]) -> TNodeId {
     let fun = l.select(qual, m, Span::NONE);

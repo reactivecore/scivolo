@@ -515,7 +515,8 @@ template's end, as dotty places the accessor of a member read from TASTy. Togeth
 `Ptr.rawptr`'s offset taken in the trait's source, inside a doc comment, as dotty places the
 accessor of a member of another file of the run (`AccessProxies.accessorDef`). An offset past
 the end of that source sits at its end, where dotty's column runs on along the last line
-(case 1: a debug position, not representable in a unit's offsets).
+(case 1: a debug position, not representable in a unit's offsets). `lib-jar nativelib` lowers all
+of nativelib's source directories as one unit, as Scala Native's build does.
 
 `just lib-compile scalalib` lowers each file of Scala Native's scalalib alone against Scala's
 library, its `LazyVals` replaced by Scala Native's (`scripts/scalalib_sources.py`). As in Scala
@@ -525,10 +526,7 @@ not exist yet while a class of the same run is typed. `ToExpr$ArrayOf*ToExpr$` (
 `ToExpr$BigIntToExpr$`, `ToExpr$MapToExpr` and `FromExpr$MapFromExpr` differ in quote type
 sharing (case 1, as in **Quote type sharing** above, types shared across the files of the
 whole-module build); scala-cli's builds of `ToExpr.scala` and `FromExpr.scala` alone have their
-quotes as ours, up to the source path. Open: `scala/package$`'s lazy val `AnyRef` positions the
-object loaded for its lock release at the lazy val's end where dotty, also compiling
-`package.scala` alone, has the lazy val's: nscplugin desugars each `Ident` of a package object's
-field once (`cachedDesugarIdent`), so every later load of the object takes the first one's span.
+quotes as ours, up to the source path.
 
 ## Native executables
 

@@ -5,6 +5,7 @@
 
 use super::{Desugar, Mode, Owner};
 use crate::ast::{List, NodeId, Tree};
+use crate::parse::language::imported_features;
 use names::nme;
 
 impl Desugar<'_> {
@@ -15,12 +16,33 @@ impl Desugar<'_> {
             return l;
         }
         let items = self.ast.items(l).to_vec();
-        let expanded: Vec<NodeId> = items.iter().map(|&t| self.expand_stat(t)).collect();
+        let outer = self.cfg.features;
+        let expanded: Vec<NodeId> = items
+            .iter()
+            .map(|&t| {
+                self.enable_imported_features(t);
+                self.expand_stat(t)
+            })
+            .collect();
+        self.cfg.features = outer;
         let merged = self.merge_companions(&expanded);
         let flat = self.flatten(&merged);
         self.register_classes(&flat);
-        let mapped: Vec<NodeId> = flat.iter().map(|&t| self.transform_stat(t)).collect();
+        let mapped: Vec<NodeId> = flat
+            .iter()
+            .map(|&t| {
+                self.enable_imported_features(t);
+                self.transform_stat(t)
+            })
+            .collect();
+        self.cfg.features = outer;
         self.list(&mapped)
+    }
+
+    /// Enables the features of `stat` for the statements after it if it is a language import.
+    fn enable_imported_features(&mut self, stat: NodeId) {
+        let features = imported_features(self.ast, self.names, stat);
+        self.cfg.features.insert(features);
     }
 
     /// Transforms statement `t`, an expression of a class body as owned by a term (dotty's local

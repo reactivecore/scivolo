@@ -5,6 +5,7 @@
 use super::imports::{ImportEntry, ImportInfo};
 use super::{Pt, Typer};
 use crate::ctx::Ctx;
+use crate::symbols::Completion;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{NodeId, Tree};
 
@@ -17,7 +18,9 @@ impl Typer<'_> {
     pub fn import_info(&mut self, i: usize) -> Option<&ImportInfo> {
         let pending = match self.imports[i] {
             ImportEntry::Pending { tree, ctx } => Some((tree, ctx, false)),
-            ImportEntry::Completing { tree, ctx, again: false } => Some((tree, ctx, true)),
+            ImportEntry::Completing { tree, ctx, again: false } if !self.reenters_completing_value(tree) => {
+                Some((tree, ctx, true))
+            }
             ImportEntry::Completing { .. } | ImportEntry::Done(_) => None,
         };
         if let Some((tree, ctx, again)) = pending {
@@ -32,6 +35,24 @@ impl Typer<'_> {
             ImportEntry::Done(info) => Some(info),
             _ => None,
         }
+    }
+
+    /// Whether the path of import `tree` starts at an object being completed, as `import Impl.*`
+    /// while `@marker object Impl`'s annotation is looked up through it (dotty's `findRef` skips
+    /// an import whose symbol is completing).
+    fn reenters_completing_value(&self, tree: NodeId) -> bool {
+        let Tree::Import { expr, .. } = *self.ast.tree(tree) else { return false };
+        let mut root = expr;
+        while let Tree::Select { qualifier, .. } = *self.ast.tree(root) {
+            root = qualifier;
+        }
+        let Tree::Ident { name } = self.ast.tree(root) else { return false };
+        let name = self.text(name.name);
+        self.syms.completions.iter().any(|(&s, c)| {
+            matches!(c, Completion::Completing(t) if !matches!(self.ast.tree(*t), Tree::TypeDef { .. }))
+                && self.u.symbol(s).flags.has(tasty::tags::OBJECT)
+                && self.u.symbol(s).name == name
+        })
     }
 
     /// Whether typed path `path` selects a member of a term other than a package.

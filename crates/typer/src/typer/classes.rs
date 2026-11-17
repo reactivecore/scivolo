@@ -125,6 +125,7 @@ impl Typer<'_> {
         let (body, dummy) = self.typed_template_stats(cls, &t.body, cctx);
         let body = [self.bean_accessors(&body, cctx), body].concat();
         let mut body = self.with_inline_members(cls, body, cctx);
+        body.extend(self.parent_refinement_defs(cls, self.ast.span(rhs)));
         match self.deferred_given_impls(cls, ctx, cctx, self.ast.span(id)) {
             Ok(impls) => body.extend(impls),
             Err(what) => return self.unsupported(id, what),

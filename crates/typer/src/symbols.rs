@@ -49,6 +49,11 @@ pub struct Syms {
     pub param_trees: FxHashMap<SymbolId, NodeId>,
     /// The definition tree of each member and local of the unit.
     pub def_trees: FxHashMap<SymbolId, NodeId>,
+    /// The witness names of each script type with a context bound companion (dotty's
+    /// `WitnessNames` annotation).
+    pub witnessed: FxHashMap<SymbolId, Vec<String>>,
+    /// The members each script class has for the refinements of its parents.
+    pub parent_refinements: FxHashMap<SymbolId, Vec<SymbolId>>,
     /// Whether a script class initializes nothing itself (dotty's `NoInits`).
     pub no_inits: FxHashMap<SymbolId, bool>,
     /// The package a package-level `private` definition is private to (dotty's `privateWithin`).

@@ -162,6 +162,9 @@ impl Typer<'_> {
             }
         }
         self.syms.param_trees.insert(s, p);
+        if kind == Kind::TypeParam {
+            self.record_witness_names(s, mods);
+        }
         if self.syms.by_tree.insert(p, s).is_some() {
             self.unsupported(p, "definition tree shared by two definitions");
         }

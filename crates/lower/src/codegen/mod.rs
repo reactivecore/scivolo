@@ -36,6 +36,7 @@ mod fields;
 mod finally;
 pub(crate) mod forwarded_members;
 pub(crate) mod funcptr;
+mod ident_qualifiers;
 mod interface_bridges;
 pub(crate) mod intrinsics;
 mod labels;
@@ -87,6 +88,8 @@ pub struct Gen<'l, 'a> {
     lambdas: u32,
     /// The C struct type of each class by binary name, none for a class that is not `@struct`.
     structs: FxHashMap<String, Option<TypeId>>,
+    /// The span of the implicit qualifier of the identifiers of each type, by source index.
+    ident_qualifiers: FxHashMap<(usize, tasty::TypeId), Span>,
 }
 
 /// The NIR files of unit `root`, one per top-level name, in the order first defined.
@@ -116,6 +119,7 @@ pub fn unit(l: &mut Lower, root: TNodeId) -> Result<Vec<NirFile>> {
         closures: Vec::new(),
         lambdas: 0,
         structs: FxHashMap::default(),
+        ident_qualifiers: FxHashMap::default(),
     };
     g.gen_companion_handle_fields(&type_defs)?;
     for td in type_defs {

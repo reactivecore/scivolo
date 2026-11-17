@@ -108,6 +108,7 @@ const DOTTY_TASTY: &[(&str, &[&str])] = &[
     ("widenedargs", &["W"]),
     ("typercaptures", &["G", "Mk", "ByNames"]),
     ("lambdabounds", &["scala/probe/LambdaBounds"]),
+    ("witnessnames", &["scala/probe/WitnessNames"]),
     ("seencaptures", &["Q", "R"]),
     ("librarycaptures", &["scala/probe/Appending", "scala/probe/LibCaptures"]),
     ("thiscaptures", &["Node", "Plain", "Ops", "Ser"]),
@@ -129,7 +130,8 @@ const DOTTY_TASTY: &[(&str, &[&str])] = &[
 /// superclass are its parameters' aliases; `@BeanProperty` values get their bean accessors;
 /// synthesized case class members refer to package members through the package's `this`, and
 /// numeric widenings their companion through the prefix of the widened type; a type lambda
-/// written as a wildcard's bound pickles without variances. Needs a JDK (java on
+/// written as a wildcard's bound pickles without variances; a type with context bounds keeps its
+/// `@WitnessNames` annotation. Needs a JDK (java on
 /// the PATH), as dotty's did.
 #[test]
 fn probes_pickle_as_dotty_s() {
