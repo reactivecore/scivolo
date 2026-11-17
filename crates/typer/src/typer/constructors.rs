@@ -8,10 +8,7 @@ use crate::tpd::{TNodeId, Tree as T};
 use names::nme;
 use syntax::ast::NodeId;
 use tasty::tags::{ABSTRACT, TRAIT};
-use tasty::{Binder, Kind, ParamList, SymbolId, Type, TypeId};
-
-/// The parameter clauses of a method type, by binder.
-type Clauses = Vec<(Binder, ParamList)>;
+use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
     pub fn typed_new(&mut self, id: NodeId, tpt: NodeId, ctx: Ctx) -> TNodeId {
@@ -153,29 +150,6 @@ impl Typer<'_> {
             }
             _ => self.with_final_result(owner, info, class, &mut Vec::new()),
         }
-    }
-
-    /// Method type `t` of a constructor of `owner` with its final result, if `Unit`, replaced by
-    /// `class`, refined by the tracked parameters of the clauses `outer` and those of `t`.
-    fn with_final_result(
-        &mut self,
-        owner: SymbolId,
-        t: TypeId,
-        class: TypeId,
-        outer: &mut Clauses,
-    ) -> TypeId {
-        let node = *self.u.ty(t);
-        let result = match node {
-            Type::Method { binder, params, result, implicit, contextual } => {
-                outer.push((binder, params));
-                let result = self.with_final_result(owner, result, class, outer);
-                return self.u.intern_type(Type::Method { binder, params, result, implicit, contextual });
-            }
-            _ if self.u.class_symbol(t) == Some(self.defn.unit) => class,
-            _ if self.u.class_symbol(t) == Some(owner) && self.without_refinements(t) == t => t,
-            _ => return t,
-        };
-        outer.iter().fold(result, |r, &(binder, params)| self.add_param_refinements(owner, r, binder, params))
     }
 
     /// The type of a call of constructor `ctor` on `new` of type `class`, whose method type gives
