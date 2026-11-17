@@ -84,7 +84,7 @@ const DOTTY_TASTY: &[(&str, &[&str])] = &[
     ("captures", &["Break"]),
     ("captures38", &["Break"]),
     ("inferredcaptures", &["Lambdas", "Locals"]),
-    ("inferredcaptures2", &["Generic", "Conds", "Overrides", "Closures"]),
+    ("inferredcaptures2", &["Generic", "Conds", "Overrides", "Closures", "Outer"]),
     ("selectorannotations", &["scala/probe/Selectors"]),
     (
         "nestedannotations",
@@ -108,8 +108,9 @@ const DOTTY_TASTY: &[(&str, &[&str])] = &[
 /// field `label: Label[T]^{}` of captures.scala keeps its capture set as a type and, under source
 /// 3.8, as `new retains[Nothing]()`; inferred types of inferredcaptures.scala keep the capture
 /// sets of the types they are inferred from, emptied, those of inferredcaptures2.scala through
-/// generic calls, conditionals, matches and closures, and an overriding member's its overridden
-/// member's as they are; annotated types take the annotation tree of their own
+/// generic calls, conditionals, matches and closures, a type argument none from an argument whose
+/// capture sets are only around it, and an overriding member's its overridden member's as they
+/// are; annotated types take the annotation tree of their own
 /// origin in match selectors and patterns, inferred types, super accessors and inline accessors,
 /// in super accessors with their class's type parameters seen from the accessor's class; secondary constructors have their own type parameters and parameters passed on to the
 /// superclass are its parameters' aliases. Needs a JDK (java on the PATH), as dotty's did.
@@ -186,7 +187,8 @@ fn library_annotations_pickle_as_dotty_s() {
 }
 
 /// An inferred type that dotty's typer may give capture sets which ours cannot tell, through a
-/// call whose type argument a parameter of another type than it infers, and a dependent function
+/// call whose type argument a parameter of another type than it infers, a `this.type` or
+/// parameter singleton result widened to the capture sets of its path, and a dependent function
 /// type whose function type parent dotty gives the capture sets of its refinement are refused.
 #[test]
 fn untold_capture_sets_are_refused() {
@@ -199,6 +201,18 @@ fn untold_capture_sets_are_refused() {
             "generic",
             "object G:\n  def first[T](xs: List[T]): T = xs.head\n  \
              def g(a: A^, b: B^{a}): Int =\n    val y = first(List(b))\n    1\n",
+            "capture sets not told",
+        ),
+        (
+            "thistype",
+            "class S:\n  def me: this.type = this\nobject T:\n  \
+             def g(a: A^, s: S^{a}): Int =\n    val y = s.me\n    1\n",
+            "capture sets not told",
+        ),
+        (
+            "paramtype",
+            "object P:\n  def pick(x: B^): x.type = x\n  \
+             def g(a: A^, b: B^{a}): Int =\n    val y = pick(b)\n    1\n",
             "capture sets not told",
         ),
         (

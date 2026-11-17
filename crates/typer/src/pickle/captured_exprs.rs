@@ -30,7 +30,8 @@ impl TreePickler<'_> {
     /// Determines the type dotty's typer gives expression `e`, `None` if the definitions it refers
     /// to do not tell it: of a literal, `this` or a type ascription its type; of a reference or a
     /// call the info of its definition as seen from its qualifier, with inferred type arguments
-    /// that the arguments of parameters of those types tell; of a block its result's or the
+    /// that the arguments of parameters of those types tell, a singleton widened (not told if a
+    /// parameter's, or `this.type` seen from a path with capture sets); of a block its result's or the
     /// function type of the closure it ends in; of a conditional or a match the one of all its
     /// branches but those of type `Nothing`. Records the type of each inferred type argument told.
     pub fn captured_expr(&mut self, e: TNodeId) -> Option<Captured> {
@@ -109,7 +110,16 @@ impl TreePickler<'_> {
         for _ in &clauses {
             info = self.u.method(info)?.result;
         }
-        let info = self.u.by_name(info).unwrap_or(info);
+        let mut info = self.u.by_name(info).unwrap_or(info);
+        let param = |u: &tasty::Universe, s: tasty::SymbolId| u.symbol(s).kind == Kind::Param;
+        match *self.u.ty(info) {
+            Type::Param(..) | Type::Local(..) => return None,
+            Type::Sym(_, p) if param(self.u, p) => return None,
+            _ => {}
+        }
+        if is_path(self.u, info) {
+            info = self.u.widen(info);
+        }
         if self.u.method(info).is_some() || self.u.poly(info).is_some() {
             return None;
         }
@@ -131,7 +141,10 @@ impl TreePickler<'_> {
         match *self.tpd.tree(fun) {
             T::Ident { .. } => Some(self.u.info(s)),
             T::Select { qualifier, .. } => {
+                let declared = self.u.info(s);
+                let declared = final_result(self.u, declared);
                 let prefix = match self.captured_in(qualifier, depth)? {
+                    Captured::With(_) if is_path(self.u, declared) => return None,
                     Captured::With(t) => strip_annotations(self.u, t),
                     Captured::Ours => self.tpd.get(qualifier).tpe?,
                 };
@@ -145,8 +158,28 @@ impl TreePickler<'_> {
     }
 }
 
-/// `t` without the annotations around it.
-fn strip_annotations(u: &tasty::Universe, mut t: TypeId) -> TypeId {
+/// Whether `t` is a singleton type other than a constant, or a reference to a parameter.
+fn is_path(u: &tasty::Universe, t: TypeId) -> bool {
+    match *u.ty(t) {
+        Type::TermRef(..) | Type::This(_) | Type::RecThis(_) | Type::Skolem(..) => true,
+        Type::Param(..) | Type::Local(..) => true,
+        Type::Sym(_, s) => u.symbol(s).kind.is_term(),
+        _ => false,
+    }
+}
+
+/// The result of method or by-name type `t` after all its parameter clauses.
+fn final_result(u: &tasty::Universe, mut t: TypeId) -> TypeId {
+    loop {
+        t = match *u.ty(t) {
+            Type::Method { result, .. } | Type::Poly { result, .. } | Type::ByName(result) => result,
+            _ => return t,
+        };
+    }
+}
+
+/// Strips the annotations around `t`.
+pub fn strip_annotations(u: &tasty::Universe, mut t: TypeId) -> TypeId {
     while let Some((inner, _)) = u.annotated(t) {
         t = inner;
     }

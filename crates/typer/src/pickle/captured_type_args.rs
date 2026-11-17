@@ -2,7 +2,7 @@
 //! capture sets of the arguments that tell them.
 
 use super::TreePickler;
-use super::captured_exprs::Captured;
+use super::captured_exprs::{Captured, captured, strip_annotations};
 use super::retaining::emptied;
 use crate::tpd::{List, TNodeId, Tree as T};
 use crate::typer::seen_from::{member_of, resolve_class_params, resolve_class_params_keeping_captures};
@@ -83,8 +83,8 @@ impl TreePickler<'_> {
 
     /// The type the arguments of the parameters of type `param`, the `i`th type parameter `name`
     /// of binder `binder`, a repetition of it or a function type of that result give it: the one
-    /// all give; no capture sets if those of other parameters whose types have `param` in them
-    /// have none and no other gives one.
+    /// all give; no capture sets if the arguments of other parameters whose types have `param`
+    /// in them have none but around them, around `param` none either, and no other gives one.
     fn told_type_arg(
         &mut self,
         (binder, i, name): (Binder, usize, NameId),
@@ -114,7 +114,8 @@ impl TreePickler<'_> {
                 {
                     closures.push((*actuals.get(j)?, fargs[..fargs.len() - 1].to_vec()));
                 } else if has_part(self.u, formal, &is_param) && !self.is_closure_block(*actuals.get(j)?) {
-                    pure.push(*actuals.get(j)?);
+                    let outer_only = !is_param(self.u, strip_annotations(self.u, formal));
+                    pure.push((*actuals.get(j)?, outer_only));
                 }
             }
         }
@@ -132,8 +133,15 @@ impl TreePickler<'_> {
             }
             found = Some(c);
         }
-        for a in pure {
-            if self.captured_in(a, depth)? != Captured::Ours || found.is_some_and(|f| f != Captured::Ours) {
+        for (a, outer_only) in pure {
+            let c = match self.captured_in(a, depth)? {
+                Captured::With(t) if outer_only => {
+                    let inner = strip_annotations(self.u, t);
+                    captured(self.u, inner)
+                }
+                c => c,
+            };
+            if c != Captured::Ours || found.is_some_and(|f| f != Captured::Ours) {
                 return None;
             }
             found = Some(Captured::Ours);

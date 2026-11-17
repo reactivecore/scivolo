@@ -33,3 +33,10 @@ object Closures:
     val f = (x: Int) => b
     val h = () => b
     1
+
+class Queue[E]
+object Queue:
+  def from[E](it: IterableOnce[E]^): Queue[E] = Queue[E]()
+
+object Outer:
+  def g[E](it: IterableOnce[E]^): Queue[E] = Queue.from(it)
