@@ -53,11 +53,11 @@ impl Universe {
     }
 
     /// Whether value `def` of type `t` is a constant of a Java enum in a compile for the JVM: a
-    /// value of the enum's type in the object of a class deriving from `java.lang.Enum` (a field
-    /// with `ACC_ENUM`).
+    /// value of the enum's type in the object of a class deriving from `java.lang.Enum`, a field
+    /// of a class file only with `ACC_ENUM`.
     fn is_java_enum_constant(&mut self, def: SymbolId, t: TypeId) -> bool {
         let s = self.symbol(def);
-        let value = s.kind == Kind::Val && self.uses_java_classfiles();
+        let value = s.kind == Kind::Val && self.uses_java_classfiles() && self.may_be_enum_constant(def);
         let Some(object) = s.owner.filter(|&o| value && self.is_module_class(o)) else {
             return false;
         };

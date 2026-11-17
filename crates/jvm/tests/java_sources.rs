@@ -182,6 +182,18 @@ fn a_private_constructor_makes_no_sam_class() {
     assert!(!refused.status.success(), "{}", String::from_utf8_lossy(&refused.stdout));
 }
 
+/// A `final val` alias of a Java enum constant keeps its singleton type, one of another static
+/// field of the enum's type is widened to the enum (dotty's `isJavaEnumValue`): only the second
+/// ascription is rejected.
+#[test]
+fn only_enum_constants_keep_their_singleton_type() {
+    let Some((mut scivolo, _)) = scivolo("enumfield") else { return };
+    let rejected = output(&mut scivolo);
+    let stderr = String::from_utf8_lossy(&rejected.stderr);
+    assert!(!rejected.status.success() && stderr.contains("enumfield.scala:5:"), "{stderr}");
+    assert!(!stderr.contains("enumfield.scala:3:"), "{stderr}");
+}
+
 #[test]
 fn a_receiver_parameter_is_refused_by_name() {
     let Some((mut scivolo, _)) = scivolo("refused") else { return };

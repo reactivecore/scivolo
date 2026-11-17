@@ -149,6 +149,9 @@ pub fn member(
     visibility::qualify(u, s, m.access);
     u.infos.insert(s, info);
     u.classfile_descriptors.insert(s, m.descriptor.clone());
+    if !method && m.access & ACC_ENUM != 0 {
+        u.classfile_enum_fields.insert(s);
+    }
     if method {
         u.set_deferred(s, m.access & ACC_ABSTRACT != 0);
     }

@@ -129,6 +129,8 @@ pub struct Universe {
     classfile_classes: FxHashSet<SymbolId>,
     /// The descriptor of each member entered from them.
     classfile_descriptors: FxHashMap<SymbolId, String>,
+    /// The fields entered from them that are enum constants (`ACC_ENUM`).
+    classfile_enum_fields: FxHashSet<SymbolId>,
     /// The retention of each annotation class entered from them.
     classfile_annotations: FxHashMap<SymbolId, classfiles::Retention>,
     /// The internal name of the container class of each `@Repeatable` annotation class of them.
