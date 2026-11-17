@@ -10,6 +10,7 @@ mod bridges;
 mod compactify;
 mod constructors;
 mod erased_params;
+mod expand;
 mod generic;
 mod lub;
 mod mangle;

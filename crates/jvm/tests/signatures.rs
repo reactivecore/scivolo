@@ -135,7 +135,7 @@ class WidenedAlias[R <: AliasMembers { type A[T] <: AnyVal; type B <: AnyVal }](
   def one(x: f.A[Int]): f.A[Int] = x
   def arrB(xs: Array[f.B]): Array[f.B] = xs
 }
-class VarBound[R <: LongMembers, S <: R { type B <: AnyVal }](val f: S) {
+class VarBound[R <: LongMembers { type A[T] <: Long }, S <: R { type B <: AnyVal }](val f: S) {
   def arrB(xs: Array[f.B]): Array[f.B] = xs
 }
 object Conv extends scala.collection.convert.StreamExtensions
