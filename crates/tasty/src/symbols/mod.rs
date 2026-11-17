@@ -106,6 +106,8 @@ pub struct Universe {
     gadt: GadtConstraint,
     parents: FxHashMap<SymbolId, Vec<TypeId>>,
     linearizations: FxHashMap<SymbolId, Vec<SymbolId>>,
+    /// The type of `this` of each class `this_type` was asked for.
+    this_types: FxHashMap<SymbolId, TypeId>,
     /// Per class and base class, whether the class's parents give the base different types.
     disagreeing_bases: FxHashMap<(SymbolId, SymbolId), bool>,
     /// The abstract methods and values among the symbols defined outside TASTy.

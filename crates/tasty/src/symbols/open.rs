@@ -46,6 +46,7 @@ impl Universe {
             gadt: Default::default(),
             parents: FxHashMap::default(),
             linearizations: FxHashMap::default(),
+            this_types: FxHashMap::default(),
             disagreeing_bases: FxHashMap::default(),
             deferred: Default::default(),
             with_inits: Default::default(),

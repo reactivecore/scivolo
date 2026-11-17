@@ -124,6 +124,24 @@ impl Universe {
         decls.iter().copied().filter(|&d| self.symbol(d).kind == Kind::TypeParam).collect()
     }
 
+    /// The type of `this` in class `c`: `c` applied to its own type parameters, seen from `this`
+    /// (dotty's `appliedRef`).
+    pub fn this_type(&mut self, c: SymbolId) -> TypeId {
+        if let Some(&t) = self.this_types.get(&c) {
+            return t;
+        }
+        let class = self.intern_type(Type::Sym(None, c));
+        let this = self.intern_type(Type::This(class));
+        let params: Vec<TypeId> =
+            self.type_params(c).into_iter().map(|p| self.intern_type(Type::Sym(Some(this), p))).collect();
+        let t = match params.is_empty() {
+            true => class,
+            false => self.intern_applied(class, &params),
+        };
+        self.this_types.insert(c, t);
+        t
+    }
+
     /// The class type parameter reference `t` names: its class and index.
     pub fn class_param(&mut self, t: TypeId) -> Option<(SymbolId, usize)> {
         let s = match *self.ty(t) {
@@ -135,7 +153,8 @@ impl Universe {
         if self.symbol(s).kind != Kind::TypeParam || self.symbol(owner).kind != Kind::Class {
             return None;
         }
-        Some((owner, self.type_params(owner).iter().position(|&p| p == s)?))
+        let decls = self.symbol(owner).decls.iter();
+        Some((owner, decls.filter(|&&d| self.symbol(d).kind == Kind::TypeParam).position(|&p| p == s)?))
     }
 
     /// The class type `t` refers to, through aliases and upper bounds, if the universe has it.

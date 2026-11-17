@@ -16,6 +16,9 @@ impl Universe {
         let plain_term = s.kind == Kind::Def || s.kind == Kind::Val && !s.flags.has(PARAMsetter);
         if let Some(o) = s.owner {
             self.symbols[o.0 as usize].decls.push(id);
+            if s.kind == Kind::TypeParam {
+                self.this_types.remove(&o);
+            }
             if targeted {
                 self.targeted.insert(o);
             }
@@ -41,6 +44,7 @@ impl Universe {
     /// Drops the name index of `owner` and what `changed` drops.
     fn decls_changed(&mut self, owner: SymbolId) {
         self.by_name.remove(&owner);
+        self.this_types.remove(&owner);
         self.changed();
     }
 
@@ -93,6 +97,9 @@ impl Universe {
     /// Sets the kind of `sym`, a term defined outside TASTy; drops the resolved references.
     pub fn set_kind(&mut self, sym: SymbolId, kind: Kind) {
         self.symbols[sym.0 as usize].kind = kind;
+        if let Some(owner) = self.symbol(sym).owner {
+            self.this_types.remove(&owner);
+        }
         self.changed();
     }
 
