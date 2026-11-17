@@ -650,6 +650,28 @@ fn type_members_parameters_refine_as_aliases_are_refused() {
 }
 
 #[test]
+fn context_bound_parameters_dotty_infers_as_tracked_are_refused() {
+    let flagged = &["-source", "future", "-language:experimental.modularity"];
+    let refused = Err("unsupported context bound parameter dotty infers as tracked".to_owned());
+    let coll = "trait Coll[Self]:\n  type Pos\n";
+    let cases = [
+        (format!("{coll}def first[S: Coll](s: S) = 1\n"), refused.clone()),
+        (format!("{coll}class C[S: Coll](s: S)\n"), refused.clone()),
+        (format!("{coll}given g: [S] => (c: Coll[S]) => Coll[List[S]]:\n  type Pos = Int\n"), refused),
+        (format!("{coll}def first(s: Int) =\n  def local[S: Coll](s: S) = 1\n  2\n"), Ok(())),
+        ("trait Eq[Self]\ndef first[S: Eq](s: S) = 1\n".to_owned(), Ok(())),
+    ];
+    for (text, expected) in cases {
+        let Some(mut u) = universe() else { return };
+        assert_eq!(
+            type_unit_with(&mut u, &mut Units::default(), ("t.scala", &text), flagged),
+            expected,
+            "{text}"
+        );
+    }
+}
+
+#[test]
 fn import_cycles_through_a_member_selection_are_refused() {
     let Some(mut u) = universe() else { return };
     let cycle = |import: &str, p: &str| {
