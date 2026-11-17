@@ -1,6 +1,9 @@
 //! Interned simple names.
 
+mod fresh;
+
 use crate::token::{Token, keyword_at, keyword_spellings};
+pub use fresh::{FreshCounters, FreshNames};
 use hashbrown::HashTable;
 use rustc_hash::FxBuildHasher;
 use std::hash::BuildHasher;
@@ -118,81 +121,6 @@ impl Names {
 
     pub fn text(&self, name: Name) -> &str {
         text_of(&self.buf, &self.bounds, name.0)
-    }
-}
-
-/// The counters of the fresh names of each file of a unit, one per prefix (dotty's
-/// `FreshNameCreator` of a compilation unit), and the `$N$` names made.
-#[derive(Default)]
-pub struct FreshNames {
-    files: Vec<rustc_hash::FxHashMap<String, u32>>,
-    /// The counter of the `$N$` names of all files, renumbered per file after typing.
-    unique_count: u32,
-    pub uniques: crate::desugar::uniques::Uniques,
-}
-
-/// The counters of the prefixed fresh names of a unit at one point.
-#[derive(Clone)]
-pub struct FreshCounters(Vec<rustc_hash::FxHashMap<String, u32>>);
-
-impl FreshNames {
-    /// Makes `prefix` followed by the next number for it in the unit's first file: `_$1`.
-    pub fn next(&mut self, names: &mut Names, prefix: &str) -> Name {
-        self.next_in(0, names, prefix)
-    }
-
-    /// Makes `prefix`, each `<` and `>` replaced by `$`, followed by the next number for it in the
-    /// unit's `file`th file (dotty's `UniqueNameKind.mkString` with `str.sanitize`).
-    pub fn next_in(&mut self, file: usize, names: &mut Names, prefix: &str) -> Name {
-        if self.files.len() <= file {
-            self.files.resize_with(file + 1, Default::default);
-        }
-        let prefix = prefix.replace(['<', '>'], "$");
-        let n = self.files[file].entry(prefix.clone()).or_insert(0);
-        *n += 1;
-        names.intern(&format!("{prefix}{n}"))
-    }
-
-    /// Copies the counters of the prefixed fresh names.
-    pub fn counters(&self) -> FreshCounters {
-        FreshCounters(self.files.clone())
-    }
-
-    /// Resets the counters of the prefixed fresh names to `c`.
-    pub fn reset_counters(&mut self, c: FreshCounters) {
-        self.files = c.0;
-    }
-
-    /// Raises each counter of the prefixed fresh names to at least its value in `c`.
-    pub fn raise_counters(&mut self, c: FreshCounters) {
-        if self.files.len() < c.0.len() {
-            self.files.resize_with(c.0.len(), Default::default);
-        }
-        for (file, counters) in self.files.iter_mut().zip(c.0) {
-            for (prefix, n) in counters {
-                let own = file.entry(prefix).or_insert(0);
-                *own = (*own).max(n);
-            }
-        }
-    }
-
-    /// Makes the next `$N$` (dotty's `UniqueName`).
-    pub fn unique(&mut self, names: &mut Names) -> Name {
-        self.unique_count += 1;
-        let name = names.intern(&format!("${}$", self.unique_count));
-        self.uniques.push(name);
-        name
-    }
-
-    /// Takes the counters of `other`, a single file's, for the unit's `file`th file; raises the
-    /// `$N$` counter to at least `other`'s and takes its `$N$` names.
-    pub fn include(&mut self, file: usize, other: &FreshNames) {
-        if self.files.len() <= file {
-            self.files.resize_with(file + 1, Default::default);
-        }
-        self.files[file] = other.files.first().cloned().unwrap_or_default();
-        self.unique_count = self.unique_count.max(other.unique_count);
-        self.uniques.include(&other.uniques);
     }
 }
 

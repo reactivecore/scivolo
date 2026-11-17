@@ -51,6 +51,9 @@ impl Mode {
     /// The reference of a singleton type, where a context function value stays unapplied
     /// (dotty's `SingletonTypeProto`).
     pub const SINGLETON_REF: Mode = Mode(65536);
+    /// The qualifier of `m.apply(args)`, itself and not the trees in it, where a method stays
+    /// unexpanded (dotty's `ptWithoutRedundantApply`).
+    pub const REDUNDANT_APPLY: Mode = Mode(131072);
 
     pub fn is(self, m: Mode) -> bool {
         self.0 & m.0 != 0

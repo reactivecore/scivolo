@@ -31,6 +31,10 @@ pub struct InferredCaptures {
     pub capture_free: FxHashSet<TNodeId>,
     /// The closure methods without an expected type, whose right-hand sides tell their results.
     pub free_closures: FxHashSet<SymbolId>,
+    /// The qualifier of the selection told now, typed without an expected type.
+    pub qualifier: Option<TNodeId>,
+    /// Whether the call whose type arguments are told now has no expected type.
+    pub unexpected: bool,
 }
 
 /// Why an inferred type tree whose capture sets are not told is not pickled.

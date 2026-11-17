@@ -148,6 +148,11 @@ impl Universe {
     /// The type of member `m` of `prefix` that `m` declares; the `apply` of a dependent function
     /// type, or a term member a refinement narrows, the one its refinement gives.
     pub fn own_member_info(&mut self, prefix: TypeId, m: SymbolId) -> TypeId {
+        let compute = |u: &mut Self| u.seen_member_info(prefix, m);
+        super::context_memo::remembered(self, |u| &mut u.member_infos, (prefix, m), compute)
+    }
+
+    fn seen_member_info(&mut self, prefix: TypeId, m: SymbolId) -> TypeId {
         let info = self.info(m);
         match self.symbol(m).owner {
             Some(owner) if self.symbol(owner).kind == Kind::Class => {
