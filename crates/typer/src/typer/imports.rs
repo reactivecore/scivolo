@@ -108,7 +108,7 @@ impl Typer<'_> {
     /// The root import that import `i` hides when it does not supply a name: `Predef`'s, if `i`
     /// imports from `Predef` (dotty's `ImportInfo.unimported`).
     pub fn unimported(&mut self, i: usize) -> Option<SymbolId> {
-        if self.is_root_import(i) {
+        if self.is_root_import(i) || !self.may_unimport(i) {
             return None;
         }
         let qual = self.import_info(i)?.qual;
@@ -186,7 +186,7 @@ impl Typer<'_> {
 
     /// What import `i` makes visible as `name` by a wildcard (dotty's `wildImportRef`).
     pub fn wild_import_ref(&mut self, i: usize, name: &str, is_type: bool) -> Option<Found> {
-        if !self.import_info(i)?.wildcard_imports(name) {
+        if !self.may_import_wild(i) || !self.import_info(i)?.wildcard_imports(name) {
             return None;
         }
         self.selection(i, name, is_type, true)
