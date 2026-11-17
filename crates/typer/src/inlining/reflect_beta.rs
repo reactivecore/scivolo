@@ -6,7 +6,7 @@ use super::{
     AnnotationCall, CheckedErrors, Expanded, Host, ImportSelector, Inlining, Lent, MacroCall, MacroError,
     Reflect,
 };
-use crate::ctx::Ctx;
+use crate::ctx::{Ctx, Level};
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::Span;
 use syntax::names::FreshNames;
@@ -20,7 +20,7 @@ impl Host for NoHost {
         None
     }
 
-    fn within(&mut self, ctx: Ctx, _: Vec<(String, SymbolId)>) -> Ctx {
+    fn within(&mut self, ctx: Ctx, _: Level) -> Ctx {
         ctx
     }
 

@@ -4,7 +4,7 @@
 //! scope of, in whose scope a search runs.
 
 use super::{Inlining, Unsupported};
-use crate::ctx::Ctx;
+use crate::ctx::{Ctx, Level};
 use crate::tpd::{MatchKind, TNodeId, Tpd, Tree as T};
 use crate::typer::stability::is_stable_path;
 use rustc_hash::FxHashMap;
@@ -12,13 +12,12 @@ use tasty::tags::{GIVEN, IMPLICIT, MACRO};
 use tasty::{SymbolId, Universe};
 
 /// A scope inside the code being expanded: the implicits a block's statements define, an import
-/// statement, or the body of a local class that defines or inherits implicits, where searches are
-/// refused.
+/// statement, or the body of a local class, whose members a search sees through `C.this`.
 #[derive(Clone)]
 pub enum Scope {
     Implicits(Vec<SymbolId>),
     Import(TNodeId),
-    Class,
+    Class(SymbolId),
 }
 
 impl Inlining<'_> {
@@ -53,10 +52,10 @@ impl Inlining<'_> {
         let imp = match scope {
             Scope::Implicits(defs) => {
                 let locals = defs.into_iter().map(|s| (self.u.symbol(s).name.clone(), s)).collect();
-                return self.host.within(ctx, locals);
+                return self.host.within(ctx, Level::Scope(locals));
             }
             Scope::Import(imp) => imp,
-            Scope::Class => return ctx,
+            Scope::Class(cls) => return self.host.within(ctx, Level::Members(cls)).with_owner(cls),
         };
         let T::Import { expr, selectors, .. } = *self.tpd.tree(imp) else { return ctx };
         let name = |i: &Self, t: TNodeId| match i.tpd.tree(t) {
@@ -115,8 +114,8 @@ impl Inlining<'_> {
     }
 
     /// Adds the scope of the implicits that the statements of block `t` define, the pattern of
-    /// case `t` binds, or class body `t` defines, to `scopes` if there are any; the number of
-    /// scopes before (dotty's `InlineTyper.index`, `Typer.indexPattern`).
+    /// case `t` binds, or the members of the class whose body `t` is, to `scopes`; the number of
+    /// scopes before (dotty's `InlineTyper.index`, `Typer.indexPattern`, a class body's context).
     pub fn enter_implicits(&mut self, t: TNodeId) -> usize {
         let mark = self.scopes.len();
         let mut defined = Vec::new();
@@ -126,29 +125,17 @@ impl Inlining<'_> {
                 defined.extend(defs.filter_map(|&s| self.tpd.sym(s)));
             }
             T::CaseDef { pat, .. } => self.implicit_defs(pat, &mut defined),
+            T::Template { .. } => {
+                if let Some(cls) = self.enclosing_class {
+                    self.scopes.push(Scope::Class(cls));
+                }
+            }
             _ => {}
-        }
-        if matches!(self.tpd.tree(t), T::Template { .. })
-            && (self.defines_inside(t) || self.has_implicit_members())
-        {
-            self.scopes.push(Scope::Class);
         }
         if !defined.is_empty() {
             self.scopes.push(Scope::Implicits(defined));
         }
         mark
-    }
-
-    /// Whether the enclosing class, a class it extends or one its self type names declares a given
-    /// or implicit member, as `given Int` of `trait T` in `class C extends T`.
-    fn has_implicit_members(&mut self) -> bool {
-        let Some(class) = self.enclosing_class else { return true };
-        let mut bases = self.u.linearization(class);
-        bases.extend(self.u.self_type_bases(class));
-        bases.into_iter().any(|b| match self.u.decls(b) {
-            Ok(decls) => decls.into_iter().any(|d| self.u.symbol(d).is_implicit()),
-            Err(_) => true,
-        })
     }
 
     pub fn is_implicit_def(&self, t: TNodeId) -> bool {

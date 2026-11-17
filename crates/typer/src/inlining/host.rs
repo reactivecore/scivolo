@@ -3,7 +3,7 @@
 
 use super::local_implicits::Scope;
 use super::{AnnotationCall, Expanded, Inlining, MacroCall, MacroError, Reports, Unsupported};
-use crate::ctx::Ctx;
+use crate::ctx::{self, Ctx};
 use crate::tpd::{TNodeId, Tpd, Tree as T};
 use syntax::ast::Span;
 use syntax::diag::Level;
@@ -27,8 +27,8 @@ pub type ImportSelector = (String, String, Option<TNodeId>);
 pub trait Host {
     /// The context of inline call `call`, outside an inline method, as the typer recorded it.
     fn call_ctx(&self, call: TNodeId) -> Option<Ctx>;
-    /// `ctx` inside a scope of `locals` by name.
-    fn within(&mut self, ctx: Ctx, locals: Vec<(String, SymbolId)>) -> Ctx;
+    /// `ctx` inside `level`: a scope of locals by name, or the members of a class.
+    fn within(&mut self, ctx: Ctx, level: ctx::Level) -> Ctx;
     /// `ctx` inside an import of typed path `expr` of type `qual`, of selectors `(name, rename,
     /// bound)`.
     fn within_import(
@@ -117,17 +117,18 @@ impl Inlining<'_> {
         let outer = std::mem::take(&mut self.outer_implicits);
         let fits_outer = self.may_fit(&outer, pt);
         self.outer_implicits = outer;
-        if self.local_implicits || fits_outer || self.scopes.iter().any(|s| matches!(s, Scope::Class)) {
+        if self.local_implicits || fits_outer {
             return Err((at, "implicit search in an inline body with local implicits"));
         }
         let mut ctx = ctx;
-        if let Some(owner) = defined.iter().flatten().next_back().and_then(|&d| self.u.symbol(d).owner) {
-            ctx = ctx.with_owner(owner);
-        }
+        let owner = defined.iter().flatten().next_back().and_then(|&d| self.u.symbol(d).owner);
         let defined = defined.iter().filter(|d| !d.is_empty()).map(|d| Scope::Implicits(d.clone()));
         let scopes = self.outer_scopes.iter().chain(&self.scopes).cloned().collect::<Vec<_>>();
         for scope in scopes.into_iter().chain(defined) {
             ctx = self.within_scope(ctx, scope);
+        }
+        if let Some(owner) = owner {
+            ctx = ctx.with_owner(owner);
         }
         let lent = (&mut *self.u, &mut *self.tpd, &mut *self.names, &mut *self.fresh);
         let found = self.host.summon(lent, (pt, ignored), at, ctx).map_err(|what| (at, what))?;

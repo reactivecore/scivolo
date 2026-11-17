@@ -20,16 +20,6 @@ const CASES: &[(&str, &str)] = &[
          def g = f }",
         "ambiguous implicit arguments",
     ),
-    (
-        "object O { inline def f: Int = { class C { given c: Show[Int] = null; def m = summonInline[Show[Int]] }; \
-         1 }; def g = f }",
-        "implicit search in an inline body with local implicits",
-    ),
-    (
-        "trait G { given c: Show[Int] = null }; object O { inline def f: Int = { \
-         class C extends G { def m = summonInline[Show[Int]] }; 1 }; def g = f }",
-        "implicit search in an inline body with local implicits",
-    ),
     ("object O { def g = codeOf(List(1, 2)) }", "codeOf an argument"),
     ("object O { def h(using i: Int) = i; given Int = 3; def g = codeOf(h) }", "codeOf an argument"),
     ("object O { inline def f(x: Int): String = codeOf(x); def g(y: Int) = f(y + 1) }", "codeOf an argument"),
