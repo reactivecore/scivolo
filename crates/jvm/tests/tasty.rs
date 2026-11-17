@@ -106,6 +106,7 @@ const DOTTY_TASTY: &[(&str, &[&str])] = &[
     ("caseclasses", &["scala/probe/Pair", "scala/probe/Words"]),
     ("views", &["scala/probe/Views"]),
     ("widenedargs", &["W"]),
+    ("typercaptures", &["G"]),
 ];
 
 /// The trees, positions and flag attributes of the classes of `DOTTY_TASTY` are dotty's: the
@@ -114,7 +115,7 @@ const DOTTY_TASTY: &[(&str, &[&str])] = &[
 /// sets of the types they are inferred from, emptied, those of inferredcaptures2.scala through
 /// generic calls, conditionals, matches and closures, a type argument none from an argument whose
 /// capture sets are only around it, a type argument the top capture set only of a path argument
-/// (widenedargs.scala), and an overriding member's its overridden member's as they
+/// (widenedargs.scala), the typer's own inferred types in typercaptures.scala, and an overriding member's its overridden member's as they
 /// are; annotated types take the annotation tree of their own
 /// origin in match selectors and patterns, inferred types, super accessors and inline accessors,
 /// in super accessors with their class's type parameters seen from the accessor's class; secondary constructors have their own type parameters and parameters passed on to the
@@ -194,10 +195,8 @@ fn library_annotations_pickle_as_dotty_s() {
     }
 }
 
-/// An inferred type that dotty's typer may give capture sets which ours cannot tell, through a
-/// call whose type argument a parameter of another type than it infers, a `this.type` or
-/// parameter singleton result widened to the capture sets of its path, and a dependent function
-/// type whose function type parent dotty gives the capture sets of its refinement are refused.
+/// A dependent function type whose function type parent dotty gives the capture sets of its
+/// refinement is refused.
 #[test]
 fn untold_capture_sets_are_refused() {
     let out = root().join("tmp/jvm-test/untoldcaptures");
@@ -206,33 +205,9 @@ fn untold_capture_sets_are_refused() {
     let header = "import language.experimental.captureChecking\nclass Label[T]\nclass A\nclass B\n";
     let cases = [
         (
-            "generic",
-            "object G:\n  def first[T](xs: List[T]): T = xs.head\n  \
-             def g(a: A^, b: B^{a}): Int =\n    val y = first(List(b))\n    1\n",
-            "capture sets not told",
-        ),
-        (
-            "thistype",
-            "class S:\n  def me: this.type = this\nobject T:\n  \
-             def g(a: A^, s: S^{a}): Int =\n    val y = s.me\n    1\n",
-            "capture sets not told",
-        ),
-        (
-            "paramtype",
-            "object P:\n  def pick(x: B^): x.type = x\n  \
-             def g(a: A^, b: B^{a}): Int =\n    val y = pick(b)\n    1\n",
-            "capture sets not told",
-        ),
-        (
             "dependent",
             "object D:\n  val f: (x: A^) -> Label[Int]^{x} = x => Label[Int]()\n",
             "drops its refinement's capture sets",
-        ),
-        (
-            "invariantresult",
-            "class Box[T](val x: T)\nobject V:\n  def box[T](x: T): Box[T] = new Box[T](x)\n  \
-             def g(a: A^, b: B^{a}): Int =\n    val y: Box[B^{a}] = box(b)\n    1\n",
-            "capture sets not told",
         ),
     ];
     for (name, body, refusal) in cases {

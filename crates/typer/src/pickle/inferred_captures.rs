@@ -105,16 +105,15 @@ impl TreePickler<'_> {
             || self.inferred.risks.as_ref().is_some_and(|r| r.is_pure_element(tpt))
     }
 
-    /// Refuses a refined type tree of parent `parent` and refinement `member` in a capture-checked
-    /// file if the member's type has capture sets and the parent's not, as the function type
-    /// parent of `(x: A^) -> B^{x}`, `A^ -> B^` in dotty's.
-    pub fn check_refinement_captures(&mut self, parent: TNodeId, member: SymbolId) -> Result<(), Refusal> {
+    /// Refuses a refined type tree of refinement `member` in a capture-checked file if the
+    /// member's type has capture sets, whose parent dotty's typer derives from them: the function
+    /// type parent of `(x: A^) -> B^{x}`.
+    pub fn check_refinement_captures(&mut self, member: SymbolId) -> Result<(), Refusal> {
         if !self.capture_checked() {
             return Ok(());
         }
         let info = self.u.info(member);
-        let parent = self.tpd.get(parent).tpe.ok_or("a tree without a type")?;
-        match has_captures(self.u, info) && !has_captures(self.u, parent) {
+        match has_captures(self.u, info) {
             true => Err("a refined type whose parent drops its refinement's capture sets"),
             false => Ok(()),
         }
