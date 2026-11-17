@@ -9,6 +9,7 @@ use super::result_conformance::result_conforms;
 use super::{OverrideChecks, overridable};
 use names::{name_kinds, nme};
 use syntax::ast::flags as f;
+use tasty::tags::TRAIT;
 use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl OverrideChecks {
@@ -64,7 +65,8 @@ impl OverrideChecks {
             if [lo1, hi1, lo2, hi2].into_iter().any(|x| is_uncompared(t, x)) {
                 return true;
             }
-            t.conforms(lo2, lo1) && t.conforms(hi1, hi2)
+            let conforms = |t: &mut Typer<'_>, a, b| t.conforms(a, b) || derives_nominally(t, a, b);
+            conforms(t, lo2, lo1) && conforms(t, hi1, hi2)
         })
     }
 
@@ -95,14 +97,29 @@ impl OverrideChecks {
     }
 
     /// Whether member `d` overrides member `m`, which it may match, with an incompatible result
-    /// type; members of two Java classes are not compared.
+    /// type; members of two Java classes, not interfaces, are not compared.
     pub fn incompatible_pair(&self, t: &mut Typer<'_>, d: SymbolId, m: SymbolId) -> bool {
-        let java = t.is_java_member(d) && t.is_java_member(m);
+        let java_class = |t: &mut Typer<'_>, s: SymbolId| {
+            let owner = t.u.symbol(s).owner.is_some_and(|o| !t.u.symbol(o).flags.has(TRAIT));
+            owner && t.is_java_member(s)
+        };
+        let java = java_class(t, d) && java_class(t, m);
         !java
             && t.u.symbol(d).run_name() == t.u.symbol(m).run_name()
             && t.u.info_matches(self.site, d, m)
             && !result_conforms(t, self.site, d, m)
     }
+}
+
+/// Whether `a` and `b` refer to classes without type arguments and `a`'s derives from `b`'s, as
+/// `class Node extends super.NodeImpl` does from `NodeImpl`.
+fn derives_nominally(t: &mut Typer<'_>, a: TypeId, b: TypeId) -> bool {
+    let class = |t: &Typer<'_>, x: TypeId| match *t.u.ty(x) {
+        Type::Sym(_, s) if t.u.symbol(s).kind == Kind::Class => Some(s),
+        _ => None,
+    };
+    let (Some(ca), Some(cb)) = (class(t, a), class(t, b)) else { return false };
+    t.u.derives_from(ca, cb)
 }
 
 /// Whether bound `ty` is a type lambda or has a refinement, which the type member check skips.

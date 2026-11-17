@@ -87,21 +87,32 @@ fn strip_annotations(u: &mut Universe, ty: TypeId) -> TypeId {
     })
 }
 
-/// Completes the type members of the unit in the base classes of `site`'s class named as the
-/// abstract types `types` refer to on a prefix.
+/// Completes the type members of the unit in the base classes of `site`'s class and of the
+/// classes of the prefixes on which `types` refer to abstract types, named as those types.
 fn complete_overriders(t: &mut Typer<'_>, site: TypeId, types: &[TypeId]) {
-    let mut names = Vec::new();
+    let (mut names, mut prefixes) = (Vec::new(), vec![site]);
     for &ty in types {
         t.u.map_type(ty, &mut |u, x| {
-            if let Type::Sym(Some(_), s) = *u.ty(x)
+            if let Type::Sym(Some(p), s) = *u.ty(x)
                 && u.symbol(s).kind == Kind::Type
             {
                 names.push(u.symbol(s).name.clone());
+                prefixes.push(match *u.ty(p) {
+                    Type::This(c) => c,
+                    _ => p,
+                });
             }
             None
         });
     }
-    let Some(cls) = t.u.class_symbol(site) else { return };
+    let classes: Vec<SymbolId> = prefixes.into_iter().filter_map(|p| t.u.class_symbol(p)).collect();
+    for cls in classes {
+        complete_named_types(t, cls, &names);
+    }
+}
+
+/// Completes the pending type members named `names` of the unit in the base classes of `cls`.
+fn complete_named_types(t: &mut Typer<'_>, cls: SymbolId, names: &[String]) {
     for b in t.u.linearization(cls) {
         let decls = t.u.symbol(b).decls.clone();
         for d in decls {

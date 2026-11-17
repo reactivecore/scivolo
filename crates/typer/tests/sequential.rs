@@ -402,6 +402,7 @@ fn overrides_with_incompatible_types() {
         "class A { def y(x: Int): Int = x }\nclass B extends A { override def y(x: Int): String = \"\" }\n",
         "abstract class A { def y: Int }\ntrait T { def y: String = \"\" }\nclass B extends A with T\n",
         "trait T { def y: Int }\ntrait U { def y: String }\nabstract class B extends T with U\n",
+        "abstract class X extends ThreadLocal[Int] with java.util.function.Supplier[String]\n",
     ];
     for text in incompatible {
         assert_eq!(
@@ -412,6 +413,10 @@ fn overrides_with_incompatible_types() {
     }
     let compatible = [
         "class A { def y: Any = 1 }\nclass B extends A { override def y: String = \"\" }\n",
+        "class L extends java.util.LinkedList[Int] with java.util.Deque[Int]\n",
+        "abstract class M extends java.util.AbstractMap[Int, Int] with java.util.NavigableMap[Int, Int]\n",
+        "trait N { type Nat; trait Opt { def get: Nat } }\nobject C extends N { class S extends Opt { def get: NC = ??? }; trait NC; type Nat = NC }\n",
+        "trait AddRemove { type TNode <: NodeImpl; trait NodeImpl }\nclass Linked extends AddRemove { type TNode = Node; class Node extends super.NodeImpl }\n",
         "class A { def s[B >: Int](b: B): B = b }\nclass C extends A { override def s[B >: Int](b: B): Int = 1 }\n",
         "trait T { type B; def b: B }\ntrait U { type B = Int }\nclass C extends T with U { def b: B = 1 }\n",
         "trait T { def y: Any }\ntrait U { def y: String }\nabstract class B extends T with U\n",
