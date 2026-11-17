@@ -55,13 +55,15 @@ OPTIONS = {
     "javalib": ["--javalib", "--tasty", str(WINDOWSLIB), "--jdk-tasty", str(JDK_STUBS)],
     "scalalib": scalalib_sources.OPTIONS,
 }
-# The groups of files of a module lowered as one unit, by path prefix in their source directory:
-# files that refer to each other's classes.
+# The groups of files of a module lowered as one unit, by path prefix in `src/main`: files that
+# refer to each other's classes.
 UNITS = {
-    "auxlib": [["scala/collection/concurrent/"],
-               ["scala/runtime/BoxedUnit.scala", "scala/scalanative/runtime/BoxedUnit.scala"]],
-    "javalib": [["scala/scalanative/nio/fs/windows/WindowsPath.scala",
-                 "scala/scalanative/nio/fs/windows/WindowsPathParser.scala"]],
+    "auxlib": [["scala/scala/collection/concurrent/"],
+               ["scala/scala/runtime/BoxedUnit.scala", "scala/scala/scalanative/runtime/BoxedUnit.scala"]],
+    "javalib": [["scala/scala/scalanative/nio/fs/windows/WindowsPath.scala",
+                 "scala/scala/scalanative/nio/fs/windows/WindowsPathParser.scala"]],
+    "nativelib": [["scala-3/scala/scalanative/unsafe/UnsafePackageCompat.scala",
+                   "scala/scala/scalanative/unsafe/package.scala", "scala/scala/scalanative/unsafe/Ptr.scala"]],
 }
 # The option that makes scivolo-jvm and scivolo-lower write the output of a unit's accepted files.
 LEAVE_OUT = "--leave-out-refused"
@@ -87,15 +89,18 @@ def link_scalalib_root(root):
     SCALALIB_LINK.symlink_to(root.resolve())
 
 
-def lower_cmd(module, root, files, out):
-    """The `scivolo-lower` command lowering `files` of source directory `root` into `out`, the
-    checkout the source root as in Scala Native's build (scalalib's through SCALALIB_LINK), against
-    the JDK 17 API as that build but javalib's own (ADR 0095)."""
-    sourceroot = SN
+def lower_cmd(module, unit, out):
+    """The `scivolo-lower` command lowering the files of `unit`, (source directory, file) pairs,
+    into `out`, the checkout the source root as in Scala Native's build (scalalib's through
+    SCALALIB_LINK), against the JDK 17 API as that build but javalib's own (ADR 0095)."""
+    sourceroot, files = SN, [f for _, f in unit]
     if module == "scalalib":
         sourceroot = SCALALIB_SOURCEROOT
-        root, files = SCALALIB_LINK, [SCALALIB_LINK / f.relative_to(root) for f in files]
-    roots = ["--sourceroot", str(sourceroot), "--position-root", str(root)]
+        unit = [(SCALALIB_LINK, SCALALIB_LINK / f.relative_to(r)) for r, f in unit]
+        files = [f for _, f in unit]
+    roots = ["--sourceroot", str(sourceroot)]
+    for r in dict.fromkeys(r for r, _ in unit):
+        roots += ["--position-root", str(r)]
     jdk = [] if module == "javalib" else ["--jdk-17"]
     return [str(LOWER), LEAVE_OUT, "--macros", *OPTIONS.get(module, []), *jdk, *roots, *map(str, files), str(out)]
 
@@ -114,16 +119,16 @@ def oracle(module):
 
 
 def units(module, filter_):
-    """(source directory, files) of each unit of `module`'s Scala sources with a file whose path
-    contains `filter_`: each group of UNITS, each other file on its own."""
+    """The (source directory, file) pairs of each unit of `module`'s Scala sources with a file
+    whose path contains `filter_`: each group of UNITS, each other file on its own."""
     found = {}
     roots = [scalalib_sources.sources(LIBS)] if module == "scalalib" else [SN / module / "src/main" / n for n in SOURCE_DIRS]
     for root in roots:
         for f in sorted(root.rglob("*.scala")):
-            rel = str(f.relative_to(root))
+            rel = f"{root.name}/{f.relative_to(root)}"
             group = next((i for i, g in enumerate(UNITS.get(module, [])) if rel.startswith(tuple(g))), rel)
-            found.setdefault((root, group), []).append(f)
-    return [(root, fs) for (root, _), fs in found.items() if any(filter_ in str(f.relative_to(ROOT)) for f in fs)]
+            found.setdefault(group, []).append((root, f))
+    return [u for u in found.values() if any(filter_ in str(f.relative_to(ROOT)) for _, f in u)]
 
 
 def run(cmd, timeout, env=None):
@@ -139,12 +144,14 @@ def run(cmd, timeout, env=None):
     return "refused", next((l for l in r.stderr.splitlines() if l.strip()), "").replace("\t", " ")[:200], ""
 
 
-def one(module, root, files, env):
-    """The rows of results.tsv and of cmp.tsv of each of source files `files`, lowered as one unit
-    with environment `env`; a NIR file counts for the file of its first position."""
-    shown = [f"{root.name}/{f.relative_to(root)}" for f in files]
-    out = WORK / module / "out" / root.name / str(files[0].relative_to(root)).removesuffix(".scala")
-    state, reason, stdout = run(lower_cmd(module, root, files, out), TIMEOUT * len(files), env)
+def one(module, unit, env):
+    """The rows of results.tsv and of cmp.tsv of each file of `unit`, (source directory, file)
+    pairs lowered as one unit with environment `env`; a NIR file counts for the file of its first
+    position."""
+    shown = [f"{r.name}/{f.relative_to(r)}" for r, f in unit]
+    at = {str(f.relative_to(r)): s for (r, f), s in zip(unit, shown)}
+    out = WORK / module / "out" / shown[0].removesuffix(".scala")
+    state, reason, stdout = run(lower_cmd(module, unit, out), TIMEOUT * len(unit), env)
     if state != "ok":
         return [([s, state, reason, 0, 0, 0, 0, 0], []) for s in shown]
     theirs, by_file = oracle(module), {s: (collections.Counter(), []) for s in shown}
@@ -152,8 +159,8 @@ def one(module, root, files, env):
         path = name.removesuffix(".nir").replace(".", "/") + ".nir"
         if module == "scalalib" and scalalib_sources.specialized(path):
             continue
-        positions = (l[2:].rsplit(":", 2)[0] for l in dump(out / path) if l.startswith("@ ")) if files[1:] else iter(())
-        counts, cmp = by_file.get(f"{root.name}/{next(positions, None)}", by_file[shown[0]])
+        positions = (l[2:].rsplit(":", 2)[0] for l in dump(out / path) if l.startswith("@ ")) if unit[1:] else iter(())
+        counts, cmp = by_file[at.get(next(positions, None), shown[0])]
         state, lines, reordered = compare(out / path, theirs / path, WORK / module / "diffs" / f"{path}.diff")
         counts[state] += 1
         cmp.append([path, state, lines, str(int(reordered))])
@@ -188,7 +195,7 @@ def compile_module(module, filter_):
     if module == "scalalib":
         link_scalalib_root(scalalib_sources.sources(LIBS))
     with concurrent.futures.ThreadPoolExecutor(JOBS) as pool:
-        done = [row for rows in pool.map(lambda t: one(module, *t, env), todo) for row in rows]
+        done = [row for rows in pool.map(lambda u: one(module, u, env), todo) for row in rows]
     rows = {r[0]: r + ["0"] * (8 - len(r)) for r in read_tsv(work / "results.tsv")} if keep else {}
     rows |= {r[0]: r for r, _ in done}
     write_tsv(work / "results.tsv", sorted(rows.values()))
