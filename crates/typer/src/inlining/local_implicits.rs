@@ -59,7 +59,10 @@ impl Inlining<'_> {
         let imp = match scope {
             Scope::Implicits(defs) => return self.host.within(ctx, by_name(self, defs)),
             Scope::Import(imp) => imp,
-            Scope::Class(cls) => return self.host.within(ctx, Level::Members(cls)).with_owner(cls),
+            Scope::Class(cls) => {
+                let owner = self.owner.unwrap_or(cls);
+                return self.host.within(ctx, Level::Members(cls)).with_owner(owner);
+            }
             Scope::SuperCall { constr, params } => {
                 return self.host.within(ctx, by_name(self, params)).with_owner(constr);
             }

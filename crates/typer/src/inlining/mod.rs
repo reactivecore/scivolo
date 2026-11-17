@@ -102,6 +102,8 @@ pub struct Inlining<'a> {
     staging: i32,
     /// The class enclosing the call being expanded.
     pub enclosing_class: Option<SymbolId>,
+    /// The owner of the children of the tree being retyped.
+    pub owner: Option<SymbolId>,
     /// The span of the call being expanded.
     pub call_span: Span,
     /// The classes of the unit whose templates run code.
@@ -166,6 +168,7 @@ impl<'a> Inlining<'a> {
             depth: 0,
             staging: 0,
             enclosing_class: None,
+            owner: None,
             call_span: Span::NONE,
             with_inits: FxHashSet::default(),
             transparent_only,
