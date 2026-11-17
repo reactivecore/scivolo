@@ -13,7 +13,7 @@ use crate::tpd::TNodeId;
 use syntax::ast::tree::ModsId;
 use syntax::ast::{NodeId, TName, Tree};
 use syntax::desugar::witness_names;
-use tasty::{SymbolId, Type};
+use tasty::{Kind, SymbolId, Type};
 
 /// The refusal of a context bound companion used other than as a qualifier, and how a lookup
 /// that finds one reports it.
@@ -28,8 +28,16 @@ impl Typer<'_> {
         }
     }
 
+    /// Refuses term `name` at level `l` if it is a context bound companion there.
+    pub fn check_no_cb_companion(&mut self, l: LevelId, name: Name, ctx: Ctx) -> Result<(), &'static str> {
+        if !name.is_type && !self.cb_types_at(l, name.text, ctx).is_empty() {
+            return Err(CB_COMPANION);
+        }
+        Ok(())
+    }
+
     /// Determines the types with context bounds whose companions level `l` defines as term
-    /// `name` (dotty's `addContextBoundCompanionFor`): a type of a scope, or a type member of the
+    /// `name` (dotty's `addContextBoundCompanionFor`): a type parameter, or a type member of the
     /// class of a members level or of its base classes, in linearization order.
     pub fn cb_types_at(&mut self, l: LevelId, name: &str, ctx: Ctx) -> Vec<SymbolId> {
         if self.syms.witnessed.is_empty() {
@@ -41,7 +49,9 @@ impl Typer<'_> {
                 found
                     .map_or_else(Vec::new, |f| f.syms)
                     .into_iter()
-                    .filter(|s| self.syms.witnessed.contains_key(s))
+                    .filter(|s| {
+                        self.syms.witnessed.contains_key(s) && self.u.symbol(*s).kind == Kind::TypeParam
+                    })
                     .collect()
             }
             Level::Members(owner) if self.u.is_class(owner) => {

@@ -34,6 +34,7 @@ mod cb_companions;
 mod child_annotations;
 mod clashing_synthetics;
 mod class_members;
+mod class_seen_types;
 mod classes;
 mod closure_params;
 mod closure_trees;

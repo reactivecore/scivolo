@@ -116,11 +116,8 @@ impl Typer<'_> {
         (ctx, cctx): (Ctx, Ctx),
         span: Span,
     ) -> Result<Option<TNodeId>, &'static str> {
-        let class = crate::defn::type_ref(self.u, cls);
-        let this = self.u.intern_type(Type::This(class));
         let owner = self.u.symbol(dcl).owner.ok_or("deferred given")?;
-        let info = self.u.info(dcl);
-        let target = self.u.as_seen_from(info, this, owner);
+        let target = self.seen_from_class(dcl, cls);
         let accessors: Vec<(String, SymbolId)> = (self.u.decls(cls).unwrap_or_default().into_iter())
             .filter(|&a| self.syms.flags_of(a).is_all_of(f::PARAM_ACCESSOR.or(f::GIVEN)))
             .map(|a| (self.u.symbol(a).name.clone(), a))

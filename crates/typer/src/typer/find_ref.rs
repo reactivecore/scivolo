@@ -4,7 +4,6 @@
 //! found binding checked against what outer levels bind with lower or equal precedence.
 
 use super::Typer;
-use super::cb_companions::CB_COMPANION;
 use super::idents::Found;
 use crate::ctx::{Ctx, Level, LevelId, Mode};
 use crate::defn::ref_type;
@@ -72,9 +71,7 @@ impl Typer<'_> {
                 Level::Scope(_) | Level::Members(_) => {
                     let Some(found) = self.defined(l, name, ctx).and_then(|f| self.qualifying(f, l, ctx))
                     else {
-                        if !name.is_type && !self.cb_types_at(l, name.text, ctx).is_empty() {
-                            return Err(CB_COMPANION);
-                        }
+                        self.check_no_cb_companion(l, name, ctx)?;
                         if let Level::Members(owner) = *self.levels.get(l)
                             && !name.is_type
                         {

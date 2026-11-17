@@ -119,6 +119,7 @@ impl Typer<'_> {
             }
             types.push(tpe);
         }
+        let types = self.separate_parent_refinements(cls, types, ctx);
         let types = self.ensure_first_is_class(types);
         self.add_using_traits(cls, types)
     }
