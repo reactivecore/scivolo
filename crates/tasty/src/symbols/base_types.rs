@@ -3,7 +3,7 @@
 //   compiler/src/dotty/tools/dotc/core/Types.scala
 //! Base types of a type as instances of its base classes (dotty's `baseType`).
 
-use super::base_type_memo::{MemoContext, MemoEffects};
+use super::context_memo::remembered;
 use super::{Kind, SymbolId, Universe};
 use crate::tags::OPAQUE;
 use crate::types::{Type, TypeId};
@@ -16,43 +16,8 @@ impl Universe {
     /// through its parents; `None` if `t` does not derive from `base`. Remembered while the
     /// universe and the context of comparisons stay the same (dotty's `baseTypeCache`).
     pub fn base_type(&mut self, t: TypeId, base: SymbolId) -> Option<TypeId> {
-        let Some(context) = self.memo_context() else { return self.base_type_within(t, base, MAX_DEPTH) };
-        if let Some(found) = self.base_types.get(context, (t, base)) {
-            return found;
-        }
-        let before = self.memo_effects();
-        let found = self.base_type_within(t, base, MAX_DEPTH);
-        if self.memo_effects() == before {
-            self.base_types.insert(context, (t, base), found);
-        }
-        found
-    }
-
-    /// What base types depend on beside the type and the base class; `None` while a GADT
-    /// constraint, a merge of base types, a resolution or a match type reduction is in progress.
-    fn memo_context(&self) -> Option<MemoContext> {
-        let free = self.gadt.is_empty()
-            && self.merging_bases.is_empty()
-            && self.resolving == 0
-            && self.reducing == 0;
-        free.then(|| MemoContext {
-            generation: self.generation,
-            owner: self.comparison_owner,
-            null_mode: self.null_mode,
-            opaques_elided: self.opaques_elided,
-            opaque_aliases: self.opaque_aliases.len(),
-            rules: self.match_type_rules,
-        })
-    }
-
-    /// What a computation of a base type that is remembered leaves as it is.
-    fn memo_effects(&self) -> MemoEffects {
-        MemoEffects {
-            context: self.memo_context(),
-            binders: self.binders,
-            opaque_lifts: self.opaque_lifts,
-            reductions: (self.reductions_left, self.reductions_exhausted),
-        }
+        let compute = |u: &mut Self| u.base_type_within(t, base, MAX_DEPTH);
+        remembered(self, |u| &mut u.base_types, (t, base), compute)
     }
 
     fn base_type_within(&mut self, t: TypeId, base: SymbolId, depth: u32) -> Option<TypeId> {

@@ -49,6 +49,7 @@ impl Universe {
             this_types: FxHashMap::default(),
             declared_type_params: FxHashMap::default(),
             base_types: Default::default(),
+            member_infos: Default::default(),
             disagreeing_bases: FxHashMap::default(),
             deferred: Default::default(),
             with_inits: Default::default(),
