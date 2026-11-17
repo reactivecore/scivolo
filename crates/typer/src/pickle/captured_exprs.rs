@@ -105,6 +105,7 @@ impl TreePickler<'_> {
         let s = self.tpd.sym(fun)?;
         let mut info = self.ref_info(fun, s, depth)?;
         if let Some(targs) = targs {
+            self.inferred.unexpected = self.inferred.qualifier == Some(e);
             info = self.instantiated((info, s), targs, &clauses, depth)?;
         }
         for _ in &clauses {
@@ -143,7 +144,10 @@ impl TreePickler<'_> {
             T::Select { qualifier, .. } => {
                 let declared = self.u.info(s);
                 let declared = final_result(self.u, declared);
-                let prefix = match self.captured_in(qualifier, depth)? {
+                let outer = self.inferred.qualifier.replace(qualifier);
+                let c = self.captured_in(qualifier, depth);
+                self.inferred.qualifier = outer;
+                let prefix = match c? {
                     Captured::With(_) if is_path(self.u, declared) => return None,
                     Captured::With(t) => strip_annotations(self.u, t),
                     Captured::Ours => self.tpd.get(qualifier).tpe?,

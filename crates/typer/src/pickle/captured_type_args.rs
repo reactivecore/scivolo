@@ -4,6 +4,7 @@
 use super::TreePickler;
 use super::captured_exprs::{Captured, captured, strip_annotations};
 use super::retaining::emptied;
+use super::widened_args::has_part;
 use crate::tpd::{List, TNodeId, Tree as T};
 use crate::typer::seen_from::{member_of, resolve_class_params, resolve_class_params_keeping_captures};
 use crate::typer::type_apply::instantiate_poly;
@@ -23,16 +24,6 @@ fn is_function(u: &mut tasty::Universe, tycon: TypeId) -> bool {
     let function =
         |n: &str| n.trim_start_matches("Impure").trim_start_matches("Context").starts_with("Function");
     u.referenced(tycon).is_some_and(|s| member_of(u, s, "scala", function))
-}
-
-/// Whether a part of `t` is one `is` accepts.
-fn has_part(u: &mut tasty::Universe, t: TypeId, is: &dyn Fn(&tasty::Universe, TypeId) -> bool) -> bool {
-    let mut found = false;
-    u.map_type(t, &mut |u, part| {
-        found |= is(u, part);
-        None
-    });
-    found
 }
 
 impl TreePickler<'_> {
@@ -55,14 +46,14 @@ impl TreePickler<'_> {
         if targs.len() != names.len() {
             return None;
         }
-        let mut args = Vec::new();
+        let (mut args, unexpected) = (Vec::new(), std::mem::take(&mut self.inferred.unexpected));
         for (i, &targ) in targs.iter().enumerate() {
             let tpe = self.tpd.get(targ).tpe?;
             if !matches!(self.tpd.tree(targ), T::TypeTree { inferred: true }) {
                 args.push(tpe);
                 continue;
             }
-            match self.told_type_arg((binder, i, names[i]), result, clauses, depth)? {
+            match self.told_type_arg((binder, i, names[i]), (result, unexpected), clauses, depth)? {
                 Captured::Ours => {
                     self.inferred.capture_free.insert(targ);
                     args.push(tpe);
@@ -88,7 +79,7 @@ impl TreePickler<'_> {
     fn told_type_arg(
         &mut self,
         (binder, i, name): (Binder, usize, NameId),
-        mut info: TypeId,
+        (mut info, unexpected): (TypeId, bool),
         clauses: &[List],
         depth: usize,
     ) -> Option<Captured> {
@@ -119,19 +110,27 @@ impl TreePickler<'_> {
                 }
             }
         }
-        let mut found = None;
+        let (mut found, result) = (None, (!unexpected).then_some(info));
+        let mut blocks = Vec::new();
         let tellers = args.into_iter().map(Teller::Arg).chain(closures.into_iter().map(Teller::Closure));
         for teller in tellers {
             let c = match teller {
-                Teller::Arg(a) => self.captured_in(a, depth)?,
+                Teller::Arg(a) => (self.captured_in(a, depth))
+                    .and_then(|c| self.widened_arg((a, c), None, (result, &is_param)))?,
                 Teller::Closure((block, formals)) => {
-                    self.captured_closure_result(block, (&formals, binder), depth)?
+                    let c = self.captured_closure_result(block, (&formals, binder), depth)?;
+                    let (e, method) = self.closure_result_expr(block)?;
+                    blocks.push(block);
+                    self.widened_arg((e, c), Some(method), (result, &is_param))?
                 }
             };
             if found.is_some_and(|f| f != c) {
                 return None;
             }
             found = Some(c);
+        }
+        for block in blocks {
+            self.keep_closure_result(block, found?)?;
         }
         for (a, outer_only) in pure {
             let c = match self.captured_in(a, depth)? {

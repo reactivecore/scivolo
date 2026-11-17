@@ -34,6 +34,7 @@ mod trees;
 mod types;
 mod unit;
 mod variances;
+mod widened_args;
 
 pub use quote_source::QuoteSource;
 pub use super_param_aliases::super_param_aliases;
