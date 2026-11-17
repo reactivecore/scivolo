@@ -66,6 +66,7 @@ impl TreePickler<'_> {
         let sym = self.tpd.sym(id).ok_or("a pattern variable without a symbol")?;
         self.register_def(sym);
         let info = self.u.info(sym);
+        let info = self.cleaned_pattern_type(info);
         let (flags, term) = (self.u.symbol(sym).flags.without(CASE), self.u.symbol(sym).kind.is_term());
         let tpts = self.annotated_tpts(body);
         self.with_length(BIND, &mut |p| {
@@ -86,6 +87,7 @@ impl TreePickler<'_> {
         patterns: List,
     ) -> Result<(), Refusal> {
         let tpe = self.tpd.get(id).tpe.ok_or("an extractor pattern without a type")?;
+        let tpe = self.cleaned_pattern_type(tpe);
         let (implicits, patterns) = (self.tpd.items(implicits).to_vec(), self.tpd.items(patterns).to_vec());
         self.with_length(UNAPPLY, &mut |p| {
             p.tree(fun)?;

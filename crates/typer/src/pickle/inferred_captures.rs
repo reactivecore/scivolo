@@ -32,6 +32,16 @@ impl TreePickler<'_> {
         self.kept_captures.insert(tpt, kept);
     }
 
+    /// Type `t` of a pattern variable's info or an extractor pattern, with each capture set but
+    /// `retainsCap`'s empty in a capture-checked file (dotty's `CleanupRetains` of the `Bind`
+    /// and `UnApply` cases of PostTyper).
+    pub fn cleaned_pattern_type(&mut self, t: TypeId) -> TypeId {
+        match self.capture_checked() && has_captures(self.u, t) {
+            true => emptied(self.u, t),
+            false => t,
+        }
+    }
+
     /// Refuses in a capture-checked file a definition of inferred type tree `tpt` whose
     /// right-hand side `rhs` is a closure (dotty's `explicifyTpt` cases 2 and 3): with parameters
     /// of capture sets, which dotty keeps as `@caps.internal.declared` (`val f = (x: A^) => 1`),
