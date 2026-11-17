@@ -48,7 +48,8 @@ impl Sig<'_> {
     }
 
     /// The class `t` stands for (dotty's `classSymbol`): of a type lambda its result's, of an
-    /// intersection the side deriving from the other, of a union `union_class`, of a type member of
+    /// intersection the side deriving from the other, of a union `union_class`, of a refinement its
+    /// parent's, of a type member of
     /// a refinement or a method type parameter, also applied, its bound's; `depth` bounds the
     /// members followed.
     fn class_of(&mut self, t: TypeId, depth: u32) -> Option<SymbolId> {
@@ -56,7 +57,10 @@ impl Sig<'_> {
         let t = self.u.dealias(t);
         let unresolved = self.u.resolve_ref(t).is_none();
         match *self.u.ty(t) {
-            Type::Lambda { result, .. } | Type::Bounds(_, result) => self.class_of(result, depth),
+            Type::Lambda { result, .. }
+            | Type::Bounds(_, result)
+            | Type::Refined(result, _, _)
+            | Type::Rec(_, result) => self.class_of(result, depth),
             Type::And(a, b) => {
                 let (a, b) = (self.class_of(a, depth)?, self.class_of(b, depth)?);
                 match (self.u.derives_from(a, b), self.u.derives_from(b, a)) {

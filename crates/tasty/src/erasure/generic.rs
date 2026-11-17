@@ -153,14 +153,19 @@ impl Universe {
     }
 
     /// The info of type `s` that reference `t` names: an opaque type's alias, a type member's bounds
-    /// seen from the prefix of `t` (dotty's `translucentSuperType`).
+    /// seen from the prefix of `t` or given by a refinement of the prefix's type (dotty's
+    /// `translucentSuperType`).
     fn seen_info(&mut self, t: TypeId, s: SymbolId) -> TypeId {
         if let Some(alias) = self.opaque_alias(s) {
             return alias;
         }
-        match *self.ty(t) {
-            Type::Sym(Some(p), _) if self.symbol(s).kind == Kind::Type => self.member_info(p, s),
-            _ => self.info(s),
+        let prefix = match *self.ty(t) {
+            Type::Sym(Some(p), _) | Type::TypeRef(p, _) if self.symbol(s).kind == Kind::Type => p,
+            _ => return self.info(s),
+        };
+        match self.refinement_info(prefix, s) {
+            Some(refined) => refined,
+            None => self.member_info(prefix, s),
         }
     }
 }

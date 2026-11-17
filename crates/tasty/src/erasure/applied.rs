@@ -146,8 +146,9 @@ impl Universe {
         (self.class_name(c) == Some(format!("scala.Tuple{n}"))).then_some(n)
     }
 
-    /// `tycon[args]` with `tycon` an alias of a type lambda: its body as seen from the prefix of
-    /// `tycon`, arguments substituted.
+    /// `tycon[args]` with `tycon` an alias of a type lambda, also by a refinement of its prefix's
+    /// type (`f.A[Int]` of `f: R` with `R <: Foo { type A[T] = Long }`): its body as seen from
+    /// the prefix of `tycon`, arguments substituted.
     pub fn expand(&mut self, tycon: TypeId, args: &[TypeId]) -> Option<TypeId> {
         self.applied_info(tycon, args, false)
     }
@@ -169,15 +170,22 @@ impl Universe {
         if kind != Kind::Type && !(upper && kind == Kind::TypeParam) {
             return None;
         }
-        let info = self.info(alias);
-        let info = self.bounds(info).filter(|_| upper).map_or(info, |(_, hi)| hi);
-        let owner = self.symbol(alias).owner;
-        let info = match (prefix, owner) {
-            (Some(p), Some(o)) if self.symbol(o).kind == Kind::Class => self.as_seen_from(info, p, o),
-            _ => info,
+        let info = match prefix.and_then(|p| self.refinement_info(p, alias)) {
+            Some(refined) => self.type_alias(refined).unwrap_or(refined),
+            None => self.member_info_from(prefix, alias),
         };
+        let info = self.bounds(info).filter(|_| upper).map_or(info, |(_, hi)| hi);
         let (binder, names, result) = self.lambda(info).map(|l| (l.binder, l.names(), l.result))?;
         Some(self.subst(result, binder, &names, args))
+    }
+
+    /// The info of type `s`, seen from `prefix` if `s` is a class member.
+    fn member_info_from(&mut self, prefix: Option<TypeId>, s: crate::SymbolId) -> TypeId {
+        let info = self.info(s);
+        match (prefix, self.symbol(s).owner) {
+            (Some(p), Some(o)) if self.symbol(o).kind == Kind::Class => self.as_seen_from(info, p, o),
+            _ => info,
+        }
     }
 
     /// `t` with the parameters of lambda `binder`, named `names`, replaced by `args`.

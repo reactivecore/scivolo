@@ -46,6 +46,14 @@ class Out4(val bar: Bar4) {
   def e(xs: Array[bar.E]): Array[bar.E] = xs
 }
 
+class Ref5[R <: Foo { type A[T] = Long }](val f: R) {
+  def arr(xs: Array[f.A[Int]]): Array[f.A[Int]] = xs
+}
+
+class Bar5 extends Foo {
+  type A[T] = Long
+}
+
 def erased(c: Class[?], name: String, param: Class[?]): String =
   c.getMethod(name, param).getReturnType.getSimpleName
 
@@ -70,5 +78,9 @@ object Hkmemberarrays {
     println(erased(classOf[Bar4], "f", classOf[Array[Long]]))
     println(erased(classOf[Bar4], "m", classOf[Array[Int]]))
     println(erased(classOf[Out4], "e", classOf[Array[Int]]))
+
+    val ref5 = new Ref5[Bar5](new Bar5)
+    println(ref5.arr(Array(126L))(0))
+    println(erased(classOf[Ref5[?]], "arr", classOf[Array[Long]]))
   }
 }
