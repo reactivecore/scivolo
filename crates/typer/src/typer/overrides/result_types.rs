@@ -7,24 +7,14 @@
 use super::super::Typer;
 use super::result_conformance::result_conforms;
 use super::{OverrideChecks, overridable};
-use crate::symbols::Completion;
 use names::{name_kinds, nme};
 use syntax::ast::flags as f;
 use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl OverrideChecks {
     /// Whether a member of `own`, the class's declarations, or an inherited one overrides another
-    /// with an incompatible type, the type members of the unit's base classes completed first.
+    /// with an incompatible type.
     pub fn incompatible_type(&self, t: &mut Typer<'_>, own: &[SymbolId]) -> bool {
-        for &b in &self.bases {
-            let decls = t.u.symbol(b).decls.clone();
-            for d in decls {
-                let pending = matches!(t.syms.completions.get(&d), Some(Completion::Pending { .. }));
-                if pending && t.u.symbol(d).kind == Kind::Type {
-                    t.complete(d);
-                }
-            }
-        }
         self.incompatible_term_member(t, own)
             || self.incompatible_type_member(t, own)
             || self.incompatible_inherited(t)

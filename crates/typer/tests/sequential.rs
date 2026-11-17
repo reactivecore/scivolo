@@ -412,6 +412,8 @@ fn overrides_with_incompatible_types() {
     }
     let compatible = [
         "class A { def y: Any = 1 }\nclass B extends A { override def y: String = \"\" }\n",
+        "class A { def s[B >: Int](b: B): B = b }\nclass C extends A { override def s[B >: Int](b: B): Int = 1 }\n",
+        "trait T { type B; def b: B }\ntrait U { type B = Int }\nclass C extends T with U { def b: B = 1 }\n",
         "trait T { def y: Any }\ntrait U { def y: String }\nabstract class B extends T with U\n",
         "trait T { type X <: Int }\ntrait U { type X <: String }\nabstract class B extends T with U\n",
         "trait T { def y: Int }\ntrait U { def y: String }\nabstract class B extends T with U { def y: Nothing }\n",

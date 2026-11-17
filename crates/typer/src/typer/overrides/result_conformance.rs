@@ -5,14 +5,15 @@
 //! `Type.overrides` of `checkOverride`, with its `upwardsSelf` retry).
 
 use super::super::Typer;
-use tasty::{Binder, NameId, SymbolId, Type, TypeId};
+use crate::symbols::Completion;
+use tasty::{Binder, Kind, NameId, SymbolId, Type, TypeId, Universe};
 
 /// Whether the result type of member `d` conforms to that of member `m`, both seen from the
 /// class of `site`'s `this` or else from `site`, with `m`'s type and value parameters renamed to
 /// `d`'s.
 pub fn result_conforms(t: &mut Typer<'_>, site: TypeId, d: SymbolId, m: SymbolId) -> bool {
     let this = t.u.intern_type(Type::This(site));
-    results_conform(t, this, d, m) || results_conform(t, site, d, m)
+    results_conform(t, (site, this), d, m) || results_conform(t, (site, site), d, m)
 }
 
 /// A parameter clause of a method type.
@@ -23,12 +24,12 @@ struct Clause {
     result: TypeId,
 }
 
-/// Whether the result type of member `d` conforms to that of member `m`, both seen from `prefix`,
-/// else with abstract types replaced by the aliases overriding them.
-fn results_conform(t: &mut Typer<'_>, prefix: TypeId, d: SymbolId, m: SymbolId) -> bool {
+/// Whether the result type of member `d` conforms to that of member `m`, both seen from `prefix`
+/// in the class of `site`, else with abstract types replaced by the aliases overriding them.
+fn results_conform(t: &mut Typer<'_>, (site, prefix): (TypeId, TypeId), d: SymbolId, m: SymbolId) -> bool {
     let (mut rd, mut rm) = (t.u.own_member_info(prefix, d), t.u.own_member_info(prefix, m));
     let (td, tm) = (t.u.type_params(d), t.u.type_params(m));
-    let mut offset = 0;
+    let (mut offset, mut bounds) = (0, Vec::new());
     loop {
         match (clause(t, rd), clause(t, rm)) {
             (Some(a), Some(b)) if a.is_type == b.is_type && a.params.len() == b.params.len() => {
@@ -39,6 +40,9 @@ fn results_conform(t: &mut Typer<'_>, prefix: TypeId, d: SymbolId, m: SymbolId) 
                     let n = a.params.len();
                     rd = type_param_refs(t, rd, td.get(offset..offset + n).unwrap_or_default(), a.binder);
                     rm = type_param_refs(t, rm, tm.get(offset..offset + n).unwrap_or_default(), a.binder);
+                    for (i, &(_, info)) in a.params.iter().enumerate() {
+                        bounds.push((t.u.intern_type(Type::Param(a.binder, i as u32)), info));
+                    }
                     offset += n;
                 }
             }
@@ -49,12 +53,63 @@ fn results_conform(t: &mut Typer<'_>, prefix: TypeId, d: SymbolId, m: SymbolId) 
     }
 
     let (rd, rm) = (widen_expr(t, rd), widen_expr(t, rm));
+    let (rd, rm) = (strip_annotations(t.u, rd), strip_annotations(t.u, rm));
     if t.conforms(rd, rm) {
         return true;
     }
+    complete_overriders(t, site, &[rd, rm]);
     let overridden = |t: &mut Typer<'_>, ty: TypeId| t.u.map_type(ty, &mut |u, x| u.overriding_member(x));
     let (rd, rm) = (overridden(t, rd), overridden(t, rm));
-    t.conforms(rd, rm)
+    let bound = |t: &Typer<'_>, ty: TypeId, upper: bool| {
+        let info = bounds.iter().find(|&&(p, _)| p == ty).map(|&(_, info)| info);
+        info.and_then(|i| t.u.bounds(i)).map_or(ty, |(lo, hi)| if upper { hi } else { lo })
+    };
+    let (rd, rm) = (bound(t, rd, true), bound(t, rm, false));
+    t.conforms(rd, rm) || has_lambda(t, rd) || has_lambda(t, rm)
+}
+
+/// Whether `ty` has a type lambda, as a higher-kinded type argument, which the check accepts.
+fn has_lambda(t: &mut Typer<'_>, ty: TypeId) -> bool {
+    let mut found = false;
+    t.u.map_type(ty, &mut |u, x| {
+        found |= matches!(*u.ty(x), Type::Lambda { .. });
+        None
+    });
+    found
+}
+
+/// `ty` without its annotations, as capture sets.
+fn strip_annotations(u: &mut Universe, ty: TypeId) -> TypeId {
+    u.map_type(ty, &mut |u, x| match *u.ty(x) {
+        Type::Annotated(inner, _) => Some(strip_annotations(u, inner)),
+        _ => None,
+    })
+}
+
+/// Completes the type members of the unit in the base classes of `site`'s class named as the
+/// abstract types `types` refer to on a prefix.
+fn complete_overriders(t: &mut Typer<'_>, site: TypeId, types: &[TypeId]) {
+    let mut names = Vec::new();
+    for &ty in types {
+        t.u.map_type(ty, &mut |u, x| {
+            if let Type::Sym(Some(_), s) = *u.ty(x)
+                && u.symbol(s).kind == Kind::Type
+            {
+                names.push(u.symbol(s).name.clone());
+            }
+            None
+        });
+    }
+    let Some(cls) = t.u.class_symbol(site) else { return };
+    for b in t.u.linearization(cls) {
+        let decls = t.u.symbol(b).decls.clone();
+        for d in decls {
+            let pending = matches!(t.syms.completions.get(&d), Some(Completion::Pending { .. }));
+            if pending && t.u.symbol(d).kind == Kind::Type && names.contains(&t.u.symbol(d).name) {
+                t.complete(d);
+            }
+        }
+    }
 }
 
 /// The leading parameter clause of method type `info`, if it has one.
