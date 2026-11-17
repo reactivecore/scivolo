@@ -11,20 +11,27 @@ use crate::ctx::{Ctx, Mode};
 use crate::tpd::{TNodeId, Tree as T};
 use names::nme;
 use syntax::ast::{NodeId, TName, Tree as S};
-use tasty::{Kind, SymbolId};
+use tasty::{Kind, SymbolId, Type};
 
 impl Typer<'_> {
     pub fn typed_select(&mut self, id: NodeId, qualifier: NodeId, name: TName, pt: Pt, ctx: Ctx) -> TNodeId {
         let path = matches!(self.ast.tree(qualifier), S::Ident { .. } | S::Select { .. });
         let text = self.text(name.name).to_owned();
         let mode = if path { Mode::QUALIFIER } else { Mode::NONE };
-        let mode = if text == nme::APPLY && !name.is_type { mode.with(Mode::APPLY_QUALIFIER) } else { mode };
+        let apply = text == nme::APPLY && !name.is_type;
+        let mode = if apply { mode.with(Mode::APPLY_QUALIFIER) } else { mode };
+        let redundant = apply && matches!(pt, Pt::Fun(_));
+        let mode = if redundant { mode.with(Mode::REDUNDANT_APPLY) } else { mode };
         let mut qual = self.typed(qualifier, Pt::Any, ctx.with_mode(mode));
         if self.is_probe_target(id) {
             return self.probe_selection(id, qual, ctx);
         }
         if self.is_error(qual) {
             return self.error_tree(self.ast.span(id));
+        }
+        if redundant && self.is_unapplied_method(qual) {
+            self.tpd.get_mut(qual).span = self.ast.span(id);
+            return qual;
         }
         if self.is_signature_polymorphic_call(qual) {
             if text != nme::AS_INSTANCE_OF {
@@ -210,5 +217,13 @@ impl Typer<'_> {
         let select = self.tpd.node(T::Select { qualifier: qual, name }, span, Some(tpe), Some(sym));
         self.fold_select(select, &text);
         select
+    }
+
+    /// Whether `tree` has a method type, so that `tree.apply(args)` is `tree(args)` (dotty's
+    /// `trySimplifyApply`).
+    fn is_unapplied_method(&mut self, tree: TNodeId) -> bool {
+        let tpe = self.tpd.tpe(tree);
+        let info = self.method_info(tpe).unwrap_or(tpe);
+        matches!(self.u.ty(info), Type::Method { .. })
     }
 }

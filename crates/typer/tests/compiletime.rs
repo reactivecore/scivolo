@@ -21,13 +21,8 @@ const CASES: &[(&str, &str)] = &[
         "ambiguous implicit arguments",
     ),
     (
-        "object O { inline def f: Int = { class C { given c: Show[Int] = null; def m = summonInline[Show[Int]] }; \
-         1 }; def g = f }",
-        "implicit search in an inline body with local implicits",
-    ),
-    (
-        "trait G { given c: Show[Int] = null }; object O { inline def f: Int = { \
-         class C extends G { def m = summonInline[Show[Int]] }; 1 }; def g = f }",
+        "trait G { given Int = 7 }; object O { inline def f: Int = { given Int = 1; \
+         class D(val y: Int) extends G { def this() = this(summonInline[Int]) }; new D().y }; def g = f }",
         "implicit search in an inline body with local implicits",
     ),
     ("object O { def g = codeOf(List(1, 2)) }", "codeOf an argument"),
