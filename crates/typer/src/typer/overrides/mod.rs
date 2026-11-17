@@ -9,6 +9,7 @@ mod member_overrides;
 mod name_clashes;
 mod override_kinds;
 mod overrides_nothing;
+mod result_types;
 
 use super::Typer;
 use crate::symbols::Syms;
@@ -63,8 +64,11 @@ impl OverrideChecks {
         if let Some(what) = self.name_clash(t) {
             t.unsupported_at(self.span, what);
         }
-        if let Some(what) = self.member_refusal(t, own) {
+        if let Some(what) = self.member_refusal(t, own.clone()) {
             return t.unsupported_at(self.span, what);
+        }
+        if self.incompatible_term_member(t, &own) || self.incompatible_type_member(t, &own) {
+            return t.unsupported_at(self.span, "override with an incompatible type");
         }
         if self.overrides_nothing(t) {
             return t.unsupported_at(self.span, "member overriding nothing");

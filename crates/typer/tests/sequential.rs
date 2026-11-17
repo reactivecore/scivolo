@@ -388,6 +388,53 @@ fn errors_first(text: &str) -> Result<(), String> {
 }
 
 #[test]
+fn overrides_with_incompatible_types() {
+    let Some(_) = universe() else { return };
+    let incompatible = [
+        "class A { def y: Option[Int] = None }\nclass B extends A { override def y: String = \"\" }\n",
+        "class A { val y: Int = 1 }\nclass B extends A { override val y: String = \"\" }\n",
+        "abstract class A { def y: Int }\nclass B extends A { def y: String = \"\" }\n",
+        "class A[T] { def y: List[T] = Nil }\nclass B extends A[Int] { override def y: List[String] = Nil }\n",
+        "class A { type T <: Int }\nclass B extends A { type T = String }\n",
+        "class A { type T >: String }\nclass B extends A { type T = Int }\n",
+        "class A { def y[X](x: X): X = x }\nclass B extends A { override def y[Z](x: Z): Int = 1 }\n",
+        "trait T { def y: Int }\ntrait U extends T { def y: String }\n",
+        "class A { def y(x: Int): Int = x }\nclass B extends A { override def y(x: Int): String = \"\" }\n",
+    ];
+    for text in incompatible {
+        assert_eq!(
+            errors_first(text),
+            Err("unsupported override with an incompatible type".into()),
+            "{text}"
+        );
+    }
+    let compatible = [
+        "class A { def y: Any = 1 }\nclass B extends A { override def y: String = \"\" }\n",
+        "class A[T] { def y: Option[T] = None }\nclass B extends A[Int] { override def y: Some[Int] = Some(1) }\n",
+        "class A { type T <: AnyVal }\nclass B extends A { type T = Int }\n",
+        "abstract class A { type T <: Seq[Int] }\nabstract class B extends A { type T <: List[Int] }\n",
+        "class B { override def toString: String = \"\" }\nclass C extends Thread { override def run(): Unit = () }\n",
+        "class D extends java.util.AbstractList[Int] { def get(i: Int): Int = 1; def size = 0 }\n",
+        "class A { def y[X](x: X): List[X] = Nil }\nclass B extends A { override def y[Z](x: Z): List[Z] = Nil }\n",
+        "class A { def self: A = this }\nclass B extends A { override def self: this.type = this }\n",
+        "abstract class A { type T; def t: T }\nclass B extends A { type T = Int; def t: Int = 1 }\n",
+        "trait T { def y: AnyRef }\nclass B extends T { def y = \"s\" }\n",
+        "abstract class A { def y: Int }\ntrait T extends A { def y: Int = 2 }\nclass B extends A with T\n",
+        "trait T[+X] { def get: X }\nclass B extends T[String] { def get = \"\" }\n",
+        "class A { def f: Int = 1 }\nclass B extends A { override def f: Nothing = ??? }\n",
+        "class C extends java.util.Comparator[String] { def compare(a: String, b: String): Int = 0 }\n",
+        "class A extends Iterator[Int] { def hasNext = false; def next() = 1 }\n",
+        "class E extends Exception { override def getMessage(): String = \"\" }\n",
+        "class A[T] { def y(x: T): T = x }\nclass B extends A[String] { override def y(x: String): String = x }\n",
+        "class P { type T }\nclass A { def f(p: P): p.T = ??? }\nclass B extends A { override def f(q: P): q.T = ??? }\n",
+        "class A { def f(x: Int)(using s: String): Int = 1 }\nclass B extends A { override def f(x: Int)(using t: String): Int = 2 }\n",
+    ];
+    for text in compatible {
+        assert_eq!(errors_first(text), Ok(()), "{text}");
+    }
+}
+
+#[test]
 fn no_false_errors_behind_unsupported_constructs() {
     let Some(_) = universe() else { return };
     let cases = [
