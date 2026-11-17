@@ -84,6 +84,7 @@ const DOTTY_TASTY: &[(&str, &[&str])] = &[
     ("captures", &["Break"]),
     ("captures38", &["Break"]),
     ("inferredcaptures", &["Lambdas", "Locals"]),
+    ("inferredcaptures2", &["Generic", "Conds", "Overrides", "Closures"]),
     ("selectorannotations", &["scala/probe/Selectors"]),
     (
         "nestedannotations",
@@ -106,7 +107,9 @@ const DOTTY_TASTY: &[(&str, &[&str])] = &[
 /// The trees, positions and flag attributes of the classes of `DOTTY_TASTY` are dotty's: the
 /// field `label: Label[T]^{}` of captures.scala keeps its capture set as a type and, under source
 /// 3.8, as `new retains[Nothing]()`; inferred types of inferredcaptures.scala keep the capture
-/// sets of the types they are inferred from, emptied; annotated types take the annotation tree of their own
+/// sets of the types they are inferred from, emptied, those of inferredcaptures2.scala through
+/// generic calls, conditionals, matches and closures, and an overriding member's its overridden
+/// member's as they are; annotated types take the annotation tree of their own
 /// origin in match selectors and patterns, inferred types, super accessors and inline accessors,
 /// in super accessors with their class's type parameters seen from the accessor's class; secondary constructors have their own type parameters and parameters passed on to the
 /// superclass are its parameters' aliases. Needs a JDK (java on the PATH), as dotty's did.
@@ -180,6 +183,42 @@ fn library_annotations_pickle_as_dotty_s() {
         !run.status.success() && stderr.contains("annotation tree with arguments in a quote"),
         "{stderr}"
     );
+}
+
+/// An inferred type that dotty's typer may give capture sets which ours cannot tell, through a
+/// call whose type argument a parameter of another type than it infers, and a dependent function
+/// type whose function type parent dotty gives the capture sets of its refinement are refused.
+#[test]
+fn untold_capture_sets_are_refused() {
+    let out = root().join("tmp/jvm-test/untoldcaptures");
+    let _ = std::fs::remove_dir_all(&out);
+    std::fs::create_dir_all(&out).expect("tmp/jvm-test/untoldcaptures");
+    let header = "import language.experimental.captureChecking\nclass Label[T]\nclass A\nclass B\n";
+    let cases = [
+        (
+            "generic",
+            "object G:\n  def first[T](xs: List[T]): T = xs.head\n  \
+             def g(a: A^, b: B^{a}): Int =\n    val y = first(List(b))\n    1\n",
+            "capture sets not told",
+        ),
+        (
+            "dependent",
+            "object D:\n  val f: (x: A^) -> Label[Int]^{x} = x => Label[Int]()\n",
+            "drops its refinement's capture sets",
+        ),
+    ];
+    for (name, body, refusal) in cases {
+        let source = out.join(format!("{name}.scala"));
+        std::fs::write(&source, format!("{header}{body}")).expect("writing");
+        let run = Command::new(env!("CARGO_BIN_EXE_scivolo-jvm"))
+            .arg("-d")
+            .arg(out.join(name))
+            .arg(&source)
+            .output()
+            .expect("running scivolo-jvm");
+        let stderr = String::from_utf8_lossy(&run.stderr);
+        assert!(!run.status.success() && stderr.contains(refusal), "{name}: {stderr}");
+    }
 }
 
 /// scala-cli 3.9.0 compiles tests/jvm/tastylib/user.scala against the jar, and the result runs

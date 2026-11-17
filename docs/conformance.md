@@ -343,10 +343,14 @@ Results:
   `new retains[C]()`, and refuses one of other references there and in pickled types. An inferred
   type tree keeps the capture sets of the type it is inferred from, emptied as dotty's
   `CleanupRetains` does (a type `T^` whole, so refused if `T` names other than static
-  definitions), where that type is a function value's expected parameter type or the
-  declared type of what its right-hand side refers to or calls without type arguments; other
-  inferred types drop them, a difference left (#276: e.g. of a generic call, a conditional, an
-  inferred type argument or an overriding member). The capture checker,
+  definitions), where that type is a function value's expected parameter type or the type of
+  its right-hand side as the definitions it refers to tell it: a reference or call, with inferred
+  type arguments that arguments of parameters of those types give, a conditional or match whose
+  branches agree, a closure without an expected type. An overriding member keeps its overridden
+  member's capture sets as they are (`explicifyTpt`). An inferred type in a definition that
+  refers to a type with capture sets is refused if its own are not told so (unless a primitive
+  type), as is a dependent function type whose refinement has capture sets, which dotty's
+  function type parent approximates. The capture checker,
   which runs after the typer and leaves the NIR unchanged, is not run (#168). dotty pickles quotes before the capture
   checker, so their TASTy is the typer's: ours as dotty's, with the inferred type arguments of
   inline methods annotated `@caps.internal.inferred` (`PostTyper.markInferred`). Since the

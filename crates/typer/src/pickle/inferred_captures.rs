@@ -1,98 +1,186 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/transform/PostTyper.scala
 //   compiler/src/dotty/tools/dotc/cc/CaptureOps.scala
-//! Capture sets in inferred type trees of capture-checked files, each emptied (dotty's
-//! `CleanupRetains` of an inferred `TypeTree` in PostTyper).
+//   compiler/src/dotty/tools/dotc/typer/Namer.scala
+//! Capture sets in inferred type trees of capture-checked files: each emptied (dotty's
+//! `CleanupRetains` of an inferred `TypeTree` in PostTyper), an overriding member's kept
+//! (`explicifyTpt`).
 
-use super::TreePickler;
-use crate::tpd::{TNodeId, Tpd, Tree};
+use super::capture_risks::{CaptureRisks, Risk};
+use super::captured_exprs::{Captured, captured};
+use super::{Refusal, TreePickler};
+use crate::tpd::{TNodeId, Tree};
 use crate::typer::capture_types::{has_captures, is_retains_like};
 use crate::typer::seen_from::{resolve_class_params, resolve_class_params_keeping_captures};
 use names::nme;
-use tasty::{Kind, SymbolId, Type, TypeId, Universe};
+use rustc_hash::{FxHashMap, FxHashSet};
+use tasty::tags::PRIVATE;
+use tasty::{Kind, SymbolId, TypeId, Universe};
+
+/// The capture sets told for the inferred type trees of a file pickled.
+#[derive(Default)]
+pub struct InferredCaptures {
+    /// The risks of the file's scopes, determined at its first definition.
+    pub risks: Option<CaptureRisks>,
+    /// The risk of the scope pickled now.
+    scope: Risk,
+    /// The type told for each definition of an inferred type, with its capture sets.
+    pub kept_infos: FxHashMap<SymbolId, TypeId>,
+    /// The inferred type trees told to have no capture sets.
+    pub capture_free: FxHashSet<TNodeId>,
+    /// The closure methods without an expected type, whose right-hand sides tell their results.
+    pub free_closures: FxHashSet<SymbolId>,
+}
+
+/// Why an inferred type tree whose capture sets are not told is not pickled.
+const UNTOLD: Refusal = "an inferred type that dotty's typer may give capture sets not told";
 
 impl TreePickler<'_> {
-    /// Records the type inferred type tree `tpt` of a capture-checked file is pickled with if the
-    /// type it was inferred from has capture sets and is its type but for them: that type with
-    /// each capture set but `retainsCap`'s empty, `B^{}` of `y` in `def g(b: B^{a}) = { val y =
-    /// b; .. }`. The type inferred from is the one the typer recorded (a function value's
-    /// parameter's), else, unless definition `sym` is a closure's method or a member that may
-    /// inherit its type, the info of the definition that its right-hand side `rhs` refers to or
-    /// calls.
+    fn capture_checked(&self) -> bool {
+        self.file.is_some_and(|f| f.attributes.features.capture_checking())
+    }
+
+    /// Enters the scope of definition `sym` if it is one; returns the risk of the scope it was in.
+    pub fn enter_capture_scope(&mut self, sym: SymbolId) -> Risk {
+        if self.capture_checked() && self.inferred.risks.is_none() {
+            let risks = CaptureRisks::new(self.u, self.tpd, self.root);
+            self.inferred.scope = risks.outer();
+            self.inferred.risks = Some(risks);
+        }
+        let outer = self.inferred.scope;
+        if let Some(risk) = self.inferred.risks.as_ref().and_then(|r| r.scope(sym)) {
+            self.inferred.scope = risk;
+        }
+        outer
+    }
+
+    /// Leaves a scope for the one it was in, of risk `outer`.
+    pub fn leave_capture_scope(&mut self, outer: Risk) {
+        self.inferred.scope = outer;
+    }
+
+    /// Refuses inferred type tree `tpt` of type `tpe` if dotty's typer may give it capture sets
+    /// the scope's types have, but none were told: unless `tpe` is a primitive value class, which
+    /// only a capture set on a type other than a class's may become.
+    pub fn check_inferred_captures(&mut self, tpt: TNodeId, tpe: TypeId) -> Result<(), Refusal> {
+        let scope = self.inferred.scope;
+        let told = self.kept_captures.contains_key(&tpt)
+            || self.inferred.capture_free.contains(&tpt)
+            || self.tpd.captured_type(tpt).is_some();
+        if !scope.captures || told || !matches!(self.tpd.tree(tpt), Tree::TypeTree { inferred: true }) {
+            return Ok(());
+        }
+        let class = self.u.applied(tpe).is_none().then(|| self.u.class_symbol(tpe)).flatten();
+        let primitive = tpe == tasty::NOTHING
+            || class.is_some_and(|c| tasty::PRIMITIVE_VALUE_CLASSES.contains(&self.u.full_name(c).as_str()));
+        match primitive && !scope.on_abstract {
+            true => Ok(()),
+            false => Err(UNTOLD),
+        }
+    }
+
+    /// Refuses a refined type tree of parent `parent` and refinement `member` in a capture-checked
+    /// file if the member's type has capture sets and the parent's not, as the function type
+    /// parent of `(x: A^) -> B^{x}`, `A^ -> B^` in dotty's.
+    pub fn check_refinement_captures(&mut self, parent: TNodeId, member: SymbolId) -> Result<(), Refusal> {
+        if !self.capture_checked() {
+            return Ok(());
+        }
+        let info = self.u.info(member);
+        let parent = self.tpd.get(parent).tpe.ok_or("a tree without a type")?;
+        match has_captures(self.u, info) && !has_captures(self.u, parent) {
+            true => Err("a refined type whose parent drops its refinement's capture sets"),
+            false => Ok(()),
+        }
+    }
+
+    /// Records the type inferred type tree `tpt` of definition `sym` of a capture-checked file is
+    /// pickled with: the type dotty's typer gives the definition, with each capture set but
+    /// `retainsCap`'s empty, `B^{}` of `y` in `def g(b: B^{a}) = { val y = b; .. }`, or as it is
+    /// if `sym` overrides a member. That type is the one the typer recorded (a function value's
+    /// parameter's), else an overridden member's, else unless `sym` is a closure's method with an
+    /// expected type the type of right-hand side `rhs` (`captured_expr`).
     pub fn empty_captures(&mut self, sym: SymbolId, tpt: TNodeId, rhs: Option<TNodeId>) {
-        if !self.file.is_some_and(|f| f.attributes.features.capture_checking()) {
+        if !self.capture_checked() {
             return;
         }
         let (Tree::TypeTree { inferred: true }, Some(tpe)) = (self.tpd.tree(tpt), self.tpd.get(tpt).tpe)
         else {
             return;
         };
-        let closure = self.u.symbol(sym).name == nme::ANON_FUN;
-        let rhs = rhs.filter(|_| !closure && !may_inherit(self.u, sym));
-        let from = self.tpd.captured_type(tpt);
-        let Some(from) = from.or_else(|| rhs.and_then(|r| rhs_type(self.u, self.tpd, r))) else { return };
-        if !has_captures(self.u, from) {
+        let overriding = !overridden_infos(self.u, sym).is_empty();
+        let closure = self.u.symbol(sym).name == nme::ANON_FUN && !self.inferred.free_closures.contains(&sym);
+        let from = match self.tpd.captured_type(tpt) {
+            Some(t) => Some(captured(self.u, t)),
+            None if overriding => self.inherited(sym),
+            None if closure => None,
+            None => rhs.and_then(|r| self.captured_expr(r)),
+        };
+        let from = match from {
+            Some(Captured::Ours) => {
+                self.inferred.capture_free.insert(tpt);
+                return;
+            }
+            Some(Captured::With(t)) => t,
+            None => return,
+        };
+        let kept = if overriding { from } else { emptied(self.u, from) };
+        let kept = resolve_class_params_keeping_captures(self.u, kept);
+        if resolve_class_params(self.u, kept) != tpe {
             return;
         }
-        let emptied = emptied(self.u, from);
-        let kept = resolve_class_params_keeping_captures(self.u, emptied);
-        if kept != tpe && resolve_class_params(self.u, kept) == tpe {
-            self.kept_captures.insert(tpt, kept);
+        self.inferred.kept_infos.insert(sym, from);
+        self.kept_captures.insert(tpt, kept);
+        if let Some(class) = self.u.symbol(sym).owner.filter(|&o| overriding && self.u.is_class(o)) {
+            self.capture_classes.insert(tpt, class);
         }
+    }
+
+    /// The type of the members `sym`, a member without parameters, overrides, if all have one
+    /// (dotty's `inherited` of `inferredResultType`).
+    fn inherited(&mut self, sym: SymbolId) -> Option<Captured> {
+        let own = self.u.info(sym);
+        if self.u.method(own).is_some() || self.u.poly(own).is_some() {
+            return None;
+        }
+        let infos = overridden_infos(self.u, sym);
+        let first = *infos.first()?;
+        if infos.iter().any(|&i| i != first) {
+            return None;
+        }
+        let t = self.u.by_name(first).unwrap_or(first);
+        if self.u.method(t).is_some() || self.u.poly(t).is_some() {
+            return None;
+        }
+        Some(captured(self.u, t))
     }
 }
 
-/// Whether `sym` is a member of a class with a base class that has a term member of its name,
-/// whose type it may take (dotty's `inherited` of `inferredResultType`).
-fn may_inherit(u: &mut Universe, sym: SymbolId) -> bool {
-    let Some(cls) = u.symbol(sym).owner.filter(|&o| u.symbol(o).kind == Kind::Class) else { return false };
-    let bases: Vec<SymbolId> = u.linearization(cls).into_iter().skip(1).collect();
-    let name = &u.symbol(sym).name;
-    bases
-        .iter()
-        .any(|&b| u.symbol(b).decls.iter().any(|&m| &u.symbol(m).name == name && u.symbol(m).kind.is_term()))
-}
-
-/// The declared type of right-hand side `rhs`, a reference to a value or a call of a method
-/// without type arguments: the referenced definition's info as seen from the qualifier, the
-/// result of a method's after a clause per argument list.
-fn rhs_type(u: &mut Universe, tpd: &Tpd, rhs: TNodeId) -> Option<TypeId> {
-    let (mut fun, mut clauses) = (rhs, 0);
-    loop {
-        match *tpd.tree(fun) {
-            Tree::Block { expr, .. } if clauses == 0 => fun = expr,
-            Tree::Apply { fun: f, .. } => (fun, clauses) = (f, clauses + 1),
-            _ => break,
-        }
-    }
-    let s = tpd.sym(fun)?;
-    if !matches!(u.symbol(s).kind, Kind::Val | Kind::Param | Kind::Def) {
-        return None;
-    }
-    let mut info = match *tpd.tree(fun) {
-        Tree::Ident { .. } => u.info(s),
-        Tree::Select { qualifier, .. } => {
-            let prefix = tpd.get(qualifier).tpe?;
-            match *u.ty(prefix) {
-                Type::Package(_) | Type::PackageName(_) => u.info(s),
-                _ => u.member_info(prefix, s),
-            }
-        }
-        _ => return None,
+/// The infos, as seen from its class, of the members that member `sym` overrides: the non-private
+/// term members of its name of its class's base classes (dotty's `allOverriddenSymbols`).
+pub fn overridden_infos(u: &mut Universe, sym: SymbolId) -> Vec<TypeId> {
+    let Some(cls) = u.symbol(sym).owner.filter(|&o| u.symbol(o).kind == Kind::Class) else {
+        return Vec::new();
     };
-    for _ in 0..clauses {
-        info = u.method(info)?.result;
+    let this = u.this_type(cls);
+    let name = u.symbol(sym).name.clone();
+    let mut infos = Vec::new();
+    for base in u.linearization(cls).into_iter().skip(1) {
+        let members: Vec<SymbolId> = (u.symbol(base).decls.iter().copied())
+            .filter(|&m| u.symbol(m).name == name && u.symbol(m).kind.is_term())
+            .filter(|&m| !u.symbol(m).flags.has(PRIVATE))
+            .collect();
+        for m in members {
+            infos.push(u.member_info(this, m));
+        }
     }
-    match *u.ty(info) {
-        Type::ByName(r) => Some(r),
-        _ => u.method(info).is_none().then_some(info),
-    }
+    infos
 }
 
 /// `t` with the capture set of each capture-checking annotation empty, `retains[Nothing]`, but
 /// each type annotated `retainsCap` as it is (dotty's `CleanupRetains` where capture checking is
 /// enabled).
-fn emptied(u: &mut Universe, t: TypeId) -> TypeId {
+pub fn emptied(u: &mut Universe, t: TypeId) -> TypeId {
     u.map_type(t, &mut |u, part| {
         let (inner, annot) = u.annotated(part)?;
         if !is_retains_like(u, annot) {
@@ -106,6 +194,6 @@ fn emptied(u: &mut Universe, t: TypeId) -> TypeId {
             Some((tycon, _)) => u.intern_applied(tycon, &[tasty::NOTHING]),
             None => u.intern_applied(annot, &[tasty::NOTHING]),
         };
-        Some(u.intern_type(Type::Annotated(inner, annot)))
+        Some(u.intern_type(tasty::Type::Annotated(inner, annot)))
     })
 }
