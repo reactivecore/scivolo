@@ -645,3 +645,11 @@ fn import_cycles_through_a_member_selection_are_refused() {
     assert_eq!(type_unit(&mut u, &mut Units::default(), "t.scala", &cycle("p1.B.C", "p1")), refused);
     assert_eq!(type_unit(&mut u, &mut Units::default(), "t.scala", &cycle("p2.B", "p2")), Ok(()));
 }
+
+#[test]
+fn annotations_of_imported_objects_skip_the_import_being_typed() {
+    let Some(mut u) = universe() else { return };
+    let unit = "package p\nimport Impl._\nclass marker extends scala.annotation.StaticAnnotation\n\
+                @marker private object Impl { def mk(): Int = 1 }\nobject M { def f: Int = mk() }\n";
+    assert_eq!(type_unit(&mut u, &mut Units::default(), "t.scala", unit), Ok(()));
+}
