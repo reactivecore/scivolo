@@ -11,7 +11,7 @@ use super::{Pt, Typer};
 use crate::ctx::{Ctx, Level, LevelId};
 use crate::tpd::TNodeId;
 use syntax::ast::tree::ModsId;
-use syntax::ast::{NodeId, TName, Tree};
+use syntax::ast::{List, NodeId, TName, Tree};
 use syntax::desugar::witness_names;
 use tasty::{Kind, SymbolId, Type};
 
@@ -162,12 +162,20 @@ impl Typer<'_> {
         self.typed(select, pt, ctx)
     }
 
-    /// Whether `qual` is a term parameter whose type refines type member `name` as an alias, as
-    /// `tc.Self` in `def f[T: TC as tc](y: tc.Self)`, which dotty reduces to the alias when the
-    /// method is applied.
+    /// Whether `qual` is a term parameter of a method with type parameters whose type refines
+    /// type member `name` as an alias, as `tc.Self` in `def f[T: TC as tc](y: tc.Self)`, which
+    /// dotty reduces to the alias in the parameter types of a later clause when the method is
+    /// type-applied.
     pub fn is_aliased_param_member(&mut self, qual: TNodeId, name: &str) -> bool {
         let Type::Sym(_, param) = *self.u.ty(self.tpd.tpe(qual)) else { return false };
-        if self.u.symbol(param).kind != Kind::Param {
+        let method = self.u.symbol(param).owner;
+        let tree = method.and_then(|m| self.syms.def_trees.get(&m).copied());
+        let Some(&Tree::DefDef { paramss, .. }) = tree.map(|t| self.ast.tree(t)) else { return false };
+        let clauses = self.ast.clause_items(paramss);
+        let first = |&c: &List| self.ast.items(c).first().map(|&p| self.ast.tree(p));
+        if self.u.symbol(param).kind != Kind::Param
+            || !clauses.iter().any(|c| matches!(first(c), Some(Tree::TypeDef { .. })))
+        {
             return false;
         }
         let mut t = self.u.info(param);
