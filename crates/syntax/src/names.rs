@@ -4,6 +4,7 @@ use crate::token::{Token, keyword_at, keyword_spellings};
 use hashbrown::HashTable;
 use rustc_hash::FxBuildHasher;
 use std::hash::BuildHasher;
+use std::sync::Arc;
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub struct Name(u32);
@@ -125,7 +126,7 @@ impl Names {
 /// `FreshNameCreator` of a compilation unit), and the `$N$` names made.
 #[derive(Default)]
 pub struct FreshNames {
-    files: Vec<rustc_hash::FxHashMap<String, u32>>,
+    files: Vec<Arc<FileCounters>>,
     /// The counter of the `$N$` names of all files, renumbered per file after typing.
     unique_count: u32,
     pub uniques: crate::desugar::uniques::Uniques,
@@ -133,7 +134,10 @@ pub struct FreshNames {
 
 /// The counters of the prefixed fresh names of a unit at one point.
 #[derive(Clone)]
-pub struct FreshCounters(Vec<rustc_hash::FxHashMap<String, u32>>);
+pub struct FreshCounters(Vec<Arc<FileCounters>>);
+
+/// The counter of each prefix of one file's fresh names, shared between copies until changed.
+type FileCounters = rustc_hash::FxHashMap<String, u32>;
 
 impl FreshNames {
     /// Makes `prefix` followed by the next number for it in the unit's first file: `_$1`.
@@ -148,7 +152,7 @@ impl FreshNames {
             self.files.resize_with(file + 1, Default::default);
         }
         let prefix = prefix.replace(['<', '>'], "$");
-        let n = self.files[file].entry(prefix.clone()).or_insert(0);
+        let n = Arc::make_mut(&mut self.files[file]).entry(prefix.clone()).or_insert(0);
         *n += 1;
         names.intern(&format!("{prefix}{n}"))
     }
@@ -169,8 +173,12 @@ impl FreshNames {
             self.files.resize_with(c.0.len(), Default::default);
         }
         for (file, counters) in self.files.iter_mut().zip(c.0) {
-            for (prefix, n) in counters {
-                let own = file.entry(prefix).or_insert(0);
+            if Arc::ptr_eq(file, &counters) {
+                continue;
+            }
+            let file = Arc::make_mut(file);
+            for (prefix, &n) in counters.iter() {
+                let own = file.entry(prefix.clone()).or_insert(0);
                 *own = (*own).max(n);
             }
         }
