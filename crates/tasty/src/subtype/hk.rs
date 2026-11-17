@@ -79,15 +79,12 @@ impl Cmp<'_> {
     /// `a <: v[args]` for variable constructor `v` without instance: `v` above the constructor
     /// of `a`, or of a base type of `a`, applied to the arguments `args` leave over.
     pub fn var_constructor_above(&mut self, a: TypeId, var: TypeId, args: &[TypeId]) -> bool {
-        if self.frozen() {
-            return false;
-        }
+        let Some(v) = self.u.var(var).filter(|&v| self.can_constrain(v)) else { return false };
         let widened = self.u.widen(a);
         if self.unify_constructor(var, args, widened, true) {
             return true;
         }
         let Some(class) = self.u.class_symbol(widened) else { return false };
-        let Some(v) = self.u.var(var) else { return false };
         let class_bounds = self.class_symbols(self.vars.bounds(v).1);
         for base in self.u.linearization(class) {
             if (class_bounds.is_empty() || class_bounds.iter().any(|&c| self.u.derives_from(base, c)))
@@ -103,7 +100,7 @@ impl Cmp<'_> {
     /// `v[args] <: b` for variable constructor `v` without instance: `v` below the constructor
     /// of `b`.
     pub fn var_constructor_below(&mut self, var: TypeId, args: &[TypeId], b: TypeId) -> bool {
-        !self.frozen() && self.unify_constructor(var, args, b, false)
+        self.u.var(var).is_some_and(|v| self.can_constrain(v)) && self.unify_constructor(var, args, b, false)
     }
 
     /// Whether variable `var` can take the constructor of application `other`, its leading

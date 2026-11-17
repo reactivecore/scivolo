@@ -89,6 +89,7 @@ impl Universe {
             reducing: 0,
             reductions_left: 0,
             reductions_exhausted: false,
+            match_type_rules: crate::MatchTypeRules::Spec,
             scala2_erasure: false,
         };
         let root = u.define(Symbol {

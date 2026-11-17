@@ -8,6 +8,7 @@ use super::candidates::{Candidate, implicit_members, imported_implicits, this_im
 use super::too_late::comes_too_late;
 use crate::ctx::{Ctx, Level, LevelId};
 use names::nme;
+use syntax::config::SourceVersion;
 use tasty::{SymbolId, Type};
 
 /// How a level binds its implicits (dotty's `BindingPrec`).
@@ -66,7 +67,11 @@ impl<'a> Typer<'a> {
             seen = combined(self, refs.cands, seen, (level, same_level_beaten), eligible);
             outer = Some((level, refs.prec, refs.owner));
         }
+        let before = seen.len();
         seen.retain(|(c, ..)| !comes_too_late(self, c.sym, ctx));
+        if seen.len() < before && !self.source_version.is_at_least(SourceVersion::V3_6) {
+            return Err("an implicit defined after the search below Scala 3.6");
+        }
         let mut groups: Vec<(u32, Vec<Candidate>)> = Vec::new();
         for (c, _, level) in seen {
             match groups.iter_mut().find(|(l, _)| *l == level) {

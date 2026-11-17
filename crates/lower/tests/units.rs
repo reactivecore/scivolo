@@ -305,3 +305,42 @@ fn library_static_members_and_annotated_switch_selectors() {
     assert!(dump.contains("@java.time.Instant::static ofEpochMilli(long)"), "{dump}");
     assert!(dump.contains("switch"), "{dump}");
 }
+
+const LEGACY_UNAPPLY: &str = "package legacy
+case class Wrap[T](t: T)
+class Dummy
+trait Functor[F[_]]
+object M {
+  type Apply[T[_]] = T[Dummy]
+  type Unapply[F[_[_]], T] = T match { case Wrap[Apply[a]] => F[a] }
+  val f: Unapply[Functor, Wrap[List[Dummy]]] = new Functor[List] {}
+}";
+
+#[test]
+fn match_types_reduce_by_the_rules_of_the_code_at_hand() {
+    let Some(jars) = jars() else { return };
+    let mut u = Universe::open(&jars).unwrap();
+    let sources = [SourceFile::new("a.scala", LEGACY_UNAPPLY)];
+    let cfg = Config::from_options(&["-source:3.3"]);
+    lower::compile_sources(&mut u, &sources, cfg, None).map_err(|r| r.what).unwrap();
+    let m = u.package("legacy").and_then(|p| u.decl(p, "M$").ok()).unwrap();
+    let m = *m.iter().find(|&&c| u.symbol(c).kind == tasty::Kind::Class).unwrap();
+    let unapply = u.decl(m, "Unapply").unwrap()[0];
+    let unapply = u.intern_type(tasty::Type::Sym(None, unapply));
+    let (functor, wrap, dummy) =
+        (u.class_ref("legacy.Functor"), u.class_ref("legacy.Wrap"), u.class_ref("legacy.Dummy"));
+    let list = u.class_ref("scala.collection.immutable.List");
+    let list_dummy = u.intern_applied(list, &[dummy]);
+    let scrutinee = u.intern_applied(wrap, &[list_dummy]);
+    let t = u.intern_applied(unapply, &[functor, scrutinee]);
+
+    assert_eq!(u.match_type_rules, tasty::MatchTypeRules::Spec, "the 3.3 unit's rules left behind");
+    assert_eq!(u.try_normalize(t), None, "a 3.9 reduction of a pattern outside SIP-56");
+    u.match_type_rules = tasty::MatchTypeRules::Legacy;
+    let reduced = u.try_normalize(t).map(|r| u.show(r));
+    assert!(reduced.is_some_and(|r| r.contains("Functor") && r.contains("List")), "a 3.3 reduction");
+    u.match_type_rules = tasty::MatchTypeRules::Both;
+    u.reductions_exhausted = false;
+    assert_eq!(u.try_normalize(t), None, "differing rules refused");
+    assert!(u.reductions_exhausted);
+}

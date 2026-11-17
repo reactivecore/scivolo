@@ -59,11 +59,14 @@ impl Sig<'_> {
         params.get(i as usize).cloned()
     }
 
-    /// Replaces a reference to a parameter of the method by its bounds in `t`, also in the parts
-    /// of a union such as `T | Null` and as the upper bound of a wildcard such as `? <: T`.
+    /// Replaces a reference to a parameter of the method by its bounds in `t`, the parameters in
+    /// its upper bound by theirs, also in the parts of a union such as `T | Null` and as the upper
+    /// bound of a wildcard such as `? <: T`.
     pub fn with_param_bounds(&mut self, t: TypeId) -> TypeId {
         if let Some((_, bounds)) = self.u.param_ref(t).and_then(|(b, i)| self.poly_param(b, i)) {
-            return bounds;
+            let Some((lo, hi)) = self.u.bounds(bounds) else { return bounds };
+            let hi = self.upper_bounded(hi);
+            return self.u.intern_type(Type::Bounds(lo, hi));
         }
         match *self.u.ty(t) {
             Type::Or(a, b, soft) => {
@@ -117,9 +120,10 @@ impl Sig<'_> {
     }
 
     /// Whether a method type parameter of `bounds` erases to a primitive, also through a value
-    /// class, and so appears by its erasure.
+    /// class or through other method type parameters, and so appears by its erasure.
     pub fn primitive_bound(&mut self, bounds: TypeId) -> bool {
         let hi = self.u.bounds(bounds).map_or(bounds, |(_, hi)| hi);
+        let hi = self.upper_bounded(hi);
         match self.u.erase_value(hi) {
             Erased::Value(_, e) => matches!(*e, Erased::Prim(_)),
             e => matches!(e, Erased::Prim(_)),

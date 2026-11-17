@@ -10,7 +10,7 @@ use crate::types::{Type, TypeId};
 
 /// The outcome of matching one case (dotty's `MatchResult`); `Stuck` also stands for
 /// `NoInstance` and `ReducedAndDisjoint`.
-enum Outcome {
+pub enum Outcome {
     Reduced(TypeId),
     Disjoint,
     Stuck,
@@ -30,6 +30,7 @@ impl Cmp<'_> {
             let outcome = match spec {
                 Spec::SubTypeTest(pat, body) => self.match_sub_type_test(scrut, pat, body),
                 Spec::Specced(s) => self.match_specced(scrut, &s),
+                Spec::Legacy(l) => self.match_legacy(scrut, &l),
                 Spec::Unsupported => Outcome::Stuck,
             };
             match outcome {

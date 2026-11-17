@@ -227,6 +227,33 @@ pub fn lower_trees<R>(
     (sources, cfgs): (Sources, &[Config]),
     (backend, generate): (Backend, impl FnOnce(&mut Lower, TNodeId) -> Result<R>),
 ) -> Result<R> {
+    let rules = file_match_type_rules(cfgs);
+    let outer = std::mem::replace(&mut u.match_type_rules, rules);
+    let lowered =
+        lower_with_rules(u, (tpd, warnings), root, (names, fresh), (sources, cfgs), (backend, generate));
+    u.match_type_rules = outer;
+    lowered
+}
+
+/// The rules that match the match type cases of files compiled under `cfgs`: theirs if they
+/// agree, else both, a reduction where they differ refused.
+fn file_match_type_rules(cfgs: &[Config]) -> tasty::MatchTypeRules {
+    let mut rules = cfgs.iter().map(|c| typer::match_type_rules(c.source_version));
+    let first = rules.next().unwrap_or_default();
+    match rules.all(|r| r == first) {
+        true => first,
+        false => tasty::MatchTypeRules::Both,
+    }
+}
+
+fn lower_with_rules<R>(
+    u: &mut Universe,
+    (tpd, warnings): (&mut Tpd, &mut Diagnostics),
+    root: TNodeId,
+    (names, fresh): (&mut Names, &mut FreshNames),
+    (sources, cfgs): (Sources, &[Config]),
+    (backend, generate): (Backend, impl FnOnce(&mut Lower, TNodeId) -> Result<R>),
+) -> Result<R> {
     let mut l = Lower::new(u, tpd, (names, fresh), sources)?;
     let cfg = cfgs.first().copied().unwrap_or_default();
     l.explicit_nulls = cfg.explicit_nulls;
