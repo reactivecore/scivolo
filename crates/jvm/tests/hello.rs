@@ -472,6 +472,10 @@ fn var_handles_of_mixed_in_lazy_values_come_first() {
 
 #[test]
 fn a_pattern_of_a_generic_java_class_its_scrutinee_conforms_to_tests_null() {
+    if Command::new("javac").arg("--version").output().is_err() {
+        eprintln!("no javac on the PATH: skipped");
+        return;
+    }
     let java = "package jn;\nabstract class MainN<K, V> {}\n";
     let scala = "package jn\nclass Use[K, V] { def h(p: MainN[K, V]): Int = p match { case vn: MainN[?, ?] => 2 } }\n";
     let sources = written("javapattern-src", &[("MainN.java", java), ("Use.scala", scala)]);
