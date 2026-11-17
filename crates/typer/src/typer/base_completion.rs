@@ -22,43 +22,68 @@ impl Typer<'_> {
     }
 
     /// Completes the unit's classes and type members not yet completed, members of packages and
-    /// classes, that `a` or `b` reach through the classes and types they refer to, those classes'
-    /// base classes and those types' infos, as a library type may reach them, unless a definition
-    /// is being completed; whether there were any.
+    /// classes, that `a` or `b` reach through the classes, types and values they refer to, those
+    /// classes' parents and the others' infos, as a library type may reach them, unless a
+    /// definition is being completed; whether there were any.
     pub fn complete_reached_unit_classes(&mut self, a: TypeId, b: TypeId) -> bool {
         if self.syms.completions.values().any(|c| matches!(c, Completion::Completing(_))) {
             return false;
         }
+        let mut any = false;
+        let mut attempted = FxHashSet::default();
+        loop {
+            let mut pending = self.reached_pending_unit_classes(a, b);
+            pending.retain(|&s| attempted.insert(s));
+            if pending.is_empty() {
+                return any;
+            }
+            pending.sort_by_key(|s| s.0);
+            pending.iter().for_each(|&s| self.complete(s));
+            any = true;
+        }
+    }
+
+    /// The unit's classes and type members not completed yet that `a` or `b` reach through
+    /// completed definitions.
+    fn reached_pending_unit_classes(&mut self, a: TypeId, b: TypeId) -> Vec<SymbolId> {
         let mut seen = FxHashSet::default();
         let mut todo = self.referred_types(a);
         todo.extend(self.referred_types(b));
-        let mut any = false;
+        let mut pending = Vec::new();
         while let Some(s) = todo.pop() {
             if !seen.insert(s) {
                 continue;
             }
             if self.is_pending_unit_class(s) {
-                self.complete(s);
-                any = true;
+                pending.push(s);
+                continue;
             }
             match self.u.symbol(s).kind {
-                Kind::Class => todo.extend(self.u.linearization(s)),
+                Kind::Class => {
+                    for p in self.u.parents(s) {
+                        todo.extend(self.referred_types(p));
+                    }
+                }
                 Kind::Type => {
+                    let info = self.u.info(s);
+                    todo.extend(self.referred_types(info));
+                }
+                Kind::Val if matches!(self.syms.completions.get(&s), None | Some(Completion::Done)) => {
                     let info = self.u.info(s);
                     todo.extend(self.referred_types(info));
                 }
                 _ => {}
             }
         }
-        any
+        pending
     }
 
-    /// The classes and types `t` refers to.
+    /// The classes, types and values `t` refers to.
     fn referred_types(&mut self, t: TypeId) -> Vec<SymbolId> {
         let mut out = Vec::new();
         self.u.map_type(t, &mut |u, part| {
-            if let Some(s) = u.sym_of(part).filter(|&s| matches!(u.symbol(s).kind, Kind::Class | Kind::Type))
-            {
+            let s = u.sym_of(part).or_else(|| u.resolve_ref(part));
+            if let Some(s) = s.filter(|&s| matches!(u.symbol(s).kind, Kind::Class | Kind::Type | Kind::Val)) {
                 out.push(s);
             }
             None
