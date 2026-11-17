@@ -6,7 +6,7 @@
 use super::Desugar;
 use crate::ast::constant::Constant;
 use crate::ast::flags::{self, FlagSet};
-use crate::ast::{Ast, Attrs, List, NodeId, TName, Tree};
+use crate::ast::{Ast, Attrs, List, NodeId, Span, TName, Tree};
 use crate::config::{Features, SourceVersion};
 use crate::names::{Names, to_utf16};
 
@@ -16,7 +16,9 @@ pub const WITNESS_NAMES: &str = "scala.annotation.internal.WitnessNames";
 /// type with context bounds (dotty's `WitnessNamesAnnot.unapply`); `None` for other annotations.
 pub fn witness_names(ast: &Ast, names: &Names, annot: NodeId) -> Option<Vec<String>> {
     let Tree::Apply { fun, args } = *ast.tree(annot) else { return None };
-    let Tree::TypedSplice { sym } = *ast.tree(fun) else { return None };
+    let Tree::Select { qualifier, .. } = *ast.tree(fun) else { return None };
+    let Tree::New { tpt } = *ast.tree(qualifier) else { return None };
+    let Tree::TypedSplice { sym } = *ast.tree(tpt) else { return None };
     if names.text(sym.name) != WITNESS_NAMES {
         return None;
     }
@@ -54,8 +56,10 @@ impl Desugar<'_> {
         if !self.cfg.features.contains(Features::MODULARITY) || names.is_empty() || clash {
             return tdef1;
         }
-        let span = self.ast.span(tdef);
-        let fun = self.sym_ref(WITNESS_NAMES, true);
+        let span = Span::at(self.ast.span(tdef).start());
+        let tpt = self.sym_ref(WITNESS_NAMES, true);
+        let tpt = self.ast.respan(tpt, span);
+        let fun = self.make_new(tpt);
         let fun = self.ast.respan(fun, span);
         let args: Vec<NodeId> = names
             .iter()

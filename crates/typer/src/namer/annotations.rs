@@ -12,7 +12,6 @@ use names::nme;
 use syntax::ast::constant::Constant;
 use syntax::ast::flags as f;
 use syntax::ast::{NodeId, Tree};
-use syntax::desugar::witness_names;
 use tasty::{Kind, SymbolId, TypeId};
 
 /// The annotation classes refused: those whose meaning dotty's later phases implement and the
@@ -28,10 +27,7 @@ impl Typer<'_> {
         else {
             return;
         };
-        let annots: Vec<NodeId> = (self.ast.items(self.ast.modifiers(mods).annotations).iter())
-            .copied()
-            .filter(|&a| witness_names(self.ast, self.names, a).is_none())
-            .collect();
+        let annots = self.ast.items(self.ast.modifiers(mods).annotations).to_vec();
         if annots.is_empty() {
             return;
         }
