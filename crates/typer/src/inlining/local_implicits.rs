@@ -11,12 +11,13 @@ use rustc_hash::FxHashMap;
 use tasty::tags::{GIVEN, IMPLICIT, MACRO};
 use tasty::{SymbolId, Universe};
 
-/// A scope inside the code being expanded: the implicits a block's statements define, or an
-/// import statement.
+/// A scope inside the code being expanded: the implicits a block's statements define, an import
+/// statement, or the body of a local class that defines implicits, where searches are refused.
 #[derive(Clone)]
 pub enum Scope {
     Implicits(Vec<SymbolId>),
     Import(TNodeId),
+    Class,
 }
 
 impl Inlining<'_> {
@@ -54,6 +55,7 @@ impl Inlining<'_> {
                 return self.host.within(ctx, locals);
             }
             Scope::Import(imp) => imp,
+            Scope::Class => return ctx,
         };
         let T::Import { expr, selectors, .. } = *self.tpd.tree(imp) else { return ctx };
         let name = |i: &Self, t: TNodeId| match i.tpd.tree(t) {
@@ -98,6 +100,7 @@ impl Inlining<'_> {
         let has = |t: Option<TNodeId>| t.is_some_and(|t| self.has_implicit_def(t));
         match *self.tpd.tree(t) {
             T::Match { selector, kind: MatchKind::Inline, .. } => has(selector),
+            T::TypeDef { rhs, .. } if matches!(self.tpd.tree(rhs), T::Template { .. }) => false,
             T::DefDef { rhs, .. } => has(rhs),
             T::CaseDef { guard, body, .. } => has(guard) || has(Some(body)),
             T::Block { stats, expr } => {
@@ -110,9 +113,9 @@ impl Inlining<'_> {
         }
     }
 
-    /// Adds the scope of the implicits that the statements of block `t` define, or the pattern
-    /// of case `t` binds, to `scopes` if there are any; the number of scopes before (dotty's
-    /// `InlineTyper.index`, `Typer.indexPattern`).
+    /// Adds the scope of the implicits that the statements of block `t` define, the pattern of
+    /// case `t` binds, or class body `t` defines, to `scopes` if there are any; the number of
+    /// scopes before (dotty's `InlineTyper.index`, `Typer.indexPattern`).
     pub fn enter_implicits(&mut self, t: TNodeId) -> usize {
         let mark = self.scopes.len();
         let mut defined = Vec::new();
@@ -122,6 +125,7 @@ impl Inlining<'_> {
                 defined.extend(defs.filter_map(|&s| self.tpd.sym(s)));
             }
             T::CaseDef { pat, .. } => self.implicit_defs(pat, &mut defined),
+            T::Template { .. } if self.defines_inside(t) => self.scopes.push(Scope::Class),
             _ => {}
         }
         if !defined.is_empty() {
@@ -141,7 +145,7 @@ impl Inlining<'_> {
 }
 
 /// Adds the given and implicit terms `t` defines to `found`.
-fn implicit_defs(tpd: &Tpd, u: &Universe, t: TNodeId, found: &mut Vec<SymbolId>) {
+pub fn implicit_defs(tpd: &Tpd, u: &Universe, t: TNodeId, found: &mut Vec<SymbolId>) {
     found.extend(tpd.sym(t).filter(|_| is_implicit_def(tpd, u, t)));
     for c in tpd.children(t) {
         implicit_defs(tpd, u, c, found);
@@ -155,48 +159,4 @@ pub fn is_implicit_def(tpd: &Tpd, u: &Universe, t: TNodeId) -> bool {
         let flags = u.symbol(s).flags;
         flags.has(GIVEN) || flags.has(IMPLICIT)
     })
-}
-
-/// Determines the scopes of the given and implicit terms `t` defines in whose scope `call` is,
-/// outermost first: `t` if it defines one, then for each tree containing `call` the terms its
-/// children define, or a case's pattern binds; `None` if `t` does not contain `call`.
-pub fn implicit_scopes_at(
-    tpd: &Tpd,
-    u: &Universe,
-    (t, call): (TNodeId, TNodeId),
-) -> Option<Vec<Vec<SymbolId>>> {
-    let mut scopes = Vec::new();
-    if !scopes_within(tpd, u, (t, call), &mut scopes) {
-        return None;
-    }
-    scopes.extend(tpd.sym(t).filter(|_| is_implicit_def(tpd, u, t)).map(|s| vec![s]));
-    scopes.reverse();
-    Some(scopes)
-}
-
-/// Adds the scopes of `implicit_scopes_at` inside `t` to `found`, innermost first; whether `t`
-/// contains `call`.
-fn scopes_within(
-    tpd: &Tpd,
-    u: &Universe,
-    (t, call): (TNodeId, TNodeId),
-    found: &mut Vec<Vec<SymbolId>>,
-) -> bool {
-    if t == call {
-        return true;
-    }
-    let children = tpd.children(t);
-    if !children.iter().any(|&c| scopes_within(tpd, u, (c, call), found)) {
-        return false;
-    }
-    let mut defined = Vec::new();
-    match *tpd.tree(t) {
-        T::CaseDef { pat, .. } => implicit_defs(tpd, u, pat, &mut defined),
-        _ => defined
-            .extend(children.into_iter().filter(|&c| is_implicit_def(tpd, u, c)).filter_map(|c| tpd.sym(c))),
-    }
-    if !defined.is_empty() {
-        found.push(defined);
-    }
-    true
 }

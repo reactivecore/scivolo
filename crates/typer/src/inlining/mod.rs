@@ -18,6 +18,7 @@ mod erased;
 mod expand;
 mod host;
 mod implicit_args;
+mod implicit_scopes;
 mod inline_call;
 mod local_implicits;
 mod macro_annotations;
@@ -65,7 +66,8 @@ mod unused;
 
 pub use erased::is_erased_value;
 pub use host::{CheckedErrors, Host, ImportSelector, Lent};
-pub use local_implicits::{implicit_scopes_at, is_implicit_def};
+pub use implicit_scopes::implicit_scopes_at;
+pub use local_implicits::is_implicit_def;
 pub use macros::{
     AnnotationCall, Annotations, Expanded, MacroArg, MacroCall, MacroError, Macros, Quoted, Reports, Search,
 };
