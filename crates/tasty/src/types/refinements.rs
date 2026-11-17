@@ -20,6 +20,22 @@ impl Universe {
         self.refinement_named(prefix, name)
     }
 
+    /// Determines the info of type member `s` of `prefix` (dotty's `goRefined`): the alias a
+    /// refinement of the prefix's widened type gives, else `s`'s own seen from `prefix`, bounds
+    /// met with those a refinement gives.
+    pub fn refined_member_info(&mut self, prefix: TypeId, s: SymbolId) -> TypeId {
+        let own = self.member_info(prefix, s);
+        let Some(refined) = self.refinement_info(prefix, s) else { return own };
+        match (*self.ty(refined), *self.ty(own)) {
+            (Type::Alias(_), _) => refined,
+            (Type::Bounds(l1, h1), Type::Bounds(l2, h2)) => {
+                let (lo, hi) = (self.lub(l1, l2), self.glb(h1, h2));
+                self.intern_type(Type::Bounds(lo, hi))
+            }
+            _ => own,
+        }
+    }
+
     /// `t` with the `this` of each recursive type of `binders` replaced by `by` (dotty's
     /// `substRecThis`).
     pub fn rec_this_replaced(&mut self, t: TypeId, binders: &[Binder], by: TypeId) -> TypeId {

@@ -170,22 +170,30 @@ impl Universe {
         if kind != Kind::Type && !(upper && kind == Kind::TypeParam) {
             return None;
         }
-        let info = match prefix.and_then(|p| self.refinement_info(p, alias)) {
-            Some(refined) => self.type_alias(refined).unwrap_or(refined),
-            None => self.member_info_from(prefix, alias),
+        let refined = prefix.and_then(|p| self.refinement_info(p, alias));
+        if let Some(refined) = refined.and_then(|r| self.type_alias(r)) {
+            return self.lambda_applied(refined, args, upper);
+        }
+        let own = match prefix {
+            Some(p) => self.member_info(p, alias),
+            None => self.info(alias),
         };
+        let own = self.lambda_applied(own, args, upper);
+        match (refined.filter(|_| upper).and_then(|r| self.lambda_applied(r, args, upper)), own) {
+            (Some(r), Some(o)) => {
+                let o = self.bounds(o).map_or(o, |(_, hi)| hi);
+                Some(self.glb(r, o))
+            }
+            (r, o) => o.or(r),
+        }
+    }
+
+    /// The body of type lambda `info`, or with `upper` of its upper bound, arguments `args`
+    /// substituted.
+    fn lambda_applied(&mut self, info: TypeId, args: &[TypeId], upper: bool) -> Option<TypeId> {
         let info = self.bounds(info).filter(|_| upper).map_or(info, |(_, hi)| hi);
         let (binder, names, result) = self.lambda(info).map(|l| (l.binder, l.names(), l.result))?;
         Some(self.subst(result, binder, &names, args))
-    }
-
-    /// The info of type `s`, seen from `prefix` if `s` is a class member.
-    fn member_info_from(&mut self, prefix: Option<TypeId>, s: crate::SymbolId) -> TypeId {
-        let info = self.info(s);
-        match (prefix, self.symbol(s).owner) {
-            (Some(p), Some(o)) if self.symbol(o).kind == Kind::Class => self.as_seen_from(info, p, o),
-            _ => info,
-        }
     }
 
     /// `t` with the parameters of lambda `binder`, named `names`, replaced by `args`.

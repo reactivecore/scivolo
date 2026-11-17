@@ -117,6 +117,27 @@ class Refined[R <: Members { type A[T] = Long; type B = Long }](val f: R) {
   def arr(xs: Array[f.A[Int]]): Array[f.A[Int]] = xs
   def arrB(xs: Array[f.B]): Array[f.B] = xs
 }
+trait LongMembers {
+  type A[T] <: Long
+  type B <: Long
+}
+trait AliasMembers {
+  type A[T] = Long
+  type B = Long
+}
+class Widened[R <: LongMembers { type A[T] <: AnyVal; type B <: AnyVal }](val f: R) {
+  def arr(xs: Array[f.A[Int]]): Array[f.A[Int]] = xs
+  def one(x: f.A[Int]): f.A[Int] = x
+  def arrB(xs: Array[f.B]): Array[f.B] = xs
+  def oneB(x: f.B): f.B = x
+}
+class WidenedAlias[R <: AliasMembers { type A[T] <: AnyVal; type B <: AnyVal }](val f: R) {
+  def one(x: f.A[Int]): f.A[Int] = x
+  def arrB(xs: Array[f.B]): Array[f.B] = xs
+}
+class VarBound[R <: LongMembers, S <: R { type B <: AnyVal }](val f: S) {
+  def arrB(xs: Array[f.B]): Array[f.B] = xs
+}
 object Conv extends scala.collection.convert.StreamExtensions
 object OrdInt extends scala.math.Ordering.IntOrdering
 "#;
@@ -249,6 +270,13 @@ const DESCRIPTORS: &[(&str, &str, &str)] = &[
     ("Refined", "one", "(J)J"),
     ("Refined", "arr", "([J)[J"),
     ("Refined", "arrB", "([J)[J"),
+    ("Widened", "arr", "([J)[J"),
+    ("Widened", "one", "(J)J"),
+    ("Widened", "arrB", "([J)[J"),
+    ("Widened", "oneB", "(J)J"),
+    ("WidenedAlias", "one", "(J)J"),
+    ("WidenedAlias", "arrB", "([J)[J"),
+    ("VarBound", "arrB", "([J)[J"),
 ];
 
 /// The field signatures of `SOURCE` that dotty writes.
@@ -281,6 +309,7 @@ const CLASSES: &[(&str, Option<&str>)] = &[
     ("IntBound", Some("<T:Ljava/lang/Object;>Ljava/lang/Object;")),
     ("Impl", Some("Ljava/lang/Object;Lsigs/Tr<Ljava/lang/String;>;")),
     ("Refined", Some("<R::Lsigs/Members;>Ljava/lang/Object;")),
+    ("VarBound", Some("<R::Lsigs/LongMembers;S::TR;>Ljava/lang/Object;")),
 ];
 
 /// The classes of `SOURCE` compiled for the JVM; none without the library jars.

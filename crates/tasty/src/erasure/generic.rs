@@ -163,9 +163,6 @@ impl Universe {
             Type::Sym(Some(p), _) | Type::TypeRef(p, _) if self.symbol(s).kind == Kind::Type => p,
             _ => return self.info(s),
         };
-        match self.refinement_info(prefix, s) {
-            Some(refined) => refined,
-            None => self.member_info(prefix, s),
-        }
+        self.refined_member_info(prefix, s)
     }
 }

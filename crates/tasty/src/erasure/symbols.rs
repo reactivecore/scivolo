@@ -24,8 +24,9 @@ impl Universe {
             return self.erase(seen);
         }
         if self.symbol(s).kind == Kind::Type {
-            if let Some(refined) = self.refinement_info(prefix, s) {
-                return self.erase(refined);
+            if self.refinement_info(prefix, s).is_some() {
+                let info = self.refined_member_info(prefix, s);
+                return self.erase(info);
             }
             if let Some(a) = self.overriding_alias(prefix, s) {
                 return self.erase(a);
