@@ -21,7 +21,7 @@ impl OverrideChecks {
             }
             let name = t.u.symbol(d).name.clone();
             for &b in &self.bases {
-                let others: Vec<SymbolId> = t.u.symbol(b).decls.iter().copied().collect();
+                let others = t.u.symbol(b).decls.to_vec();
                 for m in others {
                     let sm = t.u.symbol(m);
                     if sm.name != name || sm.kind != Kind::Type || sm.is_private() {

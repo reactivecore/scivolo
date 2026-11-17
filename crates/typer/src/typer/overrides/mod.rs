@@ -21,7 +21,7 @@ use tasty::{Kind, SymbolId, TypeId, Universe};
 /// The override checks of one class (dotty's `RefChecks.checkAllOverrides` with
 /// `checkNoAbstractMembers` and `ElimErasedValueType.checkNoClashes`): refuses the class at its
 /// span when two of its methods clash, a member overrides another it may not or without
-/// `override`, an `override` member overrides nothing, it inherits conflicting members, or it is
+/// `override` or with an incompatible type, an `override` member overrides nothing, it inherits conflicting members, or it is
 /// concrete with an abstract member left unimplemented. A class with a macro annotation keeps its
 /// last check until the annotations expanded.
 pub struct OverrideChecks {
