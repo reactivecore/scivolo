@@ -33,6 +33,7 @@ mod third;
 mod unions;
 mod walk;
 
+pub use match_types::MatchTypeRules;
 pub use no_vars::NoVars;
 pub use null::NullMode;
 pub use unions::Unions;
@@ -62,6 +63,10 @@ pub trait TypeVars {
     /// The changes since `m` that `redo` makes again after a rollback to `m`.
     fn changes_since(&self, m: Mark) -> Changes;
     fn redo(&mut self, changes: Changes);
+    /// The first variable id a constraint nested in this one may take.
+    fn free_var_ids(&self) -> u32 {
+        match_types::CASE_VARS
+    }
 }
 
 /// Changes to a constraint: the variables whose bounds or instance differ from before, and
@@ -173,6 +178,8 @@ pub struct Cmp<'a> {
     frozen_gadt: bool,
     /// Which bounds of an abstract type the current pair was reached through (dotty's `approx`).
     approx: gadt_narrow::Approx,
+    /// The legacy match case whose captures the comparison constrains (dotty's `caseLambda`).
+    legacy: Option<match_types::CaseLambda>,
 }
 
 /// How many steps computing atoms and `Nothing`-ness may take in one comparison.
@@ -196,7 +203,13 @@ impl<'a> Cmp<'a> {
             gadt_mode: inferring,
             frozen_gadt: false,
             approx: gadt_narrow::Approx::default(),
+            legacy: None,
         }
+    }
+
+    /// Whether the comparison may constrain variable `v` (dotty's `canConstrain`).
+    fn can_constrain(&self, v: VarId) -> bool {
+        !self.frozen() || self.legacy.as_ref().is_some_and(|l| l.owns(v))
     }
 
     /// Takes a step of computing atoms or `Nothing`-ness; false if none is left.

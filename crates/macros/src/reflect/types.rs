@@ -5,13 +5,10 @@
 use super::Fallible;
 use super::constants::encoded;
 use crate::host::Host;
-use tasty::tags::{CLASSconst, GIVEN, IMPLICIT, MUTABLE, OPAQUE};
+use tasty::tags::{CLASSconst, GIVEN, IMPLICIT, MUTABLE};
 use tasty::{Kind, NoVars, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree as T, constant_of};
 use vm::Reflected;
-
-/// How many aliases `dealias_keep_opaques` follows at most.
-const DEALIAS_STEPS: u32 = 100;
 
 impl Host {
     pub fn type_symbol(&mut self, t: TypeId) -> Option<SymbolId> {
@@ -48,18 +45,8 @@ impl Host {
     }
 
     /// `t` dealiased up to a reference to an opaque type.
-    pub fn dealias_keep_opaques(&mut self, mut t: TypeId) -> TypeId {
-        for _ in 0..DEALIAS_STEPS {
-            let reference = self.u.applied(t).map_or(t, |(tycon, _)| tycon);
-            if self.u.referenced(reference).is_some_and(|s| self.u.symbol(s).flags.has(OPAQUE)) {
-                break;
-            }
-            match self.u.dealias_step(t) {
-                next if next == t => break,
-                next => t = next,
-            }
-        }
-        t
+    pub fn dealias_keep_opaques(&mut self, t: TypeId) -> TypeId {
+        self.dealias_keeping(t, true)
     }
 
     pub fn is_subtype(&mut self, a: TypeId, b: TypeId) -> Fallible<bool> {

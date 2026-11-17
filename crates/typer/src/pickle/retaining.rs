@@ -1,8 +1,9 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/core/tasty/TreePickler.scala
 //   compiler/src/dotty/tools/dotc/core/Annotations.scala
+//   compiler/src/dotty/tools/dotc/cc/CaptureOps.scala
 //! Capture-set annotations (`@retains`) in pickled types (dotty's `CompactAnnotation` case of
-//! `pickleNewType`).
+//! `pickleNewType`), and emptied (`CleanupRetains`).
 
 use super::{Refusal, TreePickler};
 use crate::tpd::{TNodeId, Tree};
@@ -136,4 +137,25 @@ fn is_static_capture_set(
         None
     });
     is_static
+}
+
+/// Empties in `t` the capture set of each capture-checking annotation, `retains[Nothing]`, but
+/// keeps each type annotated `retainsCap` as it is (dotty's `CleanupRetains` where capture
+/// checking is enabled).
+pub fn emptied(u: &mut Universe, t: TypeId) -> TypeId {
+    u.map_type(t, &mut |u, part| {
+        let (inner, annot) = u.annotated(part)?;
+        if !is_retains_like(u, annot) {
+            return None;
+        }
+        if u.class_symbol(annot).is_some_and(|c| u.symbol(c).name == nme::RETAINS_CAP) {
+            return Some(part);
+        }
+        let inner = emptied(u, inner);
+        let annot = match u.applied(annot) {
+            Some((tycon, _)) => u.intern_applied(tycon, &[tasty::NOTHING]),
+            None => u.intern_applied(annot, &[tasty::NOTHING]),
+        };
+        Some(u.intern_type(Type::Annotated(inner, annot)))
+    })
 }

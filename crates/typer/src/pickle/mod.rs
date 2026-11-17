@@ -6,6 +6,10 @@
 mod annotated;
 mod annotation_origins;
 mod applies;
+mod capture_risks;
+mod captured_closures;
+mod captured_exprs;
+mod captured_type_args;
 mod cases;
 mod defs;
 mod inferred_captures;
@@ -87,6 +91,7 @@ pub struct TreePickler<'a> {
     /// definition's info has (`retaining::keep_captures`), and of each inferred one with the
     /// emptied capture sets of the type it was inferred from (`inferred_captures`).
     kept_captures: FxHashMap<TNodeId, TypeId>,
+    inferred: inferred_captures::InferredCaptures,
     /// The class of the definition of each such synthetic type tree, whose `this` its capture
     /// sets may name.
     capture_classes: FxHashMap<TNodeId, SymbolId>,
@@ -202,6 +207,7 @@ fn pickle<'a>(
         self_refs: FxHashSet::default(),
         param_tpts: FxHashMap::default(),
         kept_captures: FxHashMap::default(),
+        inferred: Default::default(),
         capture_classes: FxHashMap::default(),
         accessor_class: None,
         accessor_owners: FxHashMap::default(),

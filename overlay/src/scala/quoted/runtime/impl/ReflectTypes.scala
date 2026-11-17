@@ -72,7 +72,7 @@ trait ReflectTypes extends reflectModule { self: reflect.type =>
       def select(sym: Symbol): TypeRepr = repr(ReflectOps.one("selectType", ReflectOps.id(self), ReflectOps.id(sym)))
       def widenByName: TypeRepr = if (TypeShapes.kind(self) == 14) TypeShapes.part(self, 0).asInstanceOf[TypeRepr] else self
       def dealiasKeepOpaques: TypeRepr = repr(ReflectOps.one("dealiasKeepOpaques", ReflectOps.id(self)))
-      def simplified: TypeRepr = throw new Unsupported("TypeRepr.simplified")
+      def simplified: TypeRepr = repr(ReflectOps.one("simplified", ReflectOps.id(self)))
       def isTupleN: Boolean = applied(self, "scala.Tuple", 0)
       def isFunctionType: Boolean = {
         val d = self.dealias

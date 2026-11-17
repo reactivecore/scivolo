@@ -23,7 +23,9 @@ impl Cmp<'_> {
         match *self.u.ty(a) {
             Type::TypeRef(..) | Type::TermRef(..) | Type::Sym(..) => match self.named(a).map(|n| n.meaning) {
                 Some(Meaning::Abstract(_, hi)) => {
-                    self.recur_approx(hi, b, true) || self.gadt_below(a, b) || self.lifted_left(a, b)
+                    self.widen_abstract_ok(b) && self.recur_approx(hi, b, true)
+                        || self.gadt_below(a, b)
+                        || self.lifted_left(a, b)
                 }
                 Some(Meaning::Class(c)) if c == self.u.defn().nothing => self.is_value_type(b),
                 Some(Meaning::Class(c)) if c == self.u.defn().null => self.nullable(b),
@@ -40,7 +42,7 @@ impl Cmp<'_> {
                 self.below_singleton(a, b)
             }
             Type::Match { bound, scrutinee, cases } => {
-                self.recur(bound, b) || self.match_below(scrutinee, cases, b)
+                self.widen_match_ok() && self.recur(bound, b) || self.match_below(scrutinee, cases, b)
             }
             Type::MatchCase(pat, body) => match *self.u.ty(b) {
                 Type::MatchCase(other_pat, other_body) => {
