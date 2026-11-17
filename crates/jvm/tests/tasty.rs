@@ -106,7 +106,7 @@ const DOTTY_TASTY: &[(&str, &[&str])] = &[
     ("caseclasses", &["scala/probe/Pair", "scala/probe/Words"]),
     ("views", &["scala/probe/Views"]),
     ("widenedargs", &["W"]),
-    ("typercaptures", &["G"]),
+    ("typercaptures", &["G", "Mk"]),
 ];
 
 /// The trees, positions and flag attributes of the classes of `DOTTY_TASTY` are dotty's: the

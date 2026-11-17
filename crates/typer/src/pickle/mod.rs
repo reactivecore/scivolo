@@ -91,6 +91,9 @@ pub struct TreePickler<'a> {
     /// The class of the definition of each such synthetic type tree, whose `this` its capture
     /// sets may name.
     capture_classes: FxHashMap<TNodeId, SymbolId>,
+    /// The overriding definition of each inferred type tree kept as it is, whose parameters its
+    /// capture sets may name.
+    capture_defs: FxHashMap<TNodeId, SymbolId>,
     /// The class of the super accessor pickled now, whose `this` its type's capture sets may name.
     accessor_class: Option<SymbolId>,
     /// The class of each super accessor's member, by accessor.
@@ -234,6 +237,7 @@ fn pickle_trees<'a>(
         param_tpts: FxHashMap::default(),
         kept_captures: FxHashMap::default(),
         capture_classes: FxHashMap::default(),
+        capture_defs: FxHashMap::default(),
         accessor_class: None,
         accessor_owners: FxHashMap::default(),
         accessor_seen: None,

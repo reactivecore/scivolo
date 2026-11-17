@@ -24,7 +24,8 @@ impl TreePickler<'_> {
             return None;
         }
         let own = self.type_tree.and_then(|t| self.capture_classes.get(&t).copied()).or(self.accessor_class);
-        if !is_static_capture_set(self.u, annot, own, self.accessor_seen) {
+        let def = self.type_tree.and_then(|t| self.capture_defs.get(&t).copied());
+        if !is_static_capture_set(self.u, annot, (own, def), self.accessor_seen) {
             return Some(Err(
                 "an annotated type of a capture set that refers to other than static definitions",
             ));
@@ -93,7 +94,7 @@ impl TreePickler<'_> {
         });
         let class =
             std::iter::successors(Some(sym), |&s| self.u.symbol(s).owner).find(|&s| self.u.is_class(s));
-        if captures.iter().any(|&c| !is_static_capture_set(self.u, c, class, None)) {
+        if captures.iter().any(|&c| !is_static_capture_set(self.u, c, (class, None), None)) {
             return Err(
                 "a synthetic type tree of a capture set that refers to other than static definitions",
             );
@@ -109,13 +110,14 @@ impl TreePickler<'_> {
 }
 
 /// Whether capture-set annotation type `annot` refers to no `this`, parameter or definition other
-/// than a static one, the `this` of class `own` or of a class enclosing it, which mapping a type
-/// that it annotates leaves alone; of an enclosing class only if seeing it from `seen`, the prefix
-/// and class of a super accessor's member, keeps it (`other.Views` of an inner trait `Views`).
+/// than a static one, a parameter of definition `def`, the `this` of class `own` or of a class
+/// enclosing it, which mapping a type that it annotates leaves alone; of an enclosing class only
+/// if seeing it from `seen`, the prefix and class of a super accessor's member, keeps it
+/// (`other.Views` of an inner trait `Views`).
 fn is_static_capture_set(
     u: &mut Universe,
     annot: TypeId,
-    own: Option<SymbolId>,
+    (own, def): (Option<SymbolId>, Option<SymbolId>),
     seen: Option<(TypeId, SymbolId)>,
 ) -> bool {
     let mut is_static = true;
@@ -130,7 +132,7 @@ fn is_static_capture_set(
                     u.is_static_owner(c) || Some(c) == own || (enclosing.any(|o| o == c) && kept(u))
                 }),
             },
-            Type::Sym(_, s) => u.is_static_symbol(s),
+            Type::Sym(_, s) => u.is_static_symbol(s) || def.is_some_and(|d| u.symbol(s).owner == Some(d)),
             Type::Local(..) | Type::Param(..) | Type::RecThis(_) | Type::Skolem(..) | Type::Var(_) => false,
             _ => true,
         };

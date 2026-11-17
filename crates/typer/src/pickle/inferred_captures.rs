@@ -10,7 +10,6 @@ use super::retaining::emptied;
 use super::{Refusal, TreePickler};
 use crate::tpd::{TNodeId, Tree};
 use crate::typer::capture_types::has_captures;
-use crate::typer::seen_from::resolve_class_params;
 use tasty::tags::PRIVATE;
 use tasty::{Kind, SymbolId, TypeId, Universe};
 
@@ -48,8 +47,8 @@ impl TreePickler<'_> {
     }
 
     /// Records the type of inferred type tree `tpt` of member `sym` of a capture-checked file
-    /// as it is, capture sets not emptied, if `sym` overrides members of one type the tree's,
-    /// a function value's parameter's as the typer recorded it.
+    /// as it is, capture sets not emptied, if `sym` overrides a member (dotty's `explicifyTpt`
+    /// makes the tree not inferred); its sets may name `sym`'s parameters.
     pub fn keep_overriding_captures(&mut self, sym: SymbolId, tpt: TNodeId) {
         if !self.capture_checked() || overridden_infos(self.u, sym).is_empty() {
             return;
@@ -58,30 +57,14 @@ impl TreePickler<'_> {
         else {
             return;
         };
-        let Some(from) = self.tpd.captured_type(tpt).or_else(|| self.inherited(sym)) else { return };
-        if !has_captures(self.u, from) || resolve_class_params(self.u, from) != tpe {
+        if !has_captures(self.u, tpe) {
             return;
         }
         self.kept_captures.insert(tpt, tpe);
+        self.capture_defs.insert(tpt, sym);
         if let Some(class) = self.u.symbol(sym).owner.filter(|&o| self.u.is_class(o)) {
             self.capture_classes.insert(tpt, class);
         }
-    }
-
-    /// The type of the members `sym`, a member without parameters, overrides, if all have one
-    /// (dotty's `inherited` of `inferredResultType`).
-    fn inherited(&mut self, sym: SymbolId) -> Option<TypeId> {
-        let own = self.u.info(sym);
-        if self.u.method(own).is_some() || self.u.poly(own).is_some() {
-            return None;
-        }
-        let infos = overridden_infos(self.u, sym);
-        let first = *infos.first()?;
-        if infos.iter().any(|&i| i != first) {
-            return None;
-        }
-        let t = self.u.by_name(first).unwrap_or(first);
-        (self.u.method(t).is_none() && self.u.poly(t).is_none()).then_some(t)
     }
 }
 

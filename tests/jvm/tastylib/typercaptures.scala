@@ -8,6 +8,10 @@ class It[+T]:
   def next(): T = ???
 trait Coll[+T]:
   def iterator: It[T]^{this}
+trait Fac[+C]:
+  def make(it: Coll[Int]^): C^{it}
+class Mk extends Fac[It[Int]]:
+  def make(it: Coll[Int]^) = it.iterator
 object G:
   def first[T](xs: List[T]): T = xs.head
   def box[T](x: T): Box[T] = new Box[T](x)
@@ -22,4 +26,6 @@ object G:
     val p = pick(b)
     val a9 = if k then mk(c) else c.iterator
     val a10 = if k then mk(c) else mk2(d)
+    val cl = (i: Int) => mk(c)
+    val app = List(1).map(i => mk(c))
     1
