@@ -105,22 +105,49 @@ impl UnapplyPattern {
         t.type_tested_unapply(self.id, tree, own, sel, self.ctx)
     }
 
-    /// Types the applied type trees of typed patterns, as `List[Int]` of `(x: List[Int], y)`,
-    /// against a tuple scrutinee of their arity once more, the result unused.
-    fn retype_tuple_arg_types(&self, t: &mut Typer<'_>) {
+    /// Replaces the element types of a tuple scrutinee of the patterns' arity by the types of
+    /// the typed patterns among them whose type is an applied type tree that typing leaves
+    /// as written, as `Option[String]` of `(y: Option[String], z)` against `(Some[String], Int)`;
+    /// others, as `List[?]`, keep the element type.
+    fn retype_tuple_arg_types(&mut self, t: &mut Typer<'_>) {
         let sel = self.scrutinee;
-        let Some((tycon, n)) = t.u.applied(sel).map(|(c, targs)| (c, targs.len())) else { return };
-        let tuple = format!("scala.Tuple{n}");
-        if n != self.args.len() || t.u.class_symbol(tycon).is_none_or(|c| t.u.full_name(c) != tuple) {
+        let Some((tycon, targs)) = t.u.applied(sel).map(|(c, targs)| (c, targs.to_vec())) else { return };
+        let tuple = format!("scala.Tuple{}", targs.len());
+        if targs.len() != self.args.len() || t.u.class_symbol(tycon).is_none_or(|c| t.u.full_name(c) != tuple)
+        {
             return;
         }
-        for &a in &self.args {
+        let mut elems = targs.clone();
+        for (elem, &a) in elems.iter_mut().zip(&self.args) {
             if let Tree::Typed { tpt, .. } = *t.ast.tree(a)
                 && matches!(t.ast.tree(tpt), Tree::AppliedTypeTree { .. })
             {
-                t.typed_type(tpt, self.ctx.with_mode(Mode::PATTERN_TYPE));
+                let typed = t.typed_type(tpt, self.ctx.with_mode(Mode::PATTERN_TYPE));
+                if same_shape(t, tpt, typed) {
+                    *elem = t.tpd.tpe(typed);
+                }
             }
         }
+        if elems != targs {
+            let sel = t.u.intern_applied(tycon, &elems);
+            (self.sel, self.scrutinee) = (sel, sel);
+        }
+    }
+}
+
+/// Whether typed type tree `typed` has the shape of type tree `tpt`: the same type names,
+/// selections and applications (dotty's `tpt.args == tpt2.args` of case class trees).
+fn same_shape(t: &Typer<'_>, tpt: NodeId, typed: TNodeId) -> bool {
+    match (t.ast.tree(tpt), t.tpd.tree(typed)) {
+        (Tree::Ident { name: a }, T::Ident { name: b }) => a == b,
+        (Tree::Select { qualifier: a, name: n }, T::Select { qualifier: b, name: m }) => {
+            n == m && same_shape(t, *a, *b)
+        }
+        (Tree::AppliedTypeTree { tpt: a, args: l }, T::AppliedTypeTree { tpt: b, args: m }) => {
+            let (l, m) = (t.ast.items(*l), t.tpd.items(*m));
+            same_shape(t, *a, *b) && l.len() == m.len() && l.iter().zip(m).all(|(&a, &b)| same_shape(t, a, b))
+        }
+        _ => false,
     }
 }
 
