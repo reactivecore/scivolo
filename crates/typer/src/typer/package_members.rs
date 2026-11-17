@@ -14,10 +14,12 @@ impl Typer<'_> {
     /// ones the unit defines among them completed first; of package `scala` its own types or
     /// terms if it has some (dotty's `computeMembersNamed`).
     pub fn package_members(&mut self, p: SymbolId, name: &str) -> Vec<SymbolId> {
+        let pending = |t: &Self, o| matches!(t.syms.completions.get(&o), Some(Completion::Pending { .. }));
+        let decls = self.u.symbol(p).decls.iter().copied();
         let named: Vec<SymbolId> =
-            self.u.symbol(p).decls.iter().copied().filter(|&d| self.is_named_package_object(d)).collect();
+            decls.filter(|&d| pending(self, d) && self.is_named_package_object(d)).collect();
         for o in named {
-            if matches!(self.syms.completions.get(&o), Some(Completion::Pending { .. })) {
+            if pending(self, o) {
                 self.complete(o);
             }
         }

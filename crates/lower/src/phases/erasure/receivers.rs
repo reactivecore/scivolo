@@ -5,7 +5,7 @@ use crate::definitions::type_ref;
 use crate::phases::select_static::is_scala_static;
 use crate::{Lower, Result, unsupported};
 use tasty::tags::PROTECTED;
-use tasty::{Erased, SymbolId};
+use tasty::{Erased, SymbolId, defined_name};
 use typer::tpd::{TNodeId, Tree};
 
 /// Determines the erased type the receiver `qualifier` of selection `sel` is adapted to: the class
@@ -40,12 +40,14 @@ pub fn receiver_type(l: &mut Lower, sel: TNodeId, qualifier: TNodeId) -> Result<
 
 /// Whether the code being erased may name class `c` in a cast: a Scala class, a Java-defined
 /// `protected` class, or a Java class it may access (dotty's `isJvmAccessible`, through the
-/// prefix `c.owner.this`); a Scala-defined `java.*` class (Scala Native's javalib) counts as Java.
+/// prefix `c.owner.this`); a Scala-defined `java.*` class (Scala Native's javalib) counts as Java,
+/// one Scala Native defines under another name (`_Class`) is public as the JDK's.
 fn is_jvm_accessible(l: &mut Lower, c: SymbolId) -> bool {
     let name = l.u.full_name(c);
     let jdk = l.u.may_be_java(c) && (name.starts_with("java.") || name.starts_with("javax."));
     let java = l.u.is_java_defined(c);
-    if !jdk && !java || java && l.u.symbol(c).flags.has(PROTECTED) {
+    let renamed = !java && defined_name(&name).is_some();
+    if !jdk && !java || renamed || java && l.u.symbol(c).flags.has(PROTECTED) {
         return true;
     }
     let site = l.erasure_owner.unwrap_or(l.u.root());

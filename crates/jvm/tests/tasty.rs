@@ -105,6 +105,8 @@ const DOTTY_TASTY: &[(&str, &[&str])] = &[
     ("beanproperties", &["scala/probe/Beans"]),
     ("caseclasses", &["scala/probe/Pair", "scala/probe/Words"]),
     ("views", &["scala/probe/Views"]),
+    ("widenedargs", &["W"]),
+    ("lambdabounds", &["scala/probe/LambdaBounds"]),
 ];
 
 /// The trees, positions and flag attributes of the classes of `DOTTY_TASTY` are dotty's: the
@@ -112,13 +114,15 @@ const DOTTY_TASTY: &[(&str, &[&str])] = &[
 /// 3.8, as `new retains[Nothing]()`; inferred types of inferredcaptures.scala keep the capture
 /// sets of the types they are inferred from, emptied, those of inferredcaptures2.scala through
 /// generic calls, conditionals, matches and closures, a type argument none from an argument whose
-/// capture sets are only around it, and an overriding member's its overridden member's as they
+/// capture sets are only around it, a type argument the top capture set only of a path argument
+/// (widenedargs.scala), and an overriding member's its overridden member's as they
 /// are; annotated types take the annotation tree of their own
 /// origin in match selectors and patterns, inferred types, super accessors and inline accessors,
 /// in super accessors with their class's type parameters seen from the accessor's class; secondary constructors have their own type parameters and parameters passed on to the
 /// superclass are its parameters' aliases; `@BeanProperty` values get their bean accessors;
 /// synthesized case class members refer to package members through the package's `this`, and
-/// numeric widenings their companion through the prefix of the widened type. Needs a JDK (java on
+/// numeric widenings their companion through the prefix of the widened type; a type lambda
+/// written as a wildcard's bound pickles without variances. Needs a JDK (java on
 /// the PATH), as dotty's did.
 #[test]
 fn probes_pickle_as_dotty_s() {
@@ -225,6 +229,12 @@ fn untold_capture_sets_are_refused() {
             "dependent",
             "object D:\n  val f: (x: A^) -> Label[Int]^{x} = x => Label[Int]()\n",
             "drops its refinement's capture sets",
+        ),
+        (
+            "invariantresult",
+            "class Box[T](val x: T)\nobject V:\n  def box[T](x: T): Box[T] = new Box[T](x)\n  \
+             def g(a: A^, b: B^{a}): Int =\n    val y: Box[B^{a}] = box(b)\n    1\n",
+            "capture sets not told",
         ),
     ];
     for (name, body, refusal) in cases {

@@ -172,6 +172,21 @@ package java.util.concurrent {
     override def applyToEitherAsync[U <: Object](other: CompletionStage[? <: T], fn: JFunction[? >: T, U], executor: Executor):
       CompletableFuture[U] = null
   }
+  class ThreadLocalRandom extends java.util.Random {
+    override def nextInt(): Int = 0
+    override def nextInt(bound: Int): Int = 0
+    override def nextInt(origin: Int, bound: Int): Int = 0
+    override def nextBoolean(): Boolean = false
+    override def nextLong(): Long = 0L
+    override def nextLong(bound: Long): Long = 0L
+    override def nextLong(origin: Long, bound: Long): Long = 0L
+    override def nextFloat(): Float = 0f
+    override def nextFloat(bound: Float): Float = 0f
+    override def nextFloat(origin: Float, bound: Float): Float = 0f
+    override def nextDouble(): Double = 0d
+    override def nextDouble(bound: Double): Double = 0d
+    override def nextDouble(origin: Double, bound: Double): Double = 0d
+  }
 }
 
 package scala.scalanative.runtime {

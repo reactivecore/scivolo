@@ -322,6 +322,22 @@ fn library_static_members_and_annotated_switch_selectors() {
     assert!(dump.contains("switch"), "{dump}");
 }
 
+#[test]
+fn javalib_names_members_of_jdk_classes_scala_native_renames() {
+    let Some(mut jars) = jars() else { return };
+    let jdk = jars.len()..jars.len() + 1;
+    jars.push(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../libs/jdk-stubs.jar"));
+    let source = SourceFile::new(
+        "loader.scala",
+        "package java.lang\nclass Loader { def name: String = this.getClass().getName() }",
+    );
+    let mut u = Universe::open(&jars).unwrap();
+    u.set_jdk_jars(jdk);
+    u.set_javalib_sources();
+    let refusal = lower::compile(&mut u, &source, &[]).err().map(|r| r.what);
+    assert_eq!(refusal, None, "java.lang.Class is public as the JDK's");
+}
+
 const LEGACY_UNAPPLY: &str = "package legacy
 case class Wrap[T](t: T)
 class Dummy
@@ -359,4 +375,45 @@ fn match_types_reduce_by_the_rules_of_the_code_at_hand() {
     u.reductions_exhausted = false;
     assert_eq!(u.try_normalize(t), None, "differing rules refused");
     assert!(u.reductions_exhausted);
+
+    let dummy_class = u.class_symbol(dummy).unwrap();
+    for _ in 0..2 {
+        assert_eq!(u.base_type(t, dummy_class), None);
+    }
+    u.reductions_exhausted = false;
+    assert_eq!(u.base_type(t, dummy_class), None);
+    assert!(u.reductions_exhausted, "a remembered base type hides the refused reduction");
+}
+
+#[test]
+fn overloads_of_the_library_see_aliases_of_the_unit_not_yet_completed() {
+    let Some(jars) = jars() else { return };
+    let aliases = "package scala.scalanative\npackage object unsafe {\n  type CInt = Int\n  \
+                   type CVoidPtr = Ptr[?]\n  type CSize = unsigned.USize\n}";
+    let call = "import scala.scalanative.unsafe.{CSize, Ptr}\nobject T {\n  \
+                def f(p: Ptr[Byte], n: CSize) = scala.scalanative.runtime.ffi.memset(p, 0, n)\n}";
+    let sources = [SourceFile::new("t.scala", call), SourceFile::new("unsafe.scala", aliases)];
+    let t = dump(&jars, &sources, "T$");
+    assert!(t.contains("unbox[@scala.scalanative.unsigned.USize]") && t.contains("extern memset"), "{t}");
+}
+
+#[test]
+fn inline_accessors_of_members_of_another_file_take_their_offset_in_their_own_file() {
+    let Some(jars) = jars() else { return };
+    let p = SourceFile::new("p.scala", "package p\n\nclass P {\n  private[p] def raw: Int = 1\n}\n");
+    let c = SourceFile::new("c.scala", "package p\n\ntrait C {\n  inline def f(x: P): Int = x.raw\n}\n");
+    let c = dump(&jars, &[c, p], "p.C");
+    let accessor = &c[c.find("inline$raw$i1").expect("the accessor")..];
+    assert!(accessor.contains("@ c.scala:3:17"), "{accessor}");
+}
+
+#[test]
+fn inline_accessors_at_an_offset_past_their_file_end_stay_in_their_file() {
+    let Some(jars) = jars() else { return };
+    let p = format!("package p\n\n// {}\nclass P {{\n  private[p] def raw: Int = 1\n}}\n", "x".repeat(80));
+    let p = SourceFile::new("p.scala", p);
+    let c = SourceFile::new("c.scala", "package p\n\ntrait C {\n  inline def f(x: P): Int = x.raw\n}\n");
+    let c = dump(&jars, &[c, p], "p.C");
+    let accessor = &c[c.find("inline$raw$i1").expect("the accessor")..];
+    assert!(accessor.contains("@ c.scala:5:0") && !accessor.contains("@ p.scala"), "{accessor}");
 }

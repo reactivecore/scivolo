@@ -185,7 +185,8 @@ impl Typer<'_> {
     /// Whether script class `c` may have members its declarations lack: one its self type
     /// declares, or one an export clause in it defines, or would if it were not refused.
     pub fn has_undeclared_members(&self, c: SymbolId) -> bool {
-        let Some((&tree, _)) = self.syms.by_tree.iter().find(|&(_, &s)| s == c) else { return false };
+        let tree = self.syms.def_trees.get(&c).filter(|&t| self.syms.by_tree.get(t) == Some(&c));
+        let Some(&tree) = tree else { return false };
         let Tree::TypeDef { rhs, .. } = *self.ast.tree(tree) else { return false };
         let Tree::Template { self_, .. } = *self.ast.tree(rhs) else { return false };
         self_.is_some_and(|s| !self.is_module_self(s))

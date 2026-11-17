@@ -16,6 +16,10 @@ impl Universe {
         let plain_term = s.kind == Kind::Def || s.kind == Kind::Val && !s.flags.has(PARAMsetter);
         if let Some(o) = s.owner {
             self.symbols[o.0 as usize].decls.push(id);
+            if s.kind == Kind::TypeParam {
+                self.this_types.remove(&o);
+                self.declared_type_params.entry(o).or_default().push(id);
+            }
             if targeted {
                 self.targeted.insert(o);
             }
@@ -38,9 +42,13 @@ impl Universe {
         id
     }
 
-    /// Drops the name index of `owner` and what `changed` drops.
+    /// Drops the name index and `this` type of `owner` and what `changed` drops; takes its type
+    /// parameters from its declarations again.
     fn decls_changed(&mut self, owner: SymbolId) {
         self.by_name.remove(&owner);
+        self.this_types.remove(&owner);
+        let params = self.symbol(owner).decls.iter().filter(|&&d| self.symbol(d).kind == Kind::TypeParam);
+        self.declared_type_params.insert(owner, params.copied().collect());
         self.changed();
     }
 
@@ -93,7 +101,10 @@ impl Universe {
     /// Sets the kind of `sym`, a term defined outside TASTy; drops the resolved references.
     pub fn set_kind(&mut self, sym: SymbolId, kind: Kind) {
         self.symbols[sym.0 as usize].kind = kind;
-        self.changed();
+        match self.symbol(sym).owner {
+            Some(owner) => self.decls_changed(owner),
+            None => self.changed(),
+        }
     }
 
     /// Makes opaque types defined outside TASTy seen through every prefix if `elided`, else from `this`.
