@@ -99,6 +99,15 @@ trait Inl {
 object Inl {
   def apply(): String = ""
 }
+trait AbsInl {
+  inline def apply(n: Int): Int
+}
+class InlImpl extends AbsInl {
+  inline def apply(n: Int): Int = n
+}
+object InlImpl {
+  def apply(): String = ""
+}
 object Conv extends scala.collection.convert.StreamExtensions
 object OrdInt extends scala.math.Ordering.IntOrdering
 "#;
@@ -110,6 +119,7 @@ const FORWARDERS: &[(&str, &str, Option<&str>)] = &[
     ("Fwd", "hidden", None),
     ("Fwd", "poly", Some("<F:Ljava/lang/Object;>(Lscala/PolyFunction;)I")),
     ("Inl", "apply", None),
+    ("InlImpl", "apply", None),
     ("OrdInt$", "max", None),
     ("OrdInt", "max", None),
     (

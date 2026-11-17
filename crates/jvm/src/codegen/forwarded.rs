@@ -80,15 +80,18 @@ impl Gen<'_, '_> {
         names
     }
 
-    /// Whether erasure drops member `m`: an erased member or an inline one that overrides no
-    /// member that is not inline (dotty's `isEffectivelyErased`).
+    /// Whether erasure drops member `m`: an erased member, a deferred inline one, or an inline one
+    /// that overrides no member that is not inline (dotty's `isEffectivelyErased`).
     fn is_effectively_erased(&mut self, m: SymbolId) -> bool {
         if lower::is_erased(self.l.u, m) {
             return true;
         }
-        let inline = self.l.u.symbol(m).flags.has(INLINE) && !self.is_deferred_member(m);
         let s = self.l.u.symbol(m);
-        let Some(owner) = s.owner.filter(|_| inline) else { return false };
+        let Some(owner) = s.owner.filter(|_| s.flags.has(INLINE)) else { return false };
+        if self.is_deferred_member(m) {
+            return true;
+        }
+        let s = self.l.u.symbol(m);
         let name = s.name.clone();
         let site = self.l.u.this_type(owner);
         let bases = self.l.u.linearization(owner);
