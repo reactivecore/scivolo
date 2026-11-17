@@ -525,7 +525,8 @@ sharing (case 1, as in **Quote type sharing** above, types shared across the fil
 whole-module build); scala-cli's builds of `ToExpr.scala` and `FromExpr.scala` alone have their
 quotes as ours, up to the source path. Open: `scala/package$`'s lazy val `AnyRef` positions the
 object loaded for its lock release at the lazy val's end where dotty, also compiling
-`package.scala` alone, has the lazy val's.
+`package.scala` alone, has the lazy val's: nscplugin desugars each `Ident` of a package object's
+field once (`cachedDesugarIdent`), so every later load of the object takes the first one's span.
 
 ## Native executables
 
