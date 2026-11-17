@@ -9,42 +9,52 @@ use super::Typer;
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::flags as f;
-use syntax::ast::{Span, TName};
+use syntax::ast::{NodeId, Span, TName};
 use syntax::config::Features;
 use tasty::{Kind, NameId, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
-    /// Determines `parents` of class `cls` without their refinements, and enters a member for
-    /// each refined type the class does not declare, its info the refinement's (dotty's
-    /// `separateRefinements` and `enterParentRefinementSyms`). Refuses a refined term member.
+    /// Determines parent type `parent` of class `cls`, from parent tree `p`, without its
+    /// refinements, and enters a member for each refined type the class does not declare, its
+    /// info the refinement's, intersected with that of an earlier parent (dotty's
+    /// `separateRefinements` and `enterParentRefinementSyms`). Refuses a refined term member the
+    /// class does not declare, as tracked parameter `d` in `class Bar extends Foo("bar")`.
     pub fn separate_parent_refinements(
         &mut self,
         cls: SymbolId,
-        parents: Vec<TypeId>,
+        p: NodeId,
+        parent: TypeId,
         ctx: Ctx,
-    ) -> Vec<TypeId> {
-        if !parents.iter().any(|&p| matches!(self.u.ty(p), Type::Refined(..) | Type::Annotated(..)))
+    ) -> TypeId {
+        if !matches!(self.u.ty(parent), Type::Refined(..) | Type::Annotated(..))
             || !self.feature_enabled(Features::MODULARITY, "experimental.modularity", ctx)
         {
-            return parents;
+            return parent;
         }
         let mut refinements: Vec<(NameId, TypeId)> = Vec::new();
-        let parents = parents.into_iter().map(|p| self.separated(p, &mut refinements)).collect();
+        let parent = self.separated(parent, &mut refinements);
         for (name, info) in refinements {
             let text = self.u.name(name).to_owned();
             let is_type = matches!(self.u.ty(info), Type::Alias(_) | Type::Bounds(..));
+            let entered = self.syms.parent_refinements.get(&cls).cloned().unwrap_or_default();
+            if let Some(prev) = entered.into_iter().find(|&s| self.u.symbol(s).name == text) {
+                let prev_info = self.u.info(prev);
+                let glb = self.u.glb(prev_info, info);
+                self.u.set_info(prev, glb);
+                continue;
+            }
             if self.u.decls_named(cls, &text).iter().any(|&d| self.u.is_type_symbol(d) == is_type) {
                 continue;
             }
             if !is_type {
-                self.unsupported_at(Span::NONE, "refined term member of a class parent");
+                self.unsupported(p, "parent refinement of a tracked parameter");
                 continue;
             }
             let sym = self.syms.define(self.u, &text, Kind::Type, cls, f::SYNTHETIC.or(f::DEFERRED));
             self.u.set_info(sym, info);
             self.syms.parent_refinements.entry(cls).or_default().push(sym);
         }
-        parents
+        parent
     }
 
     /// `t` without its refinements, which go to `out`, those of one name intersected.

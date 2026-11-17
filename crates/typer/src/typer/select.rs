@@ -29,6 +29,9 @@ impl Typer<'_> {
         if self.is_error(qual) {
             return self.error_tree(self.ast.span(id));
         }
+        if name.is_type && self.is_aliased_param_member(qual, &text) {
+            return self.unsupported(id, "type member a parameter refines as an alias");
+        }
         if self.is_signature_polymorphic_call(qual) {
             if text != nme::AS_INSTANCE_OF {
                 self.signature_polymorphic_selected(qual);

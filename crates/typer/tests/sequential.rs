@@ -630,6 +630,23 @@ fn parent_refinements_of_tracked_parameters_are_refused() {
     }
     let untracked = "abstract class Foo(val d: String); class Bar extends Foo(\"bar\")";
     assert_eq!(type_unit_with(&mut u, &mut Units::default(), ("t.scala", untracked), flagged), Ok(()));
+    let unchanged = "abstract class Foo(tracked val d: String); class Bar(x: String) extends Foo(x)";
+    assert!(type_unit_with(&mut u, &mut Units::default(), ("t.scala", unchanged), flagged).is_err());
+}
+
+#[test]
+fn type_members_parameters_refine_as_aliases_are_refused() {
+    let flagged = &["-source", "future", "-language:experimental.modularity"];
+    let refused = Err("unsupported type member a parameter refines as an alias".to_owned());
+    for sig in ["T: TC[S] as tc](x: S, y: tc.Self)", "T: TC[S]](x: S, y: T.Self)"] {
+        let Some(mut u) = universe() else { return };
+        let text = format!("trait TC[T]:\n  type Self\ndef f[S, {sig} = ()\n");
+        assert_eq!(
+            type_unit_with(&mut u, &mut Units::default(), ("t.scala", &text), flagged),
+            refused,
+            "{text}"
+        );
+    }
 }
 
 #[test]

@@ -78,8 +78,7 @@ impl Typer<'_> {
                         tpe
                     }
                 };
-                self.check_parent_refinements(cls, p, tpe);
-                tpe = self.without_refinements(tpe);
+                tpe = self.separate_parent_refinements(cls, p, tpe, ctx);
             }
             let direct = self.u.dealias(tpe) == tpe;
             let class_ctor = self.u.class_symbol(tpe).is_some_and(|c| direct || self.u.is_trait(c));
@@ -97,6 +96,7 @@ impl Typer<'_> {
                 });
             }
             let tpe = self.u.dealias(tpe);
+            let tpe = self.separate_parent_refinements(cls, p, tpe, ctx);
             let tycon = self.u.applied(tpe).map_or(tpe, |(tycon, _)| tycon);
             let alias = self.u.sym_of(tycon).is_some_and(|s| !self.u.is_class(s));
             if alias && self.is_completing_type(tycon) {
@@ -121,7 +121,6 @@ impl Typer<'_> {
             }
             types.push(tpe);
         }
-        let types = self.separate_parent_refinements(cls, types, ctx);
         let types = self.ensure_first_is_class(types);
         self.add_using_traits(cls, types)
     }

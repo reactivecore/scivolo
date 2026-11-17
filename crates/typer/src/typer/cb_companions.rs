@@ -162,6 +162,24 @@ impl Typer<'_> {
         self.typed(select, pt, ctx)
     }
 
+    /// Whether `qual` is a term parameter whose type refines type member `name` as an alias, as
+    /// `tc.Self` in `def f[T: TC as tc](y: tc.Self)`, which dotty reduces to the alias when the
+    /// method is applied.
+    pub fn is_aliased_param_member(&mut self, qual: TNodeId, name: &str) -> bool {
+        let Type::Sym(_, param) = *self.u.ty(self.tpd.tpe(qual)) else { return false };
+        if self.u.symbol(param).kind != Kind::Param {
+            return false;
+        }
+        let mut t = self.u.info(param);
+        while let Type::Refined(parent, refined, info) = *self.u.ty(t) {
+            if self.u.name(refined) == name && matches!(self.u.ty(info), Type::Alias(_)) {
+                return true;
+            }
+            t = parent;
+        }
+        false
+    }
+
     /// 1 if witness `a` ranks above witness `b` as the more general given, -1 if below, 0 if
     /// neither (dotty's `compare` with `preferGeneral`); `None` if undecided.
     fn compare_witnesses(&mut self, a: TNodeId, b: TNodeId, ctx: Ctx) -> Option<i32> {
