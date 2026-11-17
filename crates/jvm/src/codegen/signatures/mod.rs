@@ -13,7 +13,6 @@ mod values;
 
 pub use classes::class;
 pub use erased::{descriptor_parts, erased_member};
-pub use needed::erases_to;
 
 use super::descriptors::descriptor;
 use tasty::{Binder, Erased, Kind, SymbolId, Type, TypeId, Universe};
@@ -101,7 +100,7 @@ impl<'u> Sig<'u> {
     }
 
     fn boxed(&mut self, t: TypeId) {
-        let t = self.u.widen(t);
+        let t = if matches!(self.u.ty(t), Type::This(_)) { t } else { self.u.widen(t) };
         self.jsig(t, false, Boxing::Box);
     }
 
@@ -143,9 +142,8 @@ impl<'u> Sig<'u> {
                 None => self.erased(t, boxing),
             },
             Type::Sym(_, s) if self.u.symbol(s).kind.is_term() => self.widened(t, top, boxing),
-            Type::TermRef(..) | Type::This(_) | Type::Constant(..) | Type::Str(_) => {
-                self.widened(t, top, boxing)
-            }
+            Type::This(_) => self.this_ref(t, top, boxing),
+            Type::TermRef(..) | Type::Constant(..) | Type::Str(_) => self.widened(t, top, boxing),
             Type::ByName(r) if top => {
                 self.out.push_str("()");
                 self.result(r);

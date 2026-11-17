@@ -5,10 +5,11 @@
 //! `Mixin`'s `mixinGenericInfos`).
 
 use super::Gen;
+use super::descriptors::{descriptor, method_type};
 use super::signatures::Member;
 use names::name_kinds;
 use tasty::tags::{ARTIFACT, FIELDaccessor, PRIVATE};
-use tasty::{Kind, SymbolId, TypeId};
+use tasty::{Erased, Kind, SymbolId, TypeId};
 
 /// A forwarder to a default method of a Java interface.
 #[derive(Clone, Copy)]
@@ -29,7 +30,8 @@ impl Gen<'_, '_> {
         let java_forwarded = self.java_forwarded(sym);
         let accessed = self.l.super_accessed(sym).or_else(|| self.implemented_super_accessor(sym));
         let origin = mixed.or(java_forwarded.map(|f| f.target)).or(accessed).unwrap_or(sym);
-        let info = match (self.l.unflattened_info(origin), java_forwarded) {
+        let unflattened = self.l.unflattened_info(origin);
+        let info = match (unflattened, java_forwarded) {
             (Some(info), _) => info,
             (None, Some(f)) => f.info,
             (None, None) => self.seen_from_owner(sym),
@@ -47,29 +49,26 @@ impl Gen<'_, '_> {
             return Some(sig);
         }
 
-        let scope = self.class_type_vars(sym);
-        match super::signatures::erases_to(&sig, desc, &scope) {
+        match unflattened.is_some() || self.erases_as_declared(origin, info, desc) {
             true => Some(sig),
             false => self.erased_signature(sym, desc, false),
         }
     }
 
-    /// Determines the type parameters of the classes enclosing `sym`, outermost first, each by
-    /// its name and the descriptor of its erasure.
-    pub fn class_type_vars(&mut self, sym: SymbolId) -> Vec<(String, String)> {
-        let mut vars = Vec::new();
-        let mut owner = self.l.u.symbol(sym).owner;
-        while let Some(c) = owner.filter(|&c| self.l.u.is_class(c)) {
-            for p in self.l.u.type_params(c).into_iter().rev() {
-                let name = tasty::encode(&self.l.u.symbol(p).name);
-                let t = self.l.u.intern_type(tasty::Type::Sym(None, p));
-                let erased = self.l.u.erase(t);
-                vars.push((name, super::descriptors::descriptor(&erased)));
-            }
-            owner = self.l.u.symbol(c).owner;
-        }
-        vars.reverse();
-        vars
+    /// Whether type `info` of a forwarder to method `m`, seen from the forwarder's class, erases
+    /// to the forwarder's descriptor `desc` (dotty's `mkMixinForwarderSym` and
+    /// `getStaticForwarderGenericSignature`).
+    pub fn erases_as_declared(&mut self, m: SymbolId, info: TypeId, desc: &str) -> bool {
+        let scala2 = self.l.u.erased_as_scala2(m);
+        let previous = self.l.u.set_scala2_erasure(scala2);
+        let (params, result) = self.l.u.erased_method_type(info);
+        self.l.u.set_scala2_erasure(previous);
+        let result = match result {
+            Erased::Unit if self.l.u.symbol(m).kind == Kind::Val => Erased::boxed_unit(),
+            e => e,
+        };
+        let params: String = params.iter().map(descriptor).collect();
+        method_type(&params, &descriptor(&result)) == desc
     }
 
     /// Builds the generic signature of member `sym` from its descriptor `desc` alone, for a member

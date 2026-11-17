@@ -70,6 +70,7 @@ object Attributes:
     println(Throws.show(classOf[Throwing]))
     println(Throws.show(classOf[ThrowingTrait]))
     println(InlineThrows.use)
+    println(List(classOf[ThrowingValue], ThrowingValue.getClass).flatMap(Throws.show))
 
 class ByName[A](elem: => A):
   class In

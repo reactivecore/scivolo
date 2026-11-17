@@ -20,6 +20,7 @@ mod control;
 mod descriptors;
 mod deserialize;
 mod equality;
+mod forwarded;
 mod generic_infos;
 mod inline_info;
 mod java_annotations;
