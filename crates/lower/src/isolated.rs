@@ -61,7 +61,7 @@ pub fn compile_isolated<R>(
         let mut u = open();
         let generate = (backend, &mut generate);
         let lent = macros.as_deref_mut().map(|m| m as &mut dyn Macros);
-        match compile_attributed(&mut u, &kept, cfg, lent, generate) {
+        match compile_attributed(&mut u, &kept, (cfg, true), lent, generate) {
             Ok((out, diags)) => return Ok(Isolated { out, diags, refused, typings }),
             Err(mut refusals) => {
                 let before = refused.len();
