@@ -4,6 +4,7 @@
 //! `inherited` of dotty's `Namer.inferredResultType`).
 
 use crate::typer::Typer;
+use crate::typer::dependent_params::clause_param;
 use syntax::ast::Tree;
 use syntax::ast::flags as f;
 use tasty::{Kind, NameId, SymbolId, Type, TypeId};
@@ -156,6 +157,10 @@ impl Typer<'_> {
             let start = refs.len();
             refs.extend(clause.iter().map(|&p| self.ref_type(None, p)));
             t = self.u.subst(result, binder, &names, &refs[start..]);
+            let own = &refs[start..];
+            t = self.u.map_with_capture_sets(t, &mut |u, x| {
+                clause_param(u, x, (binder, &names), Some(m)).and_then(|i| own.get(i).copied())
+            });
         }
         t = self.subst_syms(t, &their_types, &targs);
         t = self.subst_syms(t, &their_values, &refs);

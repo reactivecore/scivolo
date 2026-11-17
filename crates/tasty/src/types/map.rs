@@ -37,6 +37,20 @@ impl Universe {
         })
     }
 
+    /// `t` mapped as `map_type` maps it, in a capture-checked file as `map_with_capture_sets`
+    /// (dotty's `TypeMap` of an `AnnotatedType`, which maps a capture set where capture checking
+    /// is enabled).
+    pub fn map_type_and_kept_sets(
+        &mut self,
+        t: TypeId,
+        f: &mut dyn FnMut(&mut Self, TypeId) -> Option<TypeId>,
+    ) -> TypeId {
+        match self.keeps_captures {
+            true => self.map_with_capture_sets(t, f),
+            false => self.map_type(t, f),
+        }
+    }
+
     /// `t` with every part for which `f` gives a replacement replaced, outermost parts first;
     /// the other parts are rebuilt from their mapped children, an application whose constructor
     /// became a type lambda beta-reduced, one whose constructor became `Nothing` `Nothing`, a union

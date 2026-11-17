@@ -6,12 +6,14 @@
 //! `pickleNewType`), and emptied (`CleanupRetains`).
 
 use super::{Refusal, TreePickler};
+use crate::defn::type_ref;
 use crate::tpd::{TNodeId, Tree};
 use crate::typer::capture_types::is_retains_like;
 use crate::typer::seen_from::normalized;
 use names::nme;
+use rustc_hash::FxHashMap;
 use tasty::tags::{ANNOTATEDtype, APPLY, NEW, SELECTin, TYPEAPPLY};
-use tasty::{Kind, SymbolId, Type, TypeId, Universe};
+use tasty::{Binder, Kind, SymbolId, Type, TypeId, Universe};
 
 impl TreePickler<'_> {
     /// Type `parent @annot` if `annot` is a capture-set annotation class type, as `parent` and
@@ -25,7 +27,7 @@ impl TreePickler<'_> {
         }
         let own = self.type_tree.and_then(|t| self.capture_classes.get(&t).copied()).or(self.accessor_class);
         let def = self.type_tree.and_then(|t| self.capture_defs.get(&t).copied());
-        if !is_static_capture_set(self.u, annot, (own, def), self.accessor_seen) {
+        if !is_static_capture_set(self.u, annot, (own, def), self.accessor_seen, &self.method_binders) {
             return Some(Err(
                 "an annotated type of a capture set that refers to other than static definitions",
             ));
@@ -34,6 +36,7 @@ impl TreePickler<'_> {
         if !cap && self.u.applied(annot).is_none() {
             return Some(Err("a capture set a library annotation tree holds"));
         }
+        let annot = class_by_symbol(self.u, annot);
         Some(self.with_length(ANNOTATEDtype, &mut |p| {
             p.ty(parent, false)?;
             match p.compact_annotations {
@@ -98,7 +101,8 @@ impl TreePickler<'_> {
         });
         let class =
             std::iter::successors(Some(sym), |&s| self.u.symbol(s).owner).find(|&s| self.u.is_class(s));
-        if captures.iter().any(|&c| !is_static_capture_set(self.u, c, (class, None), None)) {
+        let defined = &self.method_binders;
+        if captures.iter().any(|&c| !is_static_capture_set(self.u, c, (class, None), None, defined)) {
             return Err(
                 "a synthetic type tree of a capture set that refers to other than static definitions",
             );
@@ -113,19 +117,32 @@ impl TreePickler<'_> {
     }
 }
 
+/// Capture-set annotation type `annot` with its class referred to by symbol, as a library's
+/// `retains` read by name (dotty's `annotClass(tree).typeRef` of a `CompactAnnotation`).
+fn class_by_symbol(u: &mut Universe, annot: TypeId) -> TypeId {
+    let Some(class) = u.class_symbol(annot) else { return annot };
+    let class_ref = type_ref(u, class);
+    match u.applied(annot).map(|(_, args)| args.to_vec()) {
+        Some(args) => u.intern_applied(class_ref, &args),
+        None => class_ref,
+    }
+}
+
 /// Whether capture-set annotation type `annot` refers to no `this`, parameter or definition other
-/// than a static one, a parameter of definition `def`, the `this` of class `own` or of a class
-/// enclosing it, which mapping a type that it annotates leaves alone; of an enclosing class only
-/// if seeing it from `seen`, the prefix and class of a super accessor's member, keeps it
-/// (`other.Views` of an inner trait `Views`).
+/// than a static one, a parameter of definition `def` or of a method type whose parameters
+/// `defined` has, the `this` of class `own` or of a class enclosing it, which mapping a type that
+/// it annotates leaves alone; of an enclosing class only if seeing it from `seen`, the prefix and
+/// class of a super accessor's member, keeps it (`other.Views` of an inner trait `Views`).
 fn is_static_capture_set(
     u: &mut Universe,
     annot: TypeId,
     (own, def): (Option<SymbolId>, Option<SymbolId>),
     seen: Option<(TypeId, SymbolId)>,
+    defined: &FxHashMap<Binder, Vec<SymbolId>>,
 ) -> bool {
     let mut is_static = true;
     u.map_type(annot, &mut |u, part| {
+        let this = matches!(u.ty(part), Type::This(_));
         is_static &= match *u.ty(part) {
             Type::This(c) => match *u.ty(c) {
                 Type::Package(_) | Type::PackageName(_) => true,
@@ -137,10 +154,11 @@ fn is_static_capture_set(
                 }),
             },
             Type::Sym(_, s) => u.is_static_symbol(s) || def.is_some_and(|d| u.symbol(s).owner == Some(d)),
-            Type::Local(..) | Type::Param(..) | Type::RecThis(_) | Type::Skolem(..) | Type::Var(_) => false,
+            Type::Param(b, _) => defined.contains_key(&b),
+            Type::Local(..) | Type::RecThis(_) | Type::Skolem(..) | Type::Var(_) => false,
             _ => true,
         };
-        None
+        this.then_some(part)
     });
     is_static
 }

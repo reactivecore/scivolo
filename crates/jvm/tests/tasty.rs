@@ -107,6 +107,7 @@ const DOTTY_TASTY: &[(&str, &[&str])] = &[
     ("views", &["scala/probe/Views"]),
     ("widenedargs", &["W"]),
     ("typercaptures", &["G", "Mk", "ByNames"]),
+    ("librarycaptures", &["scala/probe/Appending", "scala/probe/LibCaptures"]),
 ];
 
 /// The trees, positions and flag attributes of the classes of `DOTTY_TASTY` are dotty's: the
@@ -116,7 +117,8 @@ const DOTTY_TASTY: &[(&str, &[&str])] = &[
 /// generic calls, conditionals, matches and closures, a type argument none from an argument whose
 /// capture sets are only around it, a type argument the top capture set only of a path argument
 /// (widenedargs.scala), the typer's own inferred types in typercaptures.scala, and an overriding member's its overridden member's as they
-/// are; annotated types take the annotation tree of their own
+/// are, a library member's capture sets (librarycaptures.scala) seen from the class and with the
+/// overriding member's or the super accessor's parameters; annotated types take the annotation tree of their own
 /// origin in match selectors and patterns, inferred types, super accessors and inline accessors,
 /// in super accessors with their class's type parameters seen from the accessor's class; secondary constructors have their own type parameters and parameters passed on to the
 /// superclass are its parameters' aliases; `@BeanProperty` values get their bean accessors;

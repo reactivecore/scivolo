@@ -23,6 +23,7 @@ mod selects;
 mod sharing;
 mod signed_names;
 mod super_accessor_defs;
+mod super_accessor_infos;
 mod super_accessors;
 mod super_param_aliases;
 mod templates;

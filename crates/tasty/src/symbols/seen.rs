@@ -19,7 +19,7 @@ impl Universe {
             Type::Super(this, _) => this,
             _ => prefix,
         };
-        let seen = self.map_type(t, &mut |u, x| match *u.ty(x) {
+        let seen = self.map_type_and_kept_sets(t, &mut |u, x| match *u.ty(x) {
             Type::Sym(Some(_), s) if u.is_static_symbol(s) && !u.sees_opaques(s) => Some(x),
             Type::This(c) => {
                 let c = u.class_symbol(c)?;
