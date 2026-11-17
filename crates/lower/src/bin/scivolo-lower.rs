@@ -40,10 +40,11 @@ struct Cli {
     /// Names each source in positions by its path relative to this directory, not by its file name.
     #[arg(long)]
     sourceroot: Option<PathBuf>,
-    /// Names each source in NIR positions by its path relative to this directory instead, as
-    /// Scala Native's `positionRelativizationPaths`; TASTy keeps the path from `--sourceroot`.
+    /// Names each source in NIR positions by its path relative to the first of these directories
+    /// it is under instead, as Scala Native's `positionRelativizationPaths`; TASTy keeps the path
+    /// from `--sourceroot`.
     #[arg(long, requires = "sourceroot")]
-    position_root: Option<PathBuf>,
+    position_root: Vec<PathBuf>,
     /// A compiler option of all sources, checked as the options of their directives.
     #[arg(long = "scalac-option", allow_hyphen_values = true)]
     scalac_options: Vec<String>,
@@ -99,7 +100,11 @@ fn main() {
         .iter()
         .map(|f| {
             let path = source_name(f, sourceroot.as_deref());
-            let Some(root) = position_root.as_deref() else { return SourceFile::new(path, read(f)) };
+            if position_root.is_empty() {
+                return SourceFile::new(path, read(f));
+            }
+            let root = position_root.iter().find(|r| Path::new(f).starts_with(r));
+            let root = root.unwrap_or_else(|| fail(&format!("{f} is under no position root")));
             let mut file = SourceFile::new(source_name(f, Some(root)), read(f));
             file.tasty_path = Some(path);
             file

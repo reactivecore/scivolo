@@ -45,7 +45,7 @@ def lower(module, stage):
         if not files:
             continue
         out = stage.parent / f"nir-{name}"
-        r = subprocess.run(lib.lower_cmd(module, root, files, out), capture_output=True, text=True, errors="replace",
+        r = subprocess.run(lib.lower_cmd(module, [(root, f) for f in files], out), capture_output=True, text=True, errors="replace",
                            env=lib.ENV)
         if r.returncode != 0:
             sys.exit(f"{module}/{name}: {r.stderr.strip()[:500]}")
@@ -56,14 +56,14 @@ def lower_scalalib(stage):
     """Lowers each scalalib file on its own into `stage` but the classes of SPECIALIZED; returns
     the files refused and the NIR files written by more than one file."""
     units = lib.units("scalalib", "")
-    lib.link_scalalib_root(units[0][0])
+    lib.link_scalalib_root(units[0][0][0])
     env = lib.ENV | {"SCIVOLO_LIBS": str(scalalib_sources.libs(lib.ORACLE_JARS))}
 
     def one(unit):
-        root, files = unit
-        out = stage.parent / "out" / str(files[0].relative_to(root)).removesuffix(".scala")
-        state, reason, stdout = lib.run(lib.lower_cmd("scalalib", root, files, out), lib.TIMEOUT * len(files), env)
-        return files[0].relative_to(root), state, reason, out, stdout.split()
+        root, first = unit[0]
+        out = stage.parent / "out" / str(first.relative_to(root)).removesuffix(".scala")
+        state, reason, stdout = lib.run(lib.lower_cmd("scalalib", unit, out), lib.TIMEOUT * len(unit), env)
+        return first.relative_to(root), state, reason, out, stdout.split()
 
     refused, twice = [], []
     with concurrent.futures.ThreadPoolExecutor(lib.JOBS) as pool:

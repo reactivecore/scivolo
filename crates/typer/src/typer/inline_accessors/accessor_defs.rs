@@ -159,14 +159,18 @@ fn accessor_name(u: &Universe, access: Access, host: SymbolId) -> String {
 }
 
 /// Determines where the accessors of `accessed` in class `host` are defined: at its definition's
-/// point; for a loaded member, which has no span, at the end of `host`'s template as its envelope
-/// places them (dotty's `Positioned.envelope`); else at the point of `span`, the reference that
-/// needs them.
+/// point, an offset in its source file taken in `host`'s (dotty's `accessed.span`); for a loaded
+/// member, which has no span, at the end of `host`'s template as its envelope places them
+/// (dotty's `Positioned.envelope`); else at the point of `span`, the reference that needs them.
 pub fn accessor_span(t: &Typer<'_>, host: SymbolId, accessed: SymbolId, span: Span) -> Span {
-    match t.syms.def_trees.get(&accessed) {
-        Some(&d) => Span::at(t.ast.span(d).point()),
-        None => template_end(t, host).unwrap_or(Span::at(span.point())),
-    }
+    let Some(&d) = t.syms.def_trees.get(&accessed) else {
+        return template_end(t, host).unwrap_or(Span::at(span.point()));
+    };
+    let point = t.ast.span(d).point();
+    let Some(&host_def) = t.syms.def_trees.get(&host) else { return Span::at(point) };
+    let start = |file: usize| file.checked_sub(1).map_or(0, |i| t.file_starts[i]);
+    let (from, to) = (t.file_of(Span::at(point)), t.file_of(t.ast.span(host_def)));
+    Span::at(point - start(from) + start(to))
 }
 
 /// The end of the union of the spans of the parts of `host`'s template, if it has one.
