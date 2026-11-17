@@ -12,7 +12,8 @@ use tasty::tags::{GIVEN, IMPLICIT, MACRO};
 use tasty::{SymbolId, Universe};
 
 /// A scope inside the code being expanded: the implicits a block's statements define, an import
-/// statement, or the body of a local class that defines implicits, where searches are refused.
+/// statement, or the body of a local class that defines or inherits implicits, where searches are
+/// refused.
 #[derive(Clone)]
 pub enum Scope {
     Implicits(Vec<SymbolId>),
@@ -125,13 +126,29 @@ impl Inlining<'_> {
                 defined.extend(defs.filter_map(|&s| self.tpd.sym(s)));
             }
             T::CaseDef { pat, .. } => self.implicit_defs(pat, &mut defined),
-            T::Template { .. } if self.defines_inside(t) => self.scopes.push(Scope::Class),
             _ => {}
+        }
+        if matches!(self.tpd.tree(t), T::Template { .. })
+            && (self.defines_inside(t) || self.has_implicit_members())
+        {
+            self.scopes.push(Scope::Class);
         }
         if !defined.is_empty() {
             self.scopes.push(Scope::Implicits(defined));
         }
         mark
+    }
+
+    /// Whether the enclosing class, a class it extends or one its self type names declares a given
+    /// or implicit member, as `given Int` of `trait T` in `class C extends T`.
+    fn has_implicit_members(&mut self) -> bool {
+        let Some(class) = self.enclosing_class else { return true };
+        let mut bases = self.u.linearization(class);
+        bases.extend(self.u.self_type_bases(class));
+        bases.into_iter().any(|b| match self.u.decls(b) {
+            Ok(decls) => decls.into_iter().any(|d| self.u.symbol(d).is_implicit()),
+            Err(_) => true,
+        })
     }
 
     pub fn is_implicit_def(&self, t: TNodeId) -> bool {

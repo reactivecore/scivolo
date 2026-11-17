@@ -4,8 +4,7 @@ use tasty::Kind;
 
 impl Typer<'_> {
     /// Makes the types of all trees, and of closures' and signature polymorphic instances'
-    /// symbols, fully defined; `Err` if a local
-    /// symbol escaped into the bound of a type variable.
+    /// symbols, fully defined; `Err` if a local symbol escaped into the bound of a type variable.
     pub fn zonk_trees(&mut self) -> Result<(), &'static str> {
         for s in self.syms.closure_syms.clone() {
             let info = self.u.info(s);

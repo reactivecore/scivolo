@@ -15,8 +15,8 @@ mod type_args;
 
 use super::{Pt, Typer};
 use crate::ctx::{Ctx, Mode};
-use kept_args::args_kept;
 use crate::tpd::{TNodeId, Tree as T};
+use kept_args::args_kept;
 use syntax::ast::{List, NodeId, Tree};
 use tasty::TypeId;
 

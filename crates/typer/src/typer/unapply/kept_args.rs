@@ -42,7 +42,9 @@ fn kept(t: &Typer<'_>, a: NodeId, b: TNodeId) -> bool {
     }
     match (t.ast.tree(a), t.tpd.tree(b)) {
         (Tree::Ident { name: x }, T::Ident { name: y }) => x == y,
-        (Tree::Select { qualifier: a, name: x }, T::Select { qualifier: b, name: y }) => x == y && kept(t, *a, *b),
+        (Tree::Select { qualifier: a, name: x }, T::Select { qualifier: b, name: y }) => {
+            x == y && kept(t, *a, *b)
+        }
         (Tree::This { .. }, T::This { .. }) => true,
         (Tree::Literal { value: x }, T::Literal { value: y }) => x == y,
         (Tree::SingletonTypeTree { reference: a }, T::SingletonTypeTree { reference: b }) => kept(t, *a, *b),
@@ -60,10 +62,12 @@ fn kept(t: &Typer<'_>, a: NodeId, b: TNodeId) -> bool {
 /// added; dotty rebuilds one given default arguments, as `@deprecated`, or inferred type
 /// arguments, as `@C[T]` for `@C` of `class C[T]`.
 fn annotation_kept(t: &Typer<'_>, a: NodeId, b: TNodeId) -> bool {
-    let (Tree::Apply { fun: f, args: l }, T::Apply { fun: g, args: m }) = (t.ast.tree(a), t.tpd.tree(b)) else {
+    let (Tree::Apply { fun: f, args: l }, T::Apply { fun: g, args: m }) = (t.ast.tree(a), t.tpd.tree(b))
+    else {
         return false;
     };
-    let (Tree::Select { qualifier: q, .. }, T::Select { qualifier: r, .. }) = (t.ast.tree(*f), t.tpd.tree(*g))
+    let (Tree::Select { qualifier: q, .. }, T::Select { qualifier: r, .. }) =
+        (t.ast.tree(*f), t.tpd.tree(*g))
     else {
         return false;
     };
