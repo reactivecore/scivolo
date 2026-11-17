@@ -382,3 +382,14 @@ fn inline_accessors_of_members_of_another_file_take_their_offset_in_their_own_fi
     let accessor = &c[c.find("inline$raw$i1").expect("the accessor")..];
     assert!(accessor.contains("@ c.scala:3:17"), "{accessor}");
 }
+
+#[test]
+fn inline_accessors_at_an_offset_past_their_file_end_stay_in_their_file() {
+    let Some(jars) = jars() else { return };
+    let p = format!("package p\n\n// {}\nclass P {{\n  private[p] def raw: Int = 1\n}}\n", "x".repeat(80));
+    let p = SourceFile::new("p.scala", p);
+    let c = SourceFile::new("c.scala", "package p\n\ntrait C {\n  inline def f(x: P): Int = x.raw\n}\n");
+    let c = dump(&jars, &[c, p], "p.C");
+    let accessor = &c[c.find("inline$raw$i1").expect("the accessor")..];
+    assert!(accessor.contains("@ c.scala:5:0") && !accessor.contains("@ p.scala"), "{accessor}");
+}
