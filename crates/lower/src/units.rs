@@ -42,8 +42,7 @@ pub fn compile_units<R>(
         impl FnOnce(&mut crate::Lower, TNodeId, Vec<Pickled>) -> crate::Result<R>,
     ),
 ) -> Result<(R, Diagnostics), Refusal> {
-    let first = |mut r: Vec<Attributed>| r.swap_remove(0).refusal;
-    compile_attributed(u, files, (cfg, false), macros, (backend, generate)).map_err(first)
+    compile_attributed(u, files, cfg, macros, (backend, generate)).map_err(|mut r| r.swap_remove(0).refusal)
 }
 
 /// A refusal of a unit and the indices of the files it lies in, none if it lies in no file.
@@ -53,12 +52,11 @@ pub struct Attributed {
 }
 
 /// `compile_units`, its refusals attributed to the files they lie in: one or more, the first
-/// the one `compile_units` gives; with `all`, also the lowering's of the files the typer kept
-/// when it refused others.
+/// the one `compile_units` gives.
 pub fn compile_attributed<R>(
     u: &mut Universe,
     files: &[SourceFile],
-    (cfg, all): (Config, bool),
+    cfg: Config,
     macros: Option<&mut dyn Macros>,
     (backend, generate): (
         crate::Backend,
@@ -124,7 +122,7 @@ pub fn compile_attributed<R>(
         }
         Err(Fallback::Errors(diags)) => type_errors(&diags, &sources),
     };
-    if let Some(kept) = typer.kept.take().filter(|_| all) {
+    if let Some(kept) = typer.kept.take() {
         attributed.extend(lowered_kept(u, kept, (&mut names, &mut fresh), unit, (backend, generate)));
     }
     Err(attributed)
