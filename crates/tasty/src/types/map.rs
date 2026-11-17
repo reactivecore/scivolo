@@ -68,8 +68,7 @@ impl Universe {
                     return t;
                 }
                 let annotated = self.intern_type(Type::Annotated(mapped, annot));
-                self.carry_annotation_tree(t, annotated);
-                return annotated;
+                return self.carry_annotation_tree(t, annotated);
             }
             Type::Flexible(hi) => {
                 let hi = m(self, hi);

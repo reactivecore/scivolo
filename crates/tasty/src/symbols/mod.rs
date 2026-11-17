@@ -346,9 +346,9 @@ impl Universe {
         self.types.intern(t)
     }
 
-    /// Gives `to`, annotated type `from` with its parent mapped, `from`'s annotation tree.
-    pub fn carry_annotation_tree(&mut self, from: TypeId, to: TypeId) {
-        self.types.carry_annotation_tree(from, to);
+    /// Returns `to`, annotated type `from` with its parent mapped, with `from`'s annotation tree.
+    pub fn carry_annotation_tree(&mut self, from: TypeId, to: TypeId) -> TypeId {
+        self.types.carry_annotation_tree(from, to)
     }
 
     /// The id of name `text` in the name table of the types.

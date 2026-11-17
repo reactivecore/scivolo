@@ -120,8 +120,7 @@ impl Universe {
             if let Type::Annotated(parent, annot) = *self.ty(t) {
                 let parent = self.replacement(parent);
                 let replaced = self.intern_type(Type::Annotated(parent, annot));
-                self.carry_annotation_tree(t, replaced);
-                return replaced;
+                return self.carry_annotation_tree(t, replaced);
             }
             match self.dealias_step(t) {
                 next if next == t || self.is_match_body(next) => return t,
