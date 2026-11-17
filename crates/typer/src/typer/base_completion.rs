@@ -3,6 +3,7 @@
 
 use super::Typer;
 use crate::symbols::Completion;
+use rustc_hash::FxHashSet;
 use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
@@ -21,23 +22,55 @@ impl Typer<'_> {
     }
 
     /// Completes the unit's classes and type members not yet completed, members of packages and
-    /// classes, whose parents or aliases a library type may reach, unless a definition is being
-    /// completed; whether there were any.
-    pub fn complete_unit_classes(&mut self) -> bool {
+    /// classes, that `a` or `b` reach through the classes and types they refer to, those classes'
+    /// base classes and those types' infos, as a library type may reach them, unless a definition
+    /// is being completed; whether there were any.
+    pub fn complete_reached_unit_classes(&mut self, a: TypeId, b: TypeId) -> bool {
         if self.syms.completions.values().any(|c| matches!(c, Completion::Completing(_))) {
             return false;
         }
-        let mut pending: Vec<SymbolId> = (self.syms.completions.iter())
-            .filter(|&(&s, c)| {
-                matches!(c, Completion::Pending { .. })
-                    && matches!(self.u.symbol(s).kind, Kind::Class | Kind::Type)
-            })
-            .filter(|&(&s, _)| self.u.symbol(s).owner.is_some_and(|o| self.u.symbol(o).kind != Kind::Def))
-            .map(|(&s, _)| s)
-            .collect();
-        pending.sort_by_key(|s| s.0);
-        pending.iter().for_each(|&s| self.complete(s));
-        !pending.is_empty()
+        let mut seen = FxHashSet::default();
+        let mut todo = self.referred_types(a);
+        todo.extend(self.referred_types(b));
+        let mut any = false;
+        while let Some(s) = todo.pop() {
+            if !seen.insert(s) {
+                continue;
+            }
+            if self.is_pending_unit_class(s) {
+                self.complete(s);
+                any = true;
+            }
+            match self.u.symbol(s).kind {
+                Kind::Class => todo.extend(self.u.linearization(s)),
+                Kind::Type => {
+                    let info = self.u.info(s);
+                    todo.extend(self.referred_types(info));
+                }
+                _ => {}
+            }
+        }
+        any
+    }
+
+    /// The classes and types `t` refers to.
+    fn referred_types(&mut self, t: TypeId) -> Vec<SymbolId> {
+        let mut out = Vec::new();
+        self.u.map_type(t, &mut |u, part| {
+            if let Some(s) = u.sym_of(part).filter(|&s| matches!(u.symbol(s).kind, Kind::Class | Kind::Type))
+            {
+                out.push(s);
+            }
+            None
+        });
+        out
+    }
+
+    /// Whether `s` is a class or type member of the unit not completed yet, outside a method.
+    fn is_pending_unit_class(&self, s: SymbolId) -> bool {
+        matches!(self.syms.completions.get(&s), Some(Completion::Pending { .. }))
+            && matches!(self.u.symbol(s).kind, Kind::Class | Kind::Type)
+            && self.u.symbol(s).owner.is_some_and(|o| self.u.symbol(o).kind != Kind::Def)
     }
 
     /// Completes the classes of the parameter and result types of method `def` and the underlying

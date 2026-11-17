@@ -101,7 +101,7 @@ impl Typer<'_> {
         self.complete_refined_members(tpe, pt);
         let lifts = self.u.opaque_lifts();
         if self.conforms(tpe, pt)
-            || self.complete_unit_classes() && self.conforms(tpe, pt)
+            || self.complete_reached_unit_classes(tpe, pt) && self.conforms(tpe, pt)
             || self.complete_named_type_members(tpe, pt) && self.conforms(tpe, pt)
         {
             if self.u.opaque_lifts() != lifts && !self.types().conforms_unlifted(tpe, pt) {
