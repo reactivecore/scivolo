@@ -6,7 +6,11 @@ use super::Fallible;
 use crate::host::Host;
 use crate::show_code::printed::Printed;
 use names::nme;
+use tasty::tags::OPAQUE;
 use tasty::{Kind, SymbolId, Type, TypeId};
+
+/// How many aliases `dealias_keeping` follows at most.
+const DEALIAS_STEPS: u32 = 100;
 use typer::tpd::{TNodeId, Tree as T};
 
 impl Host {
@@ -48,7 +52,25 @@ impl Host {
     }
 
     pub fn dealias(&mut self, t: TypeId) -> TypeId {
-        self.u.dealias(t)
+        self.dealias_keeping(t, false)
+    }
+
+    /// Dealiases `t` up to a reference to a match alias, or to an opaque type if
+    /// `keep_opaques` (dotty's `dealias`, whose `TypeAlias` excludes match aliases).
+    pub fn dealias_keeping(&mut self, mut t: TypeId, keep_opaques: bool) -> TypeId {
+        for _ in 0..DEALIAS_STEPS {
+            let reference = self.u.applied(t).map_or(t, |(tycon, _)| tycon);
+            let opaque = keep_opaques
+                && self.u.referenced(reference).is_some_and(|s| self.u.symbol(s).flags.has(OPAQUE));
+            if opaque || self.u.referenced_alias(reference).is_some_and(|a| self.u.is_match(a)) {
+                break;
+            }
+            match self.u.dealias_step(t) {
+                next if next == t => break,
+                next => t = next,
+            }
+        }
+        t
     }
 
     /// Simplifies `t`, its match types reduced (dotty's `TypeRepr.simplified`); refuses a
