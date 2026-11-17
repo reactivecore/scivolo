@@ -47,9 +47,8 @@ impl Universe {
     fn decls_changed(&mut self, owner: SymbolId) {
         self.by_name.remove(&owner);
         self.this_types.remove(&owner);
-        let decls = self.symbol(owner).decls.iter().copied();
-        let params: Vec<SymbolId> = decls.filter(|&d| self.symbol(d).kind == Kind::TypeParam).collect();
-        self.declared_type_params.insert(owner, params);
+        let params = self.symbol(owner).decls.iter().filter(|&&d| self.symbol(d).kind == Kind::TypeParam);
+        self.declared_type_params.insert(owner, params.copied().collect());
         self.changed();
     }
 
