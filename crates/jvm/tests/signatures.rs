@@ -100,6 +100,7 @@ object Inl {
   def apply(): String = ""
 }
 object Conv extends scala.collection.convert.StreamExtensions
+object OrdInt extends scala.math.Ordering.IntOrdering
 "#;
 
 /// The signatures of forwarders: mixin forwarders seen from their class and static forwarders.
@@ -109,6 +110,8 @@ const FORWARDERS: &[(&str, &str, Option<&str>)] = &[
     ("Fwd", "hidden", None),
     ("Fwd", "poly", Some("<F:Ljava/lang/Object;>(Lscala/PolyFunction;)I")),
     ("Inl", "apply", None),
+    ("OrdInt$", "max", None),
+    ("OrdInt", "max", None),
     (
         "Conv",
         "MapHasParKeyValueStream",

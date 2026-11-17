@@ -449,17 +449,16 @@ the optimizer (1883 of its 3134 classes dotty also writes differ in code from do
 | refused | 1 | |
 
 - **Refused:** a static member of a qualifier with effects (`TrieMap`).
-- **Code differs:** the static forwarders `from` of `immutable.IndexedSeq`, `LinearSeq` and `Seq`
-  to the bridges of `SeqFactory.Delegate`, which the published jar has too: dotty sees those
-  bridges only when `Delegate` is compiled in the same run, ours never. The pickled quotes of
-  `scala.quoted.ToExpr` and `FromExpr` (strings of TASTy), `@throws` in the signature of `StringOps.split`, a mixin
-  forwarder's signature `T[]` for `T <: AnyRef` that does not erase to its descriptor
-  (`SingletonTypeManifest.newArray`), static forwarders and their signatures of `Nil`, `Vector0`,
-  `Process`, `Tuples`, `*:` and `Tuple`, the higher-kinded bound of a forwarder read from TASTy
-  (`StreamConverters`), Scala 2's `@inline` `Enumeration.Value` inlined (`RoundingMode`), and branches of pattern matches and
-  inlined `.nn` (`StepperHasParStream`, `CollisionProofHashMap`, `BasicIO`; dotty compiling those
-  files alone differs from ours too); the generic signature of `lazyZip` over an inner class
-  (`SeqView`, `SortedMap`, `mutable.SortedMap`), and `ArrayBuffer`, `ExecutionContextImpl` and
+- **Code differs:** static forwarders to bridges and mixin forwarders of other files' classes,
+  which dotty sees only when those classes are compiled in the same run, ours never (dotty
+  compiling the file alone writes ours): the forwarders `from` of `immutable.IndexedSeq`,
+  `LinearSeq` and `Seq` to the bridges of `SeqFactory.Delegate` (the published jar has them
+  too), `Nil.isDefinedAt`, and the generic signatures of `Nil`'s and `Vector0`'s
+  `iterableFactory` and `view`. The pickled quotes of `scala.quoted.ToExpr` and `FromExpr`
+  (strings of TASTy), the class `mutable.SortedMapOps` names as owner of its call of `clone()`,
+  Scala 2's `@inline` `Enumeration.Value` inlined (`RoundingMode`), and branches of pattern
+  matches and inlined `.nn` (`StepperHasParStream`, `CollisionProofHashMap`, `BasicIO`; dotty
+  compiling those files alone differs from ours too); `ArrayBuffer`, `ExecutionContextImpl` and
   `Regex`.
 - **Attributes differ:** mostly line numbers (of extension method calls and implicit
   conversions, of the `()` ending a secondary constructor); `InnerClasses` entries, a

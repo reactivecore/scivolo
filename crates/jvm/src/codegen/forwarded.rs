@@ -18,6 +18,9 @@ pub struct Forwarded {
     /// Whether the forwarder is `ACC_SYNTHETIC`: that of a bridge or a trait setter.
     pub synthetic: bool,
     pub method: SymbolId,
+    /// The method whose type, signature and flags the forwarder takes: the method a bridge
+    /// overrides, the trait method a mixin forwarder calls, else `method`.
+    pub target: SymbolId,
 }
 
 impl Gen<'_, '_> {
@@ -43,12 +46,15 @@ impl Gen<'_, '_> {
                 if !seen.insert((name.clone(), desc.clone())) || !self.has_forwarder(m) {
                     continue;
                 }
-                if self.l.is_bridge(m) && !self.overrides_concrete(c, &name, &desc) {
-                    continue;
-                }
+                let bridge = self.l.is_bridge(m);
+                let target = match bridge {
+                    true => self.bridged(c, &name, &desc),
+                    false => Some(self.l.mixed_in_from(m).unwrap_or(m)),
+                };
+                let Some(target) = target else { continue };
                 if !conflicting.contains(&name) {
-                    let synthetic = self.l.is_bridge(m) || name.contains(name_kinds::TRAIT_SETTER_SEPARATOR);
-                    out.push(Forwarded { name, desc, synthetic, method: m });
+                    let synthetic = bridge || name.contains(name_kinds::TRAIT_SETTER_SEPARATOR);
+                    out.push(Forwarded { name, desc, synthetic, method: m, target });
                 }
             }
         }
@@ -94,20 +100,20 @@ impl Gen<'_, '_> {
         })
     }
 
-    /// Whether a bridge of class `c` named `name` with descriptor `desc` overrides a method that
-    /// is not deferred (dotty's `nextOverriddenSymbol` of a bridge).
-    fn overrides_concrete(&mut self, c: SymbolId, name: &str, desc: &str) -> bool {
+    /// The method a bridge of class `c` named `name` with descriptor `desc` overrides, if it is
+    /// not deferred (dotty's `nextOverriddenSymbol` of a bridge).
+    fn bridged(&mut self, c: SymbolId, name: &str, desc: &str) -> Option<SymbolId> {
         for b in self.l.u.linearization(c).into_iter().skip(1) {
             for m in self.l.u.decls(b).unwrap_or_default() {
                 if self.is_method_member(m)
                     && method_name(self.l.u, m) == name
                     && method_descriptor(self.l.u, m) == desc
                 {
-                    return self.has_forwarder(m);
+                    return self.has_forwarder(m).then_some(m);
                 }
             }
         }
-        false
+        None
     }
 
     /// Whether `m` is a method or a getter, defined in this unit or in a library.

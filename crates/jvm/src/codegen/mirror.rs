@@ -47,7 +47,8 @@ impl Gen<'_, '_> {
     pub fn add_forwarders(&mut self, cf: &mut ClassFile, module: SymbolId, companion: Option<SymbolId>) {
         let module_name = self.class_name(module);
         let module_desc = class_descriptor(&module_name);
-        for Forwarded { name: method, desc, synthetic, method: m } in self.forwarded(module, companion) {
+        for Forwarded { name, desc, synthetic, method, target } in self.forwarded(module, companion) {
+            let m = if self.l.is_bridge(method) { target } else { method };
             let mut code = Code::new(0);
             code.field(
                 FieldOp::GetStatic,
@@ -62,12 +63,11 @@ impl Gen<'_, '_> {
                 code.load(param, slot);
                 slot += classfile::value_slots(param) as u16;
             }
-            code.invoke(Invoke::Virtual, &mut cf.pool, &module_name, &method, &desc);
+            code.invoke(Invoke::Virtual, &mut cf.pool, &module_name, &name, &desc);
             code.ret(result);
-            let target = self.l.mixed_in_from(m).unwrap_or(m);
             let varargs = if self.l.is_varargs_forwarder(target) { ACC_VARARGS } else { 0 };
             let flags = ACC_PUBLIC | ACC_STATIC | varargs | if synthetic { ACC_SYNTHETIC } else { 0 };
-            cf.method(flags, &method, &desc, Some(code));
+            cf.method(flags, &name, &desc, Some(code));
             self.emit_method_annotations(cf, m);
             let this = self.l.u.this_type(module);
             let unflattened = self.l.unflattened_info(target);
@@ -76,12 +76,18 @@ impl Gen<'_, '_> {
             let thrown = self.signature_thrown(m);
             let member = Member { forwarder: true, ..self.signed_member(target, target) };
             if !self.l.is_mixin_accessor(m)
-                && !self.l.is_bridge(m)
+                && !self.made_after_erasure(target)
                 && (unflattened.is_some() || self.erases_as_declared(target, info, &desc))
                 && let Some(sig) = self.member_signature(member, info, &desc, &thrown)
             {
                 cf.member_signature(Last::Method, &sig);
             }
         }
+    }
+
+    /// Whether `m`, which a bridge forwards to, is a bridge or mixin forwarder, whose type before
+    /// erasure dotty does not know.
+    fn made_after_erasure(&self, m: SymbolId) -> bool {
+        self.l.is_bridge(m) || self.l.mixed_in_from(m).is_some()
     }
 }

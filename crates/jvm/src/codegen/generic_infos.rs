@@ -9,7 +9,7 @@ use super::descriptors::{descriptor, method_type};
 use super::signatures::Member;
 use names::name_kinds;
 use tasty::tags::{ARTIFACT, FIELDaccessor, PRIVATE};
-use tasty::{Erased, Kind, SymbolId, TypeId};
+use tasty::{Erased, Kind, SymbolId, Type, TypeId};
 
 /// A forwarder to a default method of a Java interface.
 #[derive(Clone, Copy)]
@@ -61,6 +61,7 @@ impl Gen<'_, '_> {
     pub fn erases_as_declared(&mut self, m: SymbolId, info: TypeId, desc: &str) -> bool {
         let scala2 = self.l.u.erased_as_scala2(m);
         let previous = self.l.u.set_scala2_erasure(scala2);
+        let info = self.with_param_refs(info);
         let (params, result) = self.l.u.erased_method_type(info);
         self.l.u.set_scala2_erasure(previous);
         let result = match result {
@@ -69,6 +70,35 @@ impl Gen<'_, '_> {
         };
         let params: String = params.iter().map(descriptor).collect();
         method_type(&params, &descriptor(&result)) == desc
+    }
+
+    /// Replaces in method type `info` the references to its type parameters by symbol, as a method
+    /// of TASTy has them, by parameter references, so that they erase to their bounds in `info`;
+    /// higher-kinded ones stay.
+    fn with_param_refs(&mut self, info: TypeId) -> TypeId {
+        let mut params = Vec::new();
+        let mut t = info;
+        while let Type::Poly { binder, params: ps, result }
+        | Type::Method { binder, params: ps, result, .. } = *self.l.u.ty(t)
+        {
+            if matches!(self.l.u.ty(t), Type::Poly { .. }) {
+                for (i, (n, bounds)) in self.l.u.params_of(ps).to_vec().into_iter().enumerate() {
+                    if self.l.u.lambda(bounds).is_none() {
+                        params.push((self.l.u.name(n).to_owned(), binder, i as u32));
+                    }
+                }
+            }
+            t = result;
+        }
+        self.l.u.map_type(info, &mut |u, x| {
+            let Type::Sym(_, s) = *u.ty(x) else { return None };
+            let owner = u.symbol(s).owner?;
+            if u.symbol(s).kind != Kind::TypeParam || u.symbol(owner).kind != Kind::Def {
+                return None;
+            }
+            let &(_, b, i) = params.iter().find(|p| p.0 == u.symbol(s).name)?;
+            Some(u.intern_type(Type::Param(b, i)))
+        })
     }
 
     /// Builds the generic signature of member `sym` from its descriptor `desc` alone, for a member
