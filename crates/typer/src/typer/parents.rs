@@ -78,6 +78,7 @@ impl Typer<'_> {
                         tpe
                     }
                 };
+                self.check_parent_refinements(cls, p, tpe);
                 tpe = self.without_refinements(tpe);
             }
             let direct = self.u.dealias(tpe) == tpe;

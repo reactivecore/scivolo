@@ -613,3 +613,21 @@ fn constructs_diverging_from_dotty_are_refused() {
         assert_eq!(outcome, Err(format!("unsupported {what}")), "{text}");
     }
 }
+
+#[test]
+fn parent_refinements_of_tracked_parameters_are_refused() {
+    let Some(mut u) = universe() else { return };
+    let flagged = &["-source", "future", "-language:experimental.modularity"];
+    let refused = Err("unsupported parent refinement of a tracked parameter".to_owned());
+    for (i, arg) in ["\"bar\"", "List(\"x\").head"].into_iter().enumerate() {
+        let text =
+            format!("abstract class Foo{i}(tracked val d: String); class Bar{i} extends Foo{i}({arg})");
+        assert_eq!(
+            type_unit_with(&mut u, &mut Units::default(), ("t.scala", &text), flagged),
+            refused,
+            "{text}"
+        );
+    }
+    let untracked = "abstract class Foo(val d: String); class Bar extends Foo(\"bar\")";
+    assert_eq!(type_unit_with(&mut u, &mut Units::default(), ("t.scala", untracked), flagged), Ok(()));
+}

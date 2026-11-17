@@ -4,6 +4,7 @@
 //! `effectiveResultType`).
 
 use super::Typer;
+use syntax::ast::NodeId;
 use tasty::tags::TRACKED;
 use tasty::{Binder, ParamList, SymbolId, Type, TypeId};
 
@@ -56,6 +57,29 @@ impl Typer<'_> {
             let param = self.u.intern_type(Type::Param(binder, i as u32));
             self.u.intern_type(Type::Refined(class, name, param))
         })
+    }
+
+    /// Refuses parent `p` of class `cls` whose constructor call, of type `tpe`, refines a tracked
+    /// parameter `cls` does not declare beyond its declared type, as `"bar"` in
+    /// `class Bar extends Foo("bar")` (dotty's `enterParentRefinementSyms`).
+    pub fn check_parent_refinements(&mut self, cls: SymbolId, p: NodeId, tpe: TypeId) {
+        let mut t = tpe;
+        while let Type::Refined(parent, name, info) = *self.u.ty(t) {
+            t = parent;
+            if !self.u.decl(cls, name).unwrap_or_default().is_empty() {
+                continue;
+            }
+            let Some(c) = self.u.class_symbol(parent) else { continue };
+            let decls = self.u.decl(c, name).unwrap_or_default();
+            let declared = decls.into_iter().find(|&d| self.u.symbol(d).flags.has(TRACKED));
+            if declared.is_some_and(|d| {
+                let declared = self.u.info(d);
+                !self.u.is_subtype(declared, info)
+            }) {
+                self.unsupported(p, "parent refinement of a tracked parameter");
+                return;
+            }
+        }
     }
 
     /// `t` without the refinements around its class type.
