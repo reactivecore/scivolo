@@ -11,7 +11,7 @@ use super::{Refusal, TreePickler};
 use crate::tpd::{TNodeId, Tree};
 use crate::typer::capture_types::has_captures;
 use tasty::tags::PRIVATE;
-use tasty::{Kind, SymbolId, Type, TypeId, Universe};
+use tasty::{Binder, Kind, SymbolId, Type, TypeId, Universe};
 
 impl TreePickler<'_> {
     fn capture_checked(&self) -> bool {
@@ -47,8 +47,10 @@ impl TreePickler<'_> {
     }
 
     /// Refuses in a capture-checked file a definition of inferred type tree `tpt` whose
-    /// right-hand side `rhs` is a closure with parameters of capture sets, which dotty's
-    /// `explicifyTpt` keeps as `@caps.internal.declared` (`val f = (x: A^) => x`).
+    /// right-hand side `rhs` is a closure (dotty's `explicifyTpt` cases 2 and 3): with parameters
+    /// of capture sets, which dotty keeps as `@caps.internal.declared` (`val f = (x: A^) => 1`),
+    /// or with a result whose capture sets name a parameter, a dependent function type in
+    /// dotty's (`val f = (x: Coll) => x.iterator`).
     pub fn check_closure_captures(&mut self, tpt: TNodeId, rhs: Option<TNodeId>) -> Result<(), Refusal> {
         if !self.capture_checked() || !matches!(self.tpd.tree(tpt), Tree::TypeTree { inferred: true }) {
             return Ok(());
@@ -70,17 +72,7 @@ impl TreePickler<'_> {
         if params.into_iter().any(|p| has_captures(self.u, p)) {
             return Err("an inferred function type of a closure whose parameters have capture sets");
         }
-        let mut dependent = false;
-        self.u.map_with_capture_sets(result, &mut |u, part| {
-            dependent |= u.sym_ref(part).is_some_and(|(_, s)| u.symbol(s).owner == Some(meth));
-            dependent |= match *u.ty(part) {
-                Type::Param(b, _) => b == binder,
-                Type::Local(b, _) => b.0 == binder.0,
-                _ => false,
-            };
-            None
-        });
-        match dependent {
+        match names_params(self.u, result, meth, binder) {
             true => {
                 Err("an inferred function type of a closure whose result's capture sets name its parameters")
             }
@@ -122,6 +114,21 @@ impl TreePickler<'_> {
             self.capture_classes.insert(tpt, class);
         }
     }
+}
+
+/// Whether `t`, its capture sets too, names a parameter of method `meth` of binder `binder`.
+fn names_params(u: &mut Universe, t: TypeId, meth: SymbolId, binder: Binder) -> bool {
+    let mut names = false;
+    u.map_with_capture_sets(t, &mut |u, part| {
+        names |= u.sym_ref(part).is_some_and(|(_, s)| u.symbol(s).owner == Some(meth));
+        names |= match *u.ty(part) {
+            Type::Param(b, _) => b == binder,
+            Type::Local(b, _) => b.0 == binder.0,
+            _ => false,
+        };
+        None
+    });
+    names
 }
 
 /// The infos, as seen from its class, of the members that member `sym` overrides: the non-private
