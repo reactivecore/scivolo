@@ -17,7 +17,8 @@ use typer::tpd::{List, TNodeId, Tree};
 
 impl Gen<'_, '_> {
     /// Loads field `f` of `qualifier`, or of the class `prefix` of an identifier without one, or
-    /// stores the right-hand side of assignment `value` into it; returns the slots loaded.
+    /// stores the right-hand side of assignment `value` into it; returns the slots loaded. An
+    /// instance field is named in the qualifier's class.
     pub fn field(
         &mut self,
         b: &mut Body,
@@ -39,7 +40,11 @@ impl Gen<'_, '_> {
             self.cast_to_null(b, v, &desc);
             self.line(b, assign);
         }
-        let (owner, name) = (self.member_owner(owner).0, tasty::encode(&self.l.u.symbol(f).name));
+        let owner = match qualifier.filter(|_| instance).and_then(|q| self.receiver_class(q, f)) {
+            Some(Receiver::Class(c)) => self.class_name(c),
+            _ => self.member_owner(owner).0,
+        };
+        let name = tasty::encode(&self.l.u.symbol(f).name);
         b.code.field(op, b.pool, &owner, &name, &desc);
         Ok(if value.is_some() { 0 } else { classfile::value_slots(&desc) })
     }

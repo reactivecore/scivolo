@@ -55,6 +55,11 @@ fn definition(g: &Gen, root: TNodeId, name: &str) -> TNodeId {
 
 /// Generates the code of instance method `name` alone, its parameters from slot 1.
 fn code(g: &mut Gen, root: TNodeId, name: &str) -> Vec<u8> {
+    code_in(g, root, name, &mut Pool::default())
+}
+
+/// Generates the code of instance method `name` as `code` does, its constants in `pool`.
+fn code_in(g: &mut Gen, root: TNodeId, name: &str, pool: &mut Pool) -> Vec<u8> {
     let dd = definition(g, root, name);
     let Tree::DefDef { paramss, rhs: Some(rhs), .. } = *g.l.tpd.tree(dd) else {
         panic!("{name} has no body")
@@ -63,8 +68,7 @@ fn code(g: &mut Gen, root: TNodeId, name: &str) -> Vec<u8> {
     let desc = method_descriptor(g.l.u, sym);
     let params = g.l.tpd.clause_items(paramss).iter().flat_map(|&c| g.l.tpd.items(c));
     let params: Vec<SymbolId> = params.map(|&p| g.l.tpd.sym(p).expect("a parameter's symbol")).collect();
-    let mut pool = Pool::default();
-    let mut b = Body::new(&mut pool, None, 1);
+    let mut b = Body::new(pool, None, 1);
     b.method = Some(sym);
     assert!(b.bind_params(&params, &desc, 0), "{name}");
     let result = b.result.clone();
@@ -159,6 +163,31 @@ fn explicit_nulls_test_a_pattern_against_a_typed_null() {
     }";
     let bytes = [0x2b, 0x4d, 0x2c, 0x01, 0xa5, 0, 7, 0x2c, 0x4e, 0x04, 0xac, 0x05, 0xac];
     with_gen_options(&["-Yexplicit-nulls"], source, |g, root| assert_eq!(code(g, root, "g"), bytes));
+}
+
+#[test]
+fn inherited_java_fields_are_named_in_the_qualifier_class() {
+    let source =
+        "class In extends java.io.ByteArrayInputStream(Array[Byte]()) { def at(i: In): Int = i.pos }";
+    with_gen(source, |g, root| {
+        let mut pool = Pool::default();
+        let code = code_in(g, root, "at", &mut pool);
+        assert_eq!(code[..2], [0x2b, 0xb4]);
+        let field = pool.member_parts(u16::from_be_bytes([code[2], code[3]]));
+        assert_eq!(field, ("In".into(), "pos".into(), "I".into()));
+    });
+}
+
+#[test]
+fn enumeration_values_keep_their_call_without_a_name() {
+    let source = "object Color extends Enumeration { def up: Value = { val Up = Value(1); Up } }";
+    let bytes = [0xb2, 0, 0, 0x04, 0xb6, 0, 0, 0x4c, 0x2b, 0xb0];
+    with_gen(source, |g, root| {
+        let mut code = code(g, root, "up");
+        code[1..3].fill(0);
+        code[5..7].fill(0);
+        assert_eq!(code, bytes);
+    });
 }
 
 #[test]
