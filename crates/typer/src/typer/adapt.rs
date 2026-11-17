@@ -18,6 +18,8 @@ impl Typer<'_> {
     pub fn adapt(&mut self, tree: TNodeId, pt: Pt, ctx: Ctx) -> TNodeId {
         let apply_selected = ctx.mode.is(Mode::APPLY_QUALIFIER);
         let ctx = ctx.with_mode(ctx.mode.without(Mode::APPLY_QUALIFIER));
+        let (redundant_apply, poly_ctx) = (ctx.mode.is(Mode::REDUNDANT_APPLY), ctx);
+        let ctx = ctx.with_mode(ctx.mode.without(Mode::REDUNDANT_APPLY));
         let Some(tpe) = self.tpd.get(tree).tpe else { return tree };
         if matches!(self.u.ty(tpe), Type::Error) || matches!(pt, Pt::Fun(_) | Pt::PolyFun(_)) {
             return tree;
@@ -31,7 +33,7 @@ impl Typer<'_> {
         let method = info.or(Some(tpe)).map(|i| *self.u.ty(i));
         if let Some(Type::Poly { .. }) = method {
             return match self.with_type_vars(tree) {
-                Ok(applied) => self.adapt(applied, pt, ctx),
+                Ok(applied) => self.adapt(applied, pt, poly_ctx),
                 Err(what) => {
                     self.unsupported_at(span, what);
                     tree
@@ -59,6 +61,9 @@ impl Typer<'_> {
                 && !self.is_inline_implicit_ref(tree)
                 && !ctx.mode.is(Mode::PATTERN)
             {
+                if redundant_apply {
+                    return tree;
+                }
                 return match self.eta_expansion(tree, pt, arity, ctx) {
                     Ok(closure) => closure,
                     Err(what) => {
