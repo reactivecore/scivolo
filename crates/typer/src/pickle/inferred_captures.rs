@@ -14,7 +14,8 @@ use tasty::tags::PRIVATE;
 use tasty::{Binder, Kind, SymbolId, Type, TypeId, Universe};
 
 impl TreePickler<'_> {
-    fn capture_checked(&self) -> bool {
+    /// Whether the file being pickled is capture-checked.
+    pub fn capture_checked(&self) -> bool {
         self.file.is_some_and(|f| f.attributes.features.capture_checking())
     }
 
@@ -30,6 +31,16 @@ impl TreePickler<'_> {
         }
         let kept = emptied(self.u, tpe);
         self.kept_captures.insert(tpt, kept);
+    }
+
+    /// Type `t` of a pattern variable's info or an extractor pattern, with each capture set but
+    /// `retainsCap`'s empty in a capture-checked file (dotty's `CleanupRetains` of the `Bind`
+    /// and `UnApply` cases of PostTyper).
+    pub fn cleaned_pattern_type(&mut self, t: TypeId) -> TypeId {
+        match self.capture_checked() && has_captures(self.u, t) {
+            true => emptied(self.u, t),
+            false => t,
+        }
     }
 
     /// Refuses in a capture-checked file a definition of inferred type tree `tpt` whose

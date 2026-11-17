@@ -50,12 +50,15 @@ impl TreePickler<'_> {
         let Some(targs) = self.constructor_type_args(fun) else { return self.node(APPLY, &[fun], &[args]) };
         let args = self.tpd.items(args).to_vec();
         let span = self.tpd.span(fun);
+        let written = self.new_tpts(fun);
         self.with_length(APPLY, &mut |p| {
             p.with_length(TYPEAPPLY, &mut |p| {
                 p.tree(fun)?;
-                targs.iter().try_for_each(|&t| {
-                    p.synthetic_here(span, None);
-                    p.ty(t, false)
+                p.with_typed_tpts(written.clone(), &mut |p| {
+                    targs.iter().try_for_each(|&t| {
+                        p.synthetic_here(span, None);
+                        p.ty(t, false)
+                    })
                 })
             })?;
             args.iter().try_for_each(|&a| p.tree(a))
@@ -70,7 +73,10 @@ impl TreePickler<'_> {
         let (tycon, named, others) = match *self.tpd.tree(fun) {
             T::TypeApply { fun: inner, args: named } if is_named(self, named) => (inner, named, Some(args)),
             _ if is_named(self, args) => (fun, args, None),
-            _ => return self.node(TYPEAPPLY, &[fun], &[args]),
+            _ => {
+                let written = self.new_tpts(fun);
+                return self.with_typed_tpts(written, &mut |p| p.node(TYPEAPPLY, &[fun], &[args]));
+            }
         };
         if self.file.is_none() {
             return Err("named type arguments");
@@ -107,6 +113,16 @@ impl TreePickler<'_> {
         match self.u.applied(tpe) {
             Some((_, targs)) => Some(targs.to_vec()),
             None => Some(params.iter().map(|&(_, b)| self.upper_bound(b)).collect()),
+        }
+    }
+
+    /// The annotated type trees of `C[Ts]` if `fun` selects a constructor of `new C[Ts]`.
+    fn new_tpts(&self, fun: TNodeId) -> Vec<TNodeId> {
+        match *self.tpd.tree(fun) {
+            T::Select { qualifier, .. } if matches!(self.tpd.tree(qualifier), T::New { .. }) => {
+                self.annotated_tpts(qualifier)
+            }
+            _ => Vec::new(),
         }
     }
 
