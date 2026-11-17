@@ -8,10 +8,10 @@ use crate::show_code::printed::Printed;
 use names::nme;
 use tasty::tags::OPAQUE;
 use tasty::{Kind, SymbolId, Type, TypeId};
+use typer::tpd::{TNodeId, Tree as T};
 
 /// How many aliases `dealias_keeping` follows at most.
 const DEALIAS_STEPS: u32 = 100;
-use typer::tpd::{TNodeId, Tree as T};
 
 impl Host {
     pub fn show_type(&mut self, t: TypeId) -> Fallible<String> {

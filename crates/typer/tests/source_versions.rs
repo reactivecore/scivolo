@@ -55,6 +55,15 @@ fn implicits_defined_after_the_search_are_refused_below_3_6() {
     assert_eq!(typed(DEFINED_AFTER, "3.6"), Ok(()));
 }
 
+const INLINE_RESULT: &str = "object I { transparent inline def mk(): Any = 1
+def h[U](u: U)(v: U => Int): Int = v(u); val r = h(mk())(_ + 1) }";
+
+#[test]
+fn inline_results_are_constrained_by_wildcards_below_3_4() {
+    assert_eq!(typed(INLINE_RESULT, "3.3"), Ok(()));
+    assert_eq!(typed(INLINE_RESULT, "3.4"), Ok(()));
+}
+
 #[test]
 fn source_versions_from_3_3() {
     assert_eq!(typed("object V { val x = 1 }", "3.3"), Ok(()));
