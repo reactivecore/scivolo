@@ -164,8 +164,9 @@ pub fn member(
 /// The type of method `m` of signature `text`: polymorphic in its type parameters, a
 /// constructor in the class's instead, returning the class's type (dotty's
 /// `normalizeConstructorInfo`), an inner class's without the outer instance its descriptor
-/// starts with (`normalizeConstructorParams`); its parameters named as its source declares them,
-/// else `x$0`, `x$1`, …; a constructor with type parameters of its own is refused.
+/// starts with (`normalizeConstructorParams`); its parameters named by position as its source or
+/// `MethodParameters` attribute gives them, else `x$0`, `x$1`, …; a constructor with type
+/// parameters of its own is refused.
 pub fn method_type(u: &mut Universe, owners: &Owners, m: &MemberInfo, text: &str) -> Result<TypeId, String> {
     let mut sig = Sig::new(text);
     let own = sig.type_params(u)?;
@@ -196,13 +197,12 @@ pub fn method_type(u: &mut Universe, owners: &Owners, m: &MemberInfo, text: &str
         let args: Vec<TypeId> = own.iter().map(|&(_, t, _)| t).collect();
         result = if args.is_empty() { class } else { u.types.intern_applied(class, &args) };
     }
-    let declared = m.param_names.len() == param_types.len();
     let names: Vec<_> = param_types
         .into_iter()
         .enumerate()
-        .map(|(i, t)| match declared {
-            true => (u.types.intern_name(&m.param_names[i]), t),
-            false => (u.types.intern_name(&format!("x${i}")), t),
+        .map(|(i, t)| match m.param_names.get(i) {
+            Some(Some(name)) => (u.types.intern_name(name), t),
+            _ => (u.types.intern_name(&format!("x${i}")), t),
         })
         .collect();
     let mbinder = u.fresh_binder();

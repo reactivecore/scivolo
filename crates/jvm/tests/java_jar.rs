@@ -21,6 +21,12 @@ fn run(command: &mut Command) -> String {
 /// Compiles tests/jvm/javajar/shapes into the jar `shapes.jar` of tmp/jvm-test/`dir`, which it
 /// returns; none if the JDK's tools are missing.
 fn shapes_jar(dir: &str) -> Option<PathBuf> {
+    java_jar(dir, "shapes/Box.java", &[])
+}
+
+/// Compiles tests/jvm/javajar/`source` with javac's `flags` into the jar `shapes.jar` of
+/// tmp/jvm-test/`dir`, which it returns; none if the JDK's tools are missing.
+fn java_jar(dir: &str, source: &str, flags: &[&str]) -> Option<PathBuf> {
     let missing = |tool: &str| Command::new(tool).arg("--version").output().is_err();
     if ["java", "javac", "jar"].into_iter().any(missing) {
         eprintln!("no java, javac or jar on the PATH: skipped");
@@ -29,8 +35,8 @@ fn shapes_jar(dir: &str) -> Option<PathBuf> {
     let out = root().join("tmp/jvm-test").join(dir);
     let _ = std::fs::remove_dir_all(&out);
     let (classes, jar) = (out.join("java"), out.join("shapes.jar"));
-    let source = root().join("tests/jvm/javajar/shapes/Box.java");
-    run(Command::new("javac").args(["--release", "17", "-d"]).arg(&classes).arg(source));
+    let source = root().join("tests/jvm/javajar").join(source);
+    run(Command::new("javac").args(flags).args(["--release", "17", "-d"]).arg(&classes).arg(source));
     run(Command::new("jar").arg("cf").arg(&jar).arg("-C").arg(&classes).arg("."));
     Some(jar)
 }
@@ -41,6 +47,18 @@ fn scivolo(jar: &Path, out: &Path, name: &str) -> Command {
     let source = root().join("tests/jvm/javajar").join(format!("{name}.scala"));
     scivolo.arg("--cp").arg(jar).arg("-d").arg(out).arg(source);
     scivolo
+}
+
+/// Named arguments of methods of a class compiled with `javac -parameters`.
+#[test]
+fn method_parameters_of_class_files_name_parameters() {
+    let Some(jar) = java_jar("javajar-params", "named/Named.java", &["-parameters"]) else { return };
+    let compiled = jar.with_file_name("scala");
+    run(&mut scivolo(&jar, &compiled, "namedparams"));
+    let library = root().join("ref/libs/scala-library-3.9.0.jar");
+    let classpath = format!("{}:{}:{}", compiled.display(), jar.display(), library.display());
+    let stdout = run(Command::new("java").args(["-Xverify:all", "-cp", &classpath, "NamedParams"]));
+    assert_eq!(stdout, "3\n7\n");
 }
 
 #[test]

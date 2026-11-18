@@ -1,10 +1,10 @@
 //! The attributes of classes and members read: `Signature` (JVMS §4.7.9), `ConstantValue`, the
-//! annotations (§4.7.16), `InnerClasses` (§4.7.6), `PermittedSubclasses` (§4.7.31), whether
-//! there is an `AnnotationDefault`
-//! (§4.7.22) and the Scala compilers' markers.
+//! annotations (§4.7.16), `InnerClasses` (§4.7.6), `PermittedSubclasses` (§4.7.31),
+//! `MethodParameters` (§4.7.24), whether there is an `AnnotationDefault` (§4.7.22) and the Scala
+//! compilers' markers.
 
 use super::{Bytes, ConstantValue, Constants};
-use crate::InnerClass;
+use crate::{ACC_SYNTHETIC, InnerClass};
 
 /// The attributes of a class or member read.
 #[derive(Default)]
@@ -15,6 +15,7 @@ pub struct Attributes {
     pub inner_classes: Vec<InnerClass>,
     pub permitted: Vec<String>,
     pub annotation_default: bool,
+    pub param_names: Vec<Option<String>>,
     pub scala: bool,
 }
 
@@ -38,11 +39,24 @@ pub fn attributes(b: &mut Bytes, c: &Constants) -> Result<Attributes, String> {
                 }
             }
             Ok("AnnotationDefault") => a.annotation_default = true,
+            Ok("MethodParameters") => a.param_names = method_parameters(&mut value, c)?,
             Ok("Scala" | "ScalaSig" | "TASTY") => a.scala = true,
             _ => {}
         }
     }
     Ok(a)
+}
+
+/// The names of a `MethodParameters` attribute by position, none for a nameless or synthetic
+/// parameter (dotty's `namedParams`).
+fn method_parameters(b: &mut Bytes, c: &Constants) -> Result<Vec<Option<String>>, String> {
+    (0..b.take(1)?[0])
+        .map(|_| {
+            let (name, flags) = (b.u2()?, b.u2()?);
+            let named = name != 0 && flags & ACC_SYNTHETIC == 0;
+            named.then(|| c.utf8(name)).transpose()
+        })
+        .collect()
 }
 
 fn inner_classes(b: &mut Bytes, c: &Constants) -> Result<Vec<InnerClass>, String> {
