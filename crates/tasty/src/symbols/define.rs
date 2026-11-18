@@ -157,6 +157,16 @@ impl Universe {
         }
     }
 
+    /// Records that local class `class` was owned by `owner` before it was lifted out of it.
+    pub fn set_owner_before_lifting(&mut self, class: SymbolId, owner: SymbolId) {
+        self.owners_before_lifting.insert(class, owner);
+    }
+
+    /// Determines the owner of `s`, of a lifted local class the one before lifting.
+    pub fn owner_before_lifting(&self, s: SymbolId) -> Option<SymbolId> {
+        self.owners_before_lifting.get(&s).copied().or(self.symbol(s).owner)
+    }
+
     /// Makes `owner` the owner of `sym`, a local symbol defined outside TASTy, out of its declarations.
     pub fn set_owner(&mut self, sym: SymbolId, owner: SymbolId) {
         self.unenter(sym);

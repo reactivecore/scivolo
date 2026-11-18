@@ -26,10 +26,13 @@ fn javap(out: &Path, class: &str) -> Option<String> {
 }
 
 /// Static forwarders of JDK default methods see the object's type arguments; the outer reference
-/// of a class nested in an inner class of a generic class names the generic outer class.
+/// of a class nested in an inner class of a generic class names the generic outer class; a class
+/// in a method of a local class names that method's type parameter.
 #[test]
 fn generic_signatures_of_forwarders_and_outer_references() {
     let out = compile("generics");
+    let Some(local) = javap(&out, "generics.Blocks$$anon$2") else { return };
+    assert!(local.contains("implements generics.Marker, scala.Function0<T>"), "{local}");
     let Some(forwarders) = javap(&out, "generics.ByLength") else { return };
     let expected = "public static java.util.Comparator<java.lang.String> reversed()";
     assert!(forwarders.contains(expected), "{forwarders}");

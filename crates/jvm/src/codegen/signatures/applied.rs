@@ -129,7 +129,7 @@ impl Sig<'_> {
             if self.tops.contains(&x) || x == self.sym0 || x == self.origin || Some(x) == self.extended {
                 return Some(s);
             }
-            o = self.u.symbol(x).owner;
+            o = self.u.owner_before_lifting(x);
         }
         None
     }
