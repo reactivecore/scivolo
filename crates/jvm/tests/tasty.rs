@@ -106,7 +106,7 @@ const DOTTY_TASTY: &[(&str, &[&str])] = &[
     ("caseclasses", &["scala/probe/Pair", "scala/probe/Words"]),
     ("views", &["scala/probe/Views"]),
     ("widenedargs", &["W"]),
-    ("typercaptures", &["G", "Mk", "ByNames"]),
+    ("typercaptures", &["G", "Mk", "ByNames", "ByNameArgs"]),
     ("lambdabounds", &["scala/probe/LambdaBounds"]),
     ("witnessnames", &["scala/probe/WitnessNames"]),
     ("seencaptures", &["Q", "R"]),
@@ -114,8 +114,19 @@ const DOTTY_TASTY: &[(&str, &[&str])] = &[
     ("thiscaptures", &["Node", "Plain", "Ops", "Ser"]),
     ("depsets", &["DepSets", "Slide"]),
     ("selfmatches", &["Ops"]),
-    ("flowcaptures", &["scala/probe/Conc", "scala/probe/Ops", "scala/probe/Flows"]),
+    (
+        "flowcaptures",
+        &[
+            "scala/probe/Conc",
+            "scala/probe/Ops",
+            "scala/probe/Flows",
+            "scala/probe/Holder",
+            "scala/probe/SubHolder",
+            "scala/probe/Paths",
+        ],
+    ),
     ("closurecaptures", &["Closures"]),
+    ("fieldcaptures", &["C", "D", "E", "F", "H"]),
 ];
 
 /// The trees, positions and flag attributes of the classes of `DOTTY_TASTY` are dotty's: the
@@ -132,8 +143,12 @@ const DOTTY_TASTY: &[(&str, &[&str])] = &[
 /// naming a method's or class's parameter as it is, its pattern variable's emptied
 /// (depsets.scala), a match on `this` has its class's self type with the capture set as selector
 /// type (selfmatches.scala), a flow cast or member type keeps a set naming enclosing definitions
-/// (flowcaptures.scala), a closure's inferred function type marks parameters with capture sets
-/// `@declared` and is dependent if its result's sets name them (closurecaptures.scala);
+/// or a path, seen from the path selected on (flowcaptures.scala), a closure's inferred function
+/// type marks parameters with capture sets `@declared`, each its own type but for a dependent
+/// function type's parent, and is dependent if its result's sets name them
+/// (closurecaptures.scala), a by-name argument to a result whose set names the parameter keeps
+/// the argument's set in the type argument (`ByNameArgs` of typercaptures.scala), a field's
+/// written set names the fields for the constructor's parameters (fieldcaptures.scala);
 /// annotated types take the annotation tree of their own
 /// origin in match selectors and patterns, inferred types, super accessors and inline accessors,
 /// in super accessors with their class's type parameters seen from the accessor's class; secondary constructors have their own type parameters and parameters passed on to the
@@ -237,8 +252,8 @@ fn library_annotations_pickle_as_dotty_s() {
     }
 }
 
-/// The synthetic type tree of a class parameter whose capture set names another parameter is
-/// refused.
+/// The synthetic type trees of a case class parameter whose capture set names another parameter
+/// are refused.
 #[test]
 fn untold_capture_sets_are_refused() {
     let out = root().join("tmp/jvm-test/untoldcaptures");
@@ -247,8 +262,8 @@ fn untold_capture_sets_are_refused() {
     let header = "import language.experimental.captureChecking\nclass Label[T]\nclass A\nclass B\n\
                   trait Coll:\n  def label: Label[Int]^{this}\n";
     let cases = [(
-        "classparam",
-        "class C(val a: A^, val b: Label[Int]^{a})\n",
+        "caseclassparam",
+        "case class C(a: A^, b: Label[Int]^{a})\n",
         "a capture set that refers to other than static definitions",
     )];
     for (name, body, refusal) in cases {

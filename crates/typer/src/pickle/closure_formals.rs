@@ -11,8 +11,30 @@ use crate::tpd::{TNodeId, Tree};
 use crate::typer::capture_types::has_captures;
 use crate::typer::seen_from::member_of;
 use names::nme;
+use rustc_hash::FxHashMap;
+use syntax::ast::Span;
 use tasty::defn::DECLARED;
+use tasty::tags::{ANNOTATEDtype, SHAREDterm};
+use tasty::write::Addr;
 use tasty::{SymbolId, Type, TypeId};
+
+/// An inferred type tree, a closure and the position of one of its parameters.
+type ClosureParam = (TNodeId, TNodeId, usize);
+
+/// The `@declared` marks of closure parameter types made so far.
+#[derive(Default)]
+pub struct DeclaredMarks {
+    /// The type tree being marked.
+    tpt: Option<TNodeId>,
+    /// The span of each mark's annotation, its closure's.
+    spans: FxHashMap<TypeId, Span>,
+    /// The marked type of a parameter, by parameter and unmarked type.
+    params: FxHashMap<(ClosureParam, TypeId), TypeId>,
+    /// The parameter of each marked type.
+    of_type: FxHashMap<TypeId, ClosureParam>,
+    /// Where the annotation tree of a parameter's mark was written.
+    trees: FxHashMap<ClosureParam, Addr>,
+}
 
 impl TreePickler<'_> {
     /// Records the type of inferred type tree `tpt` of definition `sym`, not overriding, with
@@ -36,6 +58,7 @@ impl TreePickler<'_> {
         if self.u.symbol(sym).name == nme::ANON_FUN && !self.curried_closures.remove(&sym) {
             return Ok(());
         }
+        self.declared.tpt = Some(tpt);
         let declared = self.formals_declared(tpe, rhs)?;
         if declared != tpe {
             let cleaned = emptied(self.u, declared);
@@ -88,8 +111,9 @@ impl TreePickler<'_> {
             }
             Type::Method { binder, params, result, implicit, contextual } => {
                 let params = self.u.params_of(params).to_vec();
-                let declared: Vec<_> =
-                    params.into_iter().map(|(n, f)| (n, self.formal_declared(f, rhs))).collect();
+                let declared: Vec<_> = (params.into_iter().enumerate())
+                    .map(|(i, (n, f))| (n, self.param_declared(f, rhs, i)))
+                    .collect();
                 let result = self.formals_declared(result, body)?;
                 Ok(self.u.intern_method(binder, &declared, result, implicit, contextual))
             }
@@ -113,7 +137,8 @@ impl TreePickler<'_> {
         (rhs, body): (TNodeId, TNodeId),
     ) -> Result<TypeId, Refusal> {
         let Some((&result, formals)) = args.split_last() else { return Ok(tycon) };
-        let mut declared: Vec<TypeId> = formals.iter().map(|&f| self.formal_declared(f, rhs)).collect();
+        let mut declared: Vec<TypeId> =
+            formals.iter().enumerate().map(|(i, &f)| self.param_declared(f, rhs, i)).collect();
         declared.push(self.formals_declared(result, body)?);
         Ok(self.u.intern_applied(tycon, &declared))
     }
@@ -127,16 +152,63 @@ impl TreePickler<'_> {
         member_of(self.u, sym, "scala", function).then_some((tycon, args))
     }
 
-    /// `formal @declared`, the annotation at closure `rhs`, if `formal` has a capture set and no
-    /// such mark (dotty's `makeFormalDeclared`).
+    /// `formal_declared` of the `i`th parameter type `formal` of closure `rhs`: one type for the
+    /// parameter of a dependent function type and the same argument of its parent, one annotation
+    /// tree for them if the parent's argument is approximated (dotty's `toFunctionType`).
+    fn param_declared(&mut self, formal: TypeId, rhs: TNodeId, i: usize) -> TypeId {
+        let Some(tpt) = self.declared.tpt else { return formal };
+        let param = (tpt, rhs, i);
+        if let Some(&declared) = self.declared.params.get(&(param, formal)) {
+            return declared;
+        }
+        let declared = self.formal_declared(formal, rhs);
+        self.declared.params.insert((param, formal), declared);
+        self.declared.of_type.insert(declared, param);
+        declared
+    }
+
+    /// `formal @declared`, the annotation at closure `rhs`, a type of its own told from equal ones,
+    /// if `formal` has a capture set and no such mark (dotty's `makeFormalDeclared`).
     fn formal_declared(&mut self, formal: TypeId, rhs: TNodeId) -> TypeId {
         let marked = self.u.annotated(formal).is_some_and(|(_, a)| self.u.is_class_named(a, DECLARED));
         if marked || !has_captures(self.u, formal) {
             return formal;
         }
         let Some(class) = caps_internal_class(self.u, "declared") else { return formal };
-        let declared = self.u.intern_type(Type::Annotated(formal, class));
-        self.declared_spans.insert(declared, self.tpd.span(rhs));
+        let own = self.u.fresh_skolem(formal);
+        let declared = self.u.intern_type(Type::Annotated(own, class));
+        self.declared.spans.insert(declared, self.tpd.span(rhs));
         declared
+    }
+
+    /// Type `t`, `underlying` marked with annotation class `class`, `@inferred` or `@declared`,
+    /// never shared with an equal type of another type tree or parameter; the annotation tree of
+    /// a closure parameter is written once.
+    pub fn marked_type(
+        &mut self,
+        t: TypeId,
+        underlying: TypeId,
+        class: TypeId,
+        rich: bool,
+    ) -> Result<(), Refusal> {
+        self.key_by_place();
+        self.with_length(ANNOTATEDtype, &mut |p| {
+            p.ty(underlying, rich)?;
+            if p.keying {
+                p.buf.buf.write_bytes(&t.0.to_le_bytes());
+                return Ok(());
+            }
+            let param = p.declared.of_type.get(&t).copied();
+            if let Some(&at) = param.and_then(|param| p.declared.trees.get(&param)) {
+                p.byte(SHAREDterm);
+                p.buf.write_ref(at);
+                return Ok(());
+            }
+            if let Some(param) = param {
+                p.declared.trees.insert(param, p.buf.buf.current_addr());
+            }
+            let span = p.declared.spans.get(&t).copied();
+            p.new_annotation(class, span)
+        })
     }
 }

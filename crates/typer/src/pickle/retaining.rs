@@ -5,7 +5,7 @@
 //! Capture-set annotations (`@retains`) in pickled types (dotty's `CompactAnnotation` case of
 //! `pickleNewType`), and emptied (`CleanupRetains`).
 
-use super::capture_refs::{CaptureScope, is_static_capture_set};
+use super::capture_refs::{CaptureScope, is_static_capture_set, sets_on_fields};
 use super::{Refusal, TreePickler};
 use crate::defn::type_ref;
 use crate::tpd::{TNodeId, Tree};
@@ -33,7 +33,7 @@ impl TreePickler<'_> {
             def,
             seen: self.accessor_seen,
             methods: &self.method_binders,
-            types: &self.params,
+            binders: &self.open,
             open: &self.open_defs,
         };
         if !is_static_capture_set(self.u, annot, &scope) {
@@ -99,8 +99,9 @@ impl TreePickler<'_> {
     /// Records the info of value or parameter `sym` as the type of its type tree `tpt` if the
     /// tree is synthetic, as a class parameter's field, and has the info's type without its
     /// capture-set annotations: `label: Label[T]^{}` of `class Break[T](val label: Label[T]^{})`.
-    /// Refuses such an info with a capture set that refers to other than static definitions and
-    /// the `this` of `sym`'s class, as `b: B^{a}` of `class C(val a: A^, val b: B^{a})`.
+    /// A field's capture sets name the class's fields for its constructor's parameters, as
+    /// `b: B^{C.this.a}` of `class C(val a: A^, val b: B^{a})`. Refuses such an info with a capture
+    /// set that refers to other than static definitions and members and `this` of `sym`'s class.
     pub fn keep_captures(&mut self, sym: SymbolId, tpt: TNodeId) -> Result<(), Refusal> {
         let (Tree::TypeTree { inferred: false }, Some(tpe)) = (self.tpd.tree(tpt), self.tpd.get(tpt).tpe)
         else {
@@ -113,6 +114,12 @@ impl TreePickler<'_> {
         if normalized(self.u, info) != tpe {
             return Ok(());
         }
+        let class =
+            std::iter::successors(Some(sym), |&s| self.u.symbol(s).owner).find(|&s| self.u.is_class(s));
+        let info = match class.filter(|&c| self.u.symbol(sym).owner == Some(c)) {
+            Some(c) => sets_on_fields(self.u, info, c),
+            None => info,
+        };
         let mut captures = Vec::new();
         self.u.map_type(info, &mut |u, part| {
             if let Type::Annotated(_, annot) = *u.ty(part)
@@ -122,15 +129,14 @@ impl TreePickler<'_> {
             }
             None
         });
-        let class =
-            std::iter::successors(Some(sym), |&s| self.u.symbol(s).owner).find(|&s| self.u.is_class(s));
+        let enclosing: Vec<SymbolId> = std::iter::successors(class, |&c| self.u.symbol(c).owner).collect();
         let scope = CaptureScope {
             own: class,
             def: None,
             seen: None,
             methods: &self.method_binders,
-            types: &self.params,
-            open: &[],
+            binders: &self.open,
+            open: &enclosing,
         };
         if captures.iter().any(|&c| !is_static_capture_set(self.u, c, &scope)) {
             return Err(

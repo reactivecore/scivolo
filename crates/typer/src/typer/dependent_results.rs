@@ -101,9 +101,42 @@ impl Typer<'_> {
     pub fn lifted_result(&mut self, f: TNodeId, method: Option<SymbolId>) -> Option<TypeId> {
         let tpe = self.tpd.tpe(f);
         let info = self.method_info(tpe).unwrap_or(tpe);
-        let (binder, result) = self.u.method(info).map(|m| (m.binder, m.result))?;
+        let Type::Method { binder, params, result, .. } = *self.u.ty(info) else { return None };
+        let params = self.u.params_of(params).to_vec();
         let result = self.without_false_deps(result, binder, method);
-        (!self.mentions_params(result, binder, method)).then_some(result)
+        match self.mentions_params(result, binder, method) {
+            true => self.result_of_untold_sets(result, (binder, &params), method),
+            false => Some(result),
+        }
+    }
+
+    /// Result `t` of an application whose arguments are not known per parameter, its references
+    /// to the parameters `params` of binder `binder`, all in capture sets, replaced by skolems of
+    /// the parameters' types, which a pickled set refuses; `None` if `t` refers to them elsewhere.
+    pub fn result_of_untold_sets(
+        &mut self,
+        t: TypeId,
+        (binder, params): (Binder, &[(NameId, TypeId)]),
+        method: Option<SymbolId>,
+    ) -> Option<TypeId> {
+        let names: Vec<NameId> = params.iter().map(|&(n, _)| n).collect();
+        let param = |u: &tasty::Universe, part: TypeId| clause_param(u, part, (binder, &names), method);
+        let mut outside_sets = false;
+        self.u.map_type(t, &mut |u, part| {
+            outside_sets |= param(u, part).is_some();
+            None
+        });
+        if outside_sets {
+            return None;
+        }
+        let skolems: Vec<TypeId> = params
+            .iter()
+            .map(|&(_, p)| {
+                let value = self.u.by_name(p).unwrap_or(p);
+                self.u.fresh_skolem(value)
+            })
+            .collect();
+        Some(substituted(self.u, t, &param, &skolems))
     }
 
     /// Result `t` of the method type of binder `binder` of method `method` with the aliases

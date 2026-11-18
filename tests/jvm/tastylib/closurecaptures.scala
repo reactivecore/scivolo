@@ -18,3 +18,14 @@ object Closures:
   val dep: (x: Coll^) -> Label[Int]^{x} = x => x.label
   def plain = (x: A) => x
   val two: (x: Coll^, y: Coll^) -> Label[Int]^{x, y} = (x, y) => x.label
+  val equalFormals = (x: A^, y: A^, z: A^) => 2
+  def block() =
+    val f = (x: Coll^) => x.label
+    f
+  def nestedBlock() =
+    val r = { val f = (x: Coll^) => x.label; f }
+    r
+  def lastClosure = { (x: Coll^) => x.label }
+  def dependentCurried = (x: Coll^) => (y: Coll^) => x.label
+  val threeCurried = (x: A^) => (y: A^) => (z: A^) => 1
+  def capturing(c: Coll^) = (x: A^) => (y: A^) => c.label

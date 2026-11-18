@@ -16,6 +16,19 @@ final class ByNames(m: => Int, b: => B):
   private val e = m
   private val f = b
   def g = m
+class Lazy[+A]
+object ByNameArgs:
+  def one[A](x: A): Lazy[A] = new Lazy[A]
+  def pair[A](x: A, t: Lazy[A]^): Lazy[A] = new Lazy[A]
+  def later[A](x: => Lazy[A]^): Lazy[A]^{x} = x
+  def dep[A](x: => A): Lazy[A]^{x} = ???
+  def plain[A](elem: => A) = pair(elem, one(elem))
+  def viaDep[A](elem: => A) = pair(elem, dep(elem))
+  def again[A](elem: => A): Lazy[A]^{elem} = later(pair(elem, again(elem)))
+  def repeated(c: Coll[Int]^, xs: Int*): It[Int]^{c} = c.iterator
+  def defaulted(n: Int = 1, c: Coll[Int]^): It[Int]^{c} = c.iterator
+  def viaRepeated(c: Coll[Int]^) = repeated(c, 1, 2)
+  def viaNamed(c: Coll[Int]^) = defaulted(c = c)
 object G:
   def first[T](xs: List[T]): T = xs.head
   def box[T](x: T): Box[T] = new Box[T](x)

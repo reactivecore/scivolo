@@ -151,8 +151,8 @@ pub struct TreePickler<'a> {
     def_span: Span,
     /// The spans of inferred type trees of closure definitions, their definitions'.
     tpt_spans: FxHashMap<TNodeId, Span>,
-    /// The span of the `@declared` annotation of each marked parameter type, its closure's.
-    declared_spans: FxHashMap<TypeId, Span>,
+    /// The `@declared` marks of closure parameter types.
+    declared: closure_formals::DeclaredMarks,
     /// The selector of the match whose case is pickled next, and of the pattern pickled now.
     scrutinee: Option<TNodeId>,
     pattern_selector: Option<TNodeId>,
@@ -276,7 +276,7 @@ fn pickle_trees<'a>(
         curried_closures: FxHashSet::default(),
         def_span: Span::NONE,
         tpt_spans: FxHashMap::default(),
-        declared_spans: FxHashMap::default(),
+        declared: Default::default(),
         scrutinee: None,
         pattern_selector: None,
         type_annots: Vec::new(),

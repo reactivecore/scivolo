@@ -26,6 +26,36 @@ trait Ops[+A]:
   def size(i: It[Any]^): Int
   def sized: Int = size(toIt: @nowarn("cat=deprecation"))
 
+trait Coll:
+  def iterator: It[Int]^{this}
+
+class Holder(val c: Coll^):
+  val it: It[Int]^{c} | Null = null
+  def own = if it != null then it.next() else 0
+  def other(o: Holder^) = if o.it != null then o.it.next() else 0
+  class In(val d: Coll^{c}):
+    val j: It[Int]^{d} | Null = null
+    def inner = if j != null then j.next() else 0
+    def sibling(o: In^) = if o.j != null then o.j.next() else 0
+
+class SubHolder(x: Coll^) extends Holder(x):
+  def inherited = if it != null then it.next() else 0
+
+object Paths:
+  def from(o: Holder^) = if o.it != null then o.it.next() else 0
+  def local(c: Coll^) =
+    val d: Coll^{c} = c
+    val v: It[Int]^{d} | Null = d.iterator
+    if v != null then v.next() else 0
+  def localClass(c: Coll^) =
+    class K(val d: Coll^{c}):
+      val v: It[Int]^{d} | Null = null
+      def g = if v != null then v.next() else 0
+    new K(c).g
+  def closure(c: Coll^) = (x: Coll^{c}) =>
+    val v: It[Int]^{x} | Null = x.iterator
+    if v != null then v.next() else 0
+
 object Flows:
   def first[A, B](x: A, f: A => It[B]^): Boolean =
     var it: It[B]^{f} | Null = null
