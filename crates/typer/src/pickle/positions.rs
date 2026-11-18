@@ -59,7 +59,7 @@ impl TreePickler<'_> {
             .filter_map(|&(id, s, after)| Some((after?, (self.buf.addr_of_tree(id)?, s))))
             .collect();
         while let Some((t, current, library, copy_owner)) = todo.pop() {
-            let span = self.tpd.span(t);
+            let span = self.tpt_spans.get(&t).copied().unwrap_or_else(|| self.tpd.span(t));
             let other = span.exists() && span.without_inlined_call().is_in_other_source();
             let own = match other && self.file.is_some() {
                 true => library,
@@ -118,8 +118,7 @@ impl TreePickler<'_> {
         while let Some((_, addr, span)) = synthetic.pop() {
             out.span(addr, source.tasty_span(span, false)?);
         }
-        for (apply, new, tpt) in self.annots.clone() {
-            let span = self.tpd.span(tpt);
+        for (apply, new, span) in self.annots.clone() {
             let addrs = (self.buf.addr_of_tree(apply), self.buf.addr_of_tree(new));
             if let (Some(apply), Some(new)) = addrs
                 && span.exists()

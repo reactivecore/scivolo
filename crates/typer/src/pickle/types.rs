@@ -109,9 +109,15 @@ impl TreePickler<'_> {
                 self.methodic(METHODtype, (binder, at), params, result, mods)
             }
             Type::Annotated(underlying, class) if self.is_inferred_mark(class) => {
+                self.keyed_by_place = true;
                 self.with_length(ANNOTATEDtype, &mut |p| {
                     p.ty(underlying, rich)?;
-                    p.new_annotation(class)
+                    if p.keying {
+                        let place = p.type_tree.map_or(u32::MAX, |t| t.index() as u32);
+                        p.buf.buf.write_bytes(&place.to_le_bytes());
+                    }
+                    let span = p.declared_spans.get(&t).copied();
+                    p.new_annotation(class, span)
                 })
             }
             Type::Param(binder, i) => self.param(binder, i),

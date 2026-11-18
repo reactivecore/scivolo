@@ -12,6 +12,7 @@ use crate::tpd::{TNodeId, Tree};
 use crate::typer::capture_types::is_retains_like;
 use crate::typer::seen_from::normalized;
 use names::nme;
+use tasty::defn::DECLARED;
 use tasty::tags::{ANNOTATEDtype, APPLY, NEW, SELECTin, TYPEAPPLY};
 use tasty::{Kind, SymbolId, Type, TypeId, Universe};
 
@@ -27,9 +28,9 @@ impl TreePickler<'_> {
         }
         let own = self.type_tree.and_then(|t| self.capture_classes.get(&t).copied()).or(self.accessor_class);
         let def = self.type_tree.and_then(|t| self.capture_defs.get(&t).copied());
-        let defined = &self.method_binders;
         let open = &self.open_defs;
-        if !is_static_capture_set(self.u, annot, (own, def), self.accessor_seen, defined, open) {
+        let binders = (&self.method_binders, &self.params);
+        if !is_static_capture_set(self.u, annot, (own, def), self.accessor_seen, binders, open) {
             return Some(Err(
                 "an annotated type of a capture set that refers to other than static definitions",
             ));
@@ -117,8 +118,8 @@ impl TreePickler<'_> {
         });
         let class =
             std::iter::successors(Some(sym), |&s| self.u.symbol(s).owner).find(|&s| self.u.is_class(s));
-        let defined = &self.method_binders;
-        if captures.iter().any(|&c| !is_static_capture_set(self.u, c, (class, None), None, defined, &[])) {
+        let binders = (&self.method_binders, &self.params);
+        if captures.iter().any(|&c| !is_static_capture_set(self.u, c, (class, None), None, binders, &[])) {
             return Err(
                 "a synthetic type tree of a capture set that refers to other than static definitions",
             );
@@ -145,11 +146,14 @@ fn class_by_symbol(u: &mut Universe, annot: TypeId) -> TypeId {
 }
 
 /// Empties in `t` the capture set of each capture-checking annotation, `retains[Nothing]`, but
-/// keeps each type annotated `retainsCap` as it is (dotty's `CleanupRetains` where capture
-/// checking is enabled).
+/// keeps each type annotated `retainsCap` or `@caps.internal.declared` as it is (dotty's
+/// `CleanupRetains` where capture checking is enabled).
 pub fn emptied(u: &mut Universe, t: TypeId) -> TypeId {
     u.map_type(t, &mut |u, part| {
         let (inner, annot) = u.annotated(part)?;
+        if u.is_class_named(annot, DECLARED) {
+            return Some(part);
+        }
         if !is_retains_like(u, annot) {
             return None;
         }

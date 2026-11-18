@@ -137,9 +137,10 @@ impl TreePickler<'_> {
             T::TypeTree { .. } => {
                 self.empty_inferred_captures(id, typed()?);
                 self.type_tree = Some(id);
+                let tpe = self.kept_captures.get(&id).copied().map_or_else(typed, Ok)?;
                 let pickled = match self.tpd.has_fresh_type(id) {
-                    true => self.new_type(typed()?, false, self.buf.buf.current_addr()),
-                    false => self.ty(self.kept_captures.get(&id).copied().map_or_else(typed, Ok)?, false),
+                    true => self.new_type(tpe, false, self.buf.buf.current_addr()),
+                    false => self.ty(tpe, false),
                 };
                 self.type_tree = None;
                 pickled

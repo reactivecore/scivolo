@@ -1,11 +1,12 @@
 //! The references of a capture set that can be pickled where it occurs.
 
 use rustc_hash::FxHashMap;
-use tasty::{Binder, SymbolId, Type, TypeId, Universe};
+use tasty::{Binder, NameId, SymbolId, Type, TypeId, Universe};
 
 /// Determines whether capture-set annotation type `annot` refers to no `this`, parameter or
-/// definition other than a static one, a parameter of definition `def` or of a method type whose
-/// parameters `defined` has, a member or local of a definition among `open` or the `this` of a
+/// definition other than a static one, a parameter of definition `def` or of a method type of
+/// `binders` (those of methods pickled, those of the types being pickled), a member or local of a
+/// definition among `open` or the `this` of a
 /// class among them (those enclosing the tree: `case it: (It[E]^{it})` in `def from[E](it: It[E]^)`,
 /// the flow cast of `var cur: It[A]^{from} | Null`), neither in a super accessor, the `this` of
 /// class `own` or of a class enclosing it, which mapping a type that it annotates leaves alone; of
@@ -16,7 +17,7 @@ pub fn is_static_capture_set(
     annot: TypeId,
     (own, def): (Option<SymbolId>, Option<SymbolId>),
     seen: Option<(TypeId, SymbolId)>,
-    defined: &FxHashMap<Binder, Vec<SymbolId>>,
+    (methods, types): (&FxHashMap<Binder, Vec<SymbolId>>, &FxHashMap<Binder, Vec<NameId>>),
     open: &[SymbolId],
 ) -> bool {
     let open = if seen.is_some() { &[] } else { open };
@@ -41,7 +42,7 @@ pub fn is_static_capture_set(
                 let owner = u.symbol(s).owner;
                 u.is_static_symbol(s) || owner.is_some_and(|o| Some(o) == def || local(o))
             }
-            Type::Param(b, _) => defined.contains_key(&b),
+            Type::Param(b, _) => methods.contains_key(&b) || types.contains_key(&b),
             Type::Local(..) | Type::RecThis(_) | Type::Skolem(..) | Type::Var(_) => false,
             _ => true,
         };

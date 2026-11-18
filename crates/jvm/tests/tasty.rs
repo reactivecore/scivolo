@@ -115,6 +115,7 @@ const DOTTY_TASTY: &[(&str, &[&str])] = &[
     ("depsets", &["DepSets", "Slide"]),
     ("selfmatches", &["Ops"]),
     ("flowcaptures", &["scala/probe/Conc", "scala/probe/Ops", "scala/probe/Flows"]),
+    ("closurecaptures", &["Closures"]),
 ];
 
 /// The trees, positions and flag attributes of the classes of `DOTTY_TASTY` are dotty's: the
@@ -131,7 +132,9 @@ const DOTTY_TASTY: &[(&str, &[&str])] = &[
 /// naming a method's or class's parameter as it is, its pattern variable's emptied
 /// (depsets.scala), a match on `this` has its class's self type with the capture set as selector
 /// type (selfmatches.scala), a flow cast or member type keeps a set naming enclosing definitions
-/// (flowcaptures.scala); annotated types take the annotation tree of their own
+/// (flowcaptures.scala), a closure's inferred function type marks parameters with capture sets
+/// `@declared` and is dependent if its result's sets name them (closurecaptures.scala);
+/// annotated types take the annotation tree of their own
 /// origin in match selectors and patterns, inferred types, super accessors and inline accessors,
 /// in super accessors with their class's type parameters seen from the accessor's class; secondary constructors have their own type parameters and parameters passed on to the
 /// superclass are its parameters' aliases; `@BeanProperty` values get their bean accessors;
@@ -234,10 +237,8 @@ fn library_annotations_pickle_as_dotty_s() {
     }
 }
 
-/// A dependent function type whose function type parent dotty gives the capture sets of its
-/// refinement is refused, and so is the inferred function type of a closure whose parameters have
-/// capture sets (`@declared` in dotty's) or whose result's capture sets name its parameter (a
-/// dependent function type in dotty's).
+/// The synthetic type tree of a class parameter whose capture set names another parameter is
+/// refused.
 #[test]
 fn untold_capture_sets_are_refused() {
     let out = root().join("tmp/jvm-test/untoldcaptures");
@@ -245,23 +246,11 @@ fn untold_capture_sets_are_refused() {
     std::fs::create_dir_all(&out).expect("tmp/jvm-test/untoldcaptures");
     let header = "import language.experimental.captureChecking\nclass Label[T]\nclass A\nclass B\n\
                   trait Coll:\n  def label: Label[Int]^{this}\n";
-    let cases = [
-        (
-            "dependent",
-            "object D:\n  val f: (x: A^) -> Label[Int]^{x} = x => Label[Int]()\n",
-            "drops its refinement's capture sets",
-        ),
-        (
-            "declared",
-            "object E:\n  def g() =\n    val f = (x: A^) => 1\n    1\n",
-            "a closure whose parameters have capture sets",
-        ),
-        (
-            "dependentclosure",
-            "object F:\n  def g() =\n    val f = (x: Coll) => x.label\n    1\n",
-            "a closure whose result's capture sets name its parameters",
-        ),
-    ];
+    let cases = [(
+        "classparam",
+        "class C(val a: A^, val b: Label[Int]^{a})\n",
+        "a capture set that refers to other than static definitions",
+    )];
     for (name, body, refusal) in cases {
         let source = out.join(format!("{name}.scala"));
         std::fs::write(&source, format!("{header}{body}")).expect("writing");

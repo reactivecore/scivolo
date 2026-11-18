@@ -6,13 +6,13 @@
 //! 0126): each emptied (dotty's `CleanupRetains` of an inferred `TypeTree` in PostTyper), an
 //! overriding member's kept (`explicifyTpt`).
 
+use super::TreePickler;
 use super::retaining::emptied;
-use super::{Refusal, TreePickler};
 use crate::defn::type_ref;
 use crate::tpd::{TNodeId, Tree};
 use crate::typer::capture_types::has_captures;
 use tasty::tags::{INLINE, PRIVATE};
-use tasty::{Binder, Kind, SymbolId, Type, TypeId, Universe};
+use tasty::{Kind, SymbolId, Type, TypeId, Universe};
 
 impl TreePickler<'_> {
     /// Whether the file being pickled is capture-checked.
@@ -42,7 +42,7 @@ impl TreePickler<'_> {
         if !inline || !self.capture_checked() {
             return;
         }
-        let Some(mark) = inferred_mark(self.u) else { return };
+        let Some(mark) = caps_internal_class(self.u, "inferred") else { return };
         for &arg in args {
             let arg = match *self.tpd.tree(arg) {
                 Tree::NamedArg { arg, .. } => arg,
@@ -68,54 +68,6 @@ impl TreePickler<'_> {
         }
     }
 
-    /// Refuses in a capture-checked file a definition of inferred type tree `tpt` whose
-    /// right-hand side `rhs` is a closure (dotty's `explicifyTpt` cases 2 and 3): with parameters
-    /// of capture sets, which dotty keeps as `@caps.internal.declared` (`val f = (x: A^) => 1`),
-    /// or with a result whose capture sets name a parameter, a dependent function type in
-    /// dotty's (`val f = (x: Coll) => x.iterator`).
-    pub fn check_closure_captures(&mut self, tpt: TNodeId, rhs: Option<TNodeId>) -> Result<(), Refusal> {
-        if !self.capture_checked() || !matches!(self.tpd.tree(tpt), Tree::TypeTree { inferred: true }) {
-            return Ok(());
-        }
-        let Some(&Tree::Block { stats, expr }) = rhs.map(|r| self.tpd.tree(r)) else { return Ok(()) };
-        let (&[stat], Tree::Closure { .. }) = (self.tpd.items(stats), self.tpd.tree(expr)) else {
-            return Ok(());
-        };
-        let Some(meth) = self.tpd.sym(stat).filter(|_| matches!(self.tpd.tree(stat), Tree::DefDef { .. }))
-        else {
-            return Ok(());
-        };
-        let info = self.u.info(meth);
-        let Some((params, result, binder)) =
-            self.u.method(info).map(|m| (m.param_types(), m.result, m.binder))
-        else {
-            return Ok(());
-        };
-        if params.into_iter().any(|p| has_captures(self.u, p)) {
-            return Err("an inferred function type of a closure whose parameters have capture sets");
-        }
-        match names_params(self.u, result, meth, binder) {
-            true => {
-                Err("an inferred function type of a closure whose result's capture sets name its parameters")
-            }
-            false => Ok(()),
-        }
-    }
-
-    /// Refuses a refined type tree of refinement `member` in a capture-checked file if the
-    /// member's type has capture sets, whose parent dotty's typer derives from them: the function
-    /// type parent of `(x: A^) -> B^{x}`.
-    pub fn check_refinement_captures(&mut self, member: SymbolId) -> Result<(), Refusal> {
-        if !self.capture_checked() {
-            return Ok(());
-        }
-        let info = self.u.info(member);
-        match has_captures(self.u, info) {
-            true => Err("a refined type whose parent drops its refinement's capture sets"),
-            false => Ok(()),
-        }
-    }
-
     /// Records the type of inferred type tree `tpt` of member `sym` of a capture-checked file
     /// as it is, capture sets not emptied, if `sym` overrides a member (dotty's `explicifyTpt`
     /// makes the tree not inferred); its sets may name `sym`'s parameters.
@@ -138,27 +90,12 @@ impl TreePickler<'_> {
     }
 }
 
-/// The class type of `scala.caps.internal.inferred`.
-fn inferred_mark(u: &mut Universe) -> Option<TypeId> {
+/// The class type of annotation `name` of `scala.caps.internal`.
+pub fn caps_internal_class(u: &mut Universe, name: &str) -> Option<TypeId> {
     let caps = u.package("scala.caps")?;
     let internal = u.decl(caps, "internal$").ok()?.into_iter().find(|&d| u.is_class(d))?;
-    let class = u.decls_named(internal, "inferred").into_iter().find(|&d| u.is_class(d))?;
+    let class = u.decls_named(internal, name).into_iter().find(|&d| u.is_class(d))?;
     Some(type_ref(u, class))
-}
-
-/// Whether `t`, its capture sets too, names a parameter of method `meth` of binder `binder`.
-fn names_params(u: &mut Universe, t: TypeId, meth: SymbolId, binder: Binder) -> bool {
-    let mut names = false;
-    u.map_with_capture_sets(t, &mut |u, part| {
-        names |= u.sym_ref(part).is_some_and(|(_, s)| u.symbol(s).owner == Some(meth));
-        names |= match *u.ty(part) {
-            Type::Param(b, _) => b == binder,
-            Type::Local(b, _) => b.0 == binder.0,
-            _ => false,
-        };
-        None
-    });
-    names
 }
 
 /// The infos, as seen from its class, of the members that member `sym` overrides: the non-private
