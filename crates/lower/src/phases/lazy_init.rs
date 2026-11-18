@@ -35,7 +35,7 @@ struct Shared {
     defs: LazyVals,
 }
 
-/// Scala Native's `LazyVals.objCAS` applied to `this.x$lzy`.
+/// Selects Scala Native's `LazyVals.objCAS`, to call on `this.x$lzy`.
 pub fn native_cas(l: &mut Lower, lazy: &Lazy) -> Result<Cas> {
     let defs = l.native_cas()?;
     let module = l.ident(defs.module, Span::NONE);
@@ -44,7 +44,8 @@ pub fn native_cas(l: &mut Lower, lazy: &Lazy) -> Result<Cas> {
     Ok(Cas { fun, target })
 }
 
-/// The `$lzyINIT` method of `lazy` computing `rhs` of type `info`, setting its field through `cas`.
+/// Builds the `$lzyINIT` method of `lazy` computing `rhs` of type `info`, setting its field through
+/// `cas`.
 pub fn init_method(
     l: &mut Lower,
     lazy: &Lazy,

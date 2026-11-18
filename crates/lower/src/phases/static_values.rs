@@ -165,7 +165,7 @@ pub fn clinit_symbol(l: &mut Lower, class: SymbolId) -> SymbolId {
     sym
 }
 
-/// The definition of static initializer `sym` running `stats`, at `span`.
+/// Builds the definition of static initializer `sym` running `stats`, at `span`.
 pub fn clinit_def(l: &mut Lower, sym: SymbolId, stats: &[TNodeId], span: Span) -> TNodeId {
     let unit = l.u.class_ref(tasty::defn::UNIT);
     let done = l.unit_literal(span);

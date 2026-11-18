@@ -64,8 +64,8 @@ fn class_literal(l: &mut Lower, tpe: TypeId) -> TNodeId {
     l.positioned(literal)
 }
 
-/// `handle.compareAndSet` of type `(Object, Object, Object): Boolean` (dotty's
-/// `retypeSignaturePolymorphicFn`) on `this` of `lazy`'s class.
+/// Selects `handle.compareAndSet` at type `(Object, Object, Object): Boolean` (dotty's
+/// `retypeSignaturePolymorphicFn`), to call on `this` of `lazy`'s class.
 pub fn compare_and_set(l: &mut Lower, lazy: &Lazy, handle: SymbolId) -> Result<Cas> {
     let method = l.var_handles()?.compare_and_set;
     let object = object(l);
