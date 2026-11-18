@@ -150,12 +150,19 @@ fn conversions_to_object_or_null_are_not_searched() {
 #[test]
 fn comparisons_with_null_of_a_value_type_argument() {
     check(
-        &[(
-            "class R[T <: AnyRef] { val u: R[T] = this; def get: T = ??? }\n\
-            def f[T <: AnyVal](r: R[T @unchecked]) = r.u.get != null\n",
-            "",
-        )],
-        &["class R[T <: AnyRef] { def get: T = ??? }\ndef f[T <: AnyRef](r: R[T]) = r.get != null\n"],
+        &[
+            (
+                "class R[T <: AnyRef] { val u: R[T] = this; def get: T = ??? }\n\
+                 def f[T <: AnyVal](r: R[T @unchecked]) = r.u.get != null\n",
+                "",
+            ),
+            ("def f[T <: AnyVal](w: scala.ref.WeakReference[T]) = w.underlying.get != null\n", ""),
+        ],
+        &[
+            "class R[T <: AnyRef] { def get: T = ??? }\ndef f[T <: AnyRef](r: R[T]) = r.get != null\n",
+            "class Q[E <: AnyRef] { def this(c: java.util.Collection[? <: E]) = { this(); \
+             val e = c.iterator().next(); if e == null then throw new Exception } }\n",
+        ],
     );
 }
 
@@ -208,6 +215,7 @@ fn overrides_with_higher_kinded_or_refined_types() {
         &[
             "class A { type F[X] <: Seq[X] }\nclass B extends A { type F[X] = List[X] }\n",
             "class A { type F[X <: A] <: A }\nclass B extends A { type F[X <: A] = X }\n",
+            "class A { class N; type T <: N }\nclass B extends A { class M extends super.N; type T = M }\n",
             "class A { type T <: AnyRef { def length(): Int } }\nclass B extends A { type T = String }\n",
             "class H[F[_]]\nclass A { def f: H[[x] =>> List[x]] = ??? }\n\
              class B extends A { override def f: H[[y] =>> List[y]] = ??? }\n",

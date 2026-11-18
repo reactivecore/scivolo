@@ -73,7 +73,7 @@ impl OverrideChecks {
             let site = self.site;
             let conforms = |t: &mut Typer<'_>, a, b| {
                 let (a, b) = (params_at_upper_bounds(t, a), params_at_upper_bounds(t, b));
-                conforms_overridden(t, site, a, b) || derives_nominally(t, a, b)
+                conforms_overridden(t, site, a, b)
             };
             conforms(t, lo2, lo1) && conforms(t, hi1, hi2)
         })
@@ -118,17 +118,6 @@ impl OverrideChecks {
             && t.u.info_matches(self.site, d, m)
             && !result_conforms(t, self.site, d, m)
     }
-}
-
-/// Whether `a` and `b` refer to classes without type arguments and `a`'s derives from `b`'s, as
-/// `class Node extends super.NodeImpl` does from `NodeImpl`.
-fn derives_nominally(t: &mut Typer<'_>, a: TypeId, b: TypeId) -> bool {
-    let class = |t: &Typer<'_>, x: TypeId| match *t.u.ty(x) {
-        Type::Sym(_, s) if t.u.symbol(s).kind == Kind::Class => Some(s),
-        _ => None,
-    };
-    let (Some(ca), Some(cb)) = (class(t, a), class(t, b)) else { return false };
-    t.u.derives_from(ca, cb)
 }
 
 /// Type lambda `ty` with its bounded parameters replaced in its body by their upper bounds, which

@@ -25,7 +25,11 @@ impl Typer<'_> {
         let mode = if apply { mode.with(Mode::APPLY_QUALIFIER) } else { mode };
         let redundant = apply && matches!(pt, Pt::Fun(_));
         let mode = if redundant { mode.with(Mode::REDUNDANT_APPLY) } else { mode };
-        let mut qual = self.typed(qualifier, Pt::Any, ctx.with_mode(mode));
+        let written = match *self.ast.tree(qualifier) {
+            S::Super { qual, .. } if name.is_type => qual,
+            _ => qualifier,
+        };
+        let mut qual = self.typed(written, Pt::Any, ctx.with_mode(mode));
         if self.is_probe_target(id) {
             return self.probe_selection(id, qual, ctx);
         }

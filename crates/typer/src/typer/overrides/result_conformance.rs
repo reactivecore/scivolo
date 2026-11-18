@@ -65,7 +65,31 @@ fn results_conform(t: &mut Typer<'_>, (site, prefix): (TypeId, TypeId), d: Symbo
         info.and_then(|i| t.u.bounds(i)).map_or(ty, |(lo, hi)| if upper { hi } else { lo })
     };
     let (rd, rm) = (bound(t, rd, true), bound(t, rm, false));
-    t.conforms(rd, rm)
+    if t.conforms(rd, rm) {
+        return true;
+    }
+    complete_base_classes(t, rd);
+    t.conforms(rd, rm) || is_unresolved(t, rd)
+}
+
+/// Whether `ty` is, or applies, a selection the universe cannot resolve yet, as a class of an
+/// object of the unit still being completed, which cannot be compared.
+fn is_unresolved(t: &mut Typer<'_>, ty: TypeId) -> bool {
+    let tycon = t.u.applied(ty).map_or(ty, |(c, _)| c);
+    t.u.type_ref(tycon).is_some() && t.u.resolve_ref(tycon).is_none()
+}
+
+/// Completes the class of `ty` and, through their parents, its base classes.
+fn complete_base_classes(t: &mut Typer<'_>, ty: TypeId) {
+    let (mut seen, mut todo) = (Vec::new(), t.u.class_symbol(ty).into_iter().collect::<Vec<_>>());
+    while let Some(c) = todo.pop() {
+        if !seen.contains(&c) {
+            seen.push(c);
+            t.complete(c);
+            let parents = t.u.parents(c);
+            todo.extend(parents.into_iter().filter_map(|p| t.u.class_symbol(p)));
+        }
+    }
 }
 
 /// Whether `a` conforms to `b`, else with the abstract types they refer to replaced by the aliases
