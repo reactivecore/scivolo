@@ -4,7 +4,15 @@
 import scala.annotation.static
 
 package java.lang {
-  abstract class ClassLoader { def loadClass(name: String): Class[?] = null }
+  abstract class ClassLoader {
+    def loadClass(name: String): Class[?] = null
+    def getResource(name: String): java.net.URL = null
+    def getResources(name: String): java.util.Enumeration[java.net.URL] = null
+    def clearAssertionStatus(): Unit = ()
+    def setClassAssertionStatus(className: String, enabled: scala.Boolean): Unit = ()
+    def setDefaultAssertionStatus(enabled: scala.Boolean): Unit = ()
+    def setPackageAssertionStatus(packageName: String, enabled: scala.Boolean): Unit = ()
+  }
 
   class Runtime private () {
     def totalMemory(): scala.Long = 0L

@@ -67,6 +67,7 @@ pub fn lift(
     l.u.set_owner(class, package);
     l.u.enter(class);
     l.local_classes.insert(class, owner);
+    l.u.set_owner_before_lifting(class, owner);
     let in_package = |l: &Lower, t: TNodeId| {
         matches!(*l.tpd.tree(t), Tree::PackageDef { pid, .. }
             if l.tpd.sym(t) == Some(package) || l.tpd.sym(pid) == Some(package))

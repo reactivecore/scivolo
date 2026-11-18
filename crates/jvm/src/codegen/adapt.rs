@@ -3,7 +3,7 @@
 //! A value fitted to the slots its context takes (dotty's `adapt`).
 
 use super::body::Body;
-use super::descriptors::{NOTHING, class_descriptor};
+use super::descriptors::{NOTHING, NULL, class_descriptor};
 use super::{Gen, unsupported};
 use lower::Result;
 use tasty::{Erased, SymbolId};
@@ -17,8 +17,11 @@ impl Gen<'_, '_> {
     }
 
     /// Generates `t` as a value of descriptor `desc`: as `expr_as`, without the `athrow` after a
-    /// join of type `Nothing` where `desc` is `Nothing$`.
+    /// join of type `Nothing` where `desc` is `Nothing$`, a `Null$` kept where `desc` is `Null$`.
     pub fn expr_expect(&mut self, b: &mut Body, t: TNodeId, desc: &str) -> Result<()> {
+        if desc == NULL {
+            self.expect_null(b, t);
+        }
         self.expr_adapted(b, t, classfile::value_slots(desc), desc != NOTHING)
     }
 

@@ -13,6 +13,9 @@ use syntax::ast::Span;
 use tasty::SymbolId;
 use typer::pickle::Pickled;
 
+/// The prefix of the internal names of Scala Native's library.
+const SCALA_NATIVE_PACKAGE: &str = "scala/scalanative/";
+
 /// Refuses unit `l` unless `pickles`, the TASTy of its top-level classes, declare the super
 /// accessors its lowering made, each by its class and name.
 pub fn check_super_accessors(l: &Lower, pickles: &[Pickled]) -> lower::Result<()> {
@@ -26,6 +29,20 @@ pub fn check_super_accessors(l: &Lower, pickles: &[Pickled]) -> lower::Result<()
         return Err(Unsupported { at: Span::NONE, what });
     }
     Ok(())
+}
+
+/// Refuses class `cf`, defined at `at`, if it refers to a class of Scala Native's library that no
+/// jar of the class path has.
+pub fn check_native_references(l: &mut Lower, cf: &ClassFile, at: Span) -> lower::Result<()> {
+    let references = cf.referenced_classes_where(|name| name.starts_with(SCALA_NATIVE_PACKAGE));
+    match references.into_iter().find(|name| !l.u.has_class_file(name)) {
+        Some(name) => {
+            let what =
+                format!("Scala Native's `{}` without its jar on the class path", name.replace('/', "."));
+            Err(Unsupported { at, what })
+        }
+        None => Ok(()),
+    }
 }
 
 /// Adds the `Scala` marker to `cf`, then the `Scala3InlineInfo` attribute unless `cf` is a

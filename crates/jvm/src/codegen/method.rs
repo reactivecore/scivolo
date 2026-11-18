@@ -153,7 +153,7 @@ impl Gen<'_, '_> {
             {
                 let desc = desc.clone();
                 b.code.load(&desc, slot);
-                super::callee::adapt_phantom(b, &desc);
+                super::callee::adapt_value(b, t, &desc);
                 classfile::value_slots(&desc)
             }
             Tree::Select { qualifier, .. } if let Some(f) = sym.filter(|&s| !self.is_method(s)) => {

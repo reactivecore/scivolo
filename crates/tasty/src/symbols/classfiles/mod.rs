@@ -35,6 +35,16 @@ impl Universe {
         self.class_file_misses.clear();
     }
 
+    /// Makes the JVM the target of the compilation.
+    pub fn set_jvm_target(&mut self) {
+        self.jvm_target = true;
+    }
+
+    /// Tells whether the compilation targets the JVM.
+    pub fn targets_jvm(&self) -> bool {
+        self.jvm_target
+    }
+
     /// The JDK `set_jdk` gave, if any.
     pub fn jdk_mut(&mut self) -> Option<&mut classfile::Jdk> {
         self.jdk.as_mut()

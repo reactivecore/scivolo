@@ -4,7 +4,7 @@
 //! `<clinit>` (dotty's `genPlainClass`).
 
 use super::annotation_holders::Holder;
-use super::class_bytes::scala_markers;
+use super::class_bytes::{check_native_references, scala_markers};
 use super::clinit::StaticInit;
 use super::descriptors::{class_descriptor, class_internal, internal};
 use super::{ClassBytes, Gen, java_flags, unsupported};
@@ -119,6 +119,7 @@ impl Gen<'_, '_> {
         let tasty = self.tasty.remove(&sym);
         let (own, mirrored) = if mirror { (None, tasty) } else { (tasty, None) };
         scala_markers(&mut cf, false);
+        check_native_references(self.l, &cf, self.l.tpd.span(td))?;
         let class = ClassBytes::new(name.clone(), cf, own, &mut |a, b| self.jvm_lub(a, b));
         let class = class.or_else(|e| unsupported(self.l.tpd.span(td), e))?;
         self.out.push(class);

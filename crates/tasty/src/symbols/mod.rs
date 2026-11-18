@@ -121,8 +121,12 @@ pub struct Universe {
     deferred: FxHashSet<SymbolId>,
     /// The classes defined outside TASTy that have initialization code.
     with_inits: FxHashSet<SymbolId>,
-    /// Whether a unit replaces classes of the Scala library.
-    builds_scala_library: bool,
+    /// Whether the compilation targets the JVM.
+    jvm_target: bool,
+    /// The parameter symbols of the methods of Java sources asked for.
+    java_source_params: FxHashMap<SymbolId, Vec<SymbolId>>,
+    /// The owners lifted local classes had before lifting.
+    owners_before_lifting: FxHashMap<SymbolId, SymbolId>,
     /// The classes defined outside TASTy in a unit that behaves as the Scala 2 library.
     scala2_classes: FxHashSet<SymbolId>,
     /// The methods lifted out of terms into classes.

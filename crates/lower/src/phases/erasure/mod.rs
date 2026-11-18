@@ -126,6 +126,7 @@ pub fn typed(l: &mut Lower, t: TNodeId, pt: Option<&Erased>) -> Result<TNodeId> 
         Tree::Assign { lhs, .. } => {
             let erased = erased_type(l, lhs);
             typed_except(l, t, lhs, Some(&erased))?;
+            super::captured_vars::drop_ascription(l, t);
             None
         }
         Tree::SeqLiteral { elemtpt, .. } => {

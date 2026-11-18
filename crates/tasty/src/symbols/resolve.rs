@@ -65,6 +65,10 @@ impl Universe {
                 let term = self.resolve_ref(prefix)?;
                 self.symbol_owner(term)
             }
+            Type::Applied(..) => match self.dealias(prefix) {
+                d if d != prefix => self.prefix_owner(d),
+                _ => self.class_symbol(prefix),
+            },
             _ => self.class_symbol(prefix),
         }
     }

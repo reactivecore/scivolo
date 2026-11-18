@@ -192,6 +192,7 @@ package java.lang {
   }
   object Float {
     @static val TYPE: Class[Float] = null
+    @static def compare(f1: scala.Float, f2: scala.Float): Int = 0
     @static final val POSITIVE_INFINITY = 1.0f / 0.0f
     @static final val NEGATIVE_INFINITY = -1.0f / 0.0f
     @static final val NaN = 0.0f / 0.0f
@@ -213,6 +214,7 @@ package java.lang {
   }
   object Double {
     @static val TYPE: Class[Double] = null
+    @static def compare(d1: scala.Double, d2: scala.Double): Int = 0
     @static final val POSITIVE_INFINITY = 1.0d / 0.0d
     @static final val NEGATIVE_INFINITY = -1.0d / 0.0d
     @static final val NaN = 0.0d / 0.0d
@@ -229,7 +231,7 @@ package java.lang {
   final class Void
   object Void { @static val TYPE: Class[Void] = null }
 
-  final class StringBuilder(capacity: Int) extends AbstractStringBuilder with CharSequence {
+  final class StringBuilder(capacity: Int) extends AbstractStringBuilder with CharSequence with Appendable {
     def this() = this(16)
     def this(str: String) = this(16)
     override def append(obj: Object): StringBuilder = this
@@ -257,6 +259,9 @@ package java.lang {
       extends java.io.Serializable {
     def getClassName(): String = null
     def getMethodName(): String = null
+    def getFileName(): String = null
+    def getLineNumber(): Int = 0
+    def isNativeMethod(): scala.Boolean = false
     override def toString(): String = null
   }
 

@@ -15,6 +15,8 @@ use std::rc::Rc;
 #[derive(Default)]
 pub struct JavaClasses {
     jars: FxHashMap<String, usize>,
+    /// The indices of the jars read.
+    read_jars: Vec<usize>,
     sources: JavaSources,
     read: FxHashMap<String, Option<Rc<ClassInfo>>>,
     refused: FxHashMap<String, String>,
@@ -60,9 +62,17 @@ impl Universe {
                 self.java_stubs.remove(&s);
             }
         }
-        self.java_classes = Some(JavaClasses { jars, ..JavaClasses::default() });
+        self.java_classes = Some(JavaClasses { jars, read_jars: read.to_vec(), ..JavaClasses::default() });
         self.class_file_misses.clear();
         Ok(())
+    }
+
+    /// Tells whether a jar given to `use_java_classfiles` has a class file of internal name
+    /// `internal`, also one with TASTy beside it.
+    pub fn has_class_file(&mut self, internal: &str) -> bool {
+        let Some(classes) = &self.java_classes else { return false };
+        let jars = classes.read_jars.clone();
+        jars.into_iter().any(|jar| self.library.read_class(jar, internal).is_ok())
     }
 
     /// Makes the classes of Java sources `sources` known and enters their packages; they shadow

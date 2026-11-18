@@ -26,7 +26,7 @@ impl Universe {
         if ast.tag(template) != TEMPLATE {
             return true;
         }
-        let scala2 = self.builds_scala_library && self.files[file.0 as usize].scala2;
+        let scala2 = self.compiles_scala_library() && self.files[file.0 as usize].scala2;
         let kids = ast.kids(template);
         let body =
             kids.iter().position(|&k| matches!(ast.tag(k), DEFDEF | SPLITCLAUSE)).unwrap_or(kids.len());
@@ -46,11 +46,6 @@ impl Universe {
         let name = name.strip_suffix('$').unwrap_or(&name);
         let tuple = name.strip_prefix("scala.Tuple").and_then(|n| n.parse::<u8>().ok());
         name == "scala.Some" || tuple.is_some_and(|n| (1..=22).contains(&n))
-    }
-
-    /// Records that a unit replaces a class of the Scala library.
-    pub fn set_builds_scala_library(&mut self) {
-        self.builds_scala_library = true;
     }
 }
 

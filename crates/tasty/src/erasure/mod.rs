@@ -28,7 +28,6 @@ use crate::{Kind, SymbolId, Universe, defn};
 pub use applied::ARRAY_OF_ITSELF;
 pub use signatures::{MatchDegree, match_degree};
 pub use special::PRIMITIVE_VALUE_CLASSES;
-use special::special;
 
 /// An erased type as Scala Native's backend sees it.
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -89,7 +88,7 @@ impl Universe {
                 None => match self.refinement_named(p, n) {
                     Some(info) => self.erase(info),
                     None => match self.unresolved_class(p, self.name(n)) {
-                        Some(full) => special(&full).unwrap_or(Erased::Class(full)),
+                        Some(full) => self.special_class(&full).unwrap_or(Erased::Class(full)),
                         None => object(),
                     },
                 },

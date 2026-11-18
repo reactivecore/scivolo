@@ -2,7 +2,6 @@
 //   compiler/src/dotty/tools/dotc/core/TypeErasure.scala
 //! The erasure of references to symbols.
 
-use super::special::special;
 use super::{Erased, object};
 use crate::tags::OBJECT as MODULE;
 use crate::types::{Type, TypeId};
@@ -78,7 +77,7 @@ impl Universe {
     /// The erasure of a reference to class `s`, and whether it is a value class.
     fn erase_class(&mut self, s: SymbolId) -> (Erased, bool) {
         let named = self.full_name_starts_with(s, "scala.") || self.has_full_name(s, crate::defn::OBJECT);
-        if named && let Some(e) = special(&self.full_name(s)) {
+        if named && let Some(e) = self.special_class(&self.full_name(s)) {
             return (e, false);
         }
         match self.underlying(s) {

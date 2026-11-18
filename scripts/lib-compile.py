@@ -3,7 +3,8 @@
 
 Usage: scripts/lib-compile.py MODULE [FILTER]
 
-MODULE is one of MODULES or `all`. Each `.scala` file of the module's Scala 3 source directories
+MODULE is one of MODULES or `all`; a module of PART_OF is compared with the oracle of the module
+holding its classes. Each `.scala` file of the module's Scala 3 source directories
 in ref/scala-native, scalalib's those of scalalib_sources.py (those whose paths contain FILTER),
 except the classes the published scalalib takes from Scala 2.13, is lowered on its own, or with its group of
 UNITS as one unit, its macros run, against the jars of tmp/lib/sn/jars (`just lib-oracle`) if
@@ -41,19 +42,40 @@ WORK = ROOT / "tmp/lib"
 ORACLE_JARS = WORK / "sn/jars"
 ENV = os.environ | {"SCIVOLO_LIBS": str(ORACLE_JARS)} if ORACLE_JARS.is_dir() else None
 LOWER = ROOT / "target/release/scivolo-lower"
-MODULES = ["nativelib", "clib", "posixlib", "windowslib", "javalib", "auxlib", "scalalib"]
+MODULES = ["nativelib", "clib", "posixlib", "windowslib", "javalib", "auxlib", "scalalib",
+           "test-interface-sbt-defs", "test-interface-common", "test-interface", "junit-runtime"]
+# The modules without a jar of their own: the module whose jar holds their classes, as Scala
+# Native's build adds their sources to it, and the directory of those classes in that jar.
+PART_OF = {"test-interface-common": ("test-interface", "scala/scalanative/testinterface/common/")}
 SOURCE_DIRS = ["scala", "scala-3", "scala-2.13+"]
 VERSION = "0.5.12"
 WINDOWSLIB = LIBS / f"windowslib_native0.5_3-{VERSION}.jar"
 JDK_STUBS = ROOT / "libs/jdk-stubs.jar"
+
+
+def jar_name(module):
+    return f"{module}_native0.5_3-{'3.9.0%2B' if module == 'scalalib' else ''}{VERSION}.jar"
+
+
+def tasty_of(*modules):
+    """The options showing the sources the JDK and the TASTy of `modules`: their jars of
+    `just lib-oracle` if there, else the published ones."""
+    jars = ORACLE_JARS if ORACLE_JARS.is_dir() else LIBS
+    return ["--jdk-tasty", str(JDK_STUBS), *(o for m in modules for o in ("--tasty", str(jars / jar_name(m))))]
+
+
 # The options of a module's sources: the TASTy they see beyond the frontend's library
-# (windowslib's, which the library lacks, and the JDK classes javalib does not define), and
-# javalib's own classes as Scala classes, the JDK stubs' as Java classes.
+# (windowslib's and the test modules', which the library lacks, and the JDK classes javalib does
+# not define), and javalib's own classes as Scala classes, the JDK stubs' as Java classes.
 OPTIONS = {
     "nativelib": ["--jdk-tasty", str(JDK_STUBS)],
     "windowslib": ["--tasty", str(WINDOWSLIB)],
     "javalib": ["--javalib", "--tasty", str(WINDOWSLIB), "--jdk-tasty", str(JDK_STUBS)],
     "scalalib": scalalib_sources.OPTIONS,
+    "test-interface-sbt-defs": tasty_of("test-interface-sbt-defs"),
+    "test-interface-common": tasty_of("test-interface", "test-interface-sbt-defs", "windowslib"),
+    "test-interface": tasty_of("test-interface", "test-interface-sbt-defs", "windowslib"),
+    "junit-runtime": tasty_of("junit-runtime", "test-interface-sbt-defs"),
 }
 # The groups of files of a module lowered as one unit, by path prefix in `src/main`: files that
 # refer to each other's classes.
@@ -69,10 +91,6 @@ UNITS = {
 LEAVE_OUT = "--leave-out-refused"
 JOBS = os.cpu_count() or 4
 TIMEOUT = 60
-
-
-def jar_name(module):
-    return f"{module}_native0.5_3-{'3.9.0%2B' if module == 'scalalib' else ''}{VERSION}.jar"
 
 
 SCALALIB_SOURCEROOT = WORK / "scalalib/sourceroot"
@@ -107,7 +125,9 @@ def lower_cmd(module, unit, out):
 
 def oracle(module):
     """The NIR the module's is compared with: Scala Native's build of it from `just lib-oracle` if
-    there, else the published jar's files, unpacked once."""
+    there, else the published jar's files, unpacked once; for a module of PART_OF, those of the
+    module holding its classes."""
+    module = PART_OF[module][0] if module in PART_OF else module
     if (WORK / "sn" / module).is_dir():
         return WORK / "sn" / module
     out = WORK / "jars" / module
@@ -116,6 +136,21 @@ def oracle(module):
             jar.extractall(out)
         (out / ".done").touch()
     return out
+
+
+def parts(module):
+    """The modules of PART_OF whose classes `module`'s jar holds."""
+    return [m for m, (whole, _) in PART_OF.items() if whole == module]
+
+
+def from_own_sources(module, path):
+    """Whether oracle NIR file `path` comes from `module`'s own sources, not from those of a
+    module sharing its jar, or of Scala 2.13's classes in scalalib."""
+    if module == "scalalib":
+        return not scalalib_sources.specialized(path)
+    if module in PART_OF:
+        return path.startswith(PART_OF[module][1])
+    return not any(path.startswith(PART_OF[m][1]) for m in parts(module))
 
 
 def units(module, filter_):
@@ -214,8 +249,8 @@ def compile_module(module, filter_):
           f"nir {nir[0]} same, {nir[1]} differ ({mixed} of them also var-order), {nir[3]} var-order, {nir[4]} quote-pos, "
           f"{nir[2]} missing (oracle {oracle(module).relative_to(ROOT)})")
     if not keep:
-        expected = {str(p.relative_to(oracle(module))) for p in oracle(module).rglob("*.nir")
-                    if module != "scalalib" or not scalalib_sources.specialized(str(p.relative_to(oracle(module))))}
+        expected = {rel for p in oracle(module).rglob("*.nir")
+                    if from_own_sources(module, rel := str(p.relative_to(oracle(module))))}
         generated = {c[1] for c in compared}
         missing = sorted(expected - generated)
         (work / "oracle-only.txt").write_text("".join(f"{p}\n" for p in missing))

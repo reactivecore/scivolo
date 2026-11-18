@@ -3,7 +3,7 @@
 //! What the JVM backend can call (dotty's `genApply` and `genCallMethod`).
 
 use super::body::Body;
-use super::descriptors::{NOTHING, class_descriptor};
+use super::descriptors::{NOTHING, NULL, class_descriptor};
 use super::{Gen, unsupported};
 use classfile::{ATHROW, FieldOp};
 use lower::Result;
@@ -24,11 +24,18 @@ pub enum Receiver {
 pub fn adapt_phantom(b: &mut Body, result: &str) {
     match result {
         NOTHING => b.code.insn(ATHROW),
-        "Lscala/runtime/Null$;" => {
+        NULL => {
             b.code.pop();
             b.code.aconst_null();
         }
         _ => {}
+    }
+}
+
+/// `adapt_phantom` of the value `key` stands for, but a `Null$` expected as it is.
+pub fn adapt_value(b: &mut Body, key: TNodeId, result: &str) {
+    if !(result == NULL && b.null_values.remove(&key)) {
+        adapt_phantom(b, result);
     }
 }
 

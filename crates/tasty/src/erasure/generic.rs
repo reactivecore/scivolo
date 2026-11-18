@@ -4,7 +4,7 @@
 //! of, whose arrays erase to `Object`.
 
 use super::Erased;
-use super::special::{UNBOUNDED, special};
+use super::special::UNBOUNDED;
 use crate::types::{Type, TypeId};
 use crate::{Kind, SymbolId, Universe};
 
@@ -135,7 +135,7 @@ impl Universe {
             },
             Type::Sym(..) | Type::TypeRef(..) => {
                 if let Some(c) = self.class_name(t) {
-                    return match special(&c) {
+                    return match self.special_class(&c) {
                         _ if UNBOUNDED.contains(&c.as_str()) => Holder::None,
                         Some(Erased::Prim(p)) => Holder::Prim(p),
                         _ => Holder::Object,
