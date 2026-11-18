@@ -23,6 +23,8 @@ never freed.
   `is_nothing`), which the constraint cannot change, so a DAG of bounds is walked once per node.
 - **Shapes:** unions keep dotty's balanced shape exactly. The balanced union of each range of
   a part list is memoised, so a rebuild only interns the subtrees it has not built before.
+- **Not taken:** treating unmodelled shapes as dotty's unknown, which would answer `a <: Nothing`
+  where dotty may know the atoms; computing atoms without the cache, at every step of a literal.
 
 ## Consequences
 - An incremental union of N parts interns about N^1.5 distinct union nodes (4.7 million for

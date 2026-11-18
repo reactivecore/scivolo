@@ -15,6 +15,9 @@ The tree pickler (`crates/typer/src/pickle/`) writes these shapes itself: the cl
 val's `new` as a reference to the val's type tree, a reference to a self as its class's `this`
 with the span dotty gives the qualifier. The typed trees stay as dotty's typer gives them.
 
+Not taken: porting these `PostTyper` rewrites onto the typed trees, which would no longer be the
+trees `typer-compare` checks against dotty's typer.
+
 ## Consequences
 - `typer-compare` and the lowering are untouched; quotes read back from dotty's TASTy and
   pickled again give dotty's trees.

@@ -29,6 +29,8 @@ compiled by javac. `just jvm-lib-compile` compiles each `.scala` file alone.
   and runs it on it; earlier groups stay compiled by scala-cli against the published jar. Given
   the jar itself, the last group is typed against the published jar and run on ours, which tells
   differences of our class files from those of our TASTy.
+- **Not taken:** a jar of our class files alone, in which a test could differ from the published
+  jar through the classes scala3's build takes from Scala 2.13.
 
 ## Consequences
 - The jar is equivalent to the published one in which classes are dotty's and which 2.13's, so

@@ -23,6 +23,8 @@ typed trees cannot be printed back as dotty's from it.
   quotes: it records the shape's tags on the `QuotePattern` and defines the given
   `t$givenN: Type[t]` of each type variable, which the tags of the case body's quotes refer to
   where the search finds no given of the body, which is nested deeper.
+- **Not taken:** typing patterns directly into the encoded `ExprMatch.unapply` form, which drops
+  the ascription of a splice pattern, so the typed trees could not be compared with dotty's.
 
 ## Consequences
 - Tree walks see two more classes; those that only look at children need no change.
