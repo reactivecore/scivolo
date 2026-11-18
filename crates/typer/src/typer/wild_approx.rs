@@ -11,17 +11,20 @@ use tasty::tags::INLINE;
 use tasty::{SymbolId, Type, TypeId, TypeVars, Universe, VarId};
 
 impl Typer<'_> {
-    /// The type that constrains the result of method `meth`: `pt`, approximated by wildcards if
-    /// `meth` is a transparent inline method, or any inline method below Scala 3.4 (dotty's
-    /// `constrainResult(meth, mt, pt)`).
-    pub fn result_pt(&mut self, meth: Option<SymbolId>, pt: TypeId) -> TypeId {
-        let legacy = !self.source_version.is_at_least(SourceVersion::V3_4);
-        match meth {
-            Some(m) if self.is_transparent_inline(m) || legacy && self.u.symbol(m).flags.has(INLINE) => {
-                self.types().wild_approx(pt)
-            }
-            _ => pt,
+    /// The type that constrains `result`, the result of method `meth`: `pt`, approximated by
+    /// wildcards if `meth` is a transparent inline method, an inline method returning a match
+    /// alias, or any inline method below Scala 3.4, unless the code being typed is in an inline
+    /// method (dotty's `constrainResult(meth, mt, pt)`, `Inlines.isInlineable`).
+    pub fn result_pt(&mut self, meth: Option<SymbolId>, result: TypeId, pt: TypeId) -> TypeId {
+        let Some(m) = meth else { return pt };
+        if self.u.comparison_owner().is_some_and(|o| self.enclosing_inline(o).is_some()) {
+            return pt;
         }
+        let approximated = self.is_transparent_inline(m)
+            || self.u.symbol(m).flags.has(INLINE)
+                && (!self.source_version.is_at_least(SourceVersion::V3_4)
+                    || self.u.underlying_match(result).is_some());
+        if approximated { self.types().wild_approx(pt) } else { pt }
     }
 }
 

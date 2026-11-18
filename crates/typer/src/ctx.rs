@@ -3,7 +3,7 @@
 
 use tasty::SymbolId;
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub struct LevelId(u32);
 
 /// Typing modes (dotty's `Mode`).
