@@ -73,6 +73,14 @@ instead of the run.
 Found through the VM, not yet reported. Locations are in Scala Native v0.5.12 (`ref/scala-native`).
 The VM fixes javalib bugs in its library overlay (`overlay/src`, ADR 0009).
 
+Each **Reproduce** runs in an empty directory holding the files shown. Results are from Scala
+3.9.0, Scala Native 0.5.12, scala-cli 1.14.0 and OpenJDK 21 on macOS arm64. Our results come from
+the release binaries, run from the repository root:
+
+- JVM: `target/release/scivolo-jvm -d out bug.scala`, then
+  `java -Xverify:all -cp out:ref/libs/scala-library-3.9.0.jar bug`.
+- VM: `target/release/scivolo bug.scala`.
+
 1. **`LinkedTransferQueue.remove` reads `null.next`** (javalib,
    `java/util/concurrent/LinkedTransferQueue.scala:1214`).
    - Port of the JDK loop `for (Node c = p;; q = p.next)`: the update `q = p.next` also runs
@@ -80,6 +88,22 @@ The VM fixes javalib bugs in its library overlay (`overlay/src`, ADR 0009).
    - Removing an element the queue does not hold throws `NullPointerException` unless the
      optimizer drops the unused load; `LinkedTransferQueueTest$Generic.testRemoveElement`.
    - Fix: update `q` only when the loop continues. VM: fixed in the overlay.
+   - **Reproduce**: `scala-cli run --server=false --scala 3.9.0 --native --native-version 0.5.12 bug.scala`
+
+     ```scala
+     import java.util.concurrent.LinkedTransferQueue
+
+     @main def bug(): Unit =
+       val q = new LinkedTransferQueue[String]
+       q.add("a")
+       println(q.poll())
+       println(q.remove("b"))
+     ```
+
+   - **Expected**: `a`, then `false`: the queue does not hold `b`. The JVM prints this.
+   - **Observed**: Scala Native prints `a`, then fails with `java.lang.NullPointerException` at
+     `LinkedTransferQueue.remove`. With `--native-mode release-fast` it prints `a`, `false`. The VM
+     prints `a`, `false`.
 2. **`ForkJoinPool.helpAsyncBlocker` fails on other threads** (javalib,
    `java/util/concurrent/ForkJoinPool.scala:2063`).
    - `Thread.currentThread() match { case wt: ForkJoinWorkerThread => … }` has no default
@@ -87,10 +111,46 @@ The VM fixes javalib bugs in its library overlay (`overlay/src`, ADR 0009).
    - Reached from `SubmissionPublisher` when a producer blocks outside the pool, which green
      threads make likely; 5 `SubmissionPublisherTest` cases.
    - Fix: `case _ => ()`. VM: fixed in the overlay.
+   - **Reproduce**: `scala-cli run --server=false --scala 3.9.0 --native --native-version 0.5.12 bug.scala`
+
+     ```scala
+     import java.util.concurrent.{Flow, ForkJoinPool, SubmissionPublisher, TimeUnit}
+
+     @main def bug(): Unit =
+       val pub = new SubmissionPublisher[Integer](new ForkJoinPool(1), 1)
+       pub.subscribe(new Flow.Subscriber[Integer]:
+         def onSubscribe(s: Flow.Subscription): Unit = ()
+         def onNext(i: Integer): Unit = ()
+         def onError(t: Throwable): Unit = ()
+         def onComplete(): Unit = ())
+       for i <- 1 to 3 do
+         println(pub.offer(Integer.valueOf(i), 100, TimeUnit.MILLISECONDS, null))
+       pub.close()
+     ```
+
+   - **Expected**: `1`, `-1`, `-1`: the subscriber requests nothing, so later offers time out and
+     are dropped. The JVM prints this.
+   - **Observed**: Scala Native prints `1`, then fails with `scala.MatchError:
+     Thread[#0,main,5,main] (of class java.lang.Thread$MainThread$)` at
+     `ForkJoinPool$.helpAsyncBlocker`. The VM prints `1`, `-1`, `-1`.
 3. **`HashSet.containsAll`'s lambda throws** (javalib, `java/util/HashSet.scala:31`).
    - `c.iterator().scalaOps.forall(contains)` on a `Collection[_]` eta-expands `contains` with a
      `Nothing` parameter; the published javalib's lambda body is `throw o`.
    - Fix: `forall(e => contains(e))`. VM: `containsAll` is replaced in the overlay.
+   - **Reproduce**: `scala-cli run --server=false --scala 3.9.0 --native --native-version 0.5.12 bug.scala`
+
+     ```scala
+     import java.util.{Arrays, HashSet}
+
+     @main def bug(): Unit =
+       val s = new HashSet[String]
+       s.add("a")
+       println(s.containsAll(Arrays.asList("a")))
+     ```
+
+   - **Expected**: `true`, as on the JVM.
+   - **Observed**: Scala Native fails with `scala.scalanative.runtime.UndefinedBehaviorError` at
+     `java.util.HashSet.containsAll$$anonfun$1`. The VM prints `true`.
 4. **A SAM lambda lacks its bridge** (nscplugin's lambda classes; dotty
    `tests/run/i24573.scala`).
    - For `trait ToInt[-T] extends (T => Int) { def apply(t: T): Int }`, the lambda class of
@@ -99,6 +159,25 @@ The VM fixes javalib bugs in its library overlay (`overlay/src`, ADR 0009).
    - The Scala Native binary segfaults; minimal reproduction: `tests/programs/bridges`.
    - Fix: emit the bridges of the functional interface's erased signatures. VM: synthesizes the
      bridge on dispatch (ADR 0008).
+   - **Reproduce**: `scala-cli run --server=false --scala 3.9.0 --native --native-version 0.5.12 bug.scala`
+
+     ```scala
+     trait ToInt[-T] extends (T => Int):
+       def apply(t: T): Int
+
+     def viaFunction[A, B](f: A => B, a: A): B = f(a)
+
+     @main def bug(): Unit =
+       val length: ToInt[String] = (s: String) => s.length
+       println(viaFunction(length, "four"))
+     ```
+
+   - **Expected**: `4`, as on the JVM.
+   - **Observed**: the Scala Native binary stops with `ScalaNative: Unhandled signal 11,
+     si_addr=0x0` in `viaFunction`. Replacing the last two lines of `bug` by
+     `val f: ToInt[String] = (s: String) => s.length`, `val g: String => Int = f` and
+     `println(g("abc"))` fails at link time instead: `Unknown method
+     bug$package$$$Lambda$1.apply(java.lang.Object): java.lang.Object`. The VM prints `4`.
 5. **No static forwarder beside a `@static` method of the same name** (nscplugin,
    `scala-3/scala/scalanative/nscplugin/NirGenStat.scala:835`).
    - An object with `@static def foo` and an instance method `foo` of the same signature (e.g.
@@ -106,7 +185,27 @@ The VM fixes javalib bugs in its library overlay (`overlay/src`, ADR 0009).
      cannot generate a static forwarder".
    - Scala 3's JVM backend skips forwarders whose name the companion class already has (dotty
      `tests/run/i19394.scala`).
-   - Fix: skip the forwarder instead of reporting an error. VM: not affected.
+   - Fix: skip the forwarder instead of reporting an error. VM: its lowering refuses the program
+     and falls back to scala-cli, which reports this error. JVM: compiles it.
+   - **Reproduce**: `scala-cli run --server=false --scala 3.9.0 --native --native-version 0.5.12 bug.scala`
+
+     ```scala
+     import scala.annotation.{static, targetName}
+
+     class Foo
+     object Foo:
+       @static def foo: String = "foo"
+       @targetName("foo") def fooBincompat: String = foo
+
+     @main def bug(): Unit = println(Foo.foo)
+     ```
+
+   - **Expected**: `foo`, as on the JVM.
+   - **Observed**: Scala Native reports at `class Foo`: `Unexpected situation: found existing public
+     static method method fooBincompat in the companion class of Foo$; cannot generate a static
+     forwarder the method of the same name in the object.` `scivolo-jvm` prints `foo`. The VM
+     reports `the lowering does not support a static method beside the forwarder of the same name`,
+     then scala-cli's error above.
 6. **Static forwarders of inherited methods carry positions in the wrong file** (nscplugin,
    `scala-3/scala/scalanative/nscplugin/NirGenStat.scala:826`).
    - The forwarder's position is the member's span read against the current unit's source
@@ -114,12 +213,46 @@ The VM fixes javalib bugs in its library overlay (`overlay/src`, ADR 0009).
    - auxlib's `scala.scalanative.runtime.BoxedUnit` forwarders to `equals`/`hashCode`/`toString`
      of `scala/runtime/BoxedUnit.scala` point into `scala/scalanative/runtime/BoxedUnit.scala`,
      past its end.
-   - Fix: convert `sym.sourcePos`. VM: positions in the member's own file.
+   - Fix: convert `sym.sourcePos`. Lowering: the same position as Scala Native.
+   - **Reproduce**: with `A.scala` and `O.scala` below,
+     `scala-cli compile --server=false --scala 3.9.0 --native --native-version 0.5.12 -d out A.scala O.scala`,
+     then `target/release/scivolo-nir-dump --debug out/O.nir`.
+
+     ```scala
+     // A comment that makes the offset of the member below larger than the size of O.scala.
+     class A:
+       def inherited: Int = 1
+     ```
+
+     ```scala
+     class O
+     object O extends A
+     ```
+
+   - **Expected**: the forwarder `O::static inherited` has a position inside a source file, that of
+     `inherited` in `A.scala`.
+   - **Observed**: `@ O.scala:2:76`, zero-based, while `O.scala` has two lines. In the published
+     `auxlib_native0.5_3-0.5.12.jar`, the forwarders of `scala/scalanative/runtime/BoxedUnit.nir`
+     are at `BoxedUnit.scala:4:71` (`hashCode`), `3:42` (`equals`) and `4:106` (`toString`); that
+     file has four lines. `target/release/scivolo-lower A.scala O.scala low` also gives
+     `@ O.scala:2:76`.
 7. **`-language:experimental.X` is named twice in `@experimental`** (dotty,
    `compiler/src/dotty/tools/dotc/typer/Checking.scala:964`).
    - `checkAndAdaptExperimentalImports` writes `-language:experimental.$sel` where `sel` already
      is `experimental.X`: `@experimental("Added by -language:experimental.experimental.erasedDefinitions")`.
    - Fix: `-language:$sel`. Frontend: the same text as dotty.
+   - **Reproduce**: `scala-cli compile --server=false --scala 3.9.0 -d out bug.scala`, then
+     `strings out/C.tasty | grep 'Added by'`.
+
+     ```scala
+     //> using options -language:experimental.erasedDefinitions
+
+     class C
+     ```
+
+   - **Expected**: `Added by -language:experimental.erasedDefinitions`, the option as written.
+   - **Observed**: `Added by -language:experimental.experimental.erasedDefinitions`, from dotty
+     and from `scivolo-jvm`.
 8. **Stale `.check` files in `tests/run-macros`** (dotty 3.9.0, `tasty-extractors-1`,
    `tasty-extractors-2`, `tasty-extractors-types`, `type-print`).
    - The checks print package prefixes as `ThisType(TypeRef(NoPrefix(), "immutable"))`; 3.9.0
@@ -127,6 +260,25 @@ The VM fixes javalib bugs in its library overlay (`overlay/src`, ADR 0009).
      expects `n.toString` in `productElement`, `type-print` other highlight colours.
    - Fix: re-record the checks. VM: compared with `tests/dotty-checks/run-macros`, recorded from
      dotty 3.9.0 on Scala Native.
+   - **Reproduce**: the named tests of `ref/scala3/tests/run-macros`, on the JVM, the macro file
+     compiled first as dotty's test framework does. In `tasty-extractors-1` (the others alike;
+     `type-print` has `Macro_1.scala` and `Test_2.scala`):
+
+     ```sh
+     scala-cli compile --server=false --scala 3.9.0 --with-compiler -d m quoted_1.scala
+     scala-cli compile --server=false --scala 3.9.0 --with-compiler --classpath m -d t quoted_2.scala
+     scala-cli run --server=false --scala 3.9.0 --with-compiler --classpath m:t --main-class Test > out
+     diff out ../tasty-extractors-1.check
+     ```
+
+   - **Expected**: no difference.
+   - **Observed**: all four exit with 0 and differ from their checks, in 3 lines
+     (`tasty-extractors-1`), 2 (`tasty-extractors-2`), 3 (`tasty-extractors-types`) and 4
+     (`type-print`). `tasty-extractors-1` prints
+     `TypeRef(TermRef(ThisType(TypeRef(NoPrefix(), "<root>")), "scala"), "Unit")` where the check has
+     `TypeRef(ThisType(TypeRef(NoPrefix(), "scala")), "Unit")`. `tasty-extractors-2` prints
+     `List(Ident("n"))` where the check has `List(Apply(Select(Ident("n"), "toString"), Nil))`.
+     `type-print` colours `scala.collection.immutable.List` differently. Not run on Scala Native.
 9. **Anonymous mirrors in inline bodies lack `fromProduct`** (dotty 3.9.0,
    `compiler/src/dotty/tools/dotc/typer/Synthesizer.scala:277`, `anonymousMirror`).
    - `inline def mk(p: Product): Some[Int] = summon[Mirror.ProductOf[Some[Int]]].fromProduct(p)`:
