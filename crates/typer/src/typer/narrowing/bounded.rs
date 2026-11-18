@@ -125,7 +125,7 @@ pub fn refines_invariantly(t: &mut Typer, pat: TypeId, sel: TypeId) -> bool {
     if has_wildcard(t.u, widened) || t.is_opaque_ref(pat) || t.is_opaque_ref(widened) {
         return false;
     }
-    let (Some(p), Some(s)) = (t.u.class_symbol(pat), t.u.class_symbol(sel)) else { return false };
+    let (Some(p), Some(s)) = (t.u.class_symbol(pat), t.u.class_symbol(widened)) else { return false };
     let flags = t.u.symbol(p).flags;
     if flags.has(tasty::tags::FINAL) || flags.has(tasty::tags::CASE) {
         return true;

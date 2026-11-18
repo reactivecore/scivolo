@@ -9,12 +9,14 @@ mod extension_containers;
 mod extension_views;
 mod fallback;
 mod may_view;
+mod open_views;
 mod qualifier;
 mod root_members;
 mod view_kinds;
 mod view_scope;
 mod widened;
 
+pub use open_views::ViewProto;
 pub use qualifier::QualifierView;
 
 use super::super::{Pt, Typer};

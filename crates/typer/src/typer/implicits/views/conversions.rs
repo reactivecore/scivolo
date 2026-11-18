@@ -43,7 +43,7 @@ impl ViewSearch<'_> {
         let from = t.constraint.count();
         let mut fun = t.with_type_vars(fun)?;
         if kind == ViewKind::Value {
-            fun = t.viewing(c, |t| self.conversion_apply(t, fun, from))?;
+            fun = t.viewing(c, goal, |t| self.conversion_apply(t, fun, from))?;
         }
         let fun_tpe = t.tpd.tpe(fun);
         let info = t.method_info(fun_tpe).unwrap_or(fun_tpe);
@@ -79,7 +79,7 @@ impl ViewSearch<'_> {
             instantiated?;
         }
         let spans = (span.end_pos(), span.to_synthetic());
-        let converted = t.viewing(c, |t| t.with_implicit_args(converted, spans, ctx, 1))?;
+        let converted = t.viewing(c, goal, |t| t.with_implicit_args(converted, spans, ctx, 1))?;
         let result = t.tpd.tpe(converted);
         let pt = match goal {
             Goal::Conform(pt) if t.conforms(result, pt) => Pt::Type(pt),

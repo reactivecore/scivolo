@@ -9,17 +9,20 @@ use super::dictionary::Dictionary;
 use super::measures::Measure;
 use super::prefilter::cannot_fit;
 use super::search::ImplicitSearch;
+use super::views::ViewProto;
 use crate::ctx::Ctx;
 use crate::tpd::TNodeId;
 use syntax::ast::Span;
 use tasty::{Type, TypeId};
 
-/// A candidate being tried for a type, by name or not; `view` for a conversion's.
+/// A candidate being tried for a type, by name or not; `view` for a conversion's, `proto` if that
+/// is searched for a member rather than for a type.
 pub struct Open {
     pub cand: Candidate,
     pub pt: TypeId,
     pub by_name: bool,
     pub view: bool,
+    pub proto: Option<ViewProto>,
     /// `typeSize` and `coveringSet` of `pt`, once asked for.
     pub measure: Option<Measure>,
 }
@@ -67,17 +70,6 @@ impl History {
     }
 }
 
-impl Typer<'_> {
-    /// `f` run with conversion candidate `c` open.
-    pub fn viewing<T>(&mut self, c: Candidate, f: impl FnOnce(&mut Self) -> T) -> T {
-        let pt = self.u.intern_type(Type::Wildcard(None));
-        self.history.open.push(Open { cand: c, pt, by_name: false, view: true, measure: None });
-        let result = f(self);
-        self.history.open.pop();
-        result
-    }
-}
-
 /// The implicit argument of an outermost search `found`, with its dictionary of by-name
 /// implicits (dotty's `emitDictionary`).
 pub fn emitted(
@@ -117,7 +109,7 @@ impl ImplicitSearch {
         if self.diverges(t, c)? {
             return Err("diverging implicit");
         }
-        t.history.open.push(Open { cand: c, pt, by_name, view: false, measure: None });
+        t.history.open.push(Open { cand: c, pt, by_name, view: false, proto: None, measure: None });
         let tried = self.try_implicit(t, c, shallow);
         t.history.open.pop();
         let tree = tried?;

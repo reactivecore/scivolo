@@ -8,7 +8,14 @@ use super::super::type_ops::TypeOps;
 use super::candidates::Candidate;
 use super::measures::Measure;
 use super::search::ImplicitSearch;
+use super::views::ViewProto;
 use tasty::{Binder, Type, TypeId};
+
+/// The refusal of a divergence check that a conversion's prototype leaves open.
+const THROUGH_CONVERSION: &str = "divergence check through a conversion";
+
+/// The prefix of the full names of the function classes.
+const FUNCTION_CLASSES: &str = "scala.Function";
 
 impl ImplicitSearch {
     /// Whether candidate `c` diverges: an equivalent candidate is open on a type no smaller built
@@ -18,13 +25,24 @@ impl ImplicitSearch {
         let mut below = self.by_name;
         let mut current: Option<Measure> = None;
         for i in (0..t.history.open.len()).rev() {
-            let (cand, tp, tp_by_name, view) = {
+            let (cand, tp, tp_by_name, proto) = {
                 let o = &t.history.open[i];
-                (o.cand, o.pt, o.by_name, o.view)
+                (o.cand, o.pt, o.by_name, o.proto.clone())
             };
             if equivalent(t, cand, c) {
-                if view {
-                    return Err("divergence check through a conversion");
+                if let Some(proto) = proto {
+                    if below {
+                        return Err(THROUGH_CONVERSION);
+                    }
+                    let cur = match current.clone() {
+                        Some(m) => m,
+                        None => Measure::of(&mut t.types(), pt)?,
+                    };
+                    current = Some(cur.clone());
+                    if proto_diverges(t, &proto, &cur)? {
+                        return Ok(true);
+                    }
+                    continue;
                 }
                 let mut ty = t.types();
                 let (wild_tp, wild_pt) = (ty.wild_approx(tp), ty.wild_approx(pt));
@@ -54,6 +72,29 @@ impl ImplicitSearch {
         }
         Ok(false)
     }
+}
+
+/// Whether a search for a type measured `cur` diverges from an equivalent conversion open for a
+/// member with prototype `proto`: that is smaller and built from the same symbols. Of an
+/// application with untyped arguments, whose types are not known, only symbols other than function
+/// classes that its known types lack rule this out; refused if none does.
+fn proto_diverges(t: &mut Typer<'_>, proto: &ViewProto, cur: &Measure) -> Result<bool, &'static str> {
+    let (mut size, mut covering) = (0, Vec::new());
+    for &part in &proto.parts {
+        let m = Measure::of(&mut t.types(), part)?;
+        size += m.size;
+        covering.extend(m.covering);
+    }
+    covering.sort_unstable_by_key(|s| s.0);
+    covering.dedup();
+    if proto.complete {
+        return Ok(size < cur.size && covering == cur.covering);
+    }
+    let lacking = cur
+        .covering
+        .iter()
+        .any(|s| !covering.contains(s) && !t.u.full_name(*s).starts_with(FUNCTION_CLASSES));
+    if lacking { Ok(false) } else { Err(THROUGH_CONVERSION) }
 }
 
 fn frozen_same(ty: &mut TypeOps<'_>, a: TypeId, b: TypeId) -> bool {
