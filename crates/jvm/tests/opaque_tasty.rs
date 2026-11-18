@@ -66,15 +66,15 @@ fn opaque_types_from_tasty_stay_abstract() {
 /// values and the generic signatures of members typed by opaque types and their export forwarders.
 #[test]
 fn opaque_types_from_tasty_compile_run_and_erase() {
+    if Command::new("java").arg("-version").output().is_err() {
+        eprintln!("no java on the PATH: not run");
+        return;
+    }
     let (out, lib) = compiled_lib("opaqueused");
     let dir = root().join("tests/jvm/tastylib/opaques");
     let user = out.join("use");
     let run = compile(&user, Some(&lib), &dir.join("use.scala"));
     assert!(run.status.success(), "{}", String::from_utf8_lossy(&run.stderr));
-    if Command::new("java").arg("-version").output().is_err() {
-        eprintln!("no java on the PATH: not run");
-        return;
-    }
     let library = root().join("ref/libs/scala-library-3.9.0.jar");
     let classpath = format!("{}:{}:{}", user.display(), lib.display(), library.display());
     let run = Command::new("java").args(["-Xverify:all", "-cp", &classpath, "Use"]).output().expect("java");
