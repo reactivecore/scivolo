@@ -34,6 +34,10 @@ impl Narrowing {
         if !pattern || syms.is_empty() || t.is_top(sel) {
             return tpe;
         }
+        if related_alternatives(t, tpe, sel) > 1 {
+            t.unsupported_at(t.tpd.span(tpt), "type pattern against a union of related classes");
+            return tpe;
+        }
         let sel = match refines_invariantly(t, tpe, sel) {
             true => sel,
             false => match without_variant_args(t, sel) {
@@ -106,6 +110,18 @@ impl Narrowing {
         let registered: Vec<SymbolId> = syms.iter().copied().filter(|&s| t.u.gadt().contains(s)).collect();
         t.known_pattern_types.extend(registered);
     }
+}
+
+/// The number of alternatives of union `sel` whose class is a base class or a subclass of the
+/// class of pattern type `pat`; the value bound then has the type of each of them.
+fn related_alternatives(t: &mut Typer, pat: TypeId, sel: TypeId) -> usize {
+    let sel = t.dealiased(sel);
+    if let Type::Or(a, b, _) = *t.u.ty(sel) {
+        return related_alternatives(t, pat, a) + related_alternatives(t, pat, b);
+    }
+    let widened = t.u.widen(sel);
+    let (Some(p), Some(s)) = (t.u.class_symbol(pat), t.u.class_symbol(widened)) else { return 0 };
+    usize::from(t.u.derives_from(p, s) || t.u.derives_from(s, p))
 }
 
 /// Tells whether pattern type `pat` against `sel` constrains every type argument of their

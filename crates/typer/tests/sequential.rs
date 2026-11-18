@@ -149,6 +149,18 @@ fn flow_typed_variables_in_by_name_arguments() {
 }
 
 #[test]
+fn type_patterns_against_unions_of_related_classes_are_refused() {
+    let Some(mut u) = universe() else { return };
+    let text = "class Box[T](val v: T); object IntBox extends Box[Int](1); object O
+        def f[T](u: Box[T] | IntBox.type): Any = u match { case b: Box[t] => b.v; case _ => 0 }";
+    let text = text.replace("object O\n", "object O {\n") + " }";
+    assert_eq!(
+        type_unit_with(&mut u, &mut Units::default(), ("u.scala", &text), &[]),
+        Err("unsupported type pattern against a union of related classes".to_owned())
+    );
+}
+
+#[test]
 fn overloads_ambiguous_with_an_apply_of_a_result() {
     let Some(mut u) = universe() else { return };
     let mut units = Units::default();
