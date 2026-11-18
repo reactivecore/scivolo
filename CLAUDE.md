@@ -20,6 +20,14 @@ Behave as dotty and Scala Native do. A difference is accepted only when:
 
 The MR names each such difference and which case it is.
 
+An example in an issue, MR, comment or doc is self-complete: pasted unchanged into a file, it
+shows the claim, so it has every definition, import and compiler flag it needs. It states what
+dotty and we do with it, as run, not as remembered.
+
+A bug, ours or upstream, in an issue or in `docs/conformance.md` (Upstream bugs to report), is
+always described by how to reproduce it (a self-complete program or a named test, with the
+command), the expected behaviour and the observed behaviour.
+
 The main goal is the same meaning as dotty: runtime behaviour, casts and erasure, soundness.
 Equal typed trees are the evidence for it, not the goal. A difference that changes meaning is
 never case 1 or 2, and a refusal is better than a wrong result.
