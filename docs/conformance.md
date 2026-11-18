@@ -257,13 +257,13 @@ The VM fixes javalib bugs in its library overlay (`overlay/src`, ADR 0009).
 
 | Outcome | tests/programs | tests/pos | tests/neg |
 |---|---:|---:|---:|
-| passed | 265 | 2509 | 1277 |
-| differ | 32 | 111 | 0 |
+| passed | 266 | 2517 | 1296 |
+| differ | 31 | 111 | 0 |
 | warnings differ | 0 | 9 | 0 |
-| accepted (neg) | 0 | 0 | 21 |
-| unsupported | 1 | 396 | 0 |
+| accepted (neg) | 0 | 0 | 2 |
+| unsupported | 1 | 388 | 0 |
 | crashed | 0 | 0 | 0 |
-| skipped | 41 | 351 | 496 |
+| skipped | 44 | 351 | 496 |
 
 ## M4: dotty `tests/run`
 
@@ -315,12 +315,12 @@ Results:
 
 | Outcome | Tests |
 |---|---:|
-| passed | 1498 |
+| passed | 1502 |
 | wrong output | 0 |
 | crashed | 0 |
 | timeout | 0 |
-| lowering refused | 0 |
-| typer refused | 8 |
+| lowering refused | 1 |
+| typer refused | 3 |
 | parser refused | 0 |
 | macro refused | 0 |
 | frontend crashed | 0 |
@@ -328,12 +328,10 @@ Results:
 | skipped | 173 |
 | **total** | **1711** |
 
-- **Typer refused:** a parent refinement of a tracked parameter (`i21213`, `i21213-min`); one each
-  for a local type escaping through a type variable (`Parser`), an inline expansion of a type
-  referring to a binding (`i13332shapeless`), a divergence check through a conversion
-  (`errorhandling`), `Printer.TypeReprStructure` of a type the frontend does not print, an inline
-  call of an object with opaque types in an inline expansion (`named-tuples-strawman-2`),
-  `typeChecks` of a non-constant string.
+- **Lowering refused:** a boxing, unboxing or primitive conversion (`Parser`).
+- **Typer refused:** an inline expansion of a type referring to a binding (`i13332shapeless`),
+  `Printer.TypeReprStructure` of a type the frontend does not print (`i22649`), `typeChecks` of a
+  non-constant string (`typeCheckErrors`).
 - `Runtime.totalMemory`,
   `maxMemory` and `freeMemory`, which Scala Native's javalib lacks and the overlay adds (ADR
   0008), are typed through `libs/jdk-stubs/JdkMemberDeclarations.scala`.
@@ -397,7 +395,7 @@ Results:
 
 | Outcome | tests/run | tests/run-macros |
 |---|---:|---:|
-| passed | 1688 | 320 |
+| passed | 1693 | 320 |
 | wrong output | 0 | 0 |
 | verify error | 0 | 0 |
 | linkage error | 0 | 0 |
@@ -406,11 +404,11 @@ Results:
 | frontend crashed | 0 | 0 |
 | jvm refused | 0 | 0 |
 | lowering refused | 0 | 0 |
-| typer refused | 8 | 0 |
+| typer refused | 3 | 0 |
 | skipped | 14 | 1 |
 | **total** | **1711** | **321** |
 
-- **Typer refused (run):** the eight of the VM's report.
+- **Typer refused (run):** the three of the VM's report.
 - **Tests with Java sources:** all pass.
 - **Crash:** `lambda-serialization-gc` casts the application class loader to `URLClassLoader`,
   which fails for scalac's class files too, as the runner does not load tests through one.
@@ -455,22 +453,18 @@ the optimizer (1883 of its 3134 classes dotty also writes differ in code from do
 
 | Outcome | Files | Classes |
 |---|---:|---:|
-| same | 603 | 3071 |
-| attributes differ | 27 | 36 |
-| code differs | 9 | 21 |
-| refused | 10 | |
+| same | 612 | 3214 |
+| attributes differ | 32 | 43 |
+| code differs | 5 | 16 |
+| refused | 0 | |
 
-- **Refused:** pickling a capture set that refers to other than static definitions into TASTy
-  (#285): `PartialFunction`, `collection.IndexedSeq`, `Iterable`, `IterableOnce`, `Iterator`,
-  `Seq`, `StrictOptimizedIterableOps`, `View`, `immutable.LazyListIterable`, `mutable.Buffer`.
 - **Code differs:** the pickled quotes of `scala.quoted.FromExpr` and `ToExpr` (strings of
-  TASTy), branches of pattern matches (`BasicIO`, dotty compiling it alone differs from ours
-  too; `CollisionProofHashMap`), `ExecutionContextImpl`, static forwarders (`from`,
-  `iterableFactory`, `isDefinedAt`) of `immutable.List`, `immutable.Seq` and `Vector`, and a
-  `superArg` lambda of `ArrayBufferView`.
+  TASTy) and static forwarders (`from`, `iterableFactory`, `isDefinedAt`) of `immutable.List`,
+  `immutable.Seq` and `Vector`.
 - **Attributes differ:** mostly line numbers (of extension method calls and implicit
   conversions, of the `()` ending a secondary constructor); `InnerClasses` entries, a
-  `LocalVariableTable` entry, a `Deprecated` attribute and a method's flags.
+  `LocalVariableTable` entry, a `MethodParameters` entry, a `Deprecated` attribute and a method's
+  flags.
 
 `just jvm-lib-jar scalalib` packs those class files and TASTy into a library jar laid out as the
 published one (ADR 0123): the classes scala3's build takes from Scala 2.13 and javac's come from
@@ -514,6 +508,10 @@ own 35 files have no scala-cli oracle (Scala 3.9 reports cyclic references in `A
 | posixlib | 67 of 67 | 270 | | |
 | windowslib | 34 | 130 | | |
 | scalalib | 649 of 649 | 4,381 | 17 | 11 |
+| test-interface-sbt-defs | 11 of 11 | 26 | | |
+| test-interface-common | 13 of 13 | 109 | | |
+| test-interface | 8 of 8 | 45 | | |
+| junit-runtime | 51 of 51 | 149 | | |
 
 clib, posixlib, scalalib, javalib and nativelib pass Scala Native's unit tests on our jars as on
 the published ones (`just lib-jar-report`). `lib-compile` lowers javalib's `WindowsPath.scala`
