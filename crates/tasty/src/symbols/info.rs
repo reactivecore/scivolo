@@ -62,13 +62,19 @@ impl Universe {
         rhs.map(|r| (file, r))
     }
 
-    /// The lower and upper bound of opaque type `sym`, when its definition states them.
+    /// The lower and upper bound of opaque type `sym`, when its definition states them; type
+    /// lambdas of a higher-kinded one declare the variances of its parameters.
     pub fn opaque_bounds(&mut self, sym: SymbolId) -> Option<(TypeId, TypeId)> {
         let (file, id) = self.symbol(sym).tree?;
         if !self.symbol(sym).flags.has(OPAQUE) {
             return None;
         }
-        self.with_decoder(file, |d| d.opaque_bounds(id))
+        let bounds = self.with_decoder(file, |d| d.opaque_bounds(id))?;
+        if let Some(binder) = self.lambda(bounds.1).map(|l| l.binder) {
+            let variances = self.variances(sym);
+            self.declare_lambda_variances(binder, variances);
+        }
+        Some(bounds)
     }
 
     /// The upper bound of `t`, a reference to an opaque type from TASTy, applied to arguments or

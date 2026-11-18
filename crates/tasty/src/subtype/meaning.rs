@@ -92,16 +92,16 @@ pub fn meaning(u: &mut Universe, s: SymbolId, prefix: Option<TypeId>) -> Meaning
             let info = u.info(s);
             match *u.ty(info) {
                 Type::Bounds(lo, hi) => Meaning::Abstract(seen(u, lo), seen(u, hi)),
-                Type::Lambda { binder, params, result } => match *u.ty(result) {
-                    Type::Bounds(lo, hi) => {
-                        let lambda = |u: &mut Universe, body| {
-                            let body = seen(u, body);
-                            u.intern_type(Type::Lambda { binder, params, result: body })
-                        };
-                        Meaning::Abstract(lambda(u, lo), lambda(u, hi))
-                    }
-                    _ => Meaning::Abstract(NOTHING, ANY),
-                },
+                Type::Lambda { binder, params, result } => {
+                    let variances = u.variances(s);
+                    u.declare_lambda_variances(binder, variances);
+                    let (lo, hi) = u.bounds(result).unwrap_or((NOTHING, ANY));
+                    let lambda = |u: &mut Universe, body| {
+                        let body = seen(u, body);
+                        u.intern_type(Type::Lambda { binder, params, result: body })
+                    };
+                    Meaning::Abstract(lambda(u, lo), lambda(u, hi))
+                }
                 _ => Meaning::Abstract(NOTHING, ANY),
             }
         }

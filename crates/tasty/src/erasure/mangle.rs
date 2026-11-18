@@ -151,7 +151,7 @@ impl Universe {
                 erase(self, p).boxing_unit()
             })
             .collect();
-        let dealiased = self.dealias(t);
+        let dealiased = self.dealias_opaque(t);
         let unit = self.class_name(dealiased).is_some_and(|c| c == crate::defn::UNIT);
         let t = self.upper_bound(t, &bounds);
         match erase(self, t) {

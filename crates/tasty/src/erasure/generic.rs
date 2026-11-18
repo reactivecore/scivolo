@@ -40,7 +40,7 @@ impl Universe {
             }
             Type::Applied(tycon, list) => {
                 let args = self.types_of(list).to_vec();
-                match self.expand(tycon, &args) {
+                match self.expand_opaque(tycon, &args).or_else(|| self.expand(tycon, &args)) {
                     Some(alias) => self.is_generic(alias),
                     None if let Some(alias) = self.overriding_member(tycon) => {
                         let applied = self.intern_type(Type::Applied(alias, list));

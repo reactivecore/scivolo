@@ -34,6 +34,20 @@ impl Cmp<'_> {
         below
     }
 
+    /// Whether the variances of the parameters of type lambda `a` conform to those type lambda
+    /// `b` declares, `binder` being `b`'s (dotty's `variancesConform`).
+    pub fn variances_conform(&mut self, a: TypeId, b: TypeId, binder: Binder) -> bool {
+        if self.u.declared_variances(binder).is_none() {
+            return true;
+        }
+        let (Some(va), Some(vb)) =
+            (self.u.lambda_variance_flags(a, &[]), self.u.lambda_variance_flags(b, &[]))
+        else {
+            return true;
+        };
+        va.len() == vb.len() && va.iter().zip(&vb).all(|(&x, &y)| x & y == y)
+    }
+
     /// The bounds of parameter `t` of a binding type being compared (dotty's `bounds` of a
     /// `TypeParamRef`), if it is one and has any.
     pub fn compared_param_bounds(&mut self, t: TypeId) -> Option<(TypeId, TypeId)> {

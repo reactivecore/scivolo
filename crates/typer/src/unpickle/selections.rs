@@ -56,7 +56,14 @@ impl Unpickler<'_> {
             let name = self.tname(id, false);
             return Ok(self.bare(T::Select { qualifier: qual, name }, Some(tpe), None));
         }
-        let sym = self.at_signature(found, id, is_type)?;
+        let (sym, prefix) = match self.at_signature(found, id, is_type) {
+            Ok(sym) => (sym, prefix),
+            Err(refusal) => {
+                let revealed = self.u.revealed_opaque(prefix).ok_or(refusal)?;
+                let found = self.u.member_of_type(revealed, &name);
+                (self.at_signature(found, id, is_type)?, revealed)
+            }
+        };
         Ok(self.selection(id, qual, prefix, sym, is_type))
     }
 
@@ -81,6 +88,7 @@ impl Unpickler<'_> {
                 self.at_signature(inherited, id, false)?
             }
         };
+        let prefix = self.u.revealed_opaque(prefix).unwrap_or(prefix);
         Ok(self.selection(id, qual, prefix, sym, false))
     }
 

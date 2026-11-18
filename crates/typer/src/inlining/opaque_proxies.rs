@@ -165,6 +165,10 @@ impl Inlining<'_> {
             }
             let name = self.u.interned_name(d);
             let Some(alias) = self.u.opaque_rhs(d) else { continue };
+            if let Some(binder) = self.u.lambda(alias).map(|l| l.binder) {
+                let variances = self.u.variances(d);
+                self.u.declare_lambda_variances(binder, variances);
+            }
             let seen = self.u.as_seen_from(alias, module_ref, module);
             let info = self.u.intern_type(Type::Alias(seen));
             refined = self.u.intern_type(Type::Refined(refined, name, info));

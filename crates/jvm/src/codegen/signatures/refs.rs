@@ -88,7 +88,7 @@ impl Sig<'_> {
             _ => return None,
         };
         let prefix = self.u.widen(prefix);
-        let prefix = self.u.dealias(prefix);
+        let prefix = self.u.dealias_opaque(prefix);
         let parts = match *self.u.ty(prefix) {
             Type::And(a, b) => vec![a, b],
             _ => vec![prefix],
@@ -123,7 +123,7 @@ impl Sig<'_> {
     }
 
     fn arg(&mut self, a: TypeId) {
-        let a = self.u.dealias(a);
+        let a = self.u.dealias_opaque(a);
         match *self.u.ty(a) {
             Type::Bounds(lo, hi) => {
                 let java_top =
@@ -178,7 +178,7 @@ impl Sig<'_> {
             return self.out.push_str("Ljava/lang/Object;");
         }
         self.out.push('[');
-        let elem = self.u.dealias(elem);
+        let elem = self.u.dealias_opaque(elem);
         match self.u.bounds(elem) {
             Some((_, hi)) => {
                 let hi = self.u.widen(hi);

@@ -79,6 +79,9 @@ impl Universe {
             _ => return None,
         };
         if self.symbol(s).kind == Kind::Type && self.symbol(s).flags.has(OPAQUE) {
+            if let Some(hi) = self.opaque_upper(t) {
+                return self.base_type_within(hi, base, depth);
+            }
             let underlying = self.opaque_underlying(s, prefix)?;
             let applied = match (args.is_empty(), self.ty(underlying)) {
                 (true, _) => underlying,

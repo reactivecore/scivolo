@@ -118,6 +118,7 @@ fn special_class_name(t: &mut Typer<'_>, dealiased: TypeId) -> Option<&'static s
     let node = *t.u.ty(dealiased);
     let class = match node {
         Type::And(..) | Type::Or(..) => None,
+        _ if t.is_opaque_ref(dealiased) => None,
         Type::Applied(tycon, _) if t.referenced(tycon).is_some_and(|s| t.u.symbol(s).kind != Kind::Class) => {
             None
         }

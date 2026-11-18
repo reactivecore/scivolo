@@ -15,13 +15,21 @@ impl Universe {
     /// their signatures match, a method without parameters matching a non-method, or their
     /// parameters do and so do their types (`info_matches`).
     pub fn matches(&mut self, site: TypeId, a: SymbolId, b: SymbolId) -> bool {
-        use crate::erasure::{MatchDegree, match_degree};
-        if self.info_matches(site, a, b) {
-            return true;
-        }
+        use crate::erasure::MatchDegree;
+        self.info_matches(site, a, b)
+            || matches!(self.signature_match(site, a, b), MatchDegree::Full | MatchDegree::MethodNotAMethod)
+    }
+
+    /// Determines whether the signatures of members `a` and `b` of `site` have the same erased
+    /// parameter types (dotty's `consistentParams`).
+    pub fn parameters_agree(&mut self, site: TypeId, a: SymbolId, b: SymbolId) -> bool {
+        !matches!(self.signature_match(site, a, b), crate::erasure::MatchDegree::No)
+    }
+
+    fn signature_match(&mut self, site: TypeId, a: SymbolId, b: SymbolId) -> crate::erasure::MatchDegree {
         let scala2 = self.erased_as_scala2(a) && self.erased_as_scala2(b);
         let (sa, sb) = (self.signature(site, a, scala2), self.signature(site, b, scala2));
-        matches!(match_degree(&sa, &sb), MatchDegree::Full | MatchDegree::MethodNotAMethod)
+        crate::erasure::match_degree(&sa, &sb)
     }
 
     /// Whether the types of members `a` and `b` of `site` match (dotty's relaxed `matchesType`):
