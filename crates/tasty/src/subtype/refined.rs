@@ -3,19 +3,23 @@
 //! Refinements on the right of a comparison (dotty's `hasMatchingMember`).
 
 use super::Cmp;
-use crate::types::{NameId, Type, TypeId};
+use crate::types::{Type, TypeId};
 
 impl Cmp<'_> {
-    /// Whether `a` has a member `name` that conforms to refinement info `info`: a refinement of
-    /// `a` itself, else a member of its class.
-    pub fn has_matching_member(&mut self, a: TypeId, name: NameId, info: TypeId) -> bool {
+    /// Determines whether `a` has a member that conforms to the last refinement of `refined`: a
+    /// refinement of `a` itself, else a member of its class under its own target name. A `def` or
+    /// `var` does not conform to `{ val x: T }`, a `val` or `var` does to `{ def x: T }`, a Java
+    /// `def x()` too. A method only the refinement declares must have its erased parameter types
+    /// (dotty's `hasMatchingMember`).
+    pub fn has_matching_member(&mut self, a: TypeId, refined: TypeId) -> bool {
         let t = self.u.widen(a);
-        self.has_matching_member_in(a, t, name, info)
+        self.has_matching_member_in(a, t, refined)
     }
 
     /// `has_matching_member` of `a` found in `t`, `a`'s widened type or a part of its
     /// intersection.
-    fn has_matching_member_in(&mut self, a: TypeId, mut t: TypeId, name: NameId, info: TypeId) -> bool {
+    fn has_matching_member_in(&mut self, a: TypeId, mut t: TypeId, refined: TypeId) -> bool {
+        let Type::Refined(_, name, info) = *self.u.ty(refined) else { return false };
         let (mut recs, mut seen) = (Vec::new(), None);
         loop {
             match *self.u.ty(t) {
@@ -42,8 +46,8 @@ impl Cmp<'_> {
                 }
                 Type::Refined(parent, ..) | Type::Annotated(parent, _) => t = parent,
                 Type::And(l, r) if seen.is_none() => {
-                    return self.has_matching_member_in(a, l, name, info)
-                        || self.has_matching_member_in(a, r, name, info);
+                    return self.has_matching_member_in(a, l, refined)
+                        || self.has_matching_member_in(a, r, refined);
                 }
                 _ => match self.u.dealias(t) {
                     d if d != t && matches!(self.u.ty(d), Type::Rec(..) | Type::Refined(..)) => t = d,
@@ -64,8 +68,13 @@ impl Cmp<'_> {
             }
         };
         members.into_iter().any(|m| {
+            let target = self.u.symbol(m).target.as_ref();
+            if target.is_some_and(|target| *target != self.u.symbol(m).name) {
+                return false;
+            }
             let have = self.u.member_info(site, m);
-            self.sub_info(a, have, info)
+            let expr = self.member_as_expr((m, class), have, info);
+            self.sub_info(a, expr, info) && self.signatures_ok(m, have, refined)
                 || self.abstract_member_matches(a, m, have, info)
                 || self.stable_member_matches(a, m, info)
         })
@@ -117,28 +126,25 @@ impl Cmp<'_> {
     }
 
     /// Whether member info `have` conforms to refinement info `want`: type bounds within
-    /// bounds, a method type below a method type, a value's type below a value type.
+    /// bounds, a method type below a method type, `=> T` or a value's type below `=> U`, a value's
+    /// type below a value type.
     fn info_conforms(&mut self, have: TypeId, want: TypeId) -> bool {
         let bounds = |s: &mut Self, t: TypeId| match *s.u.ty(t) {
             Type::Bounds(lo, hi) => (lo, hi),
             Type::Alias(x) => (x, x),
             _ => (t, t),
         };
-        match *self.u.ty(want) {
-            Type::Bounds(..) | Type::Alias(_) => {
+        match (*self.u.ty(have), *self.u.ty(want)) {
+            (_, Type::Bounds(..) | Type::Alias(_)) => {
                 let ((lo1, hi1), (lo2, hi2)) = (bounds(self, have), bounds(self, want));
                 self.recur_fresh(lo2, lo1) && self.recur_fresh(hi1, hi2)
             }
-            Type::Method { .. } | Type::Poly { .. } => self.recur_fresh(have, want),
-            Type::ByName(want) => self.info_conforms(have, want),
-            _ => match *self.u.ty(have) {
-                Type::Method { params, result, .. } if self.u.params_of(params).is_empty() => {
-                    self.recur_fresh(result, want)
-                }
-                Type::ByName(result) => self.recur_fresh(result, want),
-                Type::Method { .. } | Type::Poly { .. } => false,
-                _ => self.recur_fresh(have, want),
-            },
+            (_, Type::Method { .. } | Type::Poly { .. }) => self.recur_fresh(have, want),
+            (Type::Method { .. } | Type::Poly { .. }, _) => false,
+            (Type::ByName(have), Type::ByName(want)) => self.recur_fresh(have, want),
+            (Type::ByName(_), _) => false,
+            (_, Type::ByName(want)) => self.recur_fresh(have, want),
+            _ => self.recur_fresh(have, want),
         }
     }
 }

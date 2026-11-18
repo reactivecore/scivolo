@@ -164,8 +164,7 @@ impl Cmp<'_> {
                 self.try_base_type(a, b, c)
             }
             Meaning::Class(c) if self.u.is_java_defined(c) => {
-                let widened = self.u.widen(a);
-                let base = self.u.base_type(widened, c);
+                let base = self.non_expr_base_type(a, c);
                 base.is_some_and(|base| self.u.class_symbol(base) == Some(c)) || self.fourth_try(a, b)
             }
             Meaning::Class(_) => {
@@ -182,7 +181,7 @@ impl Cmp<'_> {
     /// `a <: b` through the instance of class `c`, `b`'s class, that `a` derives.
     pub fn try_base_type(&mut self, a: TypeId, b: TypeId, c: SymbolId) -> bool {
         let widened = self.u.widen(a);
-        match self.u.base_type(widened, c) {
+        match self.non_expr_base_type(a, c) {
             Some(base) if base != a && self.base_type_ok(a, b) => {
                 let and = matches!(self.u.ty(widened), Type::And(..));
                 match and || matches!(self.u.ty(base), Type::Or(..)) {

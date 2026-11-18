@@ -19,6 +19,12 @@ impl Typer<'_> {
             return this;
         }
         let Some(cls) = self.tpd.sym(this) else { return self.unsupported(id, "Super") };
+        if let Some(inline) = self.enclosing_inline(ctx.owner)
+            && !self.is_inside(cls, inline)
+        {
+            let method = self.syms.described(self.u, inline);
+            self.error_at(self.ast.span(id), format!("Super call not allowed in inlineable {method}"));
+        }
         let (name, span) = match mix.map(|m| (self.ast.tree(m).clone(), self.ast.span(m))) {
             Some((Tree::Ident { name }, span)) => (name, span),
             Some(_) => return self.unsupported(id, "Super"),
@@ -38,6 +44,18 @@ impl Typer<'_> {
         let this_tpe = self.tpd.tpe(this);
         let tpe = self.u.intern_type(Type::Super(this_tpe, owntype));
         self.tpd.node(T::Super { qual: this, mix }, self.ast.span(id), Some(tpe), Some(cls))
+    }
+
+    /// Whether class `cls` is defined inside method `method` (dotty's `isLocal`).
+    fn is_inside(&self, cls: SymbolId, method: SymbolId) -> bool {
+        let mut o = self.u.symbol(cls).owner;
+        while let Some(s) = o {
+            if s == method {
+                return true;
+            }
+            o = self.u.symbol(s).owner;
+        }
+        false
     }
 
     /// The type constructor of the one parent of `cls` whose class is named `name`.

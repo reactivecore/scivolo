@@ -27,6 +27,7 @@ mod no_vars;
 mod nothing;
 mod null;
 mod refined;
+mod refined_members;
 mod refs;
 mod singletons;
 mod third;

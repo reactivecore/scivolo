@@ -199,6 +199,9 @@ impl Typer<'_> {
         let this = matches!(self.tpd.tree(qual), T::This { .. });
         let projection = !this && self.tpd.sym(qual).is_some_and(|q| self.u.is_type_symbol(q))
             || matches!(self.tpd.tree(qual), T::AppliedTypeTree { .. });
+        if projection && self.type_arity(qual_tpe) > 0 {
+            return self.projection_of_constructor(qualifier, qual_tpe, &text);
+        }
         if projection && self.u.symbol(sym).kind == Kind::Type {
             self.complete(sym);
             let info = self.u.info(sym);

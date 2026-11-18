@@ -11,6 +11,16 @@ use tasty::tags::{ABSTRACT, TRAIT};
 use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
+    /// Reports the wildcard arguments of the class type `tpt` of a `new` or parent.
+    fn check_no_wildcard_args(&mut self, tpt: TNodeId) {
+        let T::AppliedTypeTree { args, .. } = *self.tpd.tree(tpt) else { return };
+        for arg in self.tpd.items(args).to_vec() {
+            if matches!(self.tpd.tree(arg), T::TypeBoundsTree { .. }) {
+                self.error_at(self.tpd.span(arg), "Type argument must be fully defined");
+            }
+        }
+    }
+
     pub fn typed_new(&mut self, id: NodeId, tpt: NodeId, ctx: Ctx) -> TNodeId {
         let tpt = self.typed_type(tpt, ctx);
         let tpe = self.tpd.tpe(tpt);
@@ -19,6 +29,7 @@ impl Typer<'_> {
         {
             return self.unsupported(id, "new with an unstable prefix");
         }
+        self.check_no_wildcard_args(tpt);
         if let Some(s) = self.u.sym_of(tpe)
             && self.u.symbol(s).kind == Kind::Type
         {

@@ -30,11 +30,13 @@ impl ViewSearch<'_> {
 }
 
 impl TypeOps<'_> {
-    /// Tells whether `pt` is `Any`, `AnyVal`, `AnyRef`, `Matchable` or `Unit`, which no
-    /// conversion targets; not an abstract type bounded by one of them (dotty's `isRef`).
+    /// Tells whether `pt`, without a `| Null`, is `Any`, `AnyVal`, `AnyRef`, `Matchable` or `Unit`,
+    /// which no conversion targets; not an abstract type bounded by one of them (dotty's `isRef`
+    /// after `stripNull`).
     pub fn is_top_like(&mut self, pt: TypeId) -> bool {
         let pt = self.zonk(pt);
         let pt = self.u.dealias(pt);
+        let pt = self.strip_null(pt);
         if matches!(self.u.ty(pt), Type::Flexible(_))
             || self
                 .u

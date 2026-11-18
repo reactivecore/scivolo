@@ -24,8 +24,8 @@ impl Cmp<'_> {
                 let lo = self.u.or_null(hi);
                 self.recur(a, lo)
             }
-            Type::Refined(parent, name, info) => {
-                self.recur(a, parent) && self.has_matching_member(a, name, info) || self.fourth_try(a, b)
+            Type::Refined(parent, ..) => {
+                self.recur(a, parent) && self.has_matching_member(a, b) || self.fourth_try(a, b)
             }
             Type::Rec(binder, parent) => self.compare_rec(a, binder, parent) || self.fourth_try(a, b),
             Type::Match { .. } => match self.reduced(b) {

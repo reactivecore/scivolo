@@ -31,6 +31,7 @@ mod java_source_annotations;
 mod module_vals;
 mod non_cyclic;
 mod params;
+mod private_leaks;
 mod provisional;
 mod replaced_members;
 mod split_companions;

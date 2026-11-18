@@ -85,9 +85,13 @@ impl Typer<'_> {
             Tree::ValDef { .. } => self.typed_val_def(id, ctx),
             Tree::DefDef { .. } => self.typed_def_def(id, ctx),
             Tree::TypeDef { rhs, .. } if matches!(self.ast.tree(rhs), Tree::Template { .. }) => {
+                self.kind_projector_qmark(id);
                 self.typed_class_def(id, ctx)
             }
-            Tree::TypeDef { .. } => self.typed_type_def(id, ctx),
+            Tree::TypeDef { .. } => {
+                self.kind_projector_qmark(id);
+                self.typed_type_def(id, ctx)
+            }
             Tree::PackageDef { pid, stats } => self.typed_package_def(id, pid, stats, ctx),
             Tree::Import { selectors, .. } if self.import_levels.contains_key(&id) => {
                 self.typed_import(id, selectors)

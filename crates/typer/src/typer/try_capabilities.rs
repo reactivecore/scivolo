@@ -12,6 +12,11 @@ use syntax::ast::{NodeId, TName, Tree};
 use syntax::config::Features;
 use tasty::{Type, TypeId};
 
+/// dotty's `checkCatch` error for a `case` with a guard catching a checked exception.
+const GUARDED_CATCH: &str = "Implementation restriction: cannot generate CanThrow capability for this \
+                             kind of catch.\nCanThrow capabilities can only be generated if no pattern \
+                             guard is given.";
+
 impl Typer<'_> {
     /// Body `expr` of a `try` with cases `cases` as `{ erased given canThrow$N: CanThrow[E1 | …]
     /// = caps.internal.erasedValue; expr }` for the checked exceptions `E1, …` the cases catch, if
@@ -22,7 +27,7 @@ impl Typer<'_> {
         }
         let mut caught: Option<TypeId> = None;
         for &c in cases {
-            let Tree::CaseDef { pat, .. } = *self.ast.tree(c) else { continue };
+            let Tree::CaseDef { pat, guard, .. } = *self.ast.tree(c) else { continue };
             let pat = match *self.ast.tree(pat) {
                 Tree::Bind { body, .. } => body,
                 _ => pat,
@@ -31,6 +36,9 @@ impl Typer<'_> {
             let typed = self.typed_type(tpt, ctx);
             let tpe = self.tpd.tpe(typed);
             if self.is_checked_exception(tpe) {
+                if guard.is_some() {
+                    self.error_at(self.ast.span(pat), GUARDED_CATCH);
+                }
                 caught = Some(caught.map_or(tpe, |c| self.u.intern_type(Type::Or(c, tpe, true))));
             }
         }

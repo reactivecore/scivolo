@@ -79,6 +79,7 @@ impl Typer<'_> {
             }
             _ => {}
         }
+        self.avoid_private_leaks(sym, span);
         self.u.set_comparison_owner(outer);
         self.u.set_null_mode(outer_nulls);
         self.syms.completions.insert(sym, Completion::Done);
