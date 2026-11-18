@@ -41,6 +41,14 @@ fn generic_signatures_of_forwarders_and_outer_references() {
     }
 }
 
+/// An intersection of nested classes erases to the subclass, whatever their names.
+#[test]
+fn intersections_of_nested_classes_erase_to_the_subclass() {
+    let out = compile("glb");
+    let Some(text) = javap(&out, "glb.Nest") else { return };
+    assert!(text.contains("public static int glb(glb.Nest$Z)"), "{text}");
+}
+
 #[test]
 fn raw_pointers_are_ordinary_classes() {
     let out = compile("rawtypes");

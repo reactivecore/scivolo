@@ -100,8 +100,10 @@ impl Universe {
         if let Some(t) = own.filter(|&t| self.erase(t) == *e) {
             return self.class_symbol(t);
         }
-        let r = self.class_ref(name);
-        self.class_symbol(r).or(class)
+        self.class_of_binary_name(name).or_else(|| {
+            let r = self.class_ref(name);
+            self.class_symbol(r)
+        }).or(class)
     }
 
     /// The class `t` erases to: its class, a value class unwrapped to its underlying type's.
