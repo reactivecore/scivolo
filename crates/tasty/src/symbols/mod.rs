@@ -132,6 +132,10 @@ pub struct Universe {
     java_stubs: FxHashSet<SymbolId>,
     /// The JDK whose class files give the JDK classes the library lacks, if one is used.
     jdk: Option<classfile::Jdk>,
+    /// The JDK class file of each library class `jdk_class_of` was asked for, if it has one.
+    jdk_classes: FxHashMap<SymbolId, Option<std::rc::Rc<classfile::ClassInfo>>>,
+    /// The packages and names no class file of the JDK or the jars gives a declaration for.
+    class_file_misses: FxHashSet<(SymbolId, crate::NameId)>,
     /// The Java classes of the jars' class files, by internal name, if they are used.
     java_classes: Option<classfiles::JavaClasses>,
     /// The classes, objects and objects' classes entered from class files.

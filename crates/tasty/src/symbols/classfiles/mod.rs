@@ -31,6 +31,8 @@ impl Universe {
     /// Makes the JDK's packages and classes the library lacks known from `jdk`'s class files.
     pub fn set_jdk(&mut self, jdk: classfile::Jdk) {
         self.jdk = Some(jdk);
+        self.jdk_classes.clear();
+        self.class_file_misses.clear();
     }
 
     /// The JDK `set_jdk` gave, if any.

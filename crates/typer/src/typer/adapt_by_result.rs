@@ -54,7 +54,7 @@ impl Typer<'_> {
         pt: Pt,
     ) -> Result<(), &'static str> {
         let Pt::Type(p) = pt else { return Ok(()) };
-        let p = self.result_pt(meth, p);
+        let p = self.result_pt(meth, result, p);
         let defined = self.is_fully_defined(p);
         let stripped = self.strip_implicit(result);
         let stripped = self.zonk(stripped);

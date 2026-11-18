@@ -14,6 +14,11 @@ impl Universe {
         std::mem::replace(&mut self.comparison_owner, owner)
     }
 
+    /// Returns the symbol whose definition comparisons are made in.
+    pub fn comparison_owner(&self) -> Option<SymbolId> {
+        self.comparison_owner
+    }
+
     /// Sets how comparisons treat `Null`; the previous mode.
     pub fn set_null_mode(&mut self, mode: crate::NullMode) -> crate::NullMode {
         std::mem::replace(&mut self.null_mode, mode)
