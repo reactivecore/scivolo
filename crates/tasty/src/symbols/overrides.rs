@@ -33,18 +33,19 @@ impl Universe {
         if ta.len() != tb.len() {
             return false;
         }
+        if self.is_class_site(site) {
+            let (da, db) = (self.info(a), self.info(b));
+            if !self.same_param_counts(da, db) {
+                return false;
+            }
+        }
         let renamed: Vec<TypeId> = ta.iter().map(|&p| self.intern_type(Type::Sym(None, p))).collect();
         let (ia, ib) = (self.member_info(site, a), self.member_info(site, b));
+        if !self.same_param_counts(ia, ib) {
+            return false;
+        }
         let (pa, pb) = (self.poly_binders(ia), self.poly_binders(ib));
-        if pa.iter().map(|p| p.1).ne(pb.iter().map(|p| p.1)) {
-            return false;
-        }
         let (ca, cb) = (self.param_clauses(ia), self.param_clauses(ib));
-        let n = ca.len().min(cb.len());
-        let rest_empty = ca[n..].iter().chain(&cb[n..]).all(|(_, ps)| ps.is_empty());
-        if !rest_empty || ca.iter().zip(&cb).any(|((_, x), (_, y))| x.len() != y.len()) {
-            return false;
-        }
         let (ma, mb) = (self.method_clauses(ia), self.method_clauses(ib));
         let pairs = ca.into_iter().zip(cb).flat_map(|((_, x), (_, y))| x.into_iter().zip(y));
         pairs.collect::<Vec<_>>().into_iter().all(|(x, y)| {
@@ -75,6 +76,24 @@ impl Universe {
             let (x, y) = (self.param_paths_named(x, &ma), self.param_paths_named(y, &ma));
             x == y || self.is_same_type_in(x, y, &mut crate::subtype::NoVars)
         })
+    }
+
+    /// Whether `t` is a reference to a class, whose members have the parameters they declare.
+    fn is_class_site(&self, t: TypeId) -> bool {
+        matches!(*self.ty(t), Type::Sym(_, c) if self.symbol(c).kind == super::Kind::Class)
+    }
+
+    /// Whether method types `a` and `b` have as many type parameters per clause and as many value
+    /// parameters per clause, clauses past the other's last empty.
+    fn same_param_counts(&self, a: TypeId, b: TypeId) -> bool {
+        let (pa, pb) = (self.poly_binders(a), self.poly_binders(b));
+        if pa.iter().map(|p| p.1).ne(pb.iter().map(|p| p.1)) {
+            return false;
+        }
+        let (ca, cb) = (self.param_clauses(a), self.param_clauses(b));
+        let n = ca.len().min(cb.len());
+        let rest_empty = ca[n..].iter().chain(&cb[n..]).all(|(_, ps)| ps.is_empty());
+        rest_empty && ca.iter().zip(&cb).all(|((_, x), (_, y))| x.len() == y.len())
     }
 
     /// `t` with each member reference on a path from a parameter of clauses `methods` made a

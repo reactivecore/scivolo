@@ -10,7 +10,7 @@ use names::nme;
 use rustc_hash::FxHashSet;
 use syntax::ast::children::Child;
 use syntax::ast::{Ast, NodeId, TName, Tree};
-use tasty::{Kind, SymbolId};
+use tasty::{Kind, SymbolId, Universe};
 
 impl Typer<'_> {
     /// `MissingIdent` for identifier `id` named `name` that `find_ref` finds nowhere in `ctx`, an
@@ -41,6 +41,9 @@ impl Typer<'_> {
             owners.push(o);
             owner = self.u.symbol(o).owner;
         }
+        if let Some(root) = owners.last().and_then(|&outermost| self.sole_definition(outermost, id)) {
+            return Some(root);
+        }
         let defs = self.owner_definitions(&owners);
         let mut module_classes = vec![None; defs.len()];
         for &o in owners.iter().rev() {
@@ -58,25 +61,55 @@ impl Typer<'_> {
         self.ast.exists_subtree(root, &|_, n| n == id).then_some(root)
     }
 
-    /// The definition trees of the unit, with their symbols, that can define one of `owners`: an
-    /// owner's own, and those of the values `Universe::module_class` can take to an owner, by the
-    /// owner's name or by the value's type.
+    /// The tree of `o`, the outermost owner around `id`, or of its object, if it is the only
+    /// definition of `o` that contains `id`: no tree under it on the way to `id` can define `o`.
+    fn sole_definition(&mut self, o: SymbolId, id: NodeId) -> Option<NodeId> {
+        let own_tree = |t: &Self, s: SymbolId| {
+            t.syms.def_trees.get(&s).copied().filter(|d| t.syms.by_tree.get(d) == Some(&s))
+        };
+        let mut trees: Vec<NodeId> = own_tree(self, o).into_iter().collect();
+        let object = tasty::module_name(&self.u.symbol(o).name).map(str::to_owned);
+        if let (Some(owner), Some(object)) = (self.u.symbol(o).owner, &object) {
+            for v in self.u.decls_named(owner, object) {
+                if self.u.symbol(v).kind == Kind::Val && self.u.module_class(v) == Some(o) {
+                    trees.extend(own_tree(self, v));
+                }
+            }
+        }
+        let mut found = None;
+        for tree in trees {
+            let mut path = Vec::new();
+            if path_to(self.ast, tree, id, &mut path) && found.replace((tree, path)).is_some() {
+                return None;
+            }
+        }
+        let (root, path) = found?;
+        let objects: FxHashSet<&str> = object.iter().map(String::as_str).collect();
+        let mut inner = path[1..].iter().filter_map(|n| self.syms.by_tree.get(n));
+        (!inner.any(|&s| may_define_owner(self.u, s, &[o], &objects))).then_some(root)
+    }
+
+    /// The definition trees of the unit, with their symbols, that can define one of `owners`.
     fn owner_definitions(&self, owners: &[SymbolId]) -> Vec<(NodeId, SymbolId)> {
         let u = &*self.u;
         let objects: FxHashSet<&str> =
             owners.iter().filter_map(|&o| tasty::module_name(&u.symbol(o).name)).collect();
-        let may_define = |s: SymbolId| {
-            let sym = u.symbol(s);
-            let typed_owner = || u.known_info(s).and_then(|i| u.sym_of(i)).is_some_and(|c| owners.contains(&c));
-            owners.contains(&s)
-                || sym.kind == Kind::Val
-                    && (sym.tree.is_some()
-                        || sym.name.starts_with('_')
-                        || objects.contains(sym.name.as_str())
-                        || typed_owner())
-        };
-        self.syms.by_tree.iter().filter(|&(_, &s)| may_define(s)).map(|(&t, &s)| (t, s)).collect()
+        let defs = self.syms.by_tree.iter().filter(|&(_, &s)| may_define_owner(u, s, owners, &objects));
+        defs.map(|(&t, &s)| (t, s)).collect()
     }
+}
+
+/// Whether `s` can define one of `owners`: it is one, or a value `Universe::module_class` can take
+/// to one, by the name of the object in `objects` or by the value's type.
+fn may_define_owner(u: &Universe, s: SymbolId, owners: &[SymbolId], objects: &FxHashSet<&str>) -> bool {
+    let sym = u.symbol(s);
+    let typed_owner = || u.known_info(s).and_then(|i| u.sym_of(i)).is_some_and(|c| owners.contains(&c));
+    owners.contains(&s)
+        || sym.kind == Kind::Val
+            && (sym.tree.is_some()
+                || sym.name.starts_with('_')
+                || objects.contains(sym.name.as_str())
+                || typed_owner())
 }
 
 /// Whether the edge from tree `w[0]` to its child `w[1]` leads into a pattern, the function part
