@@ -139,6 +139,7 @@ pub fn substituted(
         let Some((Some(pre), s)) = u.sym_ref(part) else { return None };
         if u.symbol(s).kind.is_term() {
             let new_pre = substituted(u, pre, param, replacements);
+            let s = if new_pre == pre { s } else { u.val_on_prefix(new_pre, s) };
             let selected = u.intern_type(Type::Sym(Some(new_pre), s));
             return (new_pre != pre).then(|| refined_path(u, selected).unwrap_or(selected));
         }

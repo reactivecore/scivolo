@@ -72,16 +72,23 @@ impl Universe {
         sym.kind == Kind::Type && sym.flags.has(OPAQUE) && sym.tree.is_some() && !self.opaques_elided
     }
 
-    /// Determines the right-hand side of the opaque type `prefix` widens to, or of one side of the
-    /// intersection it widens to, for selections of inline bodies, which are typed inside the
-    /// scope of their opaque types.
+    /// Determines the right-hand side of the opaque type read from TASTy that `prefix` widens to,
+    /// or of one side of the intersection it widens to, for selections of inline bodies, which
+    /// are typed inside the scope of their opaque types.
     pub fn revealed_opaque(&mut self, prefix: TypeId) -> Option<TypeId> {
         let widened = self.widen(prefix);
         if let Type::And(a, b) = *self.ty(widened) {
             return self.revealed_opaque(a).or_else(|| self.revealed_opaque(b));
         }
+        let dealiased = self.dealias(widened);
+        let tycon = self.applied(dealiased).map_or(dealiased, |(c, _)| c);
+        let opaque = self.referenced(tycon)?;
+        let sym = self.symbol(opaque);
+        if !sym.flags.has(OPAQUE) || sym.tree.is_none() {
+            return None;
+        }
         let revealed = self.dealias_opaque(widened);
-        (revealed != self.dealias(widened)).then_some(revealed)
+        (revealed != dealiased).then_some(revealed)
     }
 
     /// Records `alias` as the right-hand side of opaque type `sym`, defined outside TASTy.

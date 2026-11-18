@@ -102,13 +102,21 @@ impl Universe {
     /// parameter `x` of a clause, the type of `x` there, else `t`.
     pub fn singleton_param_type(&mut self, mut t: TypeId, clauses: &[ParamClause]) -> TypeId {
         for _ in clauses.iter().flat_map(|(_, params)| params) {
-            let as_ref = clauses.iter().fold(t, |r, (b, ps)| self.param_syms_as_refs(r, ps, *b));
-            let Some((binder, i)) = self.param_ref(as_ref) else { break };
-            let clause = clauses.iter().find(|(b, _)| *b == binder);
-            let Some(&(_, param)) = clause.and_then(|(_, ps)| ps.get(i as usize)) else { break };
-            t = param;
+            let Some(info) = self.singleton_param_info(t, clauses) else { break };
+            t = info;
         }
         t
+    }
+
+    /// Determines the declared type of parameter `x` of `clauses` for `t`, `x.type`, its
+    /// references to parameters of `clauses` by binder; `None` for another type.
+    pub fn singleton_param_info(&mut self, t: TypeId, clauses: &[ParamClause]) -> Option<TypeId> {
+        let as_refs = |u: &mut Self, t| clauses.iter().fold(t, |r, (b, ps)| u.param_syms_as_refs(r, ps, *b));
+        let as_ref = as_refs(self, t);
+        let (binder, i) = self.param_ref(as_ref)?;
+        let (_, params) = clauses.iter().find(|(b, _)| *b == binder)?;
+        let &(_, param) = params.get(i as usize)?;
+        Some(as_refs(self, param))
     }
 
     /// Computes the signature of member `s` of `site` with the aliases `site` gives to the types

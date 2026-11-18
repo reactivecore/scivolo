@@ -61,7 +61,14 @@ fn results_conform(t: &mut Typer<'_>, (site, prefix): (TypeId, TypeId), d: Symbo
     if conforms_overridden(t, site, rd, rm) {
         return true;
     }
-    let rd = t.u.singleton_param_type(rd, &own_clauses);
+    let mut rd = rd;
+    for _ in own_clauses.iter().flat_map(|(_, params)| params) {
+        let Some(info) = t.u.singleton_param_info(rd, &own_clauses) else { break };
+        rd = info;
+        if conforms_overridden(t, site, rd, rm) {
+            return true;
+        }
+    }
     let overridden = |t: &mut Typer<'_>, ty: TypeId| t.u.map_type(ty, &mut |u, x| u.overriding_member(x));
     let (rd, rm) = (overridden(t, rd), overridden(t, rm));
     let bound = |t: &Typer<'_>, ty: TypeId, upper: bool| {

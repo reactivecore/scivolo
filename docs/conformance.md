@@ -257,11 +257,11 @@ The VM fixes javalib bugs in its library overlay (`overlay/src`, ADR 0009).
 
 | Outcome | tests/programs | tests/pos | tests/neg |
 |---|---:|---:|---:|
-| passed | 266 | 2517 | 1296 |
-| differ | 31 | 111 | 0 |
+| passed | 267 | 2521 | 1296 |
+| differ | 30 | 108 | 0 |
 | warnings differ | 0 | 9 | 0 |
 | accepted (neg) | 0 | 0 | 2 |
-| unsupported | 1 | 388 | 0 |
+| unsupported | 1 | 387 | 0 |
 | crashed | 0 | 0 | 0 |
 | skipped | 44 | 351 | 496 |
 

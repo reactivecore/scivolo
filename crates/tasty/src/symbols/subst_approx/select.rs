@@ -55,12 +55,13 @@ impl Universe {
                 return Approx::Exact(alias);
             }
         }
-        Approx::Exact(self.intern_type(match node {
-            Type::Sym(_, s) => Type::Sym(Some(q), s),
+        let selected = match node {
+            Type::Sym(_, s) => Type::Sym(Some(q), self.val_on_prefix(q, s)),
             Type::TypeRef(_, n) => Type::TypeRef(q, n),
             Type::TermRef(_, n) => Type::TermRef(q, n),
             other => other,
-        }))
+        };
+        Approx::Exact(self.intern_type(selected))
     }
 
     /// What member `m` of `hi`, an upper prefix, stands for under every prefix below `hi` (dotty's

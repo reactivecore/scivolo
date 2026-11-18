@@ -1,7 +1,8 @@
 //! Rebuilding a type with parts replaced.
 
 use super::{ParamList, Type, TypeId};
-use crate::Universe;
+use crate::tags::PRIVATE;
+use crate::{Kind, SymbolId, Universe};
 
 /// The full-name prefix of capture checking's annotation classes (`retains`, `retainsByName`,
 /// `retainsCap`).
@@ -51,6 +52,17 @@ impl Universe {
         }
     }
 
+    /// Determines the value a reference to `s` means on its new prefix `q` (dotty's
+    /// `NamedType.withPrefix`): the member of that name of `q`, as the `val a` of an object
+    /// overriding `a` of its parent; a private value or one without such a member stays `s`.
+    pub fn val_on_prefix(&mut self, q: TypeId, s: SymbolId) -> SymbolId {
+        if self.symbol(s).kind != Kind::Val || self.symbol(s).flags.has(PRIVATE) {
+            return s;
+        }
+        let name = self.interned_name(s);
+        self.resolve(q, name, false).filter(|&m| self.symbol(m).kind == Kind::Val).unwrap_or(s)
+    }
+
     /// `t` with every part for which `f` gives a replacement replaced, outermost parts first;
     /// the other parts are rebuilt from their mapped children, an application whose constructor
     /// became a type lambda beta-reduced, one whose constructor became `Nothing` `Nothing`, a union
@@ -72,7 +84,10 @@ impl Universe {
         let mapped = match *self.ty(t) {
             Type::TypeRef(p, n) => Type::TypeRef(m(self, p), n),
             Type::TermRef(p, n) => Type::TermRef(m(self, p), n),
-            Type::Sym(Some(p), s) => Type::Sym(Some(m(self, p)), s),
+            Type::Sym(Some(p), s) => {
+                let q = m(self, p);
+                Type::Sym(Some(q), if q == p { s } else { self.val_on_prefix(q, s) })
+            }
             Type::This(c) => Type::This(m(self, c)),
             Type::Super(t, p) => {
                 let t = m(self, t);

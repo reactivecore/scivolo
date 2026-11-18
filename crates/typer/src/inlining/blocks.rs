@@ -119,7 +119,7 @@ impl Inlining<'_> {
             if !u.is_type_symbol(x) || !mentions_any(u, p, locals) {
                 return None;
             }
-            Some(u.dealias(part)).filter(|&d| d != part)
+            u.referenced_alias(part).filter(|&d| d != part)
         })
     }
 

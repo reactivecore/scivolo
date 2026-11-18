@@ -106,7 +106,7 @@ impl Universe {
             Some(a) => a,
             None => match self.alias_of(s) {
                 Some(a) => a,
-                None => return self.overriding_alias(prefix?, s),
+                None => return self.alias_through_prefix(prefix?, s),
             },
         };
         let owner = self.symbol(s).owner?;

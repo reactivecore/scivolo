@@ -96,6 +96,22 @@ fn overriding_results_of_parameter_singleton_types() {
 }
 
 #[test]
+fn f_bounded_wildcard_parameters_stay_abstract() {
+    check(
+        &[(
+            "trait Template[+T <: Template[T]]:
+  type Clone <: T { type Clone = Template.this.Clone }
+  val self: Clone
+def eat[F <: Template[F]](food: F): F = food.self.self
+val food: Template[?] = ???
+def test = eat(food.self)\n",
+            "adaptation",
+        )],
+        &[],
+    );
+}
+
+#[test]
 fn java_methods_implemented_with_object_for_any() {
     check(
         &[],

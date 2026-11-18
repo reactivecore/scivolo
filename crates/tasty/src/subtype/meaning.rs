@@ -36,9 +36,13 @@ pub fn refined_meaning(u: &mut Universe, prefix: TypeId, name: NameId) -> Option
 }
 
 /// What class type parameter `p` stands for through value `prefix`: the argument its type's base
-/// type gives it (dotty's `argForParam`); `None` for a `this` prefix.
+/// type gives it, a wildcard the alias it gives a variant `p` or else its bounds (dotty's
+/// `argDenot`); `None` for a `this` prefix.
 fn class_param_arg(u: &mut Universe, p: SymbolId, prefix: TypeId) -> Option<Meaning> {
     let arg = u.arg_for_param(prefix, p)?;
+    if let Some(alias) = u.wildcard_param_alias(prefix, p) {
+        return Some(Meaning::Alias(alias));
+    }
     Some(u.bounds(arg).map_or(Meaning::Alias(arg), |(lo, hi)| Meaning::Abstract(lo, hi)))
 }
 
