@@ -28,6 +28,19 @@ fn infos(u: &mut Universe, pkg: &str, class: &str, name: &str) -> Vec<String> {
 }
 
 #[test]
+fn members_resolve_through_an_applied_alias_of_a_refinement() {
+    let Some(mut u) = stdlib() else { return };
+    let member = members(&mut u, "scala.deriving", "Mirror", "MirroredLabel")[0];
+    let alias = members(&mut u, "scala.deriving", "Mirror$", "Of")[0];
+    let alias = u.intern_type(Type::Sym(None, alias));
+    let int = u.class_ref("scala.Int");
+    let prefix = u.intern_applied(alias, &[int]);
+    let name = u.interned_name(member);
+    let selected = u.intern_type(Type::TypeRef(prefix, name));
+    assert_eq!(u.resolve_ref(selected), Some(member));
+}
+
+#[test]
 fn declared_types_of_methods_values_and_types() {
     let Some(mut u) = stdlib() else { return };
     assert_eq!(

@@ -246,7 +246,8 @@ impl Gen<'_, '_> {
         let alloc = self.emit(Op::Classalloc { name: top, zone: None });
         let self_ty = self.top_ref(top);
         let unit = self.ty(Type::Unit);
-        let ty = self.ty(Type::Function(std::iter::once(self_ty).chain(params.iter().copied()).collect(), unit));
+        let ty =
+            self.ty(Type::Function(std::iter::once(self_ty).chain(params.iter().copied()).collect(), unit));
         let ctor = self.pool.member(top, &Sig::Ctor(params));
         let ptr = self.global_ptr(ctor);
         self.emit(Op::Call { ty, ptr, args: std::iter::once(alloc).chain(args).collect() });
@@ -286,6 +287,11 @@ impl Gen<'_, '_> {
     /// Adds method `name` of parameter types `params` and result `result` at the current position.
     fn push_define(&mut self, name: GlobalId, params: Vec<TypeId>, result: TypeId, body: Body) {
         let ty = self.ty(Type::Function(params, result));
-        self.defns.push(Defn { name, attrs: Vec::new(), pos: self.m.pos, kind: DefnKind::Define { ty, body } });
+        self.defns.push(Defn {
+            name,
+            attrs: Vec::new(),
+            pos: self.m.pos,
+            kind: DefnKind::Define { ty, body },
+        });
     }
 }

@@ -237,3 +237,5 @@ legacymatchtypes
 pkglazyval
 trackedparams
 localclassmirrors
+reflectiveinstantiation
+refinedendpoints
