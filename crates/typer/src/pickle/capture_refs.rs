@@ -3,23 +3,31 @@
 use rustc_hash::FxHashMap;
 use tasty::{Binder, NameId, SymbolId, Type, TypeId, Universe};
 
+/// What a capture set may refer to where it is pickled.
+pub struct CaptureScope<'a> {
+    /// The class whose `this` and enclosing classes' `this` the set may name.
+    pub own: Option<SymbolId>,
+    /// The definition whose parameters the set may name.
+    pub def: Option<SymbolId>,
+    /// The prefix and class of the super accessor's member pickled.
+    pub seen: Option<(TypeId, SymbolId)>,
+    /// The parameters of the methods pickled, by binder.
+    pub methods: &'a FxHashMap<Binder, Vec<SymbolId>>,
+    /// The parameter names of the method types being pickled, by binder.
+    pub types: &'a FxHashMap<Binder, Vec<NameId>>,
+    /// The definitions enclosing the tree.
+    pub open: &'a [SymbolId],
+}
+
 /// Determines whether capture-set annotation type `annot` refers to no `this`, parameter or
-/// definition other than a static one, a parameter of definition `def` or of a method type of
-/// `binders` (those of methods pickled, those of the types being pickled), a member or local of a
-/// definition among `open` or the `this` of a
-/// class among them (those enclosing the tree: `case it: (It[E]^{it})` in `def from[E](it: It[E]^)`,
-/// the flow cast of `var cur: It[A]^{from} | Null`), neither in a super accessor, the `this` of
-/// class `own` or of a class enclosing it, which mapping a type that it annotates leaves alone; of
-/// an enclosing class only if seeing it from `seen`, the prefix and class of a super accessor's
-/// member, keeps it (`other.Views` of an inner trait `Views`).
-pub fn is_static_capture_set(
-    u: &mut Universe,
-    annot: TypeId,
-    (own, def): (Option<SymbolId>, Option<SymbolId>),
-    seen: Option<(TypeId, SymbolId)>,
-    (methods, types): (&FxHashMap<Binder, Vec<SymbolId>>, &FxHashMap<Binder, Vec<NameId>>),
-    open: &[SymbolId],
-) -> bool {
+/// definition other than a static one, a parameter of `scope.def` or of a method type of the
+/// scope, a member or local of a definition among `scope.open` or the `this` of a class among them
+/// (`case it: (It[E]^{it})` in `def from[E](it: It[E]^)`, the flow cast of
+/// `var cur: It[A]^{from} | Null`), neither in a super accessor, the `this` of `scope.own` or of a
+/// class enclosing it, which mapping a type that it annotates leaves alone; of an enclosing class
+/// only if seeing it from `scope.seen` keeps it (`other.Views` of an inner trait `Views`).
+pub fn is_static_capture_set(u: &mut Universe, annot: TypeId, scope: &CaptureScope<'_>) -> bool {
+    let &CaptureScope { own, def, seen, methods, types, open } = scope;
     let open = if seen.is_some() { &[] } else { open };
     let local = |s: SymbolId| open.contains(&s);
     let mut is_static = true;

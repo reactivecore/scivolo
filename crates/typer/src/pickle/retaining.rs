@@ -5,7 +5,7 @@
 //! Capture-set annotations (`@retains`) in pickled types (dotty's `CompactAnnotation` case of
 //! `pickleNewType`), and emptied (`CleanupRetains`).
 
-use super::capture_refs::is_static_capture_set;
+use super::capture_refs::{CaptureScope, is_static_capture_set};
 use super::{Refusal, TreePickler};
 use crate::defn::type_ref;
 use crate::tpd::{TNodeId, Tree};
@@ -28,9 +28,15 @@ impl TreePickler<'_> {
         }
         let own = self.type_tree.and_then(|t| self.capture_classes.get(&t).copied()).or(self.accessor_class);
         let def = self.type_tree.and_then(|t| self.capture_defs.get(&t).copied());
-        let open = &self.open_defs;
-        let binders = (&self.method_binders, &self.params);
-        if !is_static_capture_set(self.u, annot, (own, def), self.accessor_seen, binders, open) {
+        let scope = CaptureScope {
+            own,
+            def,
+            seen: self.accessor_seen,
+            methods: &self.method_binders,
+            types: &self.params,
+            open: &self.open_defs,
+        };
+        if !is_static_capture_set(self.u, annot, &scope) {
             return Some(Err(
                 "an annotated type of a capture set that refers to other than static definitions",
             ));
@@ -118,8 +124,15 @@ impl TreePickler<'_> {
         });
         let class =
             std::iter::successors(Some(sym), |&s| self.u.symbol(s).owner).find(|&s| self.u.is_class(s));
-        let binders = (&self.method_binders, &self.params);
-        if captures.iter().any(|&c| !is_static_capture_set(self.u, c, (class, None), None, binders, &[])) {
+        let scope = CaptureScope {
+            own: class,
+            def: None,
+            seen: None,
+            methods: &self.method_binders,
+            types: &self.params,
+            open: &[],
+        };
+        if captures.iter().any(|&c| !is_static_capture_set(self.u, c, &scope)) {
             return Err(
                 "a synthetic type tree of a capture set that refers to other than static definitions",
             );
