@@ -85,7 +85,6 @@ impl Universe {
     pub fn set_parents(&mut self, c: SymbolId, parents: Vec<TypeId>) {
         self.parents.insert(c, parents);
         self.linearizations.clear();
-        self.disagreeing_bases.clear();
         self.changed();
     }
 

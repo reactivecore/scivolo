@@ -49,6 +49,7 @@ mod runtime_stubs;
 mod same_run;
 mod seen;
 mod selves;
+mod subst_approx;
 mod symbol;
 mod table;
 mod type_params;
@@ -116,8 +117,6 @@ pub struct Universe {
     member_infos: context_memo::ContextMemo<(TypeId, SymbolId), TypeId>,
     /// The type parameters of each class and method that declares some, in order.
     declared_type_params: FxHashMap<SymbolId, Vec<SymbolId>>,
-    /// Per class and base class, whether the class's parents give the base different types.
-    disagreeing_bases: FxHashMap<(SymbolId, SymbolId), bool>,
     /// The abstract methods and values among the symbols defined outside TASTy.
     deferred: FxHashSet<SymbolId>,
     /// The classes defined outside TASTy that have initialization code.
@@ -199,6 +198,11 @@ pub struct Universe {
     resolving: u32,
     /// The intersections and unions whose base types `base_type` is merging, with the base class.
     merging_bases: FxHashSet<(TypeId, SymbolId)>,
+    /// How many base type computations were cut short: by the same merge in progress or by
+    /// `base_types::MAX_DEPTH`.
+    base_type_cuts: u64,
+    /// The base class of a cycle through the parents of a source class, until it is reported.
+    cyclic_base_class: Option<SymbolId>,
     defn: Defn,
     /// How many binders `fresh_binder` has made.
     binders: u32,

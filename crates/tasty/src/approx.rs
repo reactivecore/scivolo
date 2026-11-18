@@ -2,7 +2,7 @@
 //   compiler/src/dotty/tools/dotc/core/Types.scala
 //! Approximations of mapped types by ranges (dotty's `ApproximatingTypeMap`).
 
-use tasty::{ANY, NOTHING, NameId, Type, TypeId, Universe};
+use crate::{ANY, NOTHING, NameId, Type, TypeId, Universe};
 
 /// A mapped type, or the range of types between a lower and an upper bound.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -133,6 +133,34 @@ pub fn bounds(u: &mut Universe, lo: Approx, hi: Approx, v: i8) -> Approx {
     }
     let narrow = u.intern_type(Type::Bounds(lo.hi(), hi.lo()));
     range(u, Approx::Exact(narrow), Approx::Exact(wide), v)
+}
+
+/// Method, polymorphic or lambda type `tpe` with parameter types `params` and result `result`
+/// (dotty's `derivedLambdaType`); any other `tpe` as it is.
+pub fn lambda(u: &mut Universe, tpe: TypeId, params: &[Approx], result: Approx, v: i8) -> Approx {
+    let node = *u.ty(tpe);
+    let (Type::Method { params: old, .. }
+    | Type::Poly { params: old, .. }
+    | Type::Lambda { params: old, .. }) = node
+    else {
+        return Approx::Exact(tpe);
+    };
+    let names: Vec<NameId> = u.params_of(old).iter().map(|&(n, _)| n).collect();
+    let parts: Vec<Approx> = params.iter().copied().chain([result]).collect();
+    let flip: Vec<bool> = (0..parts.len()).map(|i| i < params.len()).collect();
+    derived(u, &parts, &flip, v, &mut |u, p| {
+        let (ps, r) = p.split_at(names.len());
+        let ps: Vec<_> = names.iter().zip(ps).map(|(&n, &t)| (n, t)).collect();
+        let ps = u.intern_params(&ps);
+        u.intern_type(match node {
+            Type::Method { binder, implicit, contextual, .. } => {
+                Type::Method { binder, params: ps, result: r[0], implicit, contextual }
+            }
+            Type::Poly { binder, .. } => Type::Poly { binder, params: ps, result: r[0] },
+            Type::Lambda { binder, .. } => Type::Lambda { binder, params: ps, result: r[0] },
+            other => other,
+        })
+    })
 }
 
 /// Type alias `= a` (dotty's `derivedAlias`).

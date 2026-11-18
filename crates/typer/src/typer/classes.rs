@@ -134,6 +134,7 @@ impl Typer<'_> {
         self.check_overrides(cls, self.ast.span(id));
         self.check_base_types(cls, name_span);
         self.check_parameterized_traits(cls, name_span);
+        self.report_cyclic_base_type(name_span);
         let parents = self.tpd.list(&parents);
         let body = self.tpd.list(&body);
         let template = T::Template { constr, parents, self_, body };
