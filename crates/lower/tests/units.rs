@@ -309,6 +309,20 @@ fn extern_vararg_declarations() {
 }
 
 #[test]
+fn replacing_a_class_of_package_scala_outside_the_standard_library_keeps_its_traits_uninitialized() {
+    let Some(mut jars) = jars() else { return };
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    jars.push(root.join("ref/libs/test-interface_native0.5_3-0.5.12.jar"));
+    let replacing = SourceFile::new(
+        "annotation.scala",
+        "package scala.scalajs.reflect\npackage object annotation { type T = Int }",
+    );
+    let case_class = SourceFile::new("c.scala", "case class C(x: Int)");
+    let dump = dump(&jars, &[replacing, case_class], "C");
+    assert!(!dump.contains("@scala.Product::$init$"), "{dump}");
+}
+
+#[test]
 fn library_static_members_and_annotated_switch_selectors() {
     let Some(mut jars) = jars() else { return };
     jars.push(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../libs/jdk-stubs.jar"));
