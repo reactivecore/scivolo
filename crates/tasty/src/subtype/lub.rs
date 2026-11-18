@@ -42,10 +42,10 @@ impl Cmp<'_> {
         if self.is_top(b, a) || self.is_bottom(a) {
             return b;
         }
-        if self.is_stable(a) && self.recur_frozen(a, b) {
+        if self.is_aliased_singleton(a) && self.recur_frozen(a, b) {
             return b;
         }
-        if self.is_stable(b) && self.recur_frozen(b, a) {
+        if self.is_aliased_singleton(b) && self.recur_frozen(b, a) {
             return a;
         }
         if let Some(joined) = self.atoms_lub(a, b, soft) {
@@ -62,6 +62,13 @@ impl Cmp<'_> {
             (Some(x), None) | (None, Some(x)) => x,
             (None, None) => a,
         }
+    }
+
+    /// Whether `t` is, after dealiasing, a reference to a term, a `this` or a constant, stable or
+    /// not (dotty's `isSingleton`).
+    fn is_aliased_singleton(&mut self, t: TypeId) -> bool {
+        let t = self.u.dealias(t);
+        self.is_singleton(t)
     }
 
     /// `t` widened if it refers to a variable, method or by-name parameter (dotty's

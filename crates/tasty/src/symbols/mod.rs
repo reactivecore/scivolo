@@ -49,6 +49,7 @@ mod runtime_stubs;
 mod same_run;
 mod seen;
 mod selves;
+mod subst_approx;
 mod symbol;
 mod table;
 mod type_params;
@@ -116,8 +117,6 @@ pub struct Universe {
     member_infos: context_memo::ContextMemo<(TypeId, SymbolId), TypeId>,
     /// The type parameters of each class and method that declares some, in order.
     declared_type_params: FxHashMap<SymbolId, Vec<SymbolId>>,
-    /// Per class and base class, whether the class's parents give the base different types.
-    disagreeing_bases: FxHashMap<(SymbolId, SymbolId), bool>,
     /// The abstract methods and values among the symbols defined outside TASTy.
     deferred: FxHashSet<SymbolId>,
     /// The classes defined outside TASTy that have initialization code.
@@ -133,6 +132,10 @@ pub struct Universe {
     java_stubs: FxHashSet<SymbolId>,
     /// The JDK whose class files give the JDK classes the library lacks, if one is used.
     jdk: Option<classfile::Jdk>,
+    /// The JDK class file of each library class `jdk_class_of` was asked for, if it has one.
+    jdk_classes: FxHashMap<SymbolId, Option<std::rc::Rc<classfile::ClassInfo>>>,
+    /// The packages and names no class file of the JDK or the jars gives a declaration for.
+    class_file_misses: FxHashSet<(SymbolId, crate::NameId)>,
     /// The Java classes of the jars' class files, by internal name, if they are used.
     java_classes: Option<classfiles::JavaClasses>,
     /// The classes, objects and objects' classes entered from class files.
@@ -175,6 +178,12 @@ pub struct Universe {
     /// The symbol whose definition comparisons are made in (dotty's `ctx.owner`), if known.
     comparison_owner: Option<SymbolId>,
     null_mode: crate::NullMode,
+    /// Whether comparisons check a type argument's bounds or a self type.
+    checks_bounds_or_self_type: bool,
+    /// How many array types `erase` is inside of.
+    pub erased_array_depth: u32,
+    /// Whether `erase` met an array type of itself.
+    pub erasure_exhausted: bool,
     /// How many comparisons succeeded through a reference lifted to an object's `this`.
     opaque_lifts: u64,
     /// Whether the sources compiled are javalib's, whose TASTy classes are then Scala classes.
@@ -189,6 +198,11 @@ pub struct Universe {
     resolving: u32,
     /// The intersections and unions whose base types `base_type` is merging, with the base class.
     merging_bases: FxHashSet<(TypeId, SymbolId)>,
+    /// How many base type computations were cut short: by the same merge in progress or by
+    /// `base_types::MAX_DEPTH`.
+    base_type_cuts: u64,
+    /// The base class of a cycle through the parents of a source class, until it is reported.
+    cyclic_base_class: Option<SymbolId>,
     defn: Defn,
     /// How many binders `fresh_binder` has made.
     binders: u32,

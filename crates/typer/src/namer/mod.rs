@@ -31,6 +31,7 @@ mod java_source_annotations;
 mod module_vals;
 mod non_cyclic;
 mod params;
+mod private_leaks;
 mod provisional;
 mod replaced_members;
 mod split_companions;
@@ -181,6 +182,9 @@ impl Typer<'_> {
             _ => ctx,
         };
         self.syms.completions.insert(sym, Completion::Pending { tree, ctx: completion_ctx });
+        if in_package && tasty::is_package_object_name(&text) {
+            self.syms.package_object_defs.entry(ctx.owner).or_default().push(sym);
+        }
         if self.syms.by_tree.insert(tree, sym).is_some() {
             self.unsupported(tree, "definition tree shared by two definitions");
         }

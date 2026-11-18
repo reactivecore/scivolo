@@ -153,6 +153,10 @@ impl Cmp<'_> {
                 reduced != a && self.recur(reduced, b)
             }
             Type::Applied(..) => self.compare_curried1(a, b, tycon, args),
+            Type::Param(..) => self.compared_param_bounds(tycon).is_some_and(|(_, hi)| {
+                let upper = self.apply(hi, args);
+                upper != a && self.recur(upper, b)
+            }),
             _ => false,
         }
     }

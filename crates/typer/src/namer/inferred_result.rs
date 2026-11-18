@@ -6,7 +6,7 @@
 use crate::ctx::Ctx;
 use crate::typer::deskolemize::deskolemized;
 use crate::typer::{Pt, Typer, Widen};
-use syntax::ast::{NodeId, Tree};
+use syntax::ast::{NodeId, Span, Tree};
 use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
@@ -16,6 +16,52 @@ impl Typer<'_> {
             return self.value_type_ahead(tpt, ctx);
         }
         let Some(rhs) = rhs else { return self.u.intern_type(Type::Error) };
+        let inferred = self.inferred_type(sym, rhs, ctx);
+        self.check_members_ok(sym, inferred)
+    }
+
+    /// Reports the members that the inferred type `tpe` of `sym` selects on a path whose class
+    /// lacks them, as `a.A` for `a: Nothing`, which leaves an error type (dotty's
+    /// `checkMembersOK`). Paths of refined, union and intersection types are not checked.
+    fn check_members_ok(&mut self, sym: SymbolId, tpe: TypeId) -> TypeId {
+        let mut refs = Vec::new();
+        self.u.map_type(tpe, &mut |u, x| match *u.ty(x) {
+            Type::Sym(Some(_), s) if u.is_static_symbol(s) => Some(x),
+            Type::Sym(Some(p), s) => {
+                refs.push((x, p, s));
+                None
+            }
+            _ => None,
+        });
+        for (x, prefix, s) in refs {
+            if self.u.is_value_path(prefix) && !self.path_has_member(prefix, s) {
+                let (shown, whole) = (self.u.show_user(x), self.u.show_user(tpe));
+                let span = self.syms.def_trees.get(&sym).map_or(Span::NONE, |&d| self.ast.span(d));
+                self.error_at(span, format!("{shown} is not defined in inferred type {whole}"));
+                return self.u.intern_type(Type::Error);
+            }
+        }
+        tpe
+    }
+
+    /// Whether the class of path `prefix`, if its type is a plain class type, derives from the
+    /// owner of `member`.
+    fn path_has_member(&mut self, prefix: TypeId, member: SymbolId) -> bool {
+        let widened = self.u.widen(prefix);
+        let widened = self.u.dealias(widened);
+        let plain = match *self.u.ty(widened) {
+            Type::Applied(tycon, _) => self.u.sym_of(tycon),
+            _ => self.u.sym_of(widened),
+        };
+        let (Some(class), Some(owner)) = (plain.filter(|&c| self.u.is_class(c)), self.u.symbol(member).owner)
+        else {
+            return true;
+        };
+        self.u.derives_from(class, owner)
+    }
+
+    /// The type of `sym` inferred from the type it overrides or from right-hand side `rhs`, widened.
+    fn inferred_type(&mut self, sym: SymbolId, rhs: NodeId, ctx: Ctx) -> TypeId {
         let inherited = self.inherited_result(sym);
         match inherited {
             Some(i) if !self.keeps_rhs_type(sym) => return i,

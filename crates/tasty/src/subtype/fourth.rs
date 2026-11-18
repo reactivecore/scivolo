@@ -59,6 +59,7 @@ impl Cmp<'_> {
                 let n = self.u.params_of(params).len();
                 self.lambda_below(binder, n, result, b)
             }
+            Type::Param(..) => self.compared_param_bounds(a).is_some_and(|(_, hi)| self.recur(hi, b)),
             _ => false,
         }
     }

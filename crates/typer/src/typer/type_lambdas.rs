@@ -36,6 +36,7 @@ impl Typer<'_> {
                 flags.or(f::TYPE_PARAM).to_type_flags(),
             );
             self.syms.by_tree.insert(p, s);
+            self.kind_projector_qmark(p);
             self.levels.enter(level, &text, s);
             syms.push(s);
         }

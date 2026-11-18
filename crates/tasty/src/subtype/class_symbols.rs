@@ -40,6 +40,16 @@ impl Universe {
 }
 
 impl Cmp<'_> {
+    /// Determines the instance of class `c` that `a`, widened, derives; none for `=> T` (dotty's
+    /// `nonExprBaseType`).
+    pub fn non_expr_base_type(&mut self, a: TypeId, c: SymbolId) -> Option<TypeId> {
+        if self.u.by_name(a).is_some() {
+            return None;
+        }
+        let widened = self.u.widen(a);
+        self.u.base_type(widened, c)
+    }
+
     /// The least set of classes `t` is below (dotty's `classSymbols`).
     pub fn class_symbols(&mut self, t: TypeId) -> Vec<SymbolId> {
         self.class_symbols_within(t, MAX_DEPTH)

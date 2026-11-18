@@ -75,14 +75,32 @@ impl Universe {
         if !found.is_empty() {
             return Ok(found);
         }
-        let jdk = self.jdk_decl(owner, name);
-        Ok(if jdk.is_empty() { self.classpath_decl(owner, name) } else { jdk })
+        Ok(self.class_file_decl(owner, name))
+    }
+
+    /// The declarations named `name` that package `pkg` gets from the JDK or a jar's class files.
+    /// A name without any is remembered until the package loses a declaration, unless looking
+    /// it up counted a refused class.
+    fn class_file_decl(&mut self, pkg: SymbolId, name: NameId) -> Vec<SymbolId> {
+        if self.class_file_misses.contains(&(pkg, name)) {
+            return Vec::new();
+        }
+        let refused = self.refused_lookups();
+        let jdk = self.jdk_decl(pkg, name);
+        let found = if jdk.is_empty() { self.classpath_decl(pkg, name) } else { jdk };
+        if found.is_empty() && self.refused_lookups() == refused {
+            self.class_file_misses.insert((pkg, name));
+        }
+        found
     }
 
     /// Makes the declarations of class `owner` named `name` those of its JDK class file (ADR
     /// 0118): hides the library's that the JDK lacks, then enters the JDK's where none is left,
-    /// members or else a nested class.
+    /// members or else a nested class. Nothing to do for a class without a JDK class file.
     fn jdk_view(&mut self, owner: SymbolId, name: NameId) {
+        if self.jdk_class_of(owner).is_none() {
+            return;
+        }
         let found = self.named(owner, name).to_vec();
         let lacking = self.jdk_lacking(owner, &found);
         lacking.iter().for_each(|&m| self.unenter(m));

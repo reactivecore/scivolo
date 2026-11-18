@@ -7,55 +7,9 @@
 
 use super::{Inlining, Unsupported};
 use crate::tpd::{TNodeId, Tree as T};
-use crate::typer::seen_from::normalized;
-use crate::typer::stability::is_stable_path;
 use names::nme;
 use syntax::ast::{Span, TName};
-use tasty::{Binder, SymbolId, Type, TypeId, Universe};
-
-/// The skolem standing for each argument, of types `args`, in type `actual` of an application:
-/// the one of the argument's widened type, normalized or not, checked by substituting them for parameters `params`
-/// of binder `binder` in the method's result type `result`, as `applied_result` does; `None` if
-/// that does not give a type equivalent to `actual`.
-pub fn call_skolems(
-    u: &mut Universe,
-    (result, actual): (TypeId, TypeId),
-    (binder, params): (Binder, &[SymbolId]),
-    args: &[TypeId],
-) -> Option<Vec<Option<TypeId>>> {
-    let mut skolems = Vec::new();
-    u.map_type(actual, &mut |u, part| {
-        if matches!(u.ty(part), Type::Skolem(..)) && !skolems.contains(&part) {
-            skolems.push(part);
-        }
-        None
-    });
-    let mut chosen = Vec::new();
-    for &a in args {
-        let w = u.widen(a);
-        let n = normalized(u, w);
-        let found: Vec<TypeId> = skolems
-            .iter()
-            .copied()
-            .filter(|&s| matches!(*u.ty(s), Type::Skolem(_, i) if i == w || i == n))
-            .collect();
-        chosen.push(match found[..] {
-            [s] if !is_stable_path(u, a) => Some(s),
-            _ => None,
-        });
-    }
-    let substituted = u.map_type(result, &mut |u, part| {
-        let i = match *u.ty(part) {
-            Type::Param(b, i) if b == binder => i as usize,
-            Type::Sym(None, s) => params.iter().position(|&p| p == s)?,
-            _ => return None,
-        };
-        chosen.get(i).copied().flatten().or_else(|| args.get(i).copied())
-    });
-    let same =
-        substituted == actual || u.is_subtype(substituted, actual) && u.is_subtype(actual, substituted);
-    same.then_some(chosen)
-}
+use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Inlining<'_> {
     /// `expr.$asInstanceOf$[to]`, at `expr`'s span made synthetic (dotty's `cast`).
@@ -118,23 +72,43 @@ impl Inlining<'_> {
 
     /// Whether the type of clause `fun(args)` changes when the type variables of its inferred
     /// type arguments are instantiated (dotty's `TypedTreeCopier.Apply` retyping it).
-    pub fn clause_retyped(&self, fun: TNodeId, args: &[TNodeId]) -> bool {
+    pub fn clause_retyped(&mut self, fun: TNodeId, args: &[TNodeId]) -> bool {
         self.holds_type_vars(fun) || args.iter().any(|&a| self.holds_type_vars(a))
     }
 
     /// Whether the type of `t` holds the type variables of inferred type arguments: that of a
-    /// type application to them, and of a method part of one, which dotty does not simplify.
-    fn holds_type_vars(&self, t: TNodeId) -> bool {
+    /// type application to them, of a method part of one, which dotty does not simplify, and of
+    /// a call of one whose result depends on its parameters, which dotty assigns anew.
+    fn holds_type_vars(&mut self, t: TNodeId) -> bool {
         let unapplied = matches!(self.u.ty(self.tpd.tpe(t)), Type::Method { .. } | Type::Poly { .. });
         match *self.tpd.tree(t) {
             T::TypeApply { fun, args } => {
                 self.tpd.items(args).iter().any(|&a| self.is_inferred(a))
                     || unapplied && self.holds_type_vars(fun)
             }
-            T::Apply { fun, .. } => unapplied && self.holds_type_vars(fun),
+            T::Apply { fun, .. } => (unapplied || self.result_depends(fun)) && self.holds_type_vars(fun),
             T::Select { qualifier, .. } => self.holds_type_vars(qualifier),
             _ => false,
         }
+    }
+
+    /// Whether the result of method reference `fun` refers to the parameters of its first clause.
+    fn result_depends(&mut self, fun: TNodeId) -> bool {
+        let Type::Method { binder, result, .. } = *self.u.ty(self.tpd.tpe(fun)) else { return false };
+        let method = match *self.tpd.tree(fun) {
+            T::TypeApply { fun, .. } => self.tpd.sym(fun),
+            _ => self.tpd.sym(fun),
+        };
+        let mut depends = false;
+        self.u.map_type(result, &mut |u, part| {
+            depends |= match *u.ty(part) {
+                Type::Param(b, _) => b == binder,
+                Type::Sym(None, s) => u.symbol(s).kind == Kind::Param && u.symbol(s).owner == method,
+                _ => false,
+            };
+            None
+        });
+        depends
     }
 
     fn is_inferred(&self, t: TNodeId) -> bool {

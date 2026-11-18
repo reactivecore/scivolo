@@ -14,6 +14,11 @@ impl Universe {
         std::mem::replace(&mut self.comparison_owner, owner)
     }
 
+    /// Returns the symbol whose definition comparisons are made in.
+    pub fn comparison_owner(&self) -> Option<SymbolId> {
+        self.comparison_owner
+    }
+
     /// Sets how comparisons treat `Null`; the previous mode.
     pub fn set_null_mode(&mut self, mode: crate::NullMode) -> crate::NullMode {
         std::mem::replace(&mut self.null_mode, mode)
@@ -21,6 +26,17 @@ impl Universe {
 
     pub fn null_mode(&self) -> crate::NullMode {
         self.null_mode
+    }
+
+    /// Sets whether comparisons check a type argument's bounds or a self type (dotty's
+    /// `Mode.CheckBoundsOrSelfType`); the previous setting.
+    pub fn set_checks_bounds_or_self_type(&mut self, on: bool) -> bool {
+        std::mem::replace(&mut self.checks_bounds_or_self_type, on)
+    }
+
+    /// Tells whether comparisons check a type argument's bounds or a self type.
+    pub fn checks_bounds_or_self_type(&self) -> bool {
+        self.checks_bounds_or_self_type
     }
 
     /// How many comparisons succeeded through a lifted reference (dotty's `opaquesUsed`).
@@ -105,18 +121,6 @@ impl Universe {
             }
             if !self.is_module_class(o) {
                 return false;
-            }
-            owner = self.symbol(o).owner;
-        }
-        false
-    }
-
-    /// Whether a class enclosing `s` declares opaque types defined outside TASTy.
-    pub fn within_opaques(&self, s: SymbolId) -> bool {
-        let mut owner = self.symbol(s).owner;
-        while let Some(o) = owner {
-            if self.has_opaques(o) {
-                return true;
             }
             owner = self.symbol(o).owner;
         }

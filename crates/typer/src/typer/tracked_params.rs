@@ -7,7 +7,6 @@
 use super::Typer;
 use crate::ctx::Ctx;
 use crate::tpd::TNodeId;
-use names::nme;
 use syntax::ast::flags as f;
 use syntax::ast::{Attrs, List, Tree};
 use syntax::config::Features;
@@ -18,48 +17,85 @@ use tasty::{Binder, Kind, ParamList, SymbolId, Type, TypeId};
 pub type Clauses = Vec<(Binder, ParamList)>;
 
 impl Typer<'_> {
-    /// Refuses the context bound evidence parameters of method `sym`, among `clauses`, that dotty
-    /// makes tracked under `experimental.modularity` (dotty's `addTrackedIfNeeded` and
-    /// `setTrackedConstrParam`): those of a constructor, of a method of a class or of a given
-    /// method whose type has abstract type members, as `[S: Coll]` with `type Pos` in `Coll`.
-    pub fn check_no_inferred_tracked(&mut self, sym: SymbolId, clauses: &[Vec<SymbolId>], ctx: Ctx) {
-        let owner = self.u.symbol(sym).owner;
-        let given = self.syms.flags.get(&sym).is_some_and(|fl| fl.is(f::GIVEN));
-        if !given && !owner.is_some_and(|o| self.u.is_class(o)) {
+    /// Makes tracked, under `experimental.modularity`, the term parameters of method `sym` among
+    /// `clauses` whose types have abstract type members: context bound evidence, as `[S: Coll]`
+    /// with `type Pos` in `Coll`, and parameters with a public accessor, in a method of a class or
+    /// nested in a given method. Their accessors become public and tracked; a parameter with a
+    /// mutable accessor stays (dotty's `addTrackedIfNeeded` and `needsTracked`).
+    pub fn add_tracked_if_needed(&mut self, sym: SymbolId, clauses: &[Vec<SymbolId>], ctx: Ctx) {
+        let Some(owner) = self.u.symbol(sym).owner else { return };
+        let given_method = f::GIVEN.or(f::METHOD);
+        let in_given = self.syms.flags.get(&owner).is_some_and(|fl| fl.is_all_of(given_method));
+        let in_class = self.u.is_class(owner);
+        if !in_class && !in_given
+            || !self.feature_enabled(Features::MODULARITY, "experimental.modularity", ctx)
+        {
             return;
         }
         for &p in clauses.iter().flatten() {
             let Some(&tree) = self.syms.param_trees.get(&p) else { continue };
-            if self.u.is_type_symbol(p)
-                || self.syms.flags.get(&p).is_some_and(|fl| fl.is(f::TRACKED))
-                || !self.ast.attrs(tree).contains(Attrs::EVIDENCE) && !self.has_public_accessor(sym, p)
+            if self.u.is_type_symbol(p) || self.flags_of(p).is(f::TRACKED) {
+                continue;
+            }
+            let accessors = self.param_accessors(owner, in_class, p);
+            let evidence = self.ast.attrs(tree).contains(Attrs::EVIDENCE);
+            if accessors.iter().any(|&a| self.flags_of(a).is(f::MUTABLE))
+                || !evidence && accessors.iter().all(|&a| self.flags_of(a).is_one_of(f::PRIVATE_LOCAL))
             {
                 continue;
             }
             let info = self.method_param_type(p);
-            if self.has_abstract_type_members(info)
-                && self.feature_enabled(Features::MODULARITY, "experimental.modularity", ctx)
-            {
-                self.unsupported(tree, "context bound parameter dotty infers as tracked");
-                return;
+            if !self.has_abstract_type_members(info) {
+                continue;
+            }
+            self.syms.set_flags(self.u, p, self.flags_of(p).or(f::TRACKED));
+            for a in accessors {
+                let flags = self.flags_of(a).and_not(f::PRIVATE_LOCAL).or(f::TRACKED);
+                self.syms.set_flags(self.u, a, flags);
             }
         }
     }
 
-    /// Whether parameter `p` of constructor `ctor` has a public, immutable accessor.
-    fn has_public_accessor(&mut self, ctor: SymbolId, p: SymbolId) -> bool {
-        let Some(class) = self.u.symbol(ctor).owner.filter(|_| self.u.symbol(ctor).name == nme::CONSTRUCTOR)
-        else {
-            return false;
-        };
-        let name = self.u.symbol(p).name.clone();
-        let accessors = self.u.decls_named(class, &name);
-        accessors.iter().any(|a| {
-            self.syms
-                .flags
-                .get(a)
-                .is_some_and(|fl| fl.is(f::PARAM_ACCESSOR) && !fl.is_one_of(f::PRIVATE_LOCAL.or(f::MUTABLE)))
+    /// Result type `result` of method `sym`, refined by `{ val p: p.type }` for each tracked
+    /// parameter `p` among `clauses` if `sym` is a given method under `experimental.modularity`
+    /// (dotty's `wrapRefinedMethType`).
+    pub fn given_result_refined(
+        &mut self,
+        sym: SymbolId,
+        clauses: &[Vec<SymbolId>],
+        result: TypeId,
+        ctx: Ctx,
+    ) -> TypeId {
+        if !self.flags_of(sym).is_all_of(f::GIVEN.or(f::METHOD))
+            || !self.feature_enabled(Features::MODULARITY, "experimental.modularity", ctx)
+        {
+            return result;
+        }
+        clauses.iter().flatten().fold(result, |r, &p| {
+            if !self.flags_of(p).is(f::TRACKED) {
+                return r;
+            }
+            let name = self.u.interned_name(p);
+            let param = self.u.intern_type(Type::Sym(None, p));
+            self.u.intern_type(Type::Refined(r, name, param))
         })
+    }
+
+    /// The dotty flags of script symbol `s`.
+    fn flags_of(&self, s: SymbolId) -> f::FlagSet {
+        self.syms.flags.get(&s).copied().unwrap_or(f::EMPTY)
+    }
+
+    /// The parameter accessors of class `owner` named as `p`; outside a class, `p` itself (dotty's
+    /// `maybeParamAccessors`).
+    fn param_accessors(&mut self, owner: SymbolId, in_class: bool, p: SymbolId) -> Vec<SymbolId> {
+        if !in_class {
+            return vec![p];
+        }
+        let name = self.u.symbol(p).name.clone();
+        let mut accessors = self.u.decls_named(owner, &name);
+        accessors.retain(|&a| self.flags_of(a).is(f::PARAM_ACCESSOR));
+        accessors
     }
 
     /// Whether `qual` is a term parameter of a method with type parameters whose type refines
@@ -147,9 +183,6 @@ impl Typer<'_> {
         binder: Binder,
         params: ParamList,
     ) -> TypeId {
-        if !self.u.symbol(owner).flags.has(TRACKED) {
-            return class;
-        }
         let names: Vec<_> = self.u.params_of(params).iter().map(|&(n, _)| n).collect();
         names.into_iter().enumerate().fold(class, |class, (i, name)| {
             let decls = self.u.decl(owner, name).unwrap_or_default();

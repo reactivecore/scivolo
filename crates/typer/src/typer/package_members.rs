@@ -14,15 +14,7 @@ impl Typer<'_> {
     /// ones the unit defines among them completed first; of package `scala` its own types or
     /// terms if it has some (dotty's `computeMembersNamed`).
     pub fn package_members(&mut self, p: SymbolId, name: &str) -> Vec<SymbolId> {
-        let pending = |t: &Self, o| matches!(t.syms.completions.get(&o), Some(Completion::Pending { .. }));
-        let decls = self.u.symbol(p).decls.iter().copied();
-        let named: Vec<SymbolId> =
-            decls.filter(|&d| pending(self, d) && self.is_named_package_object(d)).collect();
-        for o in named {
-            if pending(self, o) {
-                self.complete(o);
-            }
-        }
+        self.complete_package_objects(p);
         let mut members = self.u.decls_named(p, name);
         let scala = p == self.defn.scala;
         let own: Vec<bool> = members.iter().map(|&m| self.u.is_type_symbol(m)).collect();
@@ -42,6 +34,23 @@ impl Typer<'_> {
             }
         }
         members
+    }
+
+    /// Completes the package objects the unit defines in package `p`, in declaration order.
+    fn complete_package_objects(&mut self, p: SymbolId) {
+        let pending = |t: &Self, o| matches!(t.syms.completions.get(&o), Some(Completion::Pending { .. }));
+        let defs = self.syms.package_object_defs.get(&p).into_iter().flatten();
+        if !defs.into_iter().any(|&o| pending(self, o)) {
+            return;
+        }
+        let decls = self.u.symbol(p).decls.iter().copied();
+        let named: Vec<SymbolId> =
+            decls.filter(|&d| pending(self, d) && self.is_named_package_object(d)).collect();
+        for o in named {
+            if pending(self, o) {
+                self.complete(o);
+            }
+        }
     }
 
     /// Whether member `m` of package object `o` is one its package has: not private, and not

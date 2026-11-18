@@ -99,6 +99,9 @@ impl Universe {
         {
             return Some(a);
         }
+        if prefix.is_some_and(|p| self.is_hidden_private(s, p)) {
+            return None;
+        }
         let alias = match self.visible_opaque_alias(s, prefix) {
             Some(a) => a,
             None => match self.alias_of(s) {

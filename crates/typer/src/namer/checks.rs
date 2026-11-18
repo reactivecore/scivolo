@@ -7,7 +7,10 @@ use crate::ctx::Ctx;
 use crate::typer::Typer;
 use syntax::ast::NodeId;
 use syntax::ast::flags::{self as f, FlagSet};
-use tasty::{Kind, SymbolId};
+use tasty::{Kind, SymbolId, Type, TypeId};
+
+/// The full name of the class of arrays.
+const ARRAY: &str = "scala.Array";
 
 impl Typer<'_> {
     /// Checks definition `tree` of `name` with the dotty flags `flags` of its modifiers in
@@ -92,6 +95,46 @@ impl Typer<'_> {
                 return self.unsupported_at(self.ast.span(rhs), "type shadowing an inherited class");
             }
         }
+    }
+
+    /// Refuses type parameter `sym` of bounds `info` if its upper bound is an array of itself, as
+    /// `F[x] <: Array[F[x]]` or `T <: Array[T] | Null`, which dotty reports as exceeding its
+    /// recursion limit. A type member is refused only when its erasure is needed
+    /// (`erasure_exhausted`).
+    pub fn check_array_self_bound(&mut self, sym: SymbolId, info: TypeId, tree: NodeId) {
+        if self.u.symbol(sym).kind != Kind::TypeParam {
+            return;
+        }
+        let info = self.lambda_body(info);
+        let Some((_, hi)) = self.u.bounds(info) else { return };
+        let hi = self.lambda_body(hi);
+        if self.is_array_of(hi, sym) {
+            self.unsupported(tree, tasty::ARRAY_OF_ITSELF);
+        }
+    }
+
+    /// The body of type lambda `t`, else `t`.
+    fn lambda_body(&self, t: TypeId) -> TypeId {
+        match *self.u.ty(t) {
+            Type::Lambda { result, .. } => result,
+            _ => t,
+        }
+    }
+
+    /// Whether `t` is an array, possibly nested or in a union or intersection, of `sym` or of an
+    /// application of it.
+    fn is_array_of(&mut self, t: TypeId, sym: SymbolId) -> bool {
+        let t = self.u.dealias(t);
+        if let Type::And(a, b) | Type::Or(a, b, _) = *self.u.ty(t) {
+            return self.is_array_of(a, sym) || self.is_array_of(b, sym);
+        }
+        let Some((tycon, args)) = self.u.applied(t) else { return false };
+        let [elem] = *args else { return false };
+        if self.u.class_symbol(tycon).is_none_or(|c| self.u.full_name(c) != ARRAY) {
+            return false;
+        }
+        let head = self.u.applied(elem).map_or(elem, |(c, _)| c);
+        self.u.sym_of(head) == Some(sym) || self.is_array_of(elem, sym)
     }
 
     /// Whether `owner` is a class that may declare abstract members: not an object.

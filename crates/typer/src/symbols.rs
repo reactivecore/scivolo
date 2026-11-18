@@ -9,7 +9,7 @@ use rustc_hash::FxHashMap;
 use syntax::ast::flags::{self as f, FlagSet};
 use syntax::ast::{NodeId, Span};
 use tasty::tags as t;
-use tasty::{Binder, FileId, Flags, Kind, Symbol, SymbolId, Universe};
+use tasty::{Binder, FileId, Flags, Kind, Symbol, SymbolId, TypeId, Universe};
 
 /// The file of the binders of `Symbols::fresh_binder`.
 pub const SCRIPT_BINDERS: FileId = FileId(u32::MAX);
@@ -27,10 +27,23 @@ pub enum Completion {
     Done,
 }
 
+/// An export forwarder made while the type member it forwards to was being completed, whose info
+/// is made again from `target`, the member seen from `path`, once that is done.
+#[derive(Clone, Copy)]
+pub struct LateForwarder {
+    pub forwarder: SymbolId,
+    pub path: TypeId,
+    pub target: TypeId,
+}
+
 #[derive(Clone, Default)]
 pub struct Syms {
     pub flags: FxHashMap<SymbolId, FlagSet>,
     pub completions: FxHashMap<SymbolId, Completion>,
+    /// The forwarders waiting for each type member being completed.
+    pub late_forwarders: FxHashMap<SymbolId, Vec<LateForwarder>>,
+    /// Per package, the definitions of the unit entered with a package object's class name.
+    pub package_object_defs: FxHashMap<SymbolId, Vec<SymbolId>>,
     /// The type definitions whose infos are being checked for cycles (dotty's `NoCompleter`).
     pub checking: Vec<SymbolId>,
     /// The span of the `@main` annotation of each method that has one; the universe keeps the
@@ -157,12 +170,21 @@ impl Syms {
         self.flags.get(&s).copied().unwrap_or_default()
     }
 
-    /// Names `sym` as dotty's messages do, by its kind and name: `trait T`, `method f`,
-    /// `parameter x`, `lazy value v`.
+    /// Names `sym` as dotty's messages do, by its kind and name: `trait T`, `object O`, `method f`,
+    /// `constructor C`, `parameter x`, `lazy value v`, `given instance g`.
     pub fn described(&self, u: &Universe, sym: SymbolId) -> String {
         let s = u.symbol(sym);
         let flags = self.flags_of(sym);
+        if let Some(name) = tasty::module_name(&s.name).filter(|_| u.is_module_class(sym)) {
+            return format!("object {name}");
+        }
+        if s.name == names::nme::CONSTRUCTOR
+            && let Some(owner) = s.owner
+        {
+            return format!("constructor {}", u.symbol(owner).name);
+        }
         let kind = match s.kind {
+            _ if s.kind.is_term() && flags.is(f::GIVEN) => "given instance",
             Kind::Class if flags.is(f::TRAIT) => "trait",
             Kind::Class => "class",
             Kind::Type | Kind::TypeParam => "type",

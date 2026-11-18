@@ -34,6 +34,8 @@ impl Typer<'_> {
 
     fn complete_pending(&mut self, sym: SymbolId, tree: NodeId, ctx: Ctx) {
         self.syms.completions.insert(sym, Completion::Completing(tree));
+        let object_val = self.is_module_val(sym);
+        let import_path_objects = if object_val { None } else { self.import_path_objects.take() };
         let span = self.ast.span(tree);
         let outer_file = if span.exists() { self.enter_file(self.file_of(span)) } else { self.file };
         let reported = self.diags.items.len();
@@ -76,12 +78,18 @@ impl Typer<'_> {
                 let info = self.type_member_info(sym, rhs, mctx);
                 self.u.set_info(sym, info);
                 self.check_non_cyclic(sym, info, tree);
+                self.check_array_self_bound(sym, info, tree);
             }
             _ => {}
         }
+        self.avoid_private_leaks(sym, span);
         self.u.set_comparison_owner(outer);
         self.u.set_null_mode(outer_nulls);
         self.syms.completions.insert(sym, Completion::Done);
+        if !object_val {
+            self.import_path_objects = import_path_objects;
+        }
+        self.complete_late_forwarders(sym);
         self.record_completion_diags(reported);
         self.constraint.keep(start);
         self.history.open = open;
@@ -112,7 +120,7 @@ impl Typer<'_> {
         let Tree::DefDef { tpt, rhs, .. } = *self.ast.tree(tree) else { unreachable!() };
         let mctx = self.method_ctx(sym, ctx);
         let clauses = self.enter_params(sym, tree, mctx);
-        self.check_no_inferred_tracked(sym, &clauses, ctx);
+        self.add_tracked_if_needed(sym, &clauses, ctx);
         let is_value = |c: &&Vec<SymbolId>| c.first().is_some_and(|&p| !self.u.is_type_symbol(p));
         let value_clauses = clauses.iter().filter(is_value).cloned().collect();
         self.syms.param_clauses.insert(sym, value_clauses);
@@ -134,6 +142,7 @@ impl Typer<'_> {
             self.result_type(sym, tpt, rhs, mctx)
         };
         self.syms.def_results.insert(sym, result);
+        let result = self.given_result_refined(sym, &clauses, result, ctx);
         let clauses = if self.u.symbol(sym).name == nme::CONSTRUCTOR {
             self.normalized_constructor(clauses)
         } else {

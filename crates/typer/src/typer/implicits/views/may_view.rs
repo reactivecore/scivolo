@@ -37,10 +37,8 @@ impl Typer<'_> {
             let result = ty.strip_implicit(result);
             return ty.may_accept(param, q, matches!(goal, Goal::Conform(_)))
                 && match goal {
-                    Goal::Member(name) | Goal::Call(name, _) | Goal::Typed(name, _) => {
-                        ty.may_have(result, param, name)
-                    }
                     Goal::Conform(to) => ty.may_conform(result, param, to),
+                    _ => goal.member().is_none_or(|name| ty.may_have(result, param, name)),
                 };
         }
         let value = self.strip_implicit(info);
@@ -74,7 +72,10 @@ impl TypeOps<'_> {
         }
         let tycon = self.u.applied(param).map_or(param, |(tycon, _)| tycon);
         if let Some((p, n)) = self.u.type_ref(tycon)
-            && matches!(self.u.ty(p), Type::Package(_) | Type::PackageName(_))
+            && matches!(
+                self.u.ty(crate::defn::package_ref(self.u, p)),
+                Type::Package(_) | Type::PackageName(_)
+            )
             && self.u.resolve(p, n, true).is_none()
         {
             return false;
@@ -140,7 +141,7 @@ impl TypeOps<'_> {
         let tycon = self.u.applied(t).map_or(t, |(tycon, _)| tycon);
         let (prefix, name) = self.u.type_ref(tycon)?;
         let name = self.u.name(name);
-        match *self.u.ty(prefix) {
+        match *self.u.ty(crate::defn::package_ref(self.u, prefix)) {
             Type::Package(p) => Some(format!("{}.{name}", self.u.full_name(p))),
             Type::PackageName(p) => Some(format!("{}.{name}", self.u.name(p))),
             _ => None,

@@ -27,6 +27,7 @@ mod no_vars;
 mod nothing;
 mod null;
 mod refined;
+mod refined_members;
 mod refs;
 mod singletons;
 mod third;
@@ -39,7 +40,7 @@ pub use null::NullMode;
 pub use unions::Unions;
 
 use crate::Universe;
-use crate::types::{TypeId, VarId};
+use crate::types::{Binder, TypeId, VarId};
 use rustc_hash::FxHashSet;
 
 /// A state of a constraint to roll back to.
@@ -180,6 +181,9 @@ pub struct Cmp<'a> {
     approx: gadt_narrow::Approx,
     /// The legacy match case whose captures the comparison constrains (dotty's `caseLambda`).
     legacy: Option<match_types::CaseLambda>,
+    /// The parameter bounds of the binding types whose bodies are being compared, by the common
+    /// binder of their parameters.
+    compared_bounds: Vec<(Binder, Vec<TypeId>)>,
 }
 
 /// How many steps computing atoms and `Nothing`-ness may take in one comparison.
@@ -204,6 +208,7 @@ impl<'a> Cmp<'a> {
             frozen_gadt: false,
             approx: gadt_narrow::Approx::default(),
             legacy: None,
+            compared_bounds: Vec::new(),
         }
     }
 

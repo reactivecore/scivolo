@@ -190,8 +190,19 @@ impl Printer<'_> {
                     _ => format!("{name}#{i}"),
                 }
             }
-            Type::Match { bound, .. } => format!("(<match> <: {})", self.tpe(bound, n)),
-            Type::MatchCase(p, b) => format!("(<case> {} => {})", self.tpe(p, n), self.tpe(b, n)),
+            Type::Match { bound, scrutinee, cases } => {
+                let cases = self.u.types_of(cases).to_vec();
+                let cases: Vec<String> = cases.into_iter().map(|c| self.tpe(c, n)).collect();
+                format!(
+                    "({} match {{{}}} <: {})",
+                    self.tpe(scrutinee, n),
+                    cases.join("; "),
+                    self.tpe(bound, n)
+                )
+            }
+            Type::MatchCase(p, b) => {
+                format!("T:scala.runtime.MatchCase[{} {}]", self.tpe(p, n), self.tpe(b, n))
+            }
             Type::Constant(tasty::tags::CLASSconst, bits) => {
                 format!("#Class:{}", self.tpe(TypeId(bits as u32), n))
             }
