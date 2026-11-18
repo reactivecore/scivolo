@@ -519,6 +519,10 @@ fn a_tuple_class_of_the_unit_extends_its_generic_tuple() {
 
 #[test]
 fn var_handles_of_mixed_in_lazy_values_come_first() {
+    if Command::new("java").arg("-version").output().is_err() {
+        eprintln!("no java on the PATH: skipped");
+        return;
+    }
     let code = "trait T { lazy val t: String = \"t\" }\n\
                 class Lz extends T { lazy val a: String = \"a\"; lazy val b: String = \"b\" }\n";
     let sources = written("lazyhandles-src", &[("lz.scala", code)]);
@@ -665,7 +669,7 @@ fn a_refused_file_refuses_the_unit() {
     let files = [
         (
             "a.scala",
-            "trait Show { def text: String }\nobject Show { given Show = new Show { def text = \"default\" } }\ndef show(using s: Show): String = s.text\n",
+            "trait Show { def text: String }\nobject Show { given Show with { def text = \"default\" } }\ndef show(using s: Show): String = s.text\n",
         ),
         (
             "b.scala",
