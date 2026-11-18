@@ -42,6 +42,8 @@ pub struct Syms {
     pub completions: FxHashMap<SymbolId, Completion>,
     /// The forwarders waiting for each type member being completed.
     pub late_forwarders: FxHashMap<SymbolId, Vec<LateForwarder>>,
+    /// Per package, the definitions of the unit entered with a package object's class name.
+    pub package_object_defs: FxHashMap<SymbolId, Vec<SymbolId>>,
     /// The type definitions whose infos are being checked for cycles (dotty's `NoCompleter`).
     pub checking: Vec<SymbolId>,
     /// The span of the `@main` annotation of each method that has one; the universe keeps the
