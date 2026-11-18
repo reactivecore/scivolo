@@ -15,7 +15,7 @@ use crate::{Lower, Result, unsupported};
 use names::name_kinds;
 use syntax::ast::Span;
 use tasty::tags::{PRIVATE, STATIC, SYNTHETIC};
-use tasty::{Flags, Kind, SymbolId};
+use tasty::{Flags, Kind, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
 /// The class whose superclass call is hoisted from, its constructor definition, whether it is
@@ -139,6 +139,37 @@ fn needs_hoist(l: &mut Lower, arg: TNodeId) -> bool {
     })
 }
 
+/// Method type `info` abstracted over the type parameters of `class`, as a hoisted method takes
+/// those of the constructor (dotty's `replaceResult` of `constr.info`).
+fn polymorphic_in_class_params(l: &mut Lower, class: SymbolId, info: TypeId) -> TypeId {
+    let tparams = l.u.type_params(class);
+    if tparams.is_empty() {
+        return info;
+    }
+    let binder = l.u.fresh_binder();
+    let refs: Vec<TypeId> =
+        (0..tparams.len()).map(|i| l.u.intern_type(Type::Param(binder, i as u32))).collect();
+    let abstracted = |l: &mut Lower, t: TypeId| {
+        l.u.map_type(t, &mut |u, part| {
+            let s = match *u.ty(part) {
+                Type::Sym(_, s) => s,
+                Type::TypeRef(..) => u.resolve_ref(part)?,
+                _ => return None,
+            };
+            tparams.iter().position(|&p| p == s).map(|i| refs[i])
+        })
+    };
+    let params: Vec<_> = tparams
+        .iter()
+        .map(|&p| {
+            let bounds = l.u.info(p);
+            (l.u.interned_name(p), abstracted(l, bounds))
+        })
+        .collect();
+    let result = abstracted(l, info);
+    l.u.intern_poly(binder, &params, result)
+}
+
 /// Hoists argument `arg` of the superclass constructor call of `h` into a method taking the
 /// constructor's parameters and `lifted`, spanning the constructor's point and the argument
 /// if the constructor has value or type parameters, else the argument; the call of it at `span`.
@@ -168,6 +199,7 @@ fn hoist(l: &mut Lower, h: &mut Hoister, arg: TNodeId, lifted: &[SymbolId], span
     let typed: Vec<_> = params.iter().map(|&p| (l.u.interned_name(p), l.u.info(p))).collect();
     let binder = l.u.fresh_binder();
     let info = l.u.intern_method(binder, &typed, result, false, false);
+    let info = polymorphic_in_class_params(l, class, info);
     l.u.set_info(m, info);
     let at = l.tpd.span(arg);
     let args: Vec<TNodeId> = originals.iter().map(|&p| l.ident(p, span)).collect();

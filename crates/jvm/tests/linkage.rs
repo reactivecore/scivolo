@@ -49,6 +49,21 @@ fn intersections_of_nested_classes_erase_to_the_subclass() {
     assert!(text.contains("public static int glb(glb.Nest$Z)"), "{text}");
 }
 
+/// Hoisted superclass constructor arguments take the type parameters of the class and run.
+#[test]
+fn hoisted_super_arguments_are_polymorphic() {
+    let out = compile("superargs");
+    let Some(text) = javap(&out, "superargs.Top") else { return };
+    let expected = "private static <A> scala.Function0<A> Top$superArg$1(A)";
+    assert!(text.contains(expected), "{expected} in\n{text}");
+    let library = root().join("ref/libs/scala-library-3.9.0.jar");
+    let classpath = format!("{}:{}", out.display(), library.display());
+    let run = Command::new("java").args(["-Xverify:all", "-cp", &classpath, "superargs.Main"]).output();
+    let run = run.expect("running java");
+    assert!(run.status.success(), "{}", String::from_utf8_lossy(&run.stderr));
+    assert_eq!(String::from_utf8_lossy(&run.stdout), "first\n(1,c)\nd\n");
+}
+
 #[test]
 fn raw_pointers_are_ordinary_classes() {
     let out = compile("rawtypes");
