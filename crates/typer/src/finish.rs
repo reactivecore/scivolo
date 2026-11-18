@@ -30,6 +30,7 @@ impl Units {
     /// refusal in no file.
     pub fn finish(&mut self, mut typer: Typer, typed: TNodeId, files: &[TNodeId]) -> Result<Typed, Fallback> {
         let mut pickles = Vec::new();
+        typer.report_cyclic_base_type(Span::NONE);
         self.note(&mut typer);
         typer.typed_annotations();
         if !self.typer_only {

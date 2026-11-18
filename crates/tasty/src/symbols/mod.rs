@@ -195,6 +195,8 @@ pub struct Universe {
     /// How many base type computations were cut short: by the same merge in progress or by
     /// `base_types::MAX_DEPTH`.
     base_type_cuts: u64,
+    /// The base class of a cycle through the parents of a source class, until it is reported.
+    cyclic_base_class: Option<SymbolId>,
     defn: Defn,
     /// How many binders `fresh_binder` has made.
     binders: u32,

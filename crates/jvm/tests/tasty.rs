@@ -195,11 +195,14 @@ fn wildcards_under_selections_and_lambdas_are_not_exact_base_types() {
     }
 }
 
-/// Parents whose base types depend on each other end in a result or a refusal, not in a stack
-/// overflow.
+/// Parents whose base types depend on each other are dotty's error E046, not a stack overflow or
+/// an accepted program.
 #[test]
-fn cyclic_base_types_terminate() {
-    assert!(compile_base_types_probe("cyclicbases").status.code().is_some());
+fn cyclic_base_types_are_rejected() {
+    let run = compile_base_types_probe("cyclicbases");
+    let stderr = String::from_utf8_lossy(&run.stderr);
+    assert_eq!(run.status.code(), Some(1), "{stderr}");
+    assert!(stderr.contains("Cyclic reference involving trait Base"), "{stderr}");
 }
 
 /// A capture-checked file compiled before a plain one in one unit keeps its capture sets, and

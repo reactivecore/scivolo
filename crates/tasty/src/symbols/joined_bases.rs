@@ -11,7 +11,8 @@ use crate::types::{Type, TypeId};
 impl Universe {
     /// The base types `x` and `y` of the parts of intersection (`and`) or union `t`, or of two
     /// parents of class type `t`, merged by `glb` or `lub`; while that merge is in progress, `x`
-    /// of an intersection, else `None`, and the cut is counted.
+    /// of an intersection, else `None`; the cut is counted, and for a class of the sources being
+    /// compiled `base` is kept for `take_cyclic_base_class`.
     pub fn merged_bases(
         &mut self,
         t: TypeId,
@@ -24,11 +25,21 @@ impl Universe {
         }
         if !self.merging_bases.insert((t, base)) {
             self.base_type_cuts += 1;
+            let connective = matches!(self.ty(t), Type::And(..) | Type::Or(..));
+            if !connective && self.class_symbol(t).is_some_and(|c| self.symbol(c).tree.is_none()) {
+                self.cyclic_base_class.get_or_insert(base);
+            }
             return and.then_some(x);
         }
         let merged = if and { self.glb(x, y) } else { self.lub(x, y) };
         self.merging_bases.remove(&(t, base));
         Some(merged)
+    }
+
+    /// Takes the base class whose type a class's parents needed to compute that very type, if
+    /// any since the last call (dotty's `CyclicReference` of `baseTypeOf`).
+    pub fn take_cyclic_base_class(&mut self) -> Option<SymbolId> {
+        self.cyclic_base_class.take()
     }
 
     /// Base types `a` and `b` of class `base` intersected, argument by argument as their

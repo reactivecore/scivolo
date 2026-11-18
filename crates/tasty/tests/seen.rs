@@ -94,6 +94,66 @@ fn intersections_merge_a_singleton_with_singleton_bounds() {
     assert_eq!(u.glb(array_both, array_one), array_one);
 }
 
+/// `Option`, its parameter `A` as a type, `Int`, and the wildcard `? <: Int`.
+fn option_with_wildcard(u: &mut Universe) -> (SymbolId, TypeId, TypeId, TypeId) {
+    let (option, int) = (class(u, "scala", "Option"), class(u, "scala", "Int"));
+    let param = u.type_params(option)[0];
+    let [param, int] = [param, int].map(|s| u.intern_type(Type::Sym(None, s)));
+    let wildcard = u.intern_type(Type::Bounds(tasty::NOTHING, int));
+    (option, param, int, wildcard)
+}
+
+/// A match type on the wildcard's parameter is its bound; on another scrutinee, its case bodies
+/// take the wildcard's upper bound (dotty's `derivedMatchType`).
+#[test]
+fn approximating_substitution_maps_match_types() {
+    let Some(mut u) = stdlib() else { return };
+    let (option, a, int, wildcard) = option_with_wildcard(&mut u);
+    let case = u.intern_type(Type::MatchCase(int, a));
+    let on_param = u.intern_match(tasty::ANY, a, &[case]);
+    assert_eq!(u.subst_approx(on_param, option, &[wildcard]), tasty::ANY);
+
+    let on_int = u.intern_match(tasty::ANY, int, &[case]);
+    let exact_case = u.intern_type(Type::MatchCase(int, int));
+    let expected = u.intern_match(tasty::ANY, int, &[exact_case]);
+    assert_eq!(u.subst_approx(on_int, option, &[wildcard]), expected);
+}
+
+/// A skolem whose type changes is no longer that value: its new type from above; one whose type
+/// stays is kept (dotty's `derivedSkolemType`).
+#[test]
+fn approximating_substitution_widens_changed_skolems() {
+    let Some(mut u) = stdlib() else { return };
+    let (option, a, int, wildcard) = option_with_wildcard(&mut u);
+    let tycon = u.intern_type(Type::Sym(None, option));
+    let option_a = u.intern_applied(tycon, &[a]);
+    let changed = u.fresh_skolem(option_a);
+    let option_int = u.intern_applied(tycon, &[int]);
+    assert_eq!(u.subst_approx(changed, option, &[wildcard]), option_int);
+
+    let kept = u.fresh_skolem(int);
+    assert_eq!(u.subst_approx(kept, option, &[wildcard]), kept);
+}
+
+/// A `super` whose parent stays open at an invariant place is any type (dotty's
+/// `derivedSuperType`): `Array[Super]` becomes `Array[?]`.
+#[test]
+fn approximating_substitution_gives_up_on_open_supers() {
+    let Some(mut u) = stdlib() else { return };
+    let (option, a, int, wildcard) = option_with_wildcard(&mut u);
+    let array = class(&mut u, "scala", "Array");
+    let array = u.intern_type(Type::Sym(None, array));
+    let this = this_type(&mut u, option);
+    let open = u.intern_type(Type::Super(this, a));
+    let array_open = u.intern_applied(array, &[open]);
+    let any_bounds = u.intern_type(Type::Bounds(tasty::NOTHING, tasty::ANY));
+    let expected = u.intern_applied(array, &[any_bounds]);
+    assert_eq!(u.subst_approx(array_open, option, &[wildcard]), expected);
+
+    let exact = u.intern_type(Type::Super(this, int));
+    assert_eq!(u.subst_approx(exact, option, &[wildcard]), exact);
+}
+
 fn this_type(u: &mut Universe, c: SymbolId) -> TypeId {
     let c = u.intern_type(Type::Sym(None, c));
     u.intern_type(Type::This(c))

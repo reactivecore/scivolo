@@ -87,6 +87,7 @@ impl Universe {
             resolving: 0,
             merging_bases: Default::default(),
             base_type_cuts: 0,
+            cyclic_base_class: None,
             defn: Defn::PENDING,
             binders: 0,
             lambda_variances: FxHashMap::default(),
