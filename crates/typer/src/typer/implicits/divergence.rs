@@ -12,10 +12,7 @@ use super::views::ViewProto;
 use tasty::{Binder, Type, TypeId};
 
 /// The refusal of a divergence check that a conversion's prototype leaves open.
-const THROUGH_CONVERSION: &str = "divergence check through a conversion";
-
-/// The prefix of the full names of the function classes.
-const FUNCTION_CLASSES: &str = "scala.Function";
+pub const THROUGH_CONVERSION: &str = "divergence check through a conversion";
 
 impl ImplicitSearch {
     /// Whether candidate `c` diverges: an equivalent candidate is open on a type no smaller built
@@ -75,10 +72,13 @@ impl ImplicitSearch {
 }
 
 /// Whether a search for a type measured `cur` diverges from an equivalent conversion open for a
-/// member with prototype `proto`: that is smaller and built from the same symbols. Of an
-/// application with untyped arguments, whose types are not known, only symbols other than function
-/// classes that its known types lack rule this out; refused if none does.
+/// member with prototype `proto`: that is smaller and built from the same symbols. Refused if
+/// `proto` is not fully known, or is as large as `cur`, where dotty compares it with the type
+/// searched for.
 fn proto_diverges(t: &mut Typer<'_>, proto: &ViewProto, cur: &Measure) -> Result<bool, &'static str> {
+    if !proto.complete {
+        return Err(THROUGH_CONVERSION);
+    }
     let (mut size, mut covering) = (0, Vec::new());
     for &part in &proto.parts {
         let m = Measure::of(&mut t.types(), part)?;
@@ -87,14 +87,10 @@ fn proto_diverges(t: &mut Typer<'_>, proto: &ViewProto, cur: &Measure) -> Result
     }
     covering.sort_unstable_by_key(|s| s.0);
     covering.dedup();
-    if proto.complete {
-        return Ok(size < cur.size && covering == cur.covering);
+    if size > cur.size || covering != cur.covering {
+        return Ok(false);
     }
-    let lacking = cur
-        .covering
-        .iter()
-        .any(|s| !covering.contains(s) && !t.u.full_name(*s).starts_with(FUNCTION_CLASSES));
-    if lacking { Ok(false) } else { Err(THROUGH_CONVERSION) }
+    if size < cur.size { Ok(true) } else { Err(THROUGH_CONVERSION) }
 }
 
 fn frozen_same(ty: &mut TypeOps<'_>, a: TypeId, b: TypeId) -> bool {

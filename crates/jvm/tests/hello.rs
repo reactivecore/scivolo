@@ -175,6 +175,11 @@ fn members_of_parent_refinements_are_dropped_on_the_jvm() {
 }
 
 #[test]
+fn conversions_for_members_diverge_by_their_prototypes() {
+    runs_on_the_jvm("viewdivergence", "ViewDivergence");
+}
+
+#[test]
 fn inline_arguments_narrowed_to_constants_keep_their_skolems() {
     runs_on_the_jvm("namedtupleinit", "NamedTupleInit");
 }

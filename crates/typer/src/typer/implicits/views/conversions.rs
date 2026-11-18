@@ -84,7 +84,7 @@ impl ViewSearch<'_> {
         let pt = match goal {
             Goal::Conform(pt) if t.conforms(result, pt) => Pt::Type(pt),
             Goal::Conform(_) => return Err("conversion to another type"),
-            Goal::Member(_) | Goal::Call(..) | Goal::Typed(..) => Pt::Any,
+            _ => Pt::Any,
         };
         t.interpolate(converted, pt, from)?;
         let result = t.zonk(result);
@@ -115,7 +115,7 @@ impl ViewSearch<'_> {
         }
         let to = match self.goal {
             Goal::Conform(pt) => pt,
-            Goal::Member(_) | Goal::Call(..) | Goal::Typed(..) => t.u.intern_type(Type::Wildcard(None)),
+            _ => t.u.intern_type(Type::Wildcard(None)),
         };
         let function = t.function_class(1).ok_or("Function1")?;
         let expected = t.u.intern_applied(function, &[t.tpd.tpe(self.tree), to]);
@@ -131,7 +131,7 @@ impl ViewSearch<'_> {
         let fun = t.inlined_transparent(fun, Pt::Any, self.ctx).unwrap_or(fun);
         let fun = match self.goal {
             Goal::Conform(pt) => self.gadt_cast_conversion(t, fun, value, pt),
-            Goal::Member(_) | Goal::Call(..) | Goal::Typed(..) => fun,
+            _ => fun,
         };
         t.with_apply(fun, Pt::Any, self.ctx)
     }

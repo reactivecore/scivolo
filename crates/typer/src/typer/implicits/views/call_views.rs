@@ -6,6 +6,7 @@
 
 use super::super::super::{Pt, Typer};
 use super::super::candidates::Candidate;
+use super::super::divergence::THROUGH_CONVERSION;
 use super::qualifier::is_plain_arg;
 use super::{Goal, ViewSearch};
 use crate::ctx::Ctx;
@@ -29,7 +30,8 @@ impl ViewSearch<'_> {
             Pt::Type(pt) => Some(pt),
             _ => None,
         };
-        let member = ViewSearch::new(self.tree, Goal::Member(name), self.ctx);
+        let view_proto = t.applied_view_proto(proto, args.clone(), true);
+        let member = ViewSearch::new(self.tree, Goal::Applied(name, &view_proto), self.ctx);
         let reported = t.diags.items.len();
         let mut applying = Vec::new();
         for &c in &found {
@@ -46,6 +48,52 @@ impl ViewSearch<'_> {
         }
         applying
     }
+
+    /// Converts the tree to have a member `name` by the only conversion of the implicit scopes
+    /// of argument types `args` that gives it one (the scope of dotty's `SelectionProto` of a
+    /// `FunProto`).
+    pub fn arg_scope_view(&self, t: &mut Typer<'_>, name: &str, args: &[TypeId]) -> Option<TNodeId> {
+        let mut candidates = Vec::new();
+        for &a in args {
+            for c in t.implicit_scope(a).ok()? {
+                if !candidates.contains(&c) {
+                    candidates.push(c);
+                }
+            }
+        }
+        let mut fitting = Vec::new();
+        let reported = t.diags.items.len();
+        for c in candidates {
+            let (fits, clean, _) = t.speculatively(|t| match self.try_conversion(t, c, false) {
+                Ok(q) => Ok(member_applies(t, q, name, args, self.ctx)),
+                Err(THROUGH_CONVERSION) => Err(THROUGH_CONVERSION),
+                Err(_) => Ok(false),
+            });
+            t.retract_diags(reported);
+            let fits = match fits {
+                Ok(fits) => fits,
+                Err(what) => {
+                    t.unsupported_at(t.tpd.span(self.tree), what);
+                    return None;
+                }
+            };
+            if fits && clean {
+                fitting.push(c);
+            }
+        }
+        let [c] = fitting[..] else { return None };
+        self.try_conversion(t, c, false).ok()
+    }
+}
+
+/// Tells whether a member `name` of `q` applies to arguments of types `args`.
+pub fn member_applies(t: &mut Typer<'_>, q: TNodeId, name: &str, args: &[TypeId], ctx: Ctx) -> bool {
+    let tpe = t.tpd.tpe(q);
+    let members = t.type_members(tpe, name);
+    let (applies, _, _) = t.speculatively(|t| {
+        members.iter().any(|&s| t.applicable(s, Some(tpe), args, true, ctx) != Some(false))
+    });
+    applies
 }
 
 /// The types of the arguments of `proto` if all are literals or paths and none is a method,
