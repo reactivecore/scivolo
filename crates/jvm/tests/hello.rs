@@ -140,6 +140,11 @@ fn members_of_parent_refinements_are_dropped_on_the_jvm() {
 }
 
 #[test]
+fn inline_arguments_narrowed_to_constants_keep_their_skolems() {
+    runs_on_the_jvm("namedtupleinit", "NamedTupleInit");
+}
+
+#[test]
 fn closures_run_on_the_jvm() {
     runs_on_the_jvm("closures", "Closures");
 }

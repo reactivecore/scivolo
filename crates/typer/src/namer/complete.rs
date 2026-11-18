@@ -112,7 +112,7 @@ impl Typer<'_> {
         let Tree::DefDef { tpt, rhs, .. } = *self.ast.tree(tree) else { unreachable!() };
         let mctx = self.method_ctx(sym, ctx);
         let clauses = self.enter_params(sym, tree, mctx);
-        self.check_no_inferred_tracked(sym, &clauses, ctx);
+        self.add_tracked_if_needed(sym, &clauses, ctx);
         let is_value = |c: &&Vec<SymbolId>| c.first().is_some_and(|&p| !self.u.is_type_symbol(p));
         let value_clauses = clauses.iter().filter(is_value).cloned().collect();
         self.syms.param_clauses.insert(sym, value_clauses);
@@ -134,6 +134,7 @@ impl Typer<'_> {
             self.result_type(sym, tpt, rhs, mctx)
         };
         self.syms.def_results.insert(sym, result);
+        let result = self.given_result_refined(sym, &clauses, result, ctx);
         let clauses = if self.u.symbol(sym).name == nme::CONSTRUCTOR {
             self.normalized_constructor(clauses)
         } else {

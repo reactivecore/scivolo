@@ -14,7 +14,8 @@ use syntax::ast::{Span, TName};
 use tasty::{Binder, SymbolId, Type, TypeId, Universe};
 
 /// The skolem standing for each argument, of types `args`, in type `actual` of an application:
-/// the one of the argument's widened type, normalized or not, checked by substituting them for parameters `params`
+/// the one of a type the argument's widened type conforms to, as retyping may narrow it to a
+/// constant, checked by substituting them for parameters `params`
 /// of binder `binder` in the method's result type `result`, as `applied_result` does; `None` if
 /// that does not give a type equivalent to `actual`.
 pub fn call_skolems(
@@ -37,10 +38,13 @@ pub fn call_skolems(
         let found: Vec<TypeId> = skolems
             .iter()
             .copied()
-            .filter(|&s| matches!(*u.ty(s), Type::Skolem(_, i) if i == w || i == n))
+            .filter(|&s| {
+                let Type::Skolem(_, i) = *u.ty(s) else { return false };
+                i == w || i == n || u.is_subtype(w, i)
+            })
             .collect();
         chosen.push(match found[..] {
-            [s] if !is_stable_path(u, a) => Some(s),
+            [s] if !is_stable_path(u, a) || matches!(u.ty(a), Type::Constant(..) | Type::Str(_)) => Some(s),
             _ => None,
         });
     }
