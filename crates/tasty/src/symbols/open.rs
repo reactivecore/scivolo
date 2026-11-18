@@ -52,6 +52,7 @@ impl Universe {
             member_infos: Default::default(),
             deferred: Default::default(),
             with_inits: Default::default(),
+            java_source_params: Default::default(),
             owners_before_lifting: Default::default(),
             builds_scala_library: false,
             scala2_classes: Default::default(),
