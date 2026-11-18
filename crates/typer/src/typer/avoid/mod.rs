@@ -100,6 +100,7 @@ impl Typer<'_> {
             avoided = p;
         }
         let checked = self.without_rec_refinements(avoided);
+        let checked = class_bound::without_var_refinements(self.u, checked, locals);
         if self.refers_to(avoided, locals)
             || self.types().var_bounds_refer_to(avoided, locals)
             || !self.u.is_subtype(tpe, checked)

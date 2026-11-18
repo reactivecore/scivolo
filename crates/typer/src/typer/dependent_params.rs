@@ -35,7 +35,7 @@ pub fn singleton_args(
 ) -> Vec<TypeId> {
     let param = |u: &Universe, part: TypeId| clause_param(u, part, (binder, names), method);
     let mut used = vec![false; args.len()];
-    u.map_type(t, &mut |u, part| {
+    u.map_type_and_kept_sets(t, &mut |u, part| {
         if let Some(i) = param(u, part).filter(|&i| i < args.len()) {
             used[i] = true;
         }
@@ -68,8 +68,8 @@ pub fn clause_param(
     }
 }
 
-/// Whether `t` refers to a parameter of the clause of binder `binder` and parameter names `names`
-/// of method `method`.
+/// Whether `t`, a kept capture set in it too, refers to a parameter of the clause of binder
+/// `binder` and parameter names `names` of method `method`.
 pub fn mentions_clause_params(
     u: &mut Universe,
     t: TypeId,
@@ -77,7 +77,7 @@ pub fn mentions_clause_params(
     method: Option<SymbolId>,
 ) -> bool {
     let mut found = false;
-    u.map_type(t, &mut |u, part| {
+    u.map_type_and_kept_sets(t, &mut |u, part| {
         found |= clause_param(u, part, clause, method).is_some();
         None
     });
@@ -116,15 +116,15 @@ pub fn has_false_dependency(
     })
 }
 
-/// `t` with each parameter `param` numbers replaced by its replacement, a type member of a
-/// replaced prefix selected again as a member of the new prefix.
+/// `t` with each parameter `param` numbers replaced by its replacement, also in kept capture sets,
+/// a type member of a replaced prefix selected again as a member of the new prefix.
 pub fn substituted(
     u: &mut Universe,
     t: TypeId,
     param: &dyn Fn(&Universe, TypeId) -> Option<usize>,
     replacements: &[TypeId],
 ) -> TypeId {
-    u.map_type(t, &mut |u, part| {
+    u.map_type_and_kept_sets(t, &mut |u, part| {
         if let Some(i) = param(u, part) {
             return replacements.get(i).copied();
         }
@@ -139,6 +139,7 @@ pub fn substituted(
         let Some((Some(pre), s)) = u.sym_ref(part) else { return None };
         if u.symbol(s).kind.is_term() {
             let new_pre = substituted(u, pre, param, replacements);
+            let s = if new_pre == pre { s } else { u.val_on_prefix(new_pre, s) };
             let selected = u.intern_type(Type::Sym(Some(new_pre), s));
             return (new_pre != pre).then(|| refined_path(u, selected).unwrap_or(selected));
         }
@@ -194,7 +195,7 @@ pub fn mentions_params_except(
     applied: &[SymbolId],
 ) -> bool {
     let mut found = false;
-    u.map_type(t, &mut |u, part| {
+    u.map_type_and_kept_sets(t, &mut |u, part| {
         match *u.ty(part) {
             Type::Param(b, _) if b == binder => found = true,
             Type::Sym(_, s)

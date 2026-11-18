@@ -128,6 +128,34 @@ impl Universe {
         self.base_arg(base, index)
     }
 
+    /// Determines the alias that only `prefix` gives `s`: for a class type parameter its
+    /// wildcard's, else the one by which the class of `prefix` overrides an abstract type.
+    pub fn alias_through_prefix(&mut self, prefix: TypeId, s: SymbolId) -> Option<TypeId> {
+        self.wildcard_param_alias(prefix, s).or_else(|| self.overriding_alias(prefix, s))
+    }
+
+    /// Determines the alias `prefix.p` has when the base type of `prefix` gives class type
+    /// parameter `p` a wildcard (dotty's `argDenot`): the upper bounds of both for a covariant `p`
+    /// without lower bound, as `Any` for `A` of `Option[?]`, the lower bounds for a contravariant
+    /// `p` without upper bound; `None` for a bound that depends on the prefix, as the F-bound of
+    /// `Template[+T <: Template[T]]`.
+    pub fn wildcard_param_alias(&mut self, prefix: TypeId, p: SymbolId) -> Option<TypeId> {
+        let arg = self.arg_for_param(prefix, p)?;
+        let (arg_lo, arg_hi) = self.bounds(arg)?;
+        let info = self.info(p);
+        let (lo, hi) = self.bounds(info)?;
+        let class = self.symbol(p).owner?;
+        let variance = self.symbol(p).variance();
+        let builtins = self.defn();
+        if variance > 0 && self.class_symbol(lo) == Some(builtins.nothing) {
+            return (self.as_seen_from(hi, prefix, class) == hi).then(|| self.glb(arg_hi, hi));
+        }
+        if variance < 0 && self.class_symbol(hi) == Some(builtins.any) {
+            return (self.as_seen_from(lo, prefix, class) == lo).then(|| self.lub(arg_lo, lo));
+        }
+        None
+    }
+
     /// The `i`th argument of base type `base`; of an intersection, its first part's; of a union,
     /// its parts' if they agree.
     fn base_arg(&mut self, base: TypeId, i: usize) -> Option<TypeId> {

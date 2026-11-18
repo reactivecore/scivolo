@@ -5,11 +5,27 @@
 
 use super::Typer;
 use super::avoid::Avoid;
+use crate::defn::type_ref;
 use names::nme;
-use tasty::{Binder, Kind, NameId, SymbolId, Type, TypeId};
+use tasty::{Binder, Kind, NOTHING, NameId, SymbolId, Type, TypeId, Universe};
 
 /// The parameter types and result of an `apply`, and the binder and names of its parameters.
 pub type ApplyParts = ((Vec<TypeId>, TypeId), (Binder, Vec<NameId>));
+
+/// `parent` with the capture set that replaces one naming a parameter at variance `v`: `^`
+/// covariantly, `^{}` contravariantly (dotty's `nonDependentResultApprox`); `parent` if the
+/// annotation classes are not on the class path.
+fn approximated_capture_set(u: &mut Universe, parent: TypeId, v: i8) -> TypeId {
+    let name = if v > 0 { nme::RETAINS_CAP } else { nme::RETAINS };
+    let class = u
+        .package("scala.annotation")
+        .and_then(|p| u.decl(p, name).ok())
+        .and_then(|ds| ds.into_iter().find(|&d| u.is_class(d)));
+    let Some(class) = class else { return parent };
+    let class = type_ref(u, class);
+    let annot = if v > 0 { class } else { u.intern_applied(class, &[NOTHING]) };
+    u.intern_type(Type::Annotated(parent, annot))
+}
 
 impl Typer<'_> {
     /// The parameter types and result of the `apply` refining dependent function type `t` of `n`
@@ -63,7 +79,7 @@ impl Typer<'_> {
             return None;
         }
         let names: Vec<_> = params.iter().zip(&types).map(|(&p, &t)| (self.u.interned_name(p), t)).collect();
-        let result = self.u.map_type(result, &mut |u, part| match *u.ty(part) {
+        let result = self.u.map_with_capture_sets(result, &mut |u, part| match *u.ty(part) {
             Type::Sym(None, s) => {
                 let i = params.iter().position(|&p| p == s)?;
                 Some(u.intern_type(Type::Param(binder, i as u32)))
@@ -136,7 +152,13 @@ impl Typer<'_> {
                 let (a, b) = (self.projected(a, params, v), self.projected(b, params, v));
                 self.u.intern_type(Type::And(a, b))
             }
-            Type::Annotated(a, annot) if self.refers_to(annot, params) => self.projected(a, params, v),
+            Type::Annotated(a, annot) if self.refers_to(annot, params) => {
+                let parent = self.projected(a, params, v);
+                match self.u.is_capture_set(annot) {
+                    true => approximated_capture_set(self.u, parent, v),
+                    false => parent,
+                }
+            }
             Type::Applied(tycon, args) if self.u.class_symbol(tycon).is_some() => {
                 let class = self.u.class_symbol(tycon).expect("a class");
                 let variances = self.u.variances(class);

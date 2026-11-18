@@ -244,8 +244,9 @@ vm-profile name *args: release
     SCIVOLO_PROFILE=1 target/release/scivolo --cp tests/programs/{{ name }} {{ name }} {{ args }}
 
 # Lower each Scala file of Scala Native library `module` (nativelib, clib, posixlib, windowslib,
-# javalib, auxlib, scalalib or all; files whose paths contain `filter`) through the own frontend
-# and compare its NIR with lib-oracle's, else the published jar's; results under tmp/lib/<module>.
+# javalib, auxlib, scalalib, test-interface-sbt-defs, test-interface-common, test-interface,
+# junit-runtime or all; files whose paths contain `filter`) through the own frontend and compare
+# its NIR with lib-oracle's, else the published jar's; results under tmp/lib/<module>.
 lib-compile module filter="": fetch-libs fetch-scala-native
     cargo build -q --release -p scivolo-lower -p scivolo-nir-dump
     python3 scripts/lib-compile.py '{{ module }}' '{{ filter }}'
@@ -282,7 +283,7 @@ lib-oracle: fetch-libs fetch-scala-native
 
 # Save lib-compile's results of `module` as the baseline whose worsened files it lists.
 lib-baseline module:
-    for m in $([ '{{ module }}' = all ] && echo nativelib clib posixlib windowslib javalib auxlib scalalib || echo '{{ module }}'); do cp tmp/lib/$m/results.tsv tmp/lib/$m/baseline.tsv; done
+    for m in $([ '{{ module }}' = all ] && echo nativelib clib posixlib windowslib javalib auxlib scalalib test-interface-sbt-defs test-interface-common test-interface junit-runtime || echo '{{ module }}'); do cp tmp/lib/$m/results.tsv tmp/lib/$m/baseline.tsv; done
 
 # List the files of native/ that differ from the C resources of Scala Native's jars, the patched
 # ones and native/scivolo left out.
@@ -714,7 +715,7 @@ dist-check:
     python3 scripts/dist.py check
 
 # Everything a pipeline job runs; the cache it leaves holds only the entries it used.
-ci: cache-mark fetch-libs gates check cache-prune
+ci: cache-mark fetch-libs native-stale gates check cache-prune
 
 # Mark the time from which `cache-prune` counts cache entries as used.
 cache-mark:

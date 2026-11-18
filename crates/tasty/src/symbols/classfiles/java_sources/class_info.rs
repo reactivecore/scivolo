@@ -183,7 +183,7 @@ impl Signatures<'_> {
             signature: Some(signature),
             constant: None,
             annotation_default,
-            param_names: m.params.iter().map(|(n, _)| n.clone()).collect(),
+            param_names: m.params.iter().map(|(n, _)| Some(n.clone())).collect(),
         })
     }
 

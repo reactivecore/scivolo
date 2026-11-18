@@ -4,6 +4,7 @@
 //! parameters, outside its class (dotty's `thisCallArgContext`).
 
 use super::Typer;
+use super::implicits::candidates::{imported_implicits, this_implicit_members};
 use crate::ctx::{Ctx, Level};
 use crate::tpd::{TNodeId, Tree as T};
 use names::nme;
@@ -73,11 +74,41 @@ impl Typer<'_> {
             }
             if matches!(self.levels.get(outer), Level::Members(_)) {
                 let params = scopes.into_iter().rev().flatten().collect();
-                let level = self.levels.push(self.levels.outer(outer), Level::Scope(params));
-                return Ctx { level, ..ctx };
+                let args = self.levels.push(self.levels.outer(outer), Level::Scope(params));
+                self.this_call_bodies.insert(args, ctx.level);
+                return Ctx { level: args, ..ctx };
             }
             level = outer;
         }
         ctx
+    }
+
+    /// Whether `ctx` is in `this(...)` arguments of a class whose body has implicits they do not
+    /// see: its implicit members, inherited ones too, or those of its imports. Dotty's `Inlining`
+    /// phase searches for an inline call there with them in scope.
+    pub fn this_call_hides_implicits(&mut self, ctx: Ctx) -> Result<bool, &'static str> {
+        let mut args = Some(ctx.level);
+        let body = loop {
+            let Some(l) = args else { return Ok(false) };
+            if let Some(&body) = self.this_call_bodies.get(&l) {
+                break body;
+            }
+            args = self.levels.outer(l);
+        };
+
+        let mut level = Some(body);
+        while let Some(l) = level {
+            match *self.levels.get(l) {
+                Level::Import(i) => {
+                    if !imported_implicits(self, i)?.is_empty() {
+                        return Ok(true);
+                    }
+                }
+                Level::Members(c) => return Ok(!this_implicit_members(self, c).is_empty()),
+                _ => {}
+            }
+            level = self.levels.outer(l);
+        }
+        Ok(false)
     }
 }

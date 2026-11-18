@@ -103,7 +103,7 @@ impl Typer<'_> {
 
     /// The companion of class `c`: the class of its object, or the class of the object it is,
     /// in the same scope if `c` is local (dotty's `linkedClass`).
-    fn linked_class(&mut self, c: SymbolId) -> Option<SymbolId> {
+    pub fn linked_class(&mut self, c: SymbolId) -> Option<SymbolId> {
         if !self.u.is_class(c) {
             return None;
         }

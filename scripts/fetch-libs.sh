@@ -25,6 +25,9 @@ b05fe9855ca50ac60854de6700f518e031df76c85021727505dab660d8757886 org/scala-nativ
 25d292daace63da5b468d82bf0f830ca381800b69c364d18f714f18f95cd5dde org/scala-native/posixlib_native0.5_3/0.5.12/posixlib_native0.5_3-0.5.12.jar
 88a5664596bfb750c57946cae4c9adac30f3e696d3c57667fa57c2fdd06badac org/scala-native/windowslib_native0.5_3/0.5.12/windowslib_native0.5_3-0.5.12.jar
 50fe972cf958bbb0f350a2aa0f16916f2ed8089232331e00a7004321576652cf org/scala-native/scalalib_native0.5_3/3.9.0%2B0.5.12/scalalib_native0.5_3-3.9.0%2B0.5.12.jar
+1070897b760622f5da4a72dc80d9b6b88ac9955a1c74980f63cd0ef9b3c31ff4 org/scala-native/junit-runtime_native0.5_3/0.5.12/junit-runtime_native0.5_3-0.5.12.jar
+15627a87c6c7622ba8e2c7bfd71f10c23b3b325247488c46ceed6c109e5fd38e org/scala-native/test-interface_native0.5_3/0.5.12/test-interface_native0.5_3-0.5.12.jar
+93d310e6cfa45f65e4f099c5d3369879f6b83ad12db2c8bd219df5b961aefb1d org/scala-native/test-interface-sbt-defs_native0.5_3/0.5.12/test-interface-sbt-defs_native0.5_3-0.5.12.jar
 b844bf6fb3080c73df6b9c523b7a69b9ef4a980bb15e5c37c35443d1d0b0e0cd org/scala-lang/scala-library/3.9.0/scala-library-3.9.0.jar
 6a1405c0b617e51f02a22ff63d6df1e572ab49c158e2aa9bccd0327d1a4ec1cc org/scala-lang/scala-library/3.9.0/scala-library-3.9.0-sources.jar
 EOF

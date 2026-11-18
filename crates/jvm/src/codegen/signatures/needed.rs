@@ -12,7 +12,7 @@ pub fn may_need(u: &mut Universe, t: TypeId, aliased: bool) -> bool {
     const PLAIN: [&str; 3] = ["scala.Any", "java.lang.Object", "java.lang.String"];
     let primitive = |u: &Universe, c| PRIMITIVE_VALUE_CLASSES.contains(&u.full_name(c).as_str());
     let declared = t;
-    let t = u.dealias(t);
+    let t = u.dealias_opaque(t);
     let class = match *u.ty(t) {
         Type::ByName(_) => return true,
         Type::Method { params, result, .. } => {

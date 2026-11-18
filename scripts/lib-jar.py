@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """A module of Scala Native's library built as the jar Scala Native ships (research 41 §4).
 
-Usage: scripts/lib-jar.py MODULE (one of lib-compile.py's MODULES)
+Usage: scripts/lib-jar.py MODULE (one of lib-compile.py's MODULES but those of its PART_OF)
 
-Lowers each of the module's Scala 3 source directories as one unit (all of nativelib's together),
+Lowers each of the module's Scala 3 source directories, with those of the modules of PART_OF it
+holds, as one unit (all of a JOINT module's together),
 as lib-compile.py does each file, and writes tmp/lib/MODULE/<the published jar's name>: that NIR, the resources under
 src/main/resources/scala-native verbatim, the published jar's TASTy and a manifest as sbt writes
 it. scalalib's files are lowered one by one, as lib-compile.py does; its jar takes the NIR of the
@@ -34,20 +35,21 @@ Implementation-Vendor-Id: org.scala-native
 Implementation-URL: http://www.scala-native.org
 {main}
 """
-SCALALIB_MAIN = "Main-Class: scala.util.Properties\n"
+MAIN_CLASSES = {"scalalib": "scala.util.Properties", "test-interface": "scala.scalanative.testinterface.TestMain"}
 # The modules whose source directories are lowered as one unit, as Scala Native's build does.
-JOINT = {"nativelib"}
+JOINT = {"nativelib", "test-interface-sbt-defs", "test-interface", "junit-runtime"}
 
 
 def lower(module, stage):
-    """Lowers the module's source directories into `stage`, those of JOINT as one unit; exits with
-    the frontend's error."""
+    """Lowers the source directories of the module and of the modules it holds into `stage`, those
+    of JOINT as one unit; exits with the frontend's error."""
     units = []
-    for name in lib.SOURCE_DIRS:
-        root = lib.SN / module / "src/main" / name
-        unit = [(root, f) for f in sorted(root.rglob("*.scala"))]
-        if unit:
-            units.append((name, unit))
+    for part in (module, *lib.parts(module)):
+        for name in lib.SOURCE_DIRS:
+            root = lib.SN / part / "src/main" / name
+            unit = [(root, f) for f in sorted(root.rglob("*.scala"))]
+            if unit:
+                units.append((f"{part}-{name}", unit))
     if module in JOINT:
         units = [("all", [pair for _, unit in units for pair in unit])]
     for name, unit in units:
@@ -92,7 +94,7 @@ def entries(module, stage, published):
     """The jar's entries in order, (name, bytes), and the names of the NIR files not lowered here:
     scalalib's taken from the published jar or the oracle."""
     version = f"3.9.0+{lib.VERSION}" if module == "scalalib" else lib.VERSION
-    main = SCALALIB_MAIN if module == "scalalib" else ""
+    main = f"Main-Class: {MAIN_CLASSES[module]}\n" if module in MAIN_CLASSES else ""
     manifest = MANIFEST.format(m=module, v=version, main=main).replace("\n", "\r\n").encode()
     found = {"META-INF/MANIFEST.MF": manifest}
     resources = lib.SN / module / "src/main/resources"
@@ -162,6 +164,6 @@ def main(module):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2 or sys.argv[1] not in lib.MODULES:
+    if len(sys.argv) != 2 or sys.argv[1] not in lib.MODULES or sys.argv[1] in lib.PART_OF:
         sys.exit(__doc__)
     main(sys.argv[1])

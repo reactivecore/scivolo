@@ -102,7 +102,10 @@ impl Typer<'_> {
             if own_parts {
                 return Err("class not conforming to a parent's self type");
             }
-            if !own_module && !self.u.is_subtype(own, s) {
+            let outer = self.u.set_checks_bounds_or_self_type(true);
+            let conforms = self.u.is_subtype(own, s);
+            self.u.set_checks_bounds_or_self_type(outer);
+            if !own_module && !conforms {
                 if self.u.symbol(cls).name == nme::ANON_CLASS || module.is_some() {
                     return Err("anonymous class or object not conforming to a parent's self type");
                 }
@@ -142,7 +145,8 @@ impl Typer<'_> {
         let Some((given, annot)) = self.u.annotated(info).filter(|&(_, a)| is_retains_like(self.u, a)) else {
             return applied;
         };
-        let parent = match given == applied {
+        let same = self.u.is_subtype(given, applied) && self.u.is_subtype(applied, given);
+        let parent = match same {
             true => applied,
             false => self.u.intern_type(Type::And(given, applied)),
         };

@@ -6,7 +6,9 @@
 mod annotated;
 mod annotation_origins;
 mod applies;
+mod capture_refs;
 mod cases;
+mod closure_formals;
 mod defs;
 mod inferred_captures;
 mod kept_annotations;
@@ -131,9 +133,9 @@ pub struct TreePickler<'a> {
     synthetic: Vec<(u32, Span, Option<TNodeId>)>,
     accessors: Accessors,
     /// The type tree pickled now and the annotations its type has pickled: the tree ids of their
-    /// `Apply` and `New`, and the type tree.
+    /// `Apply` and `New`, and their span.
     type_tree: Option<TNodeId>,
-    annots: Vec<(u32, u32, TNodeId)>,
+    annots: Vec<(u32, u32, Span)>,
     /// The type trees of the case patterns, typed patterns and pattern variables enclosing the
     /// tree pickled now, or of the member of the super accessor pickled now, outermost first.
     typed_tpts: Vec<Vec<TNodeId>>,
@@ -141,11 +143,19 @@ pub struct TreePickler<'a> {
     member_tpts: Vec<TNodeId>,
     /// The span of the innermost tree with one whose pickling was refused.
     refused_at: Option<Span>,
+    /// The definitions enclosing the tree pickled, outermost first.
+    open_defs: Vec<SymbolId>,
+    /// The closure methods whose inferred result types mark their parameters too.
+    curried_closures: FxHashSet<SymbolId>,
+    /// The span of the definition whose type tree is looked at.
+    def_span: Span,
+    /// The spans of inferred type trees of closure definitions, their definitions'.
+    tpt_spans: FxHashMap<TNodeId, Span>,
+    /// The `@declared` marks of closure parameter types.
+    declared: closure_formals::DeclaredMarks,
     /// The selector of the match whose case is pickled next, and of the pattern pickled now.
     scrutinee: Option<TNodeId>,
     pattern_selector: Option<TNodeId>,
-    /// The classes of a capture-checked file whose self type has a capture set.
-    capturing_selves: FxHashSet<SymbolId>,
     /// The annotation trees pickled in types, in order (dotty's `typeAnnots`).
     type_annots: Vec<TNodeId>,
     root: TNodeId,
@@ -262,9 +272,13 @@ fn pickle_trees<'a>(
         annots: Vec::new(),
         typed_tpts: Vec::new(),
         member_tpts: Vec::new(),
+        open_defs: Vec::new(),
+        curried_closures: FxHashSet::default(),
+        def_span: Span::NONE,
+        tpt_spans: FxHashMap::default(),
+        declared: Default::default(),
         scrutinee: None,
         pattern_selector: None,
-        capturing_selves: FxHashSet::default(),
         type_annots: Vec::new(),
         root,
         origins: None,

@@ -23,6 +23,10 @@ impl Gen<'_, '_> {
                 let tycon = self.l.u.applied(declared).map(|(t, _)| t);
                 return match tycon.and_then(|t| self.l.u.class_symbol(t)) {
                     Some(d) if d == c => declared,
+                    _ if self.l.u.type_params(c).is_empty() && self.l.u.given_self_type(c).is_none() => {
+                        let class = self.l.u.intern_type(tasty::Type::Sym(None, c));
+                        self.l.u.intern_type(tasty::Type::This(class))
+                    }
                     _ => self.l.u.this_type(c),
                 };
             }

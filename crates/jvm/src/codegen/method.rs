@@ -3,7 +3,7 @@
 //! Method bodies: loads of literals, locals, fields and objects (dotty's `genMethod`, `genLoad`).
 
 use super::body::{Body, Operand};
-use super::descriptors::{method_descriptor, with_receiver};
+use super::descriptors::{NOTHING, method_descriptor, with_receiver};
 use super::{Gen, java_flags, method_name, unsupported};
 use classfile::{ACC_ABSTRACT, ACC_BRIDGE, ACC_FINAL, ACC_PUBLIC, ACC_STATIC, ACC_SYNTHETIC, ClassFile};
 use lower::Result;
@@ -117,6 +117,11 @@ impl Gen<'_, '_> {
         Ok(match self.l.tpd.tree(t).clone() {
             Tree::Literal { value } => self.literal(b, &value),
             Tree::ClassLiteral { tpe } => self.class_literal(b, tpe),
+            Tree::Typed { expr, .. } if self.desc_of(expr) == NOTHING => {
+                let desc = self.desc_of(t);
+                self.expr_expect(b, expr, &desc)?;
+                classfile::value_slots(&desc)
+            }
             Tree::Typed { expr, .. } => self.expr(b, expr)?,
             Tree::Block { stats, expr } => {
                 b.code.open_block();
@@ -148,7 +153,7 @@ impl Gen<'_, '_> {
             {
                 let desc = desc.clone();
                 b.code.load(&desc, slot);
-                super::callee::adapt_phantom(b, &desc);
+                super::callee::adapt_value(b, t, &desc);
                 classfile::value_slots(&desc)
             }
             Tree::Select { qualifier, .. } if let Some(f) = sym.filter(|&s| !self.is_method(s)) => {

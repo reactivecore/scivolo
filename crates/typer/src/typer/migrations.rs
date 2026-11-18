@@ -4,11 +4,24 @@
 //! `implicitParams`).
 
 use super::Typer;
-use syntax::ast::{Attrs, NodeId};
+use syntax::ast::{Attrs, NodeId, Tree};
 use syntax::config::SourceVersion;
-use tasty::{NameId, TypeId};
+use tasty::{Kind, NameId, TypeId};
 
 impl Typer<'_> {
+    /// Reports type definition `id` if it is named `?`, which was the placeholder of the kind
+    /// projector plugin (dotty's `kindProjectorQMark`).
+    pub fn kind_projector_qmark(&mut self, id: NodeId) {
+        let Tree::TypeDef { name, .. } = *self.ast.tree(id) else { return };
+        if self.text(name.name) != "?" {
+            return;
+        }
+        let owner = self.syms.by_tree.get(&id).and_then(|&s| self.u.symbol(s).owner);
+        let in_param = owner.is_some_and(|o| self.u.symbol(o).kind == Kind::TypeParam);
+        let addendum = if in_param { ", use `_` to denote a higher-kinded type parameter" } else { "" };
+        self.error_at(self.ast.span(id), format!("`?` is not a valid type name{addendum}"));
+    }
+
     /// Checks arguments `args` of application `id` to a clause of `params`, implicit if
     /// `implicit`, `using` if `contextual`: context bound parameters outside the subset, other
     /// implicit ones passed without `using` warned about.

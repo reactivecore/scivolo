@@ -1,5 +1,5 @@
 use std::path::Path;
-use tasty::{Kind, SymbolId, Universe};
+use tasty::{JavaSources, Kind, SymbolId, Universe};
 
 /// The standard library with the TASTy of javalib (checked in), nativelib, clib and posixlib, if
 /// `ref/libs` has them.
@@ -42,6 +42,21 @@ fn class(u: &mut Universe, pkg: &str, name: &str) -> SymbolId {
     let p = u.package(pkg).unwrap();
     let found = u.decl(p, name).unwrap().into_iter().find(|&c| u.symbol(c).kind == Kind::Class);
     found.unwrap_or_else(|| panic!("{pkg}.{name} not found"))
+}
+
+#[test]
+fn java_source_parameters_are_stable_symbols() {
+    let Some(mut u) = with_javalib() else { return };
+    u.use_java_classfiles(&[]).unwrap();
+    let file =
+        ("p/J.java".to_owned(), "package p; public class J { public int m(int a) { return a; } }".to_owned());
+    u.use_java_sources(JavaSources::parse(&[file]).unwrap());
+    let c = class(&mut u, "p", "J");
+    let m = u.decls_named(c, "m")[0];
+    let params = u.classfile_params(m);
+    assert_eq!(params.len(), 1);
+    assert_eq!(u.symbol(params[0]).name, "a");
+    assert_eq!(u.classfile_params(m), params);
 }
 
 #[test]

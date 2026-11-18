@@ -143,7 +143,7 @@ impl Typer<'_> {
             },
             false => None,
         };
-        let info_result = self.u.map_type(result, &mut |u, part| match *u.ty(part) {
+        let info_result = self.u.map_with_capture_sets(result, &mut |u, part| match *u.ty(part) {
             Type::Sym(None, s) => {
                 let i = params_syms.iter().position(|&p| p == s)?;
                 Some(u.intern_type(Type::Param(binder, i as u32)))

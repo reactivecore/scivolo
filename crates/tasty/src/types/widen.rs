@@ -99,11 +99,14 @@ impl Universe {
         {
             return Some(a);
         }
+        if prefix.is_some_and(|p| self.is_hidden_private(s, p)) {
+            return None;
+        }
         let alias = match self.visible_opaque_alias(s, prefix) {
             Some(a) => a,
             None => match self.alias_of(s) {
                 Some(a) => a,
-                None => return self.overriding_alias(prefix?, s),
+                None => return self.alias_through_prefix(prefix?, s),
             },
         };
         let owner = self.symbol(s).owner?;

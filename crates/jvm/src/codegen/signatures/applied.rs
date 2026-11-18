@@ -22,7 +22,7 @@ impl Sig<'_> {
     pub fn applied_param_ref(&mut self, t: TypeId, tycon: TypeId, args: &[TypeId], boxing: Boxing) -> bool {
         match self.applied_param(tycon, args) {
             Some(Applied::Resolved(r)) => {
-                let r = self.u.dealias(r);
+                let r = self.u.dealias_opaque(r);
                 match *self.u.ty(r) {
                     Type::Sym(..) | Type::TypeRef(..) | Type::Applied(..) | Type::Param(..) => {
                         self.jsig(r, false, boxing)
@@ -129,7 +129,7 @@ impl Sig<'_> {
             if self.tops.contains(&x) || x == self.sym0 || x == self.origin || Some(x) == self.extended {
                 return Some(s);
             }
-            o = self.u.symbol(x).owner;
+            o = self.u.owner_before_lifting(x);
         }
         None
     }

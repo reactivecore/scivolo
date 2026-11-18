@@ -4,9 +4,9 @@
 //! proxies, and the body copied with the parameters replaced, retyped and rid of unused bindings
 //! (dotty's `Inliner.inlined`, `computeParamBindings`).
 
+use super::call_skolems::call_skolems;
 use super::copy::TreeTypeMap;
 use super::proxies::replace_param;
-use super::skolems::call_skolems;
 use super::this_proxy::replace_this;
 use super::{Inlining, Unsupported};
 use crate::tpd::{TNodeId, Tree as T};
@@ -77,7 +77,7 @@ impl<'i, 'a> Expansion<'i, 'a> {
             self.bind_clause(params, apply)?;
         }
         let mut this = self.bind_this(fun, meth, rhs)?;
-        let opaque_this = self.bind_opaque_this(meth, rhs, &this)?;
+        let opaque_this = self.bind_opaque_this((fun, meth), rhs, &this)?;
         this.extend(opaque_this);
         let this_tpe =
             this.iter().map(|&(cls, proxy)| (cls, self.i.u.intern_type(Type::Sym(None, proxy)))).collect();

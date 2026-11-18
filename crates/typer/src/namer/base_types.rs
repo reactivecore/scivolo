@@ -6,8 +6,12 @@
 
 use crate::typer::Typer;
 use syntax::ast::Span;
+use syntax::diag::{Message, MessageId};
 use tasty::tags::{ABSTRACT, CONTRAVARIANT, COVARIANT};
 use tasty::{Kind, SymbolId, Type, TypeId};
+
+/// Dotty's `CyclicReferenceInvolvingID`.
+const CYCLIC_REFERENCE_INVOLVING: u16 = 46;
 
 impl Typer<'_> {
     /// Checks that the parents of class `cls` give each of its base classes one type: an error at
@@ -48,6 +52,19 @@ impl Typer<'_> {
                 return;
             }
         }
+    }
+
+    /// Reports at `span` a cycle met computing a base type (dotty's `CyclicReferenceInvolving`):
+    /// `abstract class C extends P[E] with Q`, `class E extends C` where merging `C`'s base types
+    /// needs `E`'s.
+    pub fn report_cyclic_base_type(&mut self, span: Span) {
+        let Some(base) = self.u.take_cyclic_base_class() else { return };
+        let kind = if self.u.is_trait(base) { "trait" } else { "class" };
+        let name = &self.u.symbol(base).name;
+        let text =
+            format!("Cyclic reference involving {kind} {name}\n\nRun with -explain-cyclic for more details.");
+        let id = MessageId { code: CYCLIC_REFERENCE_INVOLVING, kind: "Cyclic", explained: true };
+        self.error_at(span, Message { text, id: Some(id) });
     }
 
     /// Whether `a` and `b` are both types and each conforms to the other.

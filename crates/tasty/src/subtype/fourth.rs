@@ -59,6 +59,7 @@ impl Cmp<'_> {
                 let n = self.u.params_of(params).len();
                 self.lambda_below(binder, n, result, b)
             }
+            Type::Param(..) => self.compared_param_bounds(a).is_some_and(|(_, hi)| self.recur(hi, b)),
             _ => false,
         }
     }
@@ -152,22 +153,6 @@ impl Cmp<'_> {
         }
         let widened = self.u.widen(a);
         widened != a && self.recur_approx(widened, b, true)
-    }
-
-    /// The declared type of term reference `t` if it is a singleton other than `t`.
-    fn singleton_underlying(&mut self, t: TypeId) -> Option<TypeId> {
-        let n = self.named(t)?;
-        let s = n.sym.filter(|&s| matches!(self.u.symbol(s).kind, Kind::Val | Kind::Param | Kind::Def))?;
-        let name = self.u.interned_name(s);
-        let refined = n.prefix.and_then(|p| self.u.term_refinement_named(p, name));
-        let underlying = refined.unwrap_or_else(|| self.u.term_type(n.prefix, s));
-        let underlying = self.u.by_name(underlying).unwrap_or(underlying);
-        let singleton = match *self.u.ty(underlying) {
-            Type::TermRef(..) | Type::This(_) | Type::Constant(..) | Type::Str(_) => true,
-            Type::Sym(_, s) => self.u.symbol(s).kind.is_term(),
-            _ => false,
-        };
-        (singleton && underlying != t).then_some(underlying)
     }
 
     /// Whether paths `a` and `b` denote the same value: the same term through related prefixes,

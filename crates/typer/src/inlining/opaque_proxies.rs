@@ -8,17 +8,18 @@ use super::expand::Expansion;
 use super::{Inlining, Unsupported};
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{Span, TName};
-use tasty::tags::{OPAQUE, SYNTHETIC};
+use tasty::tags::{INLINEPROXY, OPAQUE, SYNTHETIC};
 use tasty::{Flags, Kind, Symbol, SymbolId, Type, TypeId};
 
 impl Expansion<'_, '_> {
     /// The object with opaque types enclosing method `meth` whose `this` body `body` refers to,
     /// with the proxy of that `this`, its bindings put after the `$proxyN` of the arguments:
     /// `$proxyN`, the object cast to its type refined by the aliases, and `C$_this`, that proxy;
-    /// for a class whose `this` is among the proxies `this`, that proxy bound to a `$proxyN`.
+    /// for a class whose `this` is among the proxies `this`, that proxy bound to a `$proxyN`; for
+    /// a call through the `C$_this` of an enclosing expansion, a `$proxyN` of that `C$_this`.
     pub fn bind_opaque_this(
         &mut self,
-        meth: SymbolId,
+        (fun, meth): (TNodeId, SymbolId),
         body: TNodeId,
         this: &[(SymbolId, SymbolId)],
     ) -> Result<Option<(SymbolId, SymbolId)>, Unsupported> {
@@ -41,6 +42,9 @@ impl Expansion<'_, '_> {
         }
         if let Some(&(_, proxy)) = this.iter().find(|&&(c, _)| c == module) {
             return self.open_class_this(meth, proxy).map(|()| None);
+        }
+        if let Some(outer) = self.enclosing_this_proxy(fun) {
+            return self.bind_nested_opaque_this(module, meth, outer).map(Some);
         }
         let mut o = Some(self.owner);
         while let Some(x) = o.filter(|&x| x != module) {
@@ -74,6 +78,36 @@ impl Expansion<'_, '_> {
         let rhs = self.i.tpd.node(T::Ident { name: ident }, point, Some(opaque_ref), Some(opaque));
         self.bind_proxy(proxy, rhs, point, at + usize::from(existing.is_none()));
         Ok(Some((module, proxy)))
+    }
+
+    /// The type of the `C$_this` of an enclosing expansion that call reference `fun` goes through.
+    fn enclosing_this_proxy(&mut self, fun: TNodeId) -> Option<TypeId> {
+        let q = self.call_prefix(fun)?;
+        let qt = self.i.tpd.tpe(q);
+        let s = self.i.u.sym_of(qt)?;
+        self.i.u.symbol(s).flags.has(INLINEPROXY).then_some(qt)
+    }
+
+    /// The proxy of the `this` of `module` for a call through `outer`, an enclosing `C$_this`:
+    /// `C$_this`, bound to a `$proxyN` of `outer` that exposes the aliases.
+    fn bind_nested_opaque_this(
+        &mut self,
+        module: SymbolId,
+        meth: SymbolId,
+        outer: TypeId,
+    ) -> Result<(SymbolId, SymbolId), Unsupported> {
+        let point = Span::at(self.i.tpd.span(self.call).point());
+        let opaque = self
+            .opaque_proxy(outer, Some(meth), point)
+            .ok_or(self.err("inline method of an object with opaque types"))?;
+        let opaque_ref = self.i.u.intern_type(Type::Sym(None, opaque));
+        let proxy = self.this_proxy_symbol(module, opaque_ref);
+        let outer_sym = self.i.u.sym_of(outer).expect("a reference to a proxy");
+        let outer_name = self.i.u.symbol(outer_sym).name.clone();
+        let name = TName { name: self.i.names.intern(&outer_name), is_type: false };
+        let rhs = self.i.tpd.node(T::Ident { name }, point, Some(opaque_ref), Some(opaque));
+        self.bind_proxy(proxy, rhs, point, self.opaque_refs.len());
+        Ok((module, proxy))
     }
 
     /// Rebinds `proxy`, the proxy of the `this` of a class with opaque types bound to a path, to
@@ -131,6 +165,10 @@ impl Inlining<'_> {
             }
             let name = self.u.interned_name(d);
             let Some(alias) = self.u.opaque_rhs(d) else { continue };
+            if let Some(binder) = self.u.lambda(alias).map(|l| l.binder) {
+                let variances = self.u.variances(d);
+                self.u.declare_lambda_variances(binder, variances);
+            }
             let seen = self.u.as_seen_from(alias, module_ref, module);
             let info = self.u.intern_type(Type::Alias(seen));
             refined = self.u.intern_type(Type::Refined(refined, name, info));

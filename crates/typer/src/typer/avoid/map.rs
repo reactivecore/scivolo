@@ -177,25 +177,11 @@ impl Avoid<'_> {
             | Type::Lambda { params, result, .. } => (t.u.params_of(params).to_vec(), result),
             _ => return Some(Approx::Exact(tpe)),
         };
-        let mut parts = Vec::with_capacity(params.len() + 1);
+        let mut parts = Vec::with_capacity(params.len());
         for (_, p) in &params {
             parts.push(self.at(t, *p, -v)?);
         }
-        parts.push(self.at(t, result, v)?);
-        let flip: Vec<bool> = (0..parts.len()).map(|i| i < params.len()).collect();
-        let node = *t.u.ty(tpe);
-        Some(approx::derived(t.u, &parts, &flip, v, &mut |u, p| {
-            let (ps, r) = p.split_at(params.len());
-            let ps: Vec<_> = params.iter().zip(ps).map(|(&(n, _), &t)| (n, t)).collect();
-            let ps = u.intern_params(&ps);
-            u.intern_type(match node {
-                Type::Method { binder, implicit, contextual, .. } => {
-                    Type::Method { binder, params: ps, result: r[0], implicit, contextual }
-                }
-                Type::Poly { binder, .. } => Type::Poly { binder, params: ps, result: r[0] },
-                Type::Lambda { binder, .. } => Type::Lambda { binder, params: ps, result: r[0] },
-                other => other,
-            })
-        }))
+        let result = self.at(t, result, v)?;
+        Some(approx::lambda(t.u, tpe, &parts, result, v))
     }
 }

@@ -5,6 +5,8 @@
 //! (dotty's `tryWithImplicitOnQualifier`, `tryInsertImplicitOnQualifier`).
 
 use super::super::super::{Pt, Typer};
+use super::super::divergence::THROUGH_CONVERSION;
+use super::call_views::member_applies;
 use super::{Goal, ViewSearch, Viewed};
 use crate::ctx::Ctx;
 use crate::tpd::TNodeId;
@@ -44,7 +46,8 @@ impl Typer<'_> {
         {
             return None;
         }
-        let (reported, uniques) = (self.diags.items.len(), self.syms.uniques.clone());
+        let (reported, uniques, counters) =
+            (self.diags.items.len(), self.syms.uniques.clone(), self.fresh.counters());
         let ((fits, types), _, _) = self.speculatively(|t| {
             let (mut types, mut typed_args) = (Vec::new(), Vec::new());
             for &a in &args {
@@ -73,6 +76,7 @@ impl Typer<'_> {
         self.retract_diags(reported);
         if fits {
             self.syms.uniques = uniques;
+            self.fresh.reset_counters(counters);
         }
         if fits || diagnosed {
             return None;
@@ -80,21 +84,29 @@ impl Typer<'_> {
         if self.extension_visible(name, ctx) && !self.extensions_reject(qual, name, ctx) {
             return Some(QualifierView::Extension);
         }
+        let all_args = args == self.protos[proto].args;
+        let view_proto = self.applied_view_proto(proto, types.clone(), all_args);
+        let goal = Goal::Applied(name, &view_proto);
         let reported = self.diags.items.len();
-        let (applies, clean, _) = self.speculatively(|t| match t.viewed(qual, Goal::Member(name), ctx) {
-            Ok(Some(Viewed::Converted(q))) => Some(member_applies(t, q, name, &types, ctx)),
-            Ok(None) => Some(false),
-            _ => None,
+        let (applies, clean, _) = self.speculatively(|t| match t.viewed(qual, goal, ctx) {
+            Ok(Some(Viewed::Converted(q))) => Ok(Some(member_applies(t, q, name, &types, ctx))),
+            Ok(None) => Ok(Some(false)),
+            Err(THROUGH_CONVERSION) => Err(THROUGH_CONVERSION),
+            _ => Ok(None),
         });
         self.retract_diags(reported);
         let converted = match applies {
+            Err(what) => {
+                self.unsupported_at(self.tpd.span(qual), what);
+                None
+            }
             _ if !clean => None,
-            Some(true) => match self.viewed(qual, Goal::Member(name), ctx) {
+            Ok(Some(true)) => match self.viewed(qual, goal, ctx) {
                 Ok(Some(Viewed::Converted(q))) => Some(q),
                 _ => None,
             },
-            Some(false) => ViewSearch::new(qual, Goal::Member(name), ctx).arg_scope_view(self, name, &types),
-            None => None,
+            Ok(Some(false)) => ViewSearch::new(qual, goal, ctx).arg_scope_view(self, name, &types),
+            Ok(None) => None,
         };
         converted.map(QualifierView::Converted)
     }
@@ -146,44 +158,4 @@ fn constants_adapted(
         }
     }
     adapted
-}
-
-/// Tells whether a member `name` of `q` applies to arguments of types `args`.
-fn member_applies(t: &mut Typer<'_>, q: TNodeId, name: &str, args: &[TypeId], ctx: Ctx) -> bool {
-    let tpe = t.tpd.tpe(q);
-    let members = t.type_members(tpe, name);
-    let (applies, _, _) = t.speculatively(|t| {
-        members.iter().any(|&s| t.applicable(s, Some(tpe), args, true, ctx) != Some(false))
-    });
-    applies
-}
-
-impl ViewSearch<'_> {
-    /// Converts the tree to have a member `name` by the only conversion of the implicit scopes
-    /// of argument types `args` that gives it one (the scope of dotty's `SelectionProto` of a
-    /// `FunProto`).
-    fn arg_scope_view(&self, t: &mut Typer<'_>, name: &str, args: &[TypeId]) -> Option<TNodeId> {
-        let mut candidates = Vec::new();
-        for &a in args {
-            for c in t.implicit_scope(a).ok()? {
-                if !candidates.contains(&c) {
-                    candidates.push(c);
-                }
-            }
-        }
-        let mut fitting = Vec::new();
-        let reported = t.diags.items.len();
-        for c in candidates {
-            let (fits, clean, _) = t.speculatively(|t| {
-                let converted = self.try_conversion(t, c, false);
-                converted.is_ok_and(|q| member_applies(t, q, name, args, self.ctx))
-            });
-            t.retract_diags(reported);
-            if fits && clean {
-                fitting.push(c);
-            }
-        }
-        let [c] = fitting[..] else { return None };
-        self.try_conversion(t, c, false).ok()
-    }
 }

@@ -42,10 +42,14 @@ impl Universe {
         id
     }
 
-    /// Drops the name index and `this` type of `owner` and what `changed` drops; takes its type
-    /// parameters from its declarations again.
+    /// Drops the name index and `this` type of `owner`, the names a package was found to get from
+    /// no class file, and what `changed` drops; takes its type parameters from its declarations
+    /// again.
     fn decls_changed(&mut self, owner: SymbolId) {
         self.by_name.remove(&owner);
+        if self.symbol(owner).kind == Kind::Package {
+            self.class_file_misses.retain(|&(pkg, _)| pkg != owner);
+        }
         self.this_types.remove(&owner);
         let params = self.symbol(owner).decls.iter().filter(|&&d| self.symbol(d).kind == Kind::TypeParam);
         self.declared_type_params.insert(owner, params.copied().collect());
@@ -81,7 +85,6 @@ impl Universe {
     pub fn set_parents(&mut self, c: SymbolId, parents: Vec<TypeId>) {
         self.parents.insert(c, parents);
         self.linearizations.clear();
-        self.disagreeing_bases.clear();
         self.changed();
     }
 
@@ -152,6 +155,16 @@ impl Universe {
             self.symbols[owner.0 as usize].decls.retain(|&d| d != sym);
             self.decls_changed(owner);
         }
+    }
+
+    /// Records that local class `class` was owned by `owner` before it was lifted out of it.
+    pub fn set_owner_before_lifting(&mut self, class: SymbolId, owner: SymbolId) {
+        self.owners_before_lifting.insert(class, owner);
+    }
+
+    /// Determines the owner of `s`, of a lifted local class the one before lifting.
+    pub fn owner_before_lifting(&self, s: SymbolId) -> Option<SymbolId> {
+        self.owners_before_lifting.get(&s).copied().or(self.symbol(s).owner)
     }
 
     /// Makes `owner` the owner of `sym`, a local symbol defined outside TASTy, out of its declarations.

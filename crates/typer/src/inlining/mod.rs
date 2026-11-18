@@ -7,6 +7,8 @@
 
 mod beta;
 mod blocks;
+mod call_skolems;
+mod class_parts;
 mod code_of;
 mod code_of_refs;
 mod compiletime;

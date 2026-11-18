@@ -106,13 +106,32 @@ const DOTTY_TASTY: &[(&str, &[&str])] = &[
     ("caseclasses", &["scala/probe/Pair", "scala/probe/Words"]),
     ("views", &["scala/probe/Views"]),
     ("widenedargs", &["W"]),
-    ("typercaptures", &["G", "Mk", "ByNames"]),
+    ("typercaptures", &["G", "Mk", "ByNames", "ByNameArgs"]),
     ("lambdabounds", &["scala/probe/LambdaBounds"]),
     ("witnessnames", &["scala/probe/WitnessNames"]),
     ("seencaptures", &["Q", "R"]),
     ("librarycaptures", &["scala/probe/Appending", "scala/probe/LibCaptures"]),
     ("thiscaptures", &["Node", "Plain", "Ops", "Ser"]),
     ("depsets", &["DepSets", "Slide"]),
+    ("selfmatches", &["Ops"]),
+    (
+        "flowcaptures",
+        &[
+            "scala/probe/Conc",
+            "scala/probe/Ops",
+            "scala/probe/Flows",
+            "scala/probe/Holder",
+            "scala/probe/SubHolder",
+            "scala/probe/Paths",
+        ],
+    ),
+    ("closurecaptures", &["Closures"]),
+    ("fieldcaptures", &["C", "D", "E", "F", "H"]),
+    ("wildcardmembers", &["WildcardMembers"]),
+    ("newarrays", &["NewArrays"]),
+    ("anymembers", &["AnyMembers"]),
+    ("inheritedresults", &["InheritedResults"]),
+    ("wildcardselections", &["WildcardSelections"]),
 ];
 
 /// The trees, positions and flag attributes of the classes of `DOTTY_TASTY` are dotty's: the
@@ -127,15 +146,28 @@ const DOTTY_TASTY: &[(&str, &[&str])] = &[
 /// the super accessor's parameters, the type of `this` its class's self type with the self
 /// type's capture set (thiscaptures.scala), a typed pattern's or `new`'s written capture set
 /// naming a method's or class's parameter as it is, its pattern variable's emptied
-/// (depsets.scala); annotated types take the annotation tree of their own
+/// (depsets.scala), a match on `this` has its class's self type with the capture set as selector
+/// type (selfmatches.scala), a flow cast or member type keeps a set naming enclosing definitions
+/// or a path, seen from the path selected on (flowcaptures.scala), a closure's inferred function
+/// type marks parameters with capture sets `@declared`, each its own type but for a dependent
+/// function type's parent, and is dependent if its result's sets name them
+/// (closurecaptures.scala), a by-name argument to a result whose set names the parameter keeps
+/// the argument's set in the type argument (`ByNameArgs` of typercaptures.scala), a field's
+/// written set names the fields for the constructor's parameters (fieldcaptures.scala);
+/// annotated types take the annotation tree of their own
 /// origin in match selectors and patterns, inferred types, super accessors and inline accessors,
 /// in super accessors with their class's type parameters seen from the accessor's class; secondary constructors have their own type parameters and parameters passed on to the
 /// superclass are its parameters' aliases; `@BeanProperty` values get their bean accessors;
 /// synthesized case class members refer to package members through the package's `this`, and
 /// numeric widenings their companion through the prefix of the widened type; a type lambda
 /// written as a wildcard's bound pickles without variances; a type with context bounds keeps its
-/// `@WitnessNames` annotation. Needs a JDK (java on
-/// the PATH), as dotty's did.
+/// `@WitnessNames` annotation; a member seen through a subclass's wildcard argument has the
+/// wildcard's bound where the parameter is variant (wildcardmembers.scala), `new Array` the
+/// constructor signature ending in `Object` (newarrays.scala), the members of `Any` refer to
+/// classes through their package's `this` (anymembers.scala), and an inherited result type comes
+/// from the parents' base types intersected in order (inheritedresults.scala), and a selection on
+/// a prefix with a wildcard argument is approximated (wildcardselections.scala). Needs a JDK (java
+/// on the PATH), as dotty's did.
 #[test]
 fn probes_pickle_as_dotty_s() {
     if Command::new("java").arg("-version").output().is_err() {
@@ -160,6 +192,39 @@ fn probes_pickle_as_dotty_s() {
             assert!(same, "{name}'s {class}.tasty differs from dotty's");
         }
     }
+}
+
+/// Compiles tests/jvm/basetypes/`name`.scala.
+fn compile_base_types_probe(name: &str) -> std::process::Output {
+    let out = root().join("tmp/jvm-test/basetypes").join(name);
+    let _ = std::fs::remove_dir_all(&out);
+    Command::new(env!("CARGO_BIN_EXE_scivolo-jvm"))
+        .current_dir(root())
+        .arg("-d")
+        .arg(&out)
+        .arg(format!("tests/jvm/basetypes/{name}.scala"))
+        .output()
+        .expect("running scivolo-jvm")
+}
+
+/// A wildcard argument reaching an invariant place under a selection or a type lambda gives no
+/// exact base type: `Sub[?]` is no `Box[Outer[?]#In]`, which would let `Box.v` take another
+/// `Outer`'s `In`.
+#[test]
+fn wildcards_under_selections_and_lambdas_are_not_exact_base_types() {
+    for name in ["wildcardselection", "wildcardlambda"] {
+        assert!(!compile_base_types_probe(name).status.success(), "{name} compiled");
+    }
+}
+
+/// Parents whose base types depend on each other are dotty's error E046, not a stack overflow or
+/// an accepted program.
+#[test]
+fn cyclic_base_types_are_rejected() {
+    let run = compile_base_types_probe("cyclicbases");
+    let stderr = String::from_utf8_lossy(&run.stderr);
+    assert_eq!(run.status.code(), Some(1), "{stderr}");
+    assert!(stderr.contains("Cyclic reference involving trait Base"), "{stderr}");
 }
 
 /// A capture-checked file compiled before a plain one in one unit keeps its capture sets, and
@@ -230,11 +295,39 @@ fn library_annotations_pickle_as_dotty_s() {
     }
 }
 
-/// A dependent function type whose function type parent dotty gives the capture sets of its
-/// refinement is refused, and so is the inferred function type of a closure whose parameters have
-/// capture sets (`@declared` in dotty's) or whose result's capture sets name its parameter (a
-/// dependent function type in dotty's), and a match on `this` of a class whose self type is its
-/// own with a capture set, which dotty's patterns keep.
+/// A named tuple type of tests/jvm/tastylib/exportedaliases/lib.scala, read from its TASTy, reduces
+/// through the export forwarders of match type aliases: use.scala selects a field of it.
+#[test]
+fn exported_match_aliases_reduce_from_tasty() {
+    let out = root().join("tmp/jvm-test/exportedaliases");
+    let _ = std::fs::remove_dir_all(&out);
+    let (lib, user) = (out.join("lib"), out.join("use"));
+    let compile = |dest: &Path, flags: &[&str], source: &str| {
+        let run = Command::new(env!("CARGO_BIN_EXE_scivolo-jvm"))
+            .current_dir(root())
+            .args(flags)
+            .arg("-d")
+            .arg(dest)
+            .arg(format!("tests/jvm/tastylib/exportedaliases/{source}.scala"))
+            .output()
+            .expect("running scivolo-jvm");
+        assert!(run.status.success(), "{}", String::from_utf8_lossy(&run.stderr));
+    };
+    compile(&lib, &[], "lib");
+    compile(&user, &["--cp", lib.to_str().expect("a path")], "use");
+    if Command::new("java").arg("-version").output().is_err() {
+        eprintln!("no java on the PATH: not run");
+        return;
+    }
+    let library = root().join("ref/libs/scala-library-3.9.0.jar");
+    let classpath = format!("{}:{}:{}", user.display(), lib.display(), library.display());
+    let run = Command::new("java").args(["-Xverify:all", "-cp", &classpath, "Use"]).output().expect("java");
+    assert!(run.status.success(), "{}", String::from_utf8_lossy(&run.stderr));
+    assert_eq!(String::from_utf8_lossy(&run.stdout), "1\n");
+}
+
+/// The synthetic type trees of a case class parameter whose capture set names another parameter
+/// are refused.
 #[test]
 fn untold_capture_sets_are_refused() {
     let out = root().join("tmp/jvm-test/untoldcaptures");
@@ -242,28 +335,11 @@ fn untold_capture_sets_are_refused() {
     std::fs::create_dir_all(&out).expect("tmp/jvm-test/untoldcaptures");
     let header = "import language.experimental.captureChecking\nclass Label[T]\nclass A\nclass B\n\
                   trait Coll:\n  def label: Label[Int]^{this}\n";
-    let cases = [
-        (
-            "dependent",
-            "object D:\n  val f: (x: A^) -> Label[Int]^{x} = x => Label[Int]()\n",
-            "drops its refinement's capture sets",
-        ),
-        (
-            "declared",
-            "object E:\n  def g() =\n    val f = (x: A^) => 1\n    1\n",
-            "a closure whose parameters have capture sets",
-        ),
-        (
-            "dependentclosure",
-            "object F:\n  def g() =\n    val f = (x: Coll) => x.label\n    1\n",
-            "a closure whose result's capture sets name its parameters",
-        ),
-        (
-            "selfmatch",
-            "trait G[+A]:\n  self: G[A]^ =>\n  def m(): Int = self match\n    case s: Product => 1\n    case _ => 2\n",
-            "a match on `this` of a class whose self type has a capture set",
-        ),
-    ];
+    let cases = [(
+        "caseclassparam",
+        "case class C(a: A^, b: Label[Int]^{a})\n",
+        "a capture set that refers to other than static definitions",
+    )];
     for (name, body, refusal) in cases {
         let source = out.join(format!("{name}.scala"));
         std::fs::write(&source, format!("{header}{body}")).expect("writing");

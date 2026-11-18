@@ -26,17 +26,20 @@ struct Clause {
 
 /// Whether the result type of member `d` conforms to that of member `m`, both seen from `prefix`
 /// in the class of `site`, else with abstract types replaced by the aliases overriding them and a
-/// type parameter result by its bound; results with type lambdas are not compared.
+/// type parameter result by its bound.
 fn results_conform(t: &mut Typer<'_>, (site, prefix): (TypeId, TypeId), d: SymbolId, m: SymbolId) -> bool {
     let (mut rd, mut rm) = (t.u.own_member_info(prefix, d), t.u.own_member_info(prefix, m));
     let (td, tm) = (t.u.type_params(d), t.u.type_params(m));
-    let (mut offset, mut bounds) = (0, Vec::new());
+    let (mut offset, mut bounds, mut own_clauses) = (0, Vec::new(), Vec::new());
     loop {
         match (clause(t, rd), clause(t, rm)) {
             (Some(a), Some(b)) if a.is_type == b.is_type && a.params.len() == b.params.len() => {
                 let rb = t.u.param_syms_as_refs(b.result, &b.params, b.binder);
                 rm = t.u.with_binder(rb, (b.binder, &b.params), a.binder);
                 rd = t.u.param_syms_as_refs(a.result, &a.params, a.binder);
+                if !a.is_type {
+                    own_clauses.push((a.binder, a.params.clone()));
+                }
                 if a.is_type {
                     let n = a.params.len();
                     rd = type_param_refs(t, rd, td.get(offset..offset + n).unwrap_or_default(), a.binder);
@@ -58,6 +61,14 @@ fn results_conform(t: &mut Typer<'_>, (site, prefix): (TypeId, TypeId), d: Symbo
     if conforms_overridden(t, site, rd, rm) {
         return true;
     }
+    let mut rd = rd;
+    for _ in own_clauses.iter().flat_map(|(_, params)| params) {
+        let Some(info) = t.u.singleton_param_info(rd, &own_clauses) else { break };
+        rd = info;
+        if conforms_overridden(t, site, rd, rm) {
+            return true;
+        }
+    }
     let overridden = |t: &mut Typer<'_>, ty: TypeId| t.u.map_type(ty, &mut |u, x| u.overriding_member(x));
     let (rd, rm) = (overridden(t, rd), overridden(t, rm));
     let bound = |t: &Typer<'_>, ty: TypeId, upper: bool| {
@@ -65,7 +76,39 @@ fn results_conform(t: &mut Typer<'_>, (site, prefix): (TypeId, TypeId), d: Symbo
         info.and_then(|i| t.u.bounds(i)).map_or(ty, |(lo, hi)| if upper { hi } else { lo })
     };
     let (rd, rm) = (bound(t, rd, true), bound(t, rm, false));
-    t.conforms(rd, rm) || has_lambda(t, rd) || has_lambda(t, rm)
+    if t.conforms(rd, rm) {
+        return true;
+    }
+    complete_selecting_object(t, rd);
+    complete_base_classes(t, rd);
+    t.conforms(rd, rm)
+}
+
+/// Completes the object and object class that `ty`, or the type constructor it applies, is selected
+/// on, as `O` of `O.C[T]`, which may hold the class it refers to.
+fn complete_selecting_object(t: &mut Typer<'_>, ty: TypeId) {
+    let tycon = t.u.applied(ty).map_or(ty, |(c, _)| c);
+    let Some((prefix, _)) = t.u.type_ref(tycon) else { return };
+    if let Some(object) = t.u.resolve_ref(prefix) {
+        t.complete(object);
+    }
+    let widened = t.u.widen(prefix);
+    if let Some(class) = t.u.class_symbol(widened) {
+        t.complete(class);
+    }
+}
+
+/// Completes the class of `ty` and, through their parents, its base classes.
+fn complete_base_classes(t: &mut Typer<'_>, ty: TypeId) {
+    let (mut seen, mut todo) = (Vec::new(), t.u.class_symbol(ty).into_iter().collect::<Vec<_>>());
+    while let Some(c) = todo.pop() {
+        if !seen.contains(&c) {
+            seen.push(c);
+            t.complete(c);
+            let parents = t.u.parents(c);
+            todo.extend(parents.into_iter().filter_map(|p| t.u.class_symbol(p)));
+        }
+    }
 }
 
 /// Whether `a` conforms to `b`, else with the abstract types they refer to replaced by the aliases
@@ -75,19 +118,13 @@ pub fn conforms_overridden(t: &mut Typer<'_>, site: TypeId, a: TypeId, b: TypeId
         return true;
     }
     complete_overriders(t, site, &[a, b]);
+    t.complete_refined_members(a, b);
+    if t.conforms(a, b) {
+        return true;
+    }
     let overridden = |t: &mut Typer<'_>, ty: TypeId| t.u.map_type(ty, &mut |u, x| u.overriding_member(x));
     let (a, b) = (overridden(t, a), overridden(t, b));
     t.conforms(a, b)
-}
-
-/// Whether `ty` has a type lambda, as a higher-kinded type argument, which the check accepts.
-fn has_lambda(t: &mut Typer<'_>, ty: TypeId) -> bool {
-    let mut found = false;
-    t.u.map_type(ty, &mut |u, x| {
-        found |= matches!(*u.ty(x), Type::Lambda { .. });
-        None
-    });
-    found
 }
 
 /// `ty` without its annotations, as capture sets.

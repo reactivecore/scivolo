@@ -40,6 +40,6 @@ impl Universe {
         if let Type::And(a, b) = *self.ty(dealiased) {
             return self.value_class(a).or_else(|| self.value_class(b));
         }
-        self.class_symbol(t).filter(|&c| self.underlying(c).is_some())
+        self.class_symbol(dealiased).filter(|&c| self.underlying(c).is_some())
     }
 }

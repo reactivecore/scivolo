@@ -92,8 +92,8 @@ impl Typer<'_> {
         if self.u.widen(pt) == unit || matches!(self.u.ty(pt), Type::Error) {
             return;
         }
-        let pt = self.result_pt(self.tpd.get(tree).sym, pt);
         let tpe = self.u.by_name(tpe).unwrap_or(tpe);
+        let pt = self.result_pt(self.tpd.get(tree).sym, tpe, pt);
         let mark = self.constraint.mark();
         if !self.conforms(tpe, pt) {
             self.constraint.rollback(mark);

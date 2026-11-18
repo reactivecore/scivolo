@@ -161,6 +161,17 @@ fn to_elem(l: &mut Lower, t: TNodeId, refs: &FxHashMap<SymbolId, Ref>, read: boo
     l.copy_node(t, elem);
 }
 
+/// Makes erased assignment `x.elem = (e: T)` `x.elem = e` for an ascription of `as_variable`, which
+/// has no type tree position.
+pub fn drop_ascription(l: &mut Lower, assign: TNodeId) {
+    let Tree::Assign { lhs, rhs } = *l.tpd.tree(assign) else { return };
+    if let Tree::Typed { expr, tpt } = *l.tpd.tree(rhs)
+        && !l.tpd.span(tpt).exists()
+    {
+        l.tpd.get_mut(assign).tree = Tree::Assign { lhs, rhs: expr };
+    }
+}
+
 /// `e: T` for variable `v` of type `T` if its reference `r` holds objects and `T` erases to
 /// another class or an array; else `e`.
 fn as_variable(l: &mut Lower, e: TNodeId, v: SymbolId, r: Ref) -> TNodeId {

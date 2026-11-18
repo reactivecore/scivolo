@@ -149,6 +149,18 @@ fn flow_typed_variables_in_by_name_arguments() {
 }
 
 #[test]
+fn type_patterns_against_unions_of_related_classes_are_refused() {
+    let Some(mut u) = universe() else { return };
+    let text = "class Box[T](val v: T); object IntBox extends Box[Int](1); object O
+        def f[T](u: Box[T] | IntBox.type): Any = u match { case b: Box[t] => b.v; case _ => 0 }";
+    let text = text.replace("object O\n", "object O {\n") + " }";
+    assert_eq!(
+        type_unit_with(&mut u, &mut Units::default(), ("u.scala", &text), &[]),
+        Err("unsupported type pattern against a union of related classes".to_owned())
+    );
+}
+
+#[test]
 fn overloads_ambiguous_with_an_apply_of_a_result() {
     let Some(mut u) = universe() else { return };
     let mut units = Units::default();
@@ -675,16 +687,15 @@ fn constructs_diverging_from_dotty_are_refused() {
 }
 
 #[test]
-fn parent_refinements_of_tracked_parameters_are_refused() {
+fn parent_refinements_of_tracked_parameters_become_members() {
     let Some(mut u) = universe() else { return };
     let flagged = &["-source", "future", "-language:experimental.modularity"];
-    let refused = Err("unsupported parent refinement of a tracked parameter".to_owned());
     for (i, arg) in ["\"bar\"", "List(\"x\").head"].into_iter().enumerate() {
         let text =
             format!("abstract class Foo{i}(tracked val d: String); class Bar{i} extends Foo{i}({arg})");
         assert_eq!(
             type_unit_with(&mut u, &mut Units::default(), ("t.scala", &text), flagged),
-            refused,
+            Ok(()),
             "{text}"
         );
     }
@@ -722,22 +733,21 @@ fn context_bound_companions_beside_inherited_terms_are_refused() {
 }
 
 #[test]
-fn context_bound_parameters_dotty_infers_as_tracked_are_refused() {
+fn context_bound_parameters_dotty_infers_as_tracked_are_typed() {
     let flagged = &["-source", "future", "-language:experimental.modularity"];
-    let refused = Err("unsupported context bound parameter dotty infers as tracked".to_owned());
     let coll = "trait Coll[Self]:\n  type Pos\n";
     let cases = [
-        (format!("{coll}def first[S: Coll](s: S) = 1\n"), refused.clone()),
-        (format!("{coll}class C[S: Coll](s: S)\n"), refused.clone()),
-        (format!("{coll}given g: [S] => (c: Coll[S]) => Coll[List[S]]:\n  type Pos = Int\n"), refused),
-        (format!("{coll}def first(s: Int) =\n  def local[S: Coll](s: S) = 1\n  2\n"), Ok(())),
-        ("trait Eq[Self]\ndef first[S: Eq](s: S) = 1\n".to_owned(), Ok(())),
+        format!("{coll}def first[S: Coll](s: S) = 1\n"),
+        format!("{coll}class C[S: Coll](s: S)\n"),
+        format!("{coll}given g: [S] => (c: Coll[S]) => Coll[List[S]]:\n  type Pos = Int\n"),
+        format!("{coll}def first(s: Int) =\n  def local[S: Coll](s: S) = 1\n  2\n"),
+        "trait Eq[Self]\ndef first[S: Eq](s: S) = 1\n".to_owned(),
     ];
-    for (text, expected) in cases {
+    for text in cases {
         let Some(mut u) = universe() else { return };
         assert_eq!(
             type_unit_with(&mut u, &mut Units::default(), ("t.scala", &text), flagged),
-            expected,
+            Ok(()),
             "{text}"
         );
     }

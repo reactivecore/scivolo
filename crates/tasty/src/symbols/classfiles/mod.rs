@@ -31,6 +31,18 @@ impl Universe {
     /// Makes the JDK's packages and classes the library lacks known from `jdk`'s class files.
     pub fn set_jdk(&mut self, jdk: classfile::Jdk) {
         self.jdk = Some(jdk);
+        self.jdk_classes.clear();
+        self.class_file_misses.clear();
+    }
+
+    /// Makes the JVM the target of the compilation.
+    pub fn set_jvm_target(&mut self) {
+        self.jvm_target = true;
+    }
+
+    /// Tells whether the compilation targets the JVM.
+    pub fn targets_jvm(&self) -> bool {
+        self.jvm_target
     }
 
     /// The JDK `set_jdk` gave, if any.

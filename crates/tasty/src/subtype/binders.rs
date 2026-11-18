@@ -23,8 +23,39 @@ impl Cmp<'_> {
             let (bound_a, bound_b) = (self.lambda_bounds(bound_a), self.lambda_bounds(bound_b));
             self.recur(bound_b, bound_a)
         });
+        if !bounds_ok {
+            return false;
+        }
+        let bounds = a.1.iter().map(|&(_, bound)| self.renamed(a, bound, &refs)).collect();
         let (body_a, body_b) = (self.renamed(a, a.2, &refs), self.renamed(b, b.2, &refs));
-        bounds_ok && self.recur(body_a, body_b)
+        self.compared_bounds.push((common, bounds));
+        let below = self.recur(body_a, body_b);
+        self.compared_bounds.pop();
+        below
+    }
+
+    /// Whether the variances of the parameters of type lambda `a` conform to those type lambda
+    /// `b` declares, `binder` being `b`'s (dotty's `variancesConform`).
+    pub fn variances_conform(&mut self, a: TypeId, b: TypeId, binder: Binder) -> bool {
+        if self.u.declared_variances(binder).is_none() {
+            return true;
+        }
+        let (Some(va), Some(vb)) =
+            (self.u.lambda_variance_flags(a, &[]), self.u.lambda_variance_flags(b, &[]))
+        else {
+            return true;
+        };
+        va.len() == vb.len() && va.iter().zip(&vb).all(|(&x, &y)| x & y == y)
+    }
+
+    /// The bounds of parameter `t` of a binding type being compared (dotty's `bounds` of a
+    /// `TypeParamRef`), if it is one and has any.
+    pub fn compared_param_bounds(&mut self, t: TypeId) -> Option<(TypeId, TypeId)> {
+        let Type::Param(binder, i) = *self.u.ty(t) else { return None };
+        let (_, bounds) = self.compared_bounds.iter().rev().find(|(b, _)| *b == binder)?;
+        let bound = *bounds.get(i as usize)?;
+        let bound = self.lambda_bounds(bound);
+        self.u.bounds(bound)
     }
 
     /// Higher-kinded bounds `[X] =>> >: L <: H` as `>: [X] =>> L <: [X] =>> H`, `Nothing` as

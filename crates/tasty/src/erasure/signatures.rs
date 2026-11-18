@@ -5,8 +5,11 @@
 
 use super::Erased;
 use crate::tags::INLINE;
-use crate::types::{Type, TypeId};
+use crate::types::{Binder, NameId, Type, TypeId};
 use crate::{Kind, SymbolId, Universe};
+
+/// The binder and parameters of a value parameter clause.
+pub type ParamClause = (Binder, Vec<(NameId, TypeId)>);
 
 /// A part of a signature's parameters: a type-parameter clause's length or an erased parameter.
 #[derive(Clone, PartialEq, Debug)]
@@ -47,12 +50,18 @@ pub fn match_degree(a: &Signature, b: &Signature) -> MatchDegree {
 impl Universe {
     /// The signature of member `s` as a member of `site`, erased as Scala 2 erases if `scala2`.
     pub fn signature(&mut self, site: TypeId, s: SymbolId, scala2: bool) -> Signature {
-        let mut t = self.member_info(site, s);
+        let info = self.member_info(site, s);
+        self.info_signature(info, scala2)
+    }
+
+    /// Computes the signature of method type `t`, erased as Scala 2 erases if `scala2`; `None` for
+    /// any other type.
+    pub fn info_signature(&mut self, mut t: TypeId, scala2: bool) -> Signature {
         if !matches!(self.ty(t), Type::Method { .. } | Type::Poly { .. }) {
             return None;
         }
         let previous = self.set_scala2_erasure(scala2);
-        let (mut parts, mut bounds) = (Vec::new(), Vec::new());
+        let (mut parts, mut bounds, mut clauses) = (Vec::new(), Vec::new(), Vec::new());
         loop {
             match *self.ty(t) {
                 Type::Poly { binder, params, result } => {
@@ -61,8 +70,10 @@ impl Universe {
                     bounds.push((binder, params.iter().map(|&(_, b)| b).collect::<Vec<_>>()));
                     t = result;
                 }
-                Type::Method { params, result, .. } => {
-                    parts.extend(self.params_of(params).iter().map(|&(_, p)| Ok(p)));
+                Type::Method { binder, params, result, .. } => {
+                    let params = self.params_of(params).to_vec();
+                    parts.extend(params.iter().map(|&(_, p)| Ok(p)));
+                    clauses.push((binder, params));
                     t = result;
                 }
                 _ => break,
@@ -74,15 +85,51 @@ impl Universe {
                 Err(n) => sig.push(ParamSig::TypeParams(n)),
                 Ok(p) if self.is_erased_param(p) => {}
                 Ok(p) => {
+                    let p = self.singleton_param_type(p, &clauses);
                     let p = self.upper_bound(p, &bounds);
                     sig.push(ParamSig::Param(self.erase(p)));
                 }
             }
         }
-        let result = self.upper_bound(t, &bounds);
+        let result = self.singleton_param_type(t, &clauses);
+        let result = self.upper_bound(result, &bounds);
         let result = self.erase(result);
         self.set_scala2_erasure(previous);
         Some((sig, result))
+    }
+
+    /// Determines the type that `t` has in a method type with `clauses`: for `x.type` of a
+    /// parameter `x` of a clause, the type of `x` there, else `t`.
+    pub fn singleton_param_type(&mut self, mut t: TypeId, clauses: &[ParamClause]) -> TypeId {
+        for _ in clauses.iter().flat_map(|(_, params)| params) {
+            let Some(info) = self.singleton_param_info(t, clauses) else { break };
+            t = info;
+        }
+        t
+    }
+
+    /// Determines the declared type of parameter `x` of `clauses` for `t`, `x.type`, its
+    /// references to parameters of `clauses` by binder; `None` for another type.
+    pub fn singleton_param_info(&mut self, t: TypeId, clauses: &[ParamClause]) -> Option<TypeId> {
+        let as_refs = |u: &mut Self, t| clauses.iter().fold(t, |r, (b, ps)| u.param_syms_as_refs(r, ps, *b));
+        let as_ref = as_refs(self, t);
+        let (binder, i) = self.param_ref(as_ref)?;
+        let (_, params) = clauses.iter().find(|(b, _)| *b == binder)?;
+        let &(_, param) = params.get(i as usize)?;
+        Some(as_refs(self, param))
+    }
+
+    /// Computes the signature of member `s` of `site` with the aliases `site` gives to the types
+    /// in its info followed, as `Repr[Int]` for `String` in a class with `type Repr[X] = String`.
+    pub fn dealiased_signature(&mut self, site: TypeId, s: SymbolId, scala2: bool) -> Signature {
+        let info = self.member_info(site, s);
+        let info = self.map_type(info, &mut |u, x| {
+            if !matches!(u.ty(x), Type::Applied(..) | Type::Sym(Some(_), _)) {
+                return None;
+            }
+            Some(u.normalize(x)).filter(|&n| n != x)
+        });
+        self.info_signature(info, scala2)
     }
 
     /// Whether method `s` is erased as Scala 2 erases: not inline, of a Scala 2 class, not lifted

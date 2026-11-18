@@ -63,6 +63,7 @@ impl Gen<'_, '_> {
         self.gen_exports(td, sym)?;
         let closures = std::mem::take(&mut self.closures);
         self.defns.extend(closures);
+        self.gen_reflective_instantiation(td, sym)?;
         self.gen_mirror_class(sym, pos)
     }
 

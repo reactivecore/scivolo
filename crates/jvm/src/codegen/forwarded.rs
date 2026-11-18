@@ -19,12 +19,12 @@ pub struct Forwarded {
     pub synthetic: bool,
     pub method: SymbolId,
     /// The method whose type, signature and flags the forwarder takes: the method a bridge
-    /// overrides, the trait method a mixin forwarder calls, else `method`.
+    /// overrides, the trait or JDK method a mixin forwarder calls, else `method`.
     pub target: SymbolId,
 }
 
 impl Gen<'_, '_> {
-    /// Collects the methods of `module` forwarded to, sorted by name and descriptor: the members
+    /// Collects the methods of `module` forwarded to, sorted by source name and descriptor: the members
     /// dotty's `addForwarders` takes, but those of names a term member of the erased companion
     /// class `companion` has (a primitive class's has no parents).
     pub fn forwarded(&mut self, module: SymbolId, companion: Option<SymbolId>) -> Vec<Forwarded> {
@@ -49,7 +49,10 @@ impl Gen<'_, '_> {
                 let bridge = self.l.is_bridge(m);
                 let target = match bridge {
                     true => self.bridged(c, &name, &desc),
-                    false => Some(self.l.mixed_in_from(m).unwrap_or(m)),
+                    false => {
+                        let mixed = self.l.mixed_in_from(m).or_else(|| self.l.jdk_forwarded_from(m));
+                        Some(mixed.unwrap_or(m))
+                    }
                 };
                 let Some(target) = target else { continue };
                 if !conflicting.contains(&name) {
@@ -58,7 +61,8 @@ impl Gen<'_, '_> {
                 }
             }
         }
-        out.sort_by(|a, b| (&a.name, &a.desc).cmp(&(&b.name, &b.desc)));
+        let source_name = |g: &Self, f: &Forwarded| g.l.u.symbol(f.method).name.clone();
+        out.sort_by_cached_key(|f| (source_name(self, f), f.desc.clone()));
         out
     }
 

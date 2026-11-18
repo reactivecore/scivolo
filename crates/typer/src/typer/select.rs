@@ -25,7 +25,7 @@ impl Typer<'_> {
         let mode = if apply { mode.with(Mode::APPLY_QUALIFIER) } else { mode };
         let redundant = apply && matches!(pt, Pt::Fun(_));
         let mode = if redundant { mode.with(Mode::REDUNDANT_APPLY) } else { mode };
-        let mut qual = self.typed(qualifier, Pt::Any, ctx.with_mode(mode));
+        let mut qual = self.typed_qualifier(qualifier, name, ctx.with_mode(mode));
         if self.is_probe_target(id) {
             return self.probe_selection(id, qual, ctx);
         }
@@ -83,6 +83,7 @@ impl Typer<'_> {
             if !syms.is_empty()
                 && !converted
                 && !name.is_type
+                && text != nme::CONSTRUCTOR
                 && !self.has_selectable(&syms, qual_tpe, &text, ctx)
                 && let Ok(Some(Viewed::Converted(q))) = self.viewed(qual, Goal::Member(&text), ctx)
             {
@@ -199,6 +200,9 @@ impl Typer<'_> {
         let this = matches!(self.tpd.tree(qual), T::This { .. });
         let projection = !this && self.tpd.sym(qual).is_some_and(|q| self.u.is_type_symbol(q))
             || matches!(self.tpd.tree(qual), T::AppliedTypeTree { .. });
+        if projection && self.type_arity(qual_tpe) > 0 {
+            return self.projection_of_constructor(qualifier, qual_tpe, &text);
+        }
         if projection && self.u.symbol(sym).kind == Kind::Type {
             self.complete(sym);
             let info = self.u.info(sym);

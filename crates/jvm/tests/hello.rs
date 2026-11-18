@@ -54,12 +54,52 @@ fn hello_runs_on_the_jvm() {
 }
 
 #[test]
+fn operands_ascribed_to_nothing_throw_on_the_jvm() {
+    runs_on_the_jvm("deadoperands", "deadoperands");
+}
+
+#[test]
+fn searches_in_this_calls_of_local_classes_skip_their_members() {
+    runs_on_the_jvm("thiscallsearch", "Test");
+}
+
+#[test]
+fn inline_methods_returning_match_aliases_do_not_constrain_type_variables() {
+    runs_on_the_jvm("inlinematchalias", "Test");
+}
+
+#[test]
+fn array_spreads_of_named_arguments_beside_defaults_stay_arrays() {
+    runs_on_the_jvm("namedarrayspread", "Test");
+}
+
+#[test]
+fn wildcard_imports_being_typed_are_skipped() {
+    runs_on_the_jvm("completingimport", "completingimport.Test");
+}
+
+#[test]
+fn parents_completed_under_an_import_being_typed_keep_their_types() {
+    runs_on_the_jvm("completingparent", "Test");
+}
+
+#[test]
+fn legacy_match_types_keep_the_outer_constraint_frozen() {
+    runs_on_the_jvm("legacymatchvars", "Test");
+}
+
+#[test]
+fn partial_applications_take_apply_under_scala_3_3() {
+    runs_on_the_jvm("partialapply", "Test");
+}
+
+#[test]
 fn several_files_run_on_the_jvm() {
     runs_on_the_jvm("units", "Units");
 }
 
 #[test]
-fn a_class_parameter_field_capturing_another_parameter_refused() {
+fn a_case_class_parameter_capturing_another_parameter_refused() {
     let source = root().join("tests/jvm/refused/fieldcaptures.scala");
     let (_, compiled) = compile("fieldcaptures", &source);
     let stderr = String::from_utf8_lossy(&compiled.stderr);
@@ -132,6 +172,21 @@ fn traits_run_on_the_jvm() {
 #[test]
 fn inline_vals_run_on_the_jvm() {
     runs_on_the_jvm("inlinevals", "Inlinevals");
+}
+
+#[test]
+fn members_of_parent_refinements_are_dropped_on_the_jvm() {
+    runs_on_the_jvm("parentrefinements", "ParentRefinements");
+}
+
+#[test]
+fn conversions_for_members_diverge_by_their_prototypes() {
+    runs_on_the_jvm("viewdivergence", "ViewDivergence");
+}
+
+#[test]
+fn inline_arguments_narrowed_to_constants_keep_their_skolems() {
+    runs_on_the_jvm("namedtupleinit", "NamedTupleInit");
 }
 
 #[test]

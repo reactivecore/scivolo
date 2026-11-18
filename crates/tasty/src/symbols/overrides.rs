@@ -15,13 +15,23 @@ impl Universe {
     /// their signatures match, a method without parameters matching a non-method, or their
     /// parameters do and so do their types (`info_matches`).
     pub fn matches(&mut self, site: TypeId, a: SymbolId, b: SymbolId) -> bool {
-        use crate::erasure::{MatchDegree, match_degree};
-        if self.info_matches(site, a, b) {
-            return true;
-        }
+        use crate::erasure::MatchDegree;
+        self.info_matches(site, a, b)
+            || matches!(self.signature_match(site, a, b), MatchDegree::Full | MatchDegree::MethodNotAMethod)
+    }
+
+    /// Determines whether the signatures of members `a` and `b` of `site` have the same erased
+    /// parameter types (dotty's `consistentParams`).
+    pub fn parameters_agree(&mut self, site: TypeId, a: SymbolId, b: SymbolId) -> bool {
+        let scala2 = self.erased_as_scala2(a) && self.erased_as_scala2(b);
+        let (sa, sb) = (self.dealiased_signature(site, a, scala2), self.dealiased_signature(site, b, scala2));
+        !matches!(crate::erasure::match_degree(&sa, &sb), crate::erasure::MatchDegree::No)
+    }
+
+    fn signature_match(&mut self, site: TypeId, a: SymbolId, b: SymbolId) -> crate::erasure::MatchDegree {
         let scala2 = self.erased_as_scala2(a) && self.erased_as_scala2(b);
         let (sa, sb) = (self.signature(site, a, scala2), self.signature(site, b, scala2));
-        matches!(match_degree(&sa, &sb), MatchDegree::Full | MatchDegree::MethodNotAMethod)
+        crate::erasure::match_degree(&sa, &sb)
     }
 
     /// Whether the types of members `a` and `b` of `site` match (dotty's relaxed `matchesType`):
@@ -33,18 +43,19 @@ impl Universe {
         if ta.len() != tb.len() {
             return false;
         }
+        if self.is_class_site(site) {
+            let (da, db) = (self.info(a), self.info(b));
+            if !self.same_param_counts(da, db) {
+                return false;
+            }
+        }
         let renamed: Vec<TypeId> = ta.iter().map(|&p| self.intern_type(Type::Sym(None, p))).collect();
         let (ia, ib) = (self.member_info(site, a), self.member_info(site, b));
+        if !self.same_param_counts(ia, ib) {
+            return false;
+        }
         let (pa, pb) = (self.poly_binders(ia), self.poly_binders(ib));
-        if pa.iter().map(|p| p.1).ne(pb.iter().map(|p| p.1)) {
-            return false;
-        }
         let (ca, cb) = (self.param_clauses(ia), self.param_clauses(ib));
-        let n = ca.len().min(cb.len());
-        let rest_empty = ca[n..].iter().chain(&cb[n..]).all(|(_, ps)| ps.is_empty());
-        if !rest_empty || ca.iter().zip(&cb).any(|((_, x), (_, y))| x.len() != y.len()) {
-            return false;
-        }
         let (ma, mb) = (self.method_clauses(ia), self.method_clauses(ib));
         let pairs = ca.into_iter().zip(cb).flat_map(|((_, x), (_, y))| x.into_iter().zip(y));
         pairs.collect::<Vec<_>>().into_iter().all(|(x, y)| {
@@ -75,6 +86,24 @@ impl Universe {
             let (x, y) = (self.param_paths_named(x, &ma), self.param_paths_named(y, &ma));
             x == y || self.is_same_type_in(x, y, &mut crate::subtype::NoVars)
         })
+    }
+
+    /// Whether `t` is a reference to a class, whose members have the parameters they declare.
+    fn is_class_site(&self, t: TypeId) -> bool {
+        matches!(*self.ty(t), Type::Sym(_, c) if self.symbol(c).kind == super::Kind::Class)
+    }
+
+    /// Whether method types `a` and `b` have as many type parameters per clause and as many value
+    /// parameters per clause, clauses past the other's last empty.
+    fn same_param_counts(&self, a: TypeId, b: TypeId) -> bool {
+        let (pa, pb) = (self.poly_binders(a), self.poly_binders(b));
+        if pa.iter().map(|p| p.1).ne(pb.iter().map(|p| p.1)) {
+            return false;
+        }
+        let (ca, cb) = (self.param_clauses(a), self.param_clauses(b));
+        let n = ca.len().min(cb.len());
+        let rest_empty = ca[n..].iter().chain(&cb[n..]).all(|(_, ps)| ps.is_empty());
+        rest_empty && ca.iter().zip(&cb).all(|((_, x), (_, y))| x.len() == y.len())
     }
 
     /// `t` with each member reference on a path from a parameter of clauses `methods` made a

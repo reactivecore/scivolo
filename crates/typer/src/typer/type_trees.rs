@@ -178,9 +178,8 @@ impl Typer<'_> {
             && self.u.symbol(s).kind == Kind::Type
         {
             self.complete(s);
-            let info = self.u.info(s);
-            let alias = self.u.type_alias(info).unwrap_or(info);
-            if let Some(Binding { binder, params, result, .. }) = self.u.lambda(alias)
+            if let Some(alias) = self.u.alias_of(s)
+                && let Some(Binding { binder, params, result, .. }) = self.u.lambda(alias)
                 && let Some((inner, inner_args)) = self.u.applied(result)
                 && inner_args.len() == params.len()
                 && args.len() == params.len()

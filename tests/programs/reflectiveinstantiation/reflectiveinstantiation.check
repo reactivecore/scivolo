@@ -1,0 +1,13 @@
+Some(plain)
+Some(outer member)
+Args: Some((java.lang.String) (int, java.lang.String, scala.scalanative.runtime.IntArray, boolean))
+Partial: None
+Plugin: None
+Hidden: None
+Holder$Member: Some((Holder))
+args 7 seven 3 false
+args 1 one 5 true
+Single$: Some(single)
+Outer$Nested$: Some(nested)
+Holder$Inner$: Some(null)
+Plain: None

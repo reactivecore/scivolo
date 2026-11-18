@@ -3,13 +3,18 @@
 //! Applied aliases and abstract types, whose arguments are substituted into their right-hand
 //! side or upper bound.
 
+use crate::tags::OPAQUE;
 use crate::types::{NameId, Type, TypeId};
 use crate::{Kind, Universe};
+
+/// How many opaque types `dealias_opaque` follows.
+const MAX_STEPS: u32 = 64;
 
 impl Universe {
     /// `tycon[args]` with `tycon` an alias of a type lambda, also by a refinement of its prefix's
     /// type (`f.A[Int]` of `f: R` with `R <: Foo { type A[T] = Long }`): its body as seen from
-    /// the prefix of `tycon`, arguments substituted.
+    /// the prefix of `tycon`, arguments substituted. An opaque type read from TASTy is no alias
+    /// until opaque types are elided.
     pub fn expand(&mut self, tycon: TypeId, args: &[TypeId]) -> Option<TypeId> {
         self.applied_info(tycon, args, false)
     }
@@ -37,6 +42,16 @@ impl Universe {
         if let Some(refined) = refined.and_then(|r| self.type_alias(r)) {
             return self.lambda_applied(refined, args, upper);
         }
+        if self.symbol(alias).flags.has(OPAQUE) && self.symbol(alias).tree.is_some() {
+            return match (self.is_hidden_opaque(alias), upper) {
+                (false, _) => self.expand_opaque(tycon, args),
+                (true, true) => {
+                    let applied = self.intern_applied(tycon, args);
+                    self.opaque_upper(applied)
+                }
+                (true, false) => None,
+            };
+        }
 
         let own = match prefix {
             Some(p) => self.member_info(p, alias),
@@ -52,9 +67,51 @@ impl Universe {
         }
     }
 
-    /// The body of type lambda `info`, or with `upper` of its upper bound, arguments `args`
-    /// substituted.
+    /// Expands `tycon[args]`, `tycon` an opaque type, whatever the scope: the body of its
+    /// right-hand side as seen from the prefix of `tycon`, arguments substituted (for erasure).
+    pub fn expand_opaque(&mut self, tycon: TypeId, args: &[TypeId]) -> Option<TypeId> {
+        let rhs = self.seen_opaque_rhs(tycon)?;
+        self.lambda_applied(rhs, args, false)
+    }
+
+    /// Dealiases `t` and replaces opaque types by their right-hand sides, as generic signatures
+    /// see types after `ElimOpaque`.
+    pub fn dealias_opaque(&mut self, t: TypeId) -> TypeId {
+        let mut t = self.dealias(t);
+        for _ in 0..MAX_STEPS {
+            let next = match self.applied(t).map(|(c, a)| (c, a.to_vec())) {
+                Some((tycon, args)) => self.expand_opaque(tycon, &args),
+                None => self.seen_opaque_rhs(t),
+            };
+            match next {
+                Some(n) => t = self.dealias(n),
+                None => break,
+            }
+        }
+        t
+    }
+
+    /// The right-hand side of opaque type reference `tycon`, as seen from its prefix.
+    fn seen_opaque_rhs(&mut self, tycon: TypeId) -> Option<TypeId> {
+        let s = self
+            .referenced(tycon)
+            .filter(|&s| self.symbol(s).kind == Kind::Type && self.symbol(s).flags.has(OPAQUE))?;
+        let rhs = self.opaque_rhs(s)?;
+        let prefix = match *self.ty(tycon) {
+            Type::Sym(p, _) => p,
+            Type::TypeRef(p, _) => Some(p),
+            _ => None,
+        };
+        Some(match (prefix, self.symbol(s).owner) {
+            (Some(p), Some(o)) if self.symbol(o).kind == Kind::Class => self.as_seen_from(rhs, p, o),
+            _ => rhs,
+        })
+    }
+
+    /// The body of type lambda `info`, an alias of one (an export forwarder read from TASTy), or
+    /// with `upper` of its upper bound, arguments `args` substituted.
     fn lambda_applied(&mut self, info: TypeId, args: &[TypeId], upper: bool) -> Option<TypeId> {
+        let info = self.type_alias(info).unwrap_or(info);
         let info = self.bounds(info).filter(|_| upper).map_or(info, |(_, hi)| hi);
         let (binder, names, result) = self.lambda(info).map(|l| (l.binder, l.names(), l.result))?;
         Some(self.subst(result, binder, &names, args))

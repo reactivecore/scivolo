@@ -4,6 +4,27 @@ use super::refs::Meaning;
 use crate::types::{NameId, Type, TypeId};
 use crate::{ANY, Kind, NOTHING, SymbolId, Universe};
 
+impl Universe {
+    /// Determines whether private type member `s` is out of reach through `prefix`, where the name
+    /// no longer resolves: `this` of a class other than its owner, or a path to an instance of a
+    /// subclass of its owner (dotty's "private member in a base class").
+    pub fn is_hidden_private(&mut self, s: SymbolId, prefix: TypeId) -> bool {
+        let sym = self.symbol(s);
+        if sym.kind != Kind::Type || !sym.is_private() {
+            return false;
+        }
+        let Some(owner) = sym.owner else { return false };
+        if let Some(this) = self.this_of(prefix) {
+            return self.class_symbol(this).is_some_and(|c| c != owner);
+        }
+        if !self.is_value_path(prefix) {
+            return false;
+        }
+        let widened = self.widen(prefix);
+        self.class_symbol(widened).is_some_and(|c| c != owner && self.derives_from(c, owner))
+    }
+}
+
 /// What type member `name` stands for by a refinement of `prefix`'s type.
 pub fn refined_meaning(u: &mut Universe, prefix: TypeId, name: NameId) -> Option<Meaning> {
     let info = u.refinement_named(prefix, name)?;
@@ -15,9 +36,13 @@ pub fn refined_meaning(u: &mut Universe, prefix: TypeId, name: NameId) -> Option
 }
 
 /// What class type parameter `p` stands for through value `prefix`: the argument its type's base
-/// type gives it (dotty's `argForParam`); `None` for a `this` prefix.
+/// type gives it, a wildcard the alias it gives a variant `p` or else its bounds (dotty's
+/// `argDenot`); `None` for a `this` prefix.
 fn class_param_arg(u: &mut Universe, p: SymbolId, prefix: TypeId) -> Option<Meaning> {
     let arg = u.arg_for_param(prefix, p)?;
+    if let Some(alias) = u.wildcard_param_alias(prefix, p) {
+        return Some(Meaning::Alias(alias));
+    }
     Some(u.bounds(arg).map_or(Meaning::Alias(arg), |(lo, hi)| Meaning::Abstract(lo, hi)))
 }
 
@@ -32,6 +57,9 @@ pub fn meaning(u: &mut Universe, s: SymbolId, prefix: Option<TypeId>) -> Meaning
         Kind::Type | Kind::TypeParam => {
             let name = u.interned_name(s);
             let member = u.symbol(s).kind == Kind::Type;
+            if member && prefix.is_some_and(|p| u.is_hidden_private(s, p)) {
+                return Meaning::Unknown;
+            }
             if let Some(refined) = prefix.filter(|_| member).and_then(|p| refined_meaning(u, p, name)) {
                 let info = u.info(s);
                 return match (refined, *u.ty(info)) {
@@ -68,16 +96,16 @@ pub fn meaning(u: &mut Universe, s: SymbolId, prefix: Option<TypeId>) -> Meaning
             let info = u.info(s);
             match *u.ty(info) {
                 Type::Bounds(lo, hi) => Meaning::Abstract(seen(u, lo), seen(u, hi)),
-                Type::Lambda { binder, params, result } => match *u.ty(result) {
-                    Type::Bounds(lo, hi) => {
-                        let lambda = |u: &mut Universe, body| {
-                            let body = seen(u, body);
-                            u.intern_type(Type::Lambda { binder, params, result: body })
-                        };
-                        Meaning::Abstract(lambda(u, lo), lambda(u, hi))
-                    }
-                    _ => Meaning::Abstract(NOTHING, ANY),
-                },
+                Type::Lambda { binder, params, result } => {
+                    let variances = u.variances(s);
+                    u.declare_lambda_variances(binder, variances);
+                    let (lo, hi) = u.bounds(result).unwrap_or((NOTHING, ANY));
+                    let lambda = |u: &mut Universe, body| {
+                        let body = seen(u, body);
+                        u.intern_type(Type::Lambda { binder, params, result: body })
+                    };
+                    Meaning::Abstract(lambda(u, lo), lambda(u, hi))
+                }
                 _ => Meaning::Abstract(NOTHING, ANY),
             }
         }

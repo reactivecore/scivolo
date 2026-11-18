@@ -192,7 +192,9 @@ impl Typer<'_> {
         };
         self.u.set_info(s, info);
         if self.u.is_type_symbol(s) {
+            self.kind_projector_qmark(p);
             self.check_non_cyclic(s, info, p);
+            self.check_array_self_bound(s, info, p);
         } else {
             self.mark_erased_by_type(s, p, info);
         }

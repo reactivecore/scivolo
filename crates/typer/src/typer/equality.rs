@@ -153,8 +153,17 @@ impl Typer<'_> {
         let Some(depth) = depth.checked_sub(1) else { return t };
         let node = *self.u.ty(t);
         match node {
-            Type::Sym(_, s) if matches!(self.u.symbol(s).kind, Kind::Type | Kind::TypeParam) => {
+            Type::Sym(prefix, s) if matches!(self.u.symbol(s).kind, Kind::Type | Kind::TypeParam) => {
                 self.complete(s);
+                if let Some(arg) = prefix.and_then(|p| self.u.arg_for_param(p, s)) {
+                    let hi = self.u.bounds(arg).map_or(arg, |(_, hi)| hi);
+                    let lifted = self.lifted(hi, depth);
+                    let open =
+                        self.u.sym_of(lifted).is_some_and(|l| self.u.symbol(l).kind == Kind::TypeParam);
+                    if lifted != tasty::ANY && !open {
+                        return lifted;
+                    }
+                }
                 let info = self.u.info(s);
                 match self.u.bounds(info) {
                     Some((lo, hi)) if lo != hi && !self.u.symbol(s).flags.has(tasty::tags::OPAQUE) => {

@@ -82,6 +82,7 @@ impl Typer<'_> {
                     (self.widen_singletons(a, skip_soft_unions), self.widen_singletons(b, skip_soft_unions));
                 if (wa, wb) == (a, b) { t } else { self.u.glb(wa, wb) }
             }
+            Type::This(c) if self.u.keeps_captures => self.widened_this(d, c),
             _ if self.is_singleton(d) => {
                 let widened = self.types().widened(d);
                 if self.is_singleton_bounded(widened) { t } else { widened }

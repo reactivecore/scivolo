@@ -62,6 +62,9 @@ pub fn compile_attributed<R>(
         impl FnOnce(&mut crate::Lower, TNodeId, Vec<Pickled>) -> crate::Result<R>,
     ),
 ) -> Result<(R, Diagnostics), Vec<Attributed>> {
+    if backend == crate::Backend::Jvm {
+        u.set_jvm_target();
+    }
     let whole = |refusal| vec![Attributed { refusal, files: Vec::new() }];
     let sources = Sources::new(files).map_err(|e| whole(refused(e)))?;
     let (mut names, mut ast) = (Names::default(), Ast::default());

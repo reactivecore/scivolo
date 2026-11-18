@@ -64,7 +64,7 @@ impl Typer<'_> {
             self.enter_derived(cls, companion, &derived, cctx);
         }
         if let Some(s) = t.self_
-            && !self.is_module_self(s)
+            && !self.is_module_self(cls, s)
         {
             self.complete_self(cls, s, cctx);
         }
@@ -117,7 +117,7 @@ impl Typer<'_> {
         }
         self.check_trait_inits(cls, &parents, name_span);
         self.check_parent_prefixes(cls, &parents);
-        let self_ = t.self_.map(|s| match self.is_module_self(s) {
+        let self_ = t.self_.map(|s| match self.is_module_self(cls, s) {
             true => self.typed(s, Pt::Any, ctx),
             false => self.typed_self(s, cctx),
         });
@@ -134,6 +134,7 @@ impl Typer<'_> {
         self.check_overrides(cls, self.ast.span(id));
         self.check_base_types(cls, name_span);
         self.check_parameterized_traits(cls, name_span);
+        self.report_cyclic_base_type(name_span);
         let parents = self.tpd.list(&parents);
         let body = self.tpd.list(&body);
         let template = T::Template { constr, parents, self_, body };
@@ -189,13 +190,15 @@ impl Typer<'_> {
         let Some(&tree) = tree else { return false };
         let Tree::TypeDef { rhs, .. } = *self.ast.tree(tree) else { return false };
         let Tree::Template { self_, .. } = *self.ast.tree(rhs) else { return false };
-        self_.is_some_and(|s| !self.is_module_self(s))
+        self_.is_some_and(|s| !self.is_module_self(c, s))
             || self.ast.exists_subtree(rhs, &|ast, n| matches!(ast.tree(n), Tree::Export { .. }))
     }
 
-    /// Whether self definition `s` is the `_: O.type` desugaring gives an object's class.
-    fn is_module_self(&self, s: NodeId) -> bool {
-        matches!(*self.ast.tree(s), Tree::ValDef { name, tpt, .. }
-            if self.text(name.name) == nme::WILDCARD && matches!(self.ast.tree(tpt), Tree::SingletonTypeTree { .. }))
+    /// Whether self definition `s` of class `cls` is the `_: O.type` desugaring gives an object's
+    /// class.
+    fn is_module_self(&self, cls: SymbolId, s: NodeId) -> bool {
+        self.u.is_module_class(cls)
+            && matches!(*self.ast.tree(s), Tree::ValDef { name, tpt, .. }
+                if self.text(name.name) == nme::WILDCARD && matches!(self.ast.tree(tpt), Tree::SingletonTypeTree { .. }))
     }
 }

@@ -4,7 +4,7 @@
 //! of, whose arrays erase to `Object`.
 
 use super::Erased;
-use super::special::{UNBOUNDED, special};
+use super::special::UNBOUNDED;
 use crate::types::{Type, TypeId};
 use crate::{Kind, SymbolId, Universe};
 
@@ -40,7 +40,7 @@ impl Universe {
             }
             Type::Applied(tycon, list) => {
                 let args = self.types_of(list).to_vec();
-                match self.expand(tycon, &args) {
+                match self.expand_opaque(tycon, &args).or_else(|| self.expand(tycon, &args)) {
                     Some(alias) => self.is_generic(alias),
                     None if let Some(alias) = self.overriding_member(tycon) => {
                         let applied = self.intern_type(Type::Applied(alias, list));
@@ -135,7 +135,7 @@ impl Universe {
             },
             Type::Sym(..) | Type::TypeRef(..) => {
                 if let Some(c) = self.class_name(t) {
-                    return match special(&c) {
+                    return match self.special_class(&c) {
                         _ if UNBOUNDED.contains(&c.as_str()) => Holder::None,
                         Some(Erased::Prim(p)) => Holder::Prim(p),
                         _ => Holder::Object,
