@@ -11,48 +11,40 @@ use crate::{Kind, SymbolId};
 /// The full name of the marker trait of `Selectable`s that dispatch without parameter types.
 const WITHOUT_PRECISE_PARAMETER_TYPES: &str = "scala.Selectable.WithoutPreciseParameterTypes";
 
-/// The packages of the classes the universe may hold as Scala definitions of Java ones.
-const JAVA_PACKAGES: [&str; 2] = ["java.", "javax."];
-
 impl Cmp<'_> {
-    /// Determines how info `have` of member `m` of `class` compares with refinement info `want`:
-    /// `=> T` for a `def` without parameters, for a `var`, for a `val` against `{ def x: T }` and
-    /// for a Java `def x(): T` against it.
-    pub fn member_as_expr(&mut self, (m, class): (SymbolId, SymbolId), have: TypeId, want: TypeId) -> TypeId {
-        let by_name = matches!(self.u.ty(want), Type::ByName(_));
-        let info = *self.u.ty(have);
-        let result = match info {
-            Type::Method { params, result, .. }
-                if by_name && self.u.params_of(params).is_empty() && self.is_java_member(m, class) =>
-            {
-                result
-            }
+    /// Determines how info `have` of member `m` compares with refinement info `want`: `=> T` for a
+    /// `def` without parameters, for a `var` and for a `val` against `{ def x: T }`.
+    pub fn member_as_expr(&mut self, m: SymbolId, have: TypeId, want: TypeId) -> TypeId {
+        if matches!(
+            self.u.ty(have),
             Type::Method { .. }
-            | Type::Poly { .. }
-            | Type::ByName(_)
-            | Type::Bounds(..)
-            | Type::Alias(_)
-            | Type::Lambda { .. } => return have,
-            _ => {
-                let s = self.u.symbol(m);
-                if !by_name && s.kind != Kind::Def && !s.flags.has(MUTABLE) {
-                    return have;
-                }
-                have
-            }
-        };
-        self.u.intern_type(Type::ByName(result))
+                | Type::Poly { .. }
+                | Type::ByName(_)
+                | Type::Bounds(..)
+                | Type::Alias(_)
+                | Type::Lambda { .. }
+        ) {
+            return have;
+        }
+        let s = self.u.symbol(m);
+        if !matches!(self.u.ty(want), Type::ByName(_)) && s.kind != Kind::Def && !s.flags.has(MUTABLE) {
+            return have;
+        }
+        self.u.intern_type(Type::ByName(have))
     }
 
     /// Determines whether method `m`, of info `have`, may implement the method the last refinement
-    /// of `refined` declares: the refined type's class has a member of that name, so no reflection
-    /// is needed, or dispatches without parameter types, or `m` as declared has the parameter
-    /// signature of the refinement.
+    /// of `refined` declares: in a bound or self type, if the refined type's class has a member of
+    /// that name, so no reflection is needed, or dispatches without parameter types, or if `m` as
+    /// declared has the parameter signature of the refinement.
     pub fn signatures_ok(&mut self, m: SymbolId, have: TypeId, refined: TypeId) -> bool {
         let Type::Refined(_, name, want) = *self.u.ty(refined) else { return true };
         let (Type::Method { .. }, Type::Method { .. }) = (*self.u.ty(have), *self.u.ty(want)) else {
             return true;
         };
+        if self.u.checks_bounds_or_self_type() {
+            return true;
+        }
         if let Some(class) = self.refined_class(refined)
             && (!self.u.member(class, name).is_empty()
                 || self
@@ -80,18 +72,6 @@ impl Cmp<'_> {
             t = inner;
         }
         self.u.class_symbol(t)
-    }
-
-    /// Whether `m`, a member of `class`, is defined by Java: from a class file, a member of a JDK
-    /// class the universe holds as a Scala definition, or a member of `Any` that `Object` declares
-    /// to dotty.
-    fn is_java_member(&mut self, m: SymbolId, class: SymbolId) -> bool {
-        let Some(owner) = self.u.symbol(m).owner else { return false };
-        let any = self.u.defn().any;
-        owner == any && class != any
-            || self.u.is_java_defined(m)
-            || self.u.may_be_java(owner)
-                && JAVA_PACKAGES.iter().any(|p| self.u.full_name_starts_with(owner, p))
     }
 
     /// Whether `t` mentions a type still to be inferred, whose erasure is not known.

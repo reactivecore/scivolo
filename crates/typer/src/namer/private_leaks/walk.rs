@@ -2,7 +2,7 @@
 //   compiler/src/dotty/tools/dotc/typer/Checking.scala
 //! The map over a signature (dotty's `NotPrivate`).
 
-use super::PrivateLeaks;
+use super::{PrivateLeaks, is_contained_in};
 use crate::typer::Typer;
 use tasty::tags::PRIVATE;
 use tasty::{Kind, SymbolId, Type, TypeId};
@@ -31,15 +31,15 @@ impl PrivateLeaks {
         })
     }
 
-    /// Reference `x` with the leaks of its symbol or prefix avoided by expanding it if it is an
-    /// alias.
+    /// Reference `x` with the leaks of its symbol or, unless it is static, its prefix avoided by
+    /// expanding it if it is an alias.
     fn apply_named(&mut self, t: &mut Typer<'_>, x: TypeId) -> TypeId {
         let Some((prefix, s)) = t.u.sym_ref(x) else { return x };
         let before = self.leaks.len();
         let mut mapped = x;
         if self.is_leaked(t, s) {
             self.leaks.push(s);
-        } else if let Some(p) = prefix {
+        } else if let Some(p) = prefix.filter(|_| !t.u.is_static_symbol(s)) {
             let q = self.apply(t, p);
             if q != p {
                 mapped = t.u.intern_type(Type::Sym(Some(q), s));
@@ -70,7 +70,7 @@ impl PrivateLeaks {
             return false;
         }
         let Some(owner) = s.owner else { return false };
-        !t.is_contained_in(self.boundary, owner)
-            && !t.linked_class(owner).is_some_and(|linked| t.is_contained_in(self.boundary, linked))
+        !is_contained_in(t, self.boundary, owner)
+            && !t.linked_class(owner).is_some_and(|linked| is_contained_in(t, self.boundary, linked))
     }
 }

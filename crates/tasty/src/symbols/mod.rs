@@ -179,6 +179,12 @@ pub struct Universe {
     /// The symbol whose definition comparisons are made in (dotty's `ctx.owner`), if known.
     comparison_owner: Option<SymbolId>,
     null_mode: crate::NullMode,
+    /// Whether comparisons check a type argument's bounds or a self type.
+    checks_bounds_or_self_type: bool,
+    /// How many array types `erase` is inside of.
+    pub erased_array_depth: u32,
+    /// Whether `erase` met an array type of itself.
+    pub erasure_exhausted: bool,
     /// How many comparisons succeeded through a reference lifted to an object's `this`.
     opaque_lifts: u64,
     /// Whether the sources compiled are javalib's, whose TASTy classes are then Scala classes.

@@ -19,7 +19,7 @@ mod types;
 mod view;
 pub mod write;
 
-pub use erasure::{Erased, PRIMITIVE_VALUE_CLASSES};
+pub use erasure::{ARRAY_OF_ITSELF, Erased, PRIMITIVE_VALUE_CLASSES};
 pub use gadt::{Entry as GadtEntry, GadtChanges, GadtConstraint, Registered, Unification};
 pub use positions::{TastySpan, decode_positions, line_sizes};
 pub use subtype::{Changes, Mark, MatchTypeRules, NoVars, NullMode, TypeVars};

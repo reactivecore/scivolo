@@ -89,6 +89,7 @@ fn private_definitions_leaking_through_signatures() {
             "class O { private class P\n  class I { private def f: P = new P } }\n",
             "object O { private class P\n  def f: Int = { val p = new P; 1 } }\n",
             "class O[T] { private val x: T = ???\n  def f: T = x }\n",
+            "object O { private object M { class X; val x = 1 }\n  def f: M.X = new M.X\n  def g: M.x.type = M.x }\n",
         ],
     );
 }
@@ -116,6 +117,12 @@ fn members_against_refinements() {
             "val b: { def length(): Int } = \"s\"\n",
             "val f: Function1[Int, Int] { def apply(x: Int): Int } = x => x\n",
             "val g: (Object & Comparable[String]) { def toString: String } = \"s\"\n",
+            "class C { def m(): Int = 1 }\nval a: { def m: Int } = new C\n",
+            "class C { override def toString() = \"c\" }\nval a: { def toString: String } = new C\n",
+            "class D[X] { def m(x: X): Int = 1 }\nclass A[T <: { def m(x: String): Int }]\n\
+             val a = new A[D[String]]\n",
+            "class D[X] { def m(x: X): Int = 1 }\ntrait S { self: { def m(x: String): Int } => }\n\
+             class E extends D[String] with S\n",
         ],
     );
 }
@@ -194,8 +201,16 @@ fn private_members_out_of_reach() {
                  object O { new S { val c = C(List(\"1\")) } }\n",
                 "",
             ),
+            (
+                "trait S { private type V = String\n  case class C(v: List[V]) }\nclass Sub extends S\n\
+                 def f(s: Sub) = s.C(List(\"1\"))\n",
+                "",
+            ),
         ],
-        &["trait S { private type V = String\n  case class C(v: List[V])\n  val c = C(List(\"1\")) }\n"],
+        &[
+            "trait S { private type V = String\n  case class C(v: List[V])\n  val c = C(List(\"1\")) }\n",
+            "trait S { private type V = String\n  case class C(v: List[V]) }\ndef f(s: S) = s.C(List(\"1\"))\n",
+        ],
     );
 }
 
@@ -211,8 +226,20 @@ fn overrides_with_higher_kinded_or_refined_types() {
                  class B extends A { override def f: H[[x] =>> Option[x]] = ??? }\n",
                 error,
             ),
+            (
+                "class I[T]\nclass A { type F[X <: A] <: I[A] }\nclass B extends A { type F[X <: A] = I[X] }\n",
+                error,
+            ),
+            (
+                "trait O { def w: O.F[Int] = ??? }\nobject O { class F[T] }\n\
+                 trait S extends O { override def w: S.F[Int] = ??? }\nobject S { class F[T] }\n",
+                error,
+            ),
         ],
         &[
+            "class A { type F[G[X] <: List[X]] <: Seq[Int] }\nclass B extends A { type F[G[X] <: List[X]] = G[Int] }\n",
+            "trait O { def w: O.F[Int] = ??? }\nobject O { class F[T] }\n\
+             trait S extends O { override def w: S.F[Int] = ??? }\nobject S { class F[T] extends O.F[T] }\n",
             "class A { type F[X] <: Seq[X] }\nclass B extends A { type F[X] = List[X] }\n",
             "class A { type F[X <: A] <: A }\nclass B extends A { type F[X <: A] = X }\n",
             "class A { class N; type T <: N }\nclass B extends A { class M extends super.N; type T = M }\n",
@@ -231,10 +258,24 @@ fn types_bounded_by_arrays_of_themselves() {
         &[
             ("class C[F[x] <: Array[F[x]]]\n", "type bounded by an array of itself"),
             ("class C[T <: Array[T]]\n", "type bounded by an array of itself"),
-            ("trait C { type T <: Array[Array[T]] }\n", "type bounded by an array of itself"),
+            ("class C[T <: Array[Array[T]] | Null]\n", "type bounded by an array of itself"),
+            ("def f[T <: Array[T]](x: T) = x\n", "type bounded by an array of itself"),
         ],
-        &["class C[T <: Array[Int]]\n", "class C[T <: Comparable[T]]\n", "class C[T, U <: Array[T]]\n"],
+        &[
+            "class C[T <: Array[Int]]\n",
+            "class C[T <: Comparable[T]]\n",
+            "class C[T, U <: Array[T]]\n",
+            "trait C { type T <: Array[Array[T]] }\n",
+        ],
     );
+}
+
+#[test]
+fn erasing_a_type_bounded_by_an_array_of_itself_is_refused() {
+    let Some(mut u) = universe() else { return };
+    let source = SourceFile::new("main.scala", "trait C { type T <: Array[T]; def f(x: T): T }\n");
+    let dumped = typer::dump::dump(&mut u, &source, &[], true, false);
+    assert!(dumped.contains(tasty::ARRAY_OF_ITSELF), "{dumped}");
 }
 
 #[test]
@@ -244,15 +285,36 @@ fn checks_of_single_constructs() {
             ("class A[T]\nclass B extends A[?]\n", "Type argument must be fully defined"),
             ("class C[?]\n", "`?` is not a valid type name"),
             ("class C[M[?]]\n", "`?` is not a valid type name, use `_`"),
+            ("def f[?] = 1\n", "`?` is not a valid type name"),
             ("class L[T] { class P }\nobject O { def f(x: L#P) = 1 }\n", "Required: ?{ P: ? }"),
             (
                 "trait T { def m = 1 }\nobject O extends T { inline def i = super[T].m }\n",
                 "Super call not allowed in inlineable method i",
             ),
             (
+                "trait T { type X = Int }\nclass O extends T { inline def i: super.X = 1 }\n",
+                "Super call not allowed in inlineable method i",
+            ),
+            (
                 "import language.experimental.saferExceptions\nclass E extends Exception\n\
                  def f(): Int = try 1 catch { case _: E if false => 2 }\n",
-                "cannot generate CanThrow capability",
+                "if no pattern guard is given",
+            ),
+            (
+                "import language.experimental.saferExceptions\ncase class E(i: Int) extends Exception\n\
+                 def f(): Int = try 1 catch { case E(_) => 2 }\n",
+                "for cases of the form `ex: T`",
+            ),
+            (
+                "import language.experimental.saferExceptions\nclass E extends Exception\n\
+                 object X { def unapply(e: E): Option[Int] = Some(1) }\n\
+                 def f(): Int = try 1 catch { case X(_) => 2 }\n",
+                "for cases of the form `ex: T`",
+            ),
+            (
+                "import language.experimental.saferExceptions\nclass E extends Exception\nclass F extends Exception\n\
+                 def f(): Int = try 1 catch { case _: E | _: F => 2 }\n",
+                "for cases of the form `ex: T`",
             ),
         ],
         &[
@@ -263,6 +325,10 @@ fn checks_of_single_constructs() {
             "trait T { def m = 1 }\nobject O { inline def i = { class C extends T { def n = super.m }; 1 } }\n",
             "import language.experimental.saferExceptions\nclass E extends Exception\n\
              def f(): Int = try 1 catch { case _: E => 2 }\n",
+            "import language.experimental.saferExceptions\nclass E extends Exception\nclass F extends Exception\n\
+             def f(): Int = try { if true then throw E() else throw F() } catch { case _: (E | F) => 2 }\n",
+            "import language.experimental.saferExceptions\nclass E extends Exception\n\
+             def f(): Int = try 1 catch { case a @ (b: E) => 2 }\n",
         ],
     );
 }

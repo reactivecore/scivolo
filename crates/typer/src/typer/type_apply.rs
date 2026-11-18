@@ -137,6 +137,12 @@ impl Typer<'_> {
             if var.is_none() && !any_kind && self.type_arity(arg) != arity {
                 return Err("type argument of another kind");
             }
+            let within = |t: &mut Self, a: TypeId, b: TypeId| {
+                let outer = t.u.set_checks_bounds_or_self_type(var.is_none());
+                let conforms = t.conforms(a, b);
+                t.u.set_checks_bounds_or_self_type(outer);
+                conforms
+            };
             let upper = match var {
                 _ if java_object => true,
                 Some(v)
@@ -146,13 +152,13 @@ impl Typer<'_> {
                 {
                     self.constraint.add_upper(self.u, v, hi)
                 }
-                _ => self.conforms(arg, hi),
+                _ => within(self, arg, hi),
             };
             let lower = |t: &mut Self, lo: TypeId| match var {
                 Some(v) if t.u.dealias(lo) != lo && t.open_vars(lo).is_empty() => {
                     t.constraint.add_lower(t.u, v, lo)
                 }
-                _ => t.conforms(lo, arg),
+                _ => within(t, lo, arg),
             };
             if !upper || lo.is_some_and(|lo| !lower(self, lo)) {
                 return Err("type argument outside its bounds");

@@ -31,10 +31,10 @@ impl Typer<'_> {
     /// in the info if that leaks nothing; any other leak is an error, the last one found reported
     /// as dotty's reporter keeps one error per position.
     pub fn avoid_private_leaks(&mut self, sym: SymbolId, span: Span) {
-        if !self.is_leak_checked(sym) {
+        if !is_leak_checked(self, sym) {
             return;
         }
-        let boundary = self.leak_boundary(sym);
+        let boundary = leak_boundary(self, sym);
         let mut walk = PrivateLeaks { boundary, leaks: Vec::new(), expanding: Vec::new() };
         let is_class = self.u.is_class(sym);
         let signature = match is_class {
@@ -50,61 +50,61 @@ impl Typer<'_> {
                 false if parameterless => format!("=> {}", shown.concat()),
                 false => shown.concat(),
             };
-            let (what, other) = (self.located(sym), self.syms.described(self.u, leak));
+            let (what, other) = (located(self, sym), self.syms.described(self.u, leak));
             let text = format!("non-private {what} refers to private {other}\nin its type signature {shown}");
             self.error_at(span, text);
         }
     }
+}
 
-    /// Whether dotty checks the signature of `sym`: a member of a class or package that is neither
-    /// private, synthetic nor Java-defined, nor a class's type parameter, which is private there.
-    fn is_leak_checked(&self, sym: SymbolId) -> bool {
-        let s = self.u.symbol(sym);
-        let excluded = f::PRIVATE.or(f::SYNTHETIC).or(f::ARTIFACT).or(f::JAVA_DEFINED);
-        s.owner.is_some_and(|o| is_class_like(self.u.symbol(o).kind))
-            && s.kind != Kind::TypeParam
-            && !s.is_private()
-            && !self.syms.flags_of(sym).is_one_of(excluded)
-    }
+/// Whether dotty checks the signature of `sym`: a member of a class or package that is neither
+/// private, synthetic nor Java-defined, nor a class's type parameter, which is private there.
+fn is_leak_checked(t: &Typer<'_>, sym: SymbolId) -> bool {
+    let s = t.u.symbol(sym);
+    let excluded = f::PRIVATE.or(f::SYNTHETIC).or(f::ARTIFACT).or(f::JAVA_DEFINED);
+    s.owner.is_some_and(|o| is_class_like(t.u.symbol(o).kind))
+        && s.kind != Kind::TypeParam
+        && !s.is_private()
+        && !t.syms.flags_of(sym).is_one_of(excluded)
+}
 
-    /// The class, package or term up to which `sym` is visible (dotty's `accessBoundary` of
-    /// `checkNoPrivateLeaks`).
-    fn leak_boundary(&mut self, sym: SymbolId) -> SymbolId {
-        let mut s = sym;
-        loop {
-            let Some(owner) = self.u.symbol(s).owner else { return s };
-            if self.u.symbol(s).is_private() || !is_class_like(self.u.symbol(owner).kind) {
-                return owner;
-            }
-            if let Some(within) = self.u.access_qualifier(s) {
-                return within;
-            }
-            if self.u.symbol(s).kind == Kind::Package {
-                return s;
-            }
-            s = owner;
+/// The class, package or term up to which `sym` is visible (dotty's `accessBoundary` of
+/// `checkNoPrivateLeaks`).
+fn leak_boundary(t: &mut Typer<'_>, sym: SymbolId) -> SymbolId {
+    let mut s = sym;
+    loop {
+        let Some(owner) = t.u.symbol(s).owner else { return s };
+        if t.u.symbol(s).is_private() || !is_class_like(t.u.symbol(owner).kind) {
+            return owner;
         }
-    }
-
-    /// Whether `sym` lies in `boundary` or is it.
-    fn is_contained_in(&self, sym: SymbolId, boundary: SymbolId) -> bool {
-        let mut s = Some(sym);
-        while let Some(x) = s {
-            if x == boundary {
-                return true;
-            }
-            s = self.u.symbol(x).owner;
+        if let Some(within) = t.u.access_qualifier(s) {
+            return within;
         }
-        false
-    }
-
-    /// `sym` by kind and name with its owner, as dotty's `showLocated`.
-    fn located(&self, sym: SymbolId) -> String {
-        let shown = self.syms.described(self.u, sym);
-        match self.u.symbol(sym).owner.filter(|&o| self.u.symbol(o).name != nme::EMPTY_PACKAGE) {
-            Some(o) => format!("{shown} in {}", self.syms.described(self.u, o)),
-            None => shown,
+        if t.u.symbol(s).kind == Kind::Package {
+            return s;
         }
+        s = owner;
+    }
+}
+
+/// Whether `sym` lies in `boundary` or is it.
+fn is_contained_in(t: &Typer<'_>, sym: SymbolId, boundary: SymbolId) -> bool {
+    let mut s = Some(sym);
+    while let Some(x) = s {
+        if x == boundary {
+            return true;
+        }
+        s = t.u.symbol(x).owner;
+    }
+    false
+}
+
+/// `sym` by kind and name with its owner, as dotty's `showLocated`.
+fn located(t: &Typer<'_>, sym: SymbolId) -> String {
+    let shown = t.syms.described(t.u, sym);
+    match t.u.symbol(sym).owner.filter(|&o| t.u.symbol(o).name != nme::EMPTY_PACKAGE) {
+        Some(o) => format!("{shown} in {}", t.syms.described(t.u, o)),
+        None => shown,
     }
 }
 

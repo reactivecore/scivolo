@@ -6,16 +6,16 @@
 
 use super::Typer;
 use crate::ctx::Ctx;
+use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::flags as f;
 use syntax::ast::modifiers::Modifiers;
 use syntax::ast::{NodeId, TName, Tree};
 use syntax::config::Features;
-use tasty::{Type, TypeId};
+use tasty::{SymbolId, Type, TypeId};
 
-/// dotty's `checkCatch` error for a `case` with a guard catching a checked exception.
-const GUARDED_CATCH: &str = "Implementation restriction: cannot generate CanThrow capability for this \
-                             kind of catch.\nCanThrow capabilities can only be generated if no pattern \
-                             guard is given.";
+/// The start of dotty's `checkCatch` error.
+const BAD_CATCH: &str = "Implementation restriction: cannot generate CanThrow capability for this kind \
+                         of catch.\nCanThrow capabilities can only be generated";
 
 impl Typer<'_> {
     /// Body `expr` of a `try` with cases `cases` as `{ erased given canThrow$N: CanThrow[E1 | …]
@@ -27,7 +27,7 @@ impl Typer<'_> {
         }
         let mut caught: Option<TypeId> = None;
         for &c in cases {
-            let Tree::CaseDef { pat, guard, .. } = *self.ast.tree(c) else { continue };
+            let Tree::CaseDef { pat, .. } = *self.ast.tree(c) else { continue };
             let pat = match *self.ast.tree(pat) {
                 Tree::Bind { body, .. } => body,
                 _ => pat,
@@ -36,9 +36,6 @@ impl Typer<'_> {
             let typed = self.typed_type(tpt, ctx);
             let tpe = self.tpd.tpe(typed);
             if self.is_checked_exception(tpe) {
-                if guard.is_some() {
-                    self.error_at(self.ast.span(pat), GUARDED_CATCH);
-                }
                 caught = Some(caught.map_or(tpe, |c| self.u.intern_type(Type::Or(c, tpe, true))));
             }
         }
@@ -66,6 +63,36 @@ impl Typer<'_> {
         block
     }
 
+    /// Reports the typed `cases` of a `try` that catch a checked exception other than as `e: T` or
+    /// `_: T` without a guard, if `saferExceptions` is enabled (dotty's `checkCatch`).
+    pub fn check_catches(&mut self, cases: &[TNodeId], ctx: Ctx) {
+        if !self.feature_enabled(Features::SAFER_EXCEPTIONS, "experimental.saferExceptions", ctx) {
+            return;
+        }
+        for &c in cases {
+            let T::CaseDef { pat, guard, .. } = *self.tpd.tree(c) else { continue };
+            let tpe = self.tpd.tpe(pat);
+            let widened = self.u.widen(tpe);
+            if !self.is_checked_exception(widened) {
+                continue;
+            }
+            let mut inner = pat;
+            while let T::Bind { body, .. } = *self.tpd.tree(inner) {
+                inner = body;
+            }
+            let plain = match *self.tpd.tree(inner) {
+                T::Typed { expr, .. } => matches!(self.tpd.tree(expr), T::Ident { .. }),
+                _ => false,
+            };
+            let required = match guard {
+                Some(_) => "if no pattern guard is given",
+                None if plain => continue,
+                None => "for cases of the form `ex: T` where `T` is fully defined",
+            };
+            self.error_at(self.tpd.span(inner), format!("{BAD_CATCH} {required}."));
+        }
+    }
+
     /// Checks that a `CanThrow` capability for the exception `thrown` is in scope if it is a
     /// checked one and `saferExceptions` is enabled (dotty's `checkCanThrow`).
     pub fn check_can_throw(&mut self, thrown: crate::tpd::TNodeId, ctx: Ctx) -> Result<(), &'static str> {
@@ -87,8 +114,8 @@ impl Typer<'_> {
         }
     }
 
-    /// Whether `t` derives from `Exception` but not from `RuntimeException` (dotty's
-    /// `isCheckedException`).
+    /// Whether `t` derives from `Exception` but not from `RuntimeException`, a union through both
+    /// its sides (dotty's `isCheckedException`).
     fn is_checked_exception(&mut self, t: TypeId) -> bool {
         let class = |s: &mut Self, name: &str| s.resolve_full_name(name, true);
         let (Some(exception), Some(runtime)) =
@@ -96,8 +123,17 @@ impl Typer<'_> {
         else {
             return false;
         };
-        self.u
-            .class_symbol(t)
-            .is_some_and(|c| self.u.derives_from(c, exception) && !self.u.derives_from(c, runtime))
+        let derives = |s: &mut Self, base| s.derives_from_type(t, base);
+        derives(self, exception) && !derives(self, runtime)
+    }
+
+    /// Whether `t` derives from class `base`: a union if both sides do, an intersection if one does.
+    fn derives_from_type(&mut self, t: TypeId, base: SymbolId) -> bool {
+        let t = self.u.dealias(t);
+        match *self.u.ty(t) {
+            Type::Or(a, b, _) => self.derives_from_type(a, base) && self.derives_from_type(b, base),
+            Type::And(a, b) => self.derives_from_type(a, base) || self.derives_from_type(b, base),
+            _ => self.u.class_symbol(t).is_some_and(|c| self.u.derives_from(c, base)),
+        }
     }
 }

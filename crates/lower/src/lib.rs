@@ -268,6 +268,9 @@ fn lower_with_rules<R>(
     phases::recache_given_aliases(&mut l);
     warnings.items.append(&mut l.warnings.items);
     l.u.elide_opaques(false);
+    if std::mem::take(&mut l.u.erasure_exhausted) {
+        return unsupported(Span::NONE, tasty::ARRAY_OF_ITSELF);
+    }
     match std::mem::take(&mut l.u.reductions_exhausted) {
         true => unsupported(Span::NONE, "match type reduction over the reduction budget"),
         false => out,

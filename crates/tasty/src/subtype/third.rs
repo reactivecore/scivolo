@@ -91,6 +91,10 @@ impl Cmp<'_> {
                 }
                 _ => false,
             },
+            Type::Param(..) => {
+                self.compared_param_bounds(b).is_some_and(|(lo, _)| self.recur(a, lo))
+                    || self.fourth_try(a, b)
+            }
             _ => self.fourth_try(a, b),
         }
     }

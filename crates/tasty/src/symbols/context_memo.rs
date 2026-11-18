@@ -26,6 +26,7 @@ struct MemoContext {
     /// The symbol comparisons are made in, which opaque types it sees through.
     owner: Option<SymbolId>,
     null_mode: NullMode,
+    checks_bounds_or_self_type: bool,
     opaques_elided: bool,
     /// How many opaque types defined outside TASTy have their aliases.
     opaque_aliases: usize,
@@ -80,6 +81,7 @@ fn context(u: &Universe) -> Option<MemoContext> {
         generation: u.generation,
         owner: u.comparison_owner,
         null_mode: u.null_mode,
+        checks_bounds_or_self_type: u.checks_bounds_or_self_type,
         opaques_elided: u.opaques_elided,
         opaque_aliases: u.opaque_aliases.len(),
         rules: u.match_type_rules,

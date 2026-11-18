@@ -25,6 +25,7 @@ mod value;
 use crate::tags::{PARAMsetter, TRAIT};
 use crate::types::{Type, TypeId};
 use crate::{Kind, SymbolId, Universe, defn};
+pub use applied::ARRAY_OF_ITSELF;
 pub use signatures::{MatchDegree, match_degree};
 pub use special::PRIMITIVE_VALUE_CLASSES;
 use special::special;

@@ -68,15 +68,23 @@ fn results_conform(t: &mut Typer<'_>, (site, prefix): (TypeId, TypeId), d: Symbo
     if t.conforms(rd, rm) {
         return true;
     }
+    complete_selecting_object(t, rd);
     complete_base_classes(t, rd);
-    t.conforms(rd, rm) || is_unresolved(t, rd)
+    t.conforms(rd, rm)
 }
 
-/// Whether `ty` is, or applies, a selection the universe cannot resolve yet, as a class of an
-/// object of the unit still being completed, which cannot be compared.
-fn is_unresolved(t: &mut Typer<'_>, ty: TypeId) -> bool {
+/// Completes the object and object class that `ty`, or the type constructor it applies, is selected
+/// on, as `O` of `O.C[T]`, which may hold the class it refers to.
+fn complete_selecting_object(t: &mut Typer<'_>, ty: TypeId) {
     let tycon = t.u.applied(ty).map_or(ty, |(c, _)| c);
-    t.u.type_ref(tycon).is_some() && t.u.resolve_ref(tycon).is_none()
+    let Some((prefix, _)) = t.u.type_ref(tycon) else { return };
+    if let Some(object) = t.u.resolve_ref(prefix) {
+        t.complete(object);
+    }
+    let widened = t.u.widen(prefix);
+    if let Some(class) = t.u.class_symbol(widened) {
+        t.complete(class);
+    }
 }
 
 /// Completes the class of `ty` and, through their parents, its base classes.

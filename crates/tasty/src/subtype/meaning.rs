@@ -5,16 +5,23 @@ use crate::types::{NameId, Type, TypeId};
 use crate::{ANY, Kind, NOTHING, SymbolId, Universe};
 
 impl Universe {
-    /// Determines whether private type member `s` is out of reach through `this` of a class other
-    /// than its owner, where the name no longer resolves (dotty's "private member in a base class").
+    /// Determines whether private type member `s` is out of reach through `prefix`, where the name
+    /// no longer resolves: `this` of a class other than its owner, or a path to an instance of a
+    /// subclass of its owner (dotty's "private member in a base class").
     pub fn is_hidden_private(&mut self, s: SymbolId, prefix: TypeId) -> bool {
         let sym = self.symbol(s);
         if sym.kind != Kind::Type || !sym.is_private() {
             return false;
         }
-        let owner = sym.owner;
-        let Some(this) = self.this_of(prefix) else { return false };
-        self.class_symbol(this).is_some_and(|c| Some(c) != owner)
+        let Some(owner) = sym.owner else { return false };
+        if let Some(this) = self.this_of(prefix) {
+            return self.class_symbol(this).is_some_and(|c| c != owner);
+        }
+        if !self.is_value_path(prefix) {
+            return false;
+        }
+        let widened = self.widen(prefix);
+        self.class_symbol(widened).is_some_and(|c| c != owner && self.derives_from(c, owner))
     }
 }
 

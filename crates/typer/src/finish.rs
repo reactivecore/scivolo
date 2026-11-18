@@ -55,6 +55,9 @@ impl Units {
         if std::mem::take(&mut typer.u.reductions_exhausted) {
             typer.unsupported_at(Span::NONE, "match type reduction over the reduction budget");
         }
+        if std::mem::take(&mut typer.u.erasure_exhausted) {
+            typer.unsupported_at(Span::NONE, tasty::ARRAY_OF_ITSELF);
+        }
         self.note(&mut typer);
         self.syms = std::mem::take(&mut typer.syms);
         self.syms.end_unit(typer.u);

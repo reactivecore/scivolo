@@ -10,7 +10,7 @@ use super::{OverrideChecks, overridable};
 use names::{name_kinds, nme};
 use syntax::ast::flags as f;
 use tasty::tags::TRAIT;
-use tasty::{Kind, SymbolId, Type, TypeId};
+use tasty::{Kind, SymbolId, Type};
 
 impl OverrideChecks {
     /// Whether a member of `own`, the class's declarations, or an inherited one overrides another
@@ -70,12 +70,7 @@ impl OverrideChecks {
                 }
             };
             let (Some((lo1, hi1)), Some((lo2, hi2))) = (bounds(t, d), bounds(t, m)) else { return true };
-            let site = self.site;
-            let conforms = |t: &mut Typer<'_>, a, b| {
-                let (a, b) = (params_at_upper_bounds(t, a), params_at_upper_bounds(t, b));
-                conforms_overridden(t, site, a, b)
-            };
-            conforms(t, lo2, lo1) && conforms(t, hi1, hi2)
+            conforms_overridden(t, self.site, lo2, lo1) && conforms_overridden(t, self.site, hi1, hi2)
         })
     }
 
@@ -118,24 +113,6 @@ impl OverrideChecks {
             && t.u.info_matches(self.site, d, m)
             && !result_conforms(t, self.site, d, m)
     }
-}
-
-/// Type lambda `ty` with its bounded parameters replaced in its body by their upper bounds, which
-/// a comparison of lambda bodies does not know.
-fn params_at_upper_bounds(t: &mut Typer<'_>, ty: TypeId) -> TypeId {
-    let Type::Lambda { binder, params, result } = *t.u.ty(ty) else { return ty };
-    let list = t.u.params_of(params).to_vec();
-    let names: Vec<_> = list.iter().map(|&(n, _)| n).collect();
-    let uppers: Vec<_> = list
-        .iter()
-        .enumerate()
-        .map(|(i, &(_, info))| match t.u.bounds(info) {
-            Some((_, hi)) if hi != tasty::ANY => hi,
-            _ => t.u.intern_type(Type::Param(binder, i as u32)),
-        })
-        .collect();
-    let result = t.u.subst(result, binder, &names, &uppers);
-    t.u.intern_type(Type::Lambda { binder, params, result })
 }
 
 /// Whether `d` is a value or method other than a constructor or default getter.

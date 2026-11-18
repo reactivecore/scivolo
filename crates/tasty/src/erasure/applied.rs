@@ -9,6 +9,12 @@ use super::{Erased, object};
 use crate::types::{Type, TypeId};
 use crate::{Kind, Universe};
 
+/// The refusal of a type whose erasure is an array of itself.
+pub const ARRAY_OF_ITSELF: &str = "type bounded by an array of itself";
+
+/// The most dimensions an array type of the JVM has.
+const MAX_ARRAY_DIMENSIONS: u32 = 255;
+
 impl Universe {
     pub fn erase_applied(&mut self, tycon: TypeId, args: &[TypeId]) -> Erased {
         match self.class_name(tycon).as_deref() {
@@ -100,13 +106,21 @@ impl Universe {
 
     /// `Array[elem]`: `Object` for a generic element or a wildcard bounded by `Unit`, else an
     /// array of the erased element (`BoxedUnit` for `Unit`, in Scala 2 `Object` for `Nothing` and
-    /// `Null`).
+    /// `Null`). An array nested deeper than any array of the JVM, as `T <: Array[T]` is, erases to
+    /// `Object` and sets `erasure_exhausted`.
     fn erase_array(&mut self, elem: TypeId) -> Erased {
         let wildcard = self.bounds(elem).is_some();
         if self.is_generic(elem) {
             return object();
         }
-        Erased::Array(Box::new(match self.erase_boxed(elem) {
+        if self.erasure_exhausted || self.erased_array_depth == MAX_ARRAY_DIMENSIONS {
+            self.erasure_exhausted = true;
+            return object();
+        }
+        self.erased_array_depth += 1;
+        let erased = self.erase_boxed(elem);
+        self.erased_array_depth -= 1;
+        Erased::Array(Box::new(match erased {
             Erased::Unit if wildcard => return object(),
             Erased::Unit => Erased::boxed_unit(),
             Erased::Nothing | Erased::Null if self.scala2_erasure() => object(),

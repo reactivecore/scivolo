@@ -136,27 +136,18 @@ impl Typer<'_> {
             Some(t) if matches!(self.u.ty(t), Type::Sym(Some(_), _)) => self.u.widen(t),
             _ => self.u.info(var),
         };
-        let info = self.assignable_type(info);
+        let info = self.approximate_wildcard_selections(info, -1);
         let rhs = self.typed(rhs, Pt::Type(info), ctx);
         let unit = self.unit_type();
         let span = self.ast.span(id);
         self.tpd.node(T::Assign { lhs, rhs }, span, Some(unit), None)
     }
 
-    /// The type a value assigned to a variable of type `info` must have: `info` if it selects no
-    /// wildcard argument of an unstable prefix, else `info` approximated from below, as `L & Any`
-    /// for `box.v` of `var box: Box[? >: L]` (dotty's `lhsBounds` in `typedAssign`).
-    fn assignable_type(&mut self, info: TypeId) -> TypeId {
-        let lower = self.approximate_wildcard_selections(info, -1);
-        if lower == info {
-            return info;
-        }
-        self.u.intern_type(Type::And(lower, tasty::ANY))
-    }
-
     /// `t` at variance `v` with each type parameter selected on an unstable prefix that gives it a
     /// wildcard argument replaced by the argument's bound on that side; an invariant type argument
-    /// mentioning one makes the applied type `Nothing` below, `Any` above.
+    /// mentioning one makes the applied type `Nothing` below, `Any` above. At variance -1 this is
+    /// the type a value assigned to a variable of type `t` must have, as `L` for `box.v` of
+    /// `var box: Box[? >: L]` (dotty's `lhsBounds` in `typedAssign`).
     fn approximate_wildcard_selections(&mut self, t: TypeId, v: i8) -> TypeId {
         let ty = *self.u.ty(t);
         match ty {

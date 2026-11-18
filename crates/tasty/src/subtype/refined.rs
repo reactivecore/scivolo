@@ -8,9 +8,9 @@ use crate::types::{Type, TypeId};
 impl Cmp<'_> {
     /// Determines whether `a` has a member that conforms to the last refinement of `refined`: a
     /// refinement of `a` itself, else a member of its class under its own target name. A `def` or
-    /// `var` does not conform to `{ val x: T }`, a `val` or `var` does to `{ def x: T }`, a Java
-    /// `def x()` too. A method only the refinement declares must have its erased parameter types
-    /// (dotty's `hasMatchingMember`).
+    /// `var` does not conform to `{ val x: T }`, a `val`, `var` or `def x()` does to `{ def x: T }`.
+    /// A method only the refinement declares must have its erased parameter types, except in
+    /// bounds and self types (dotty's `hasMatchingMember`).
     pub fn has_matching_member(&mut self, a: TypeId, refined: TypeId) -> bool {
         let t = self.u.widen(a);
         self.has_matching_member_in(a, t, refined)
@@ -73,7 +73,7 @@ impl Cmp<'_> {
                 return false;
             }
             let have = self.u.member_info(site, m);
-            let expr = self.member_as_expr((m, class), have, info);
+            let expr = self.member_as_expr(m, have, info);
             self.sub_info(a, expr, info) && self.signatures_ok(m, have, refined)
                 || self.abstract_member_matches(a, m, have, info)
                 || self.stable_member_matches(a, m, info)
@@ -126,8 +126,8 @@ impl Cmp<'_> {
     }
 
     /// Whether member info `have` conforms to refinement info `want`: type bounds within
-    /// bounds, a method type below a method type, `=> T` or a value's type below `=> U`, a value's
-    /// type below a value type.
+    /// bounds, a method type below a method type, `=> T`, `(): T` or a value's type below `=> U`, a
+    /// value's type below a value type.
     fn info_conforms(&mut self, have: TypeId, want: TypeId) -> bool {
         let bounds = |s: &mut Self, t: TypeId| match *s.u.ty(t) {
             Type::Bounds(lo, hi) => (lo, hi),
@@ -140,6 +140,11 @@ impl Cmp<'_> {
                 self.recur_fresh(lo2, lo1) && self.recur_fresh(hi1, hi2)
             }
             (_, Type::Method { .. } | Type::Poly { .. }) => self.recur_fresh(have, want),
+            (Type::Method { params, result, .. }, Type::ByName(want))
+                if self.u.params_of(params).is_empty() =>
+            {
+                self.recur_fresh(result, want)
+            }
             (Type::Method { .. } | Type::Poly { .. }, _) => false,
             (Type::ByName(have), Type::ByName(want)) => self.recur_fresh(have, want),
             (Type::ByName(_), _) => false,

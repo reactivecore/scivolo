@@ -67,7 +67,7 @@ pub fn dump_with(
             let trees = if inlined { outermost_inlined(&typed.tpd, typed.root) } else { vec![typed.root] };
             let source_len = source.len();
             let mut printer =
-                Printer { tpd: &typed.tpd, names: p.s.names, u, out: String::new(), source_len };
+                Printer { tpd: &typed.tpd, names: p.s.names, u: &mut *u, out: String::new(), source_len };
             if inlined {
                 printer.out.push('[');
                 for t in trees {
@@ -80,6 +80,9 @@ pub fn dump_with(
             }
             b.push_str(&printer.out);
             b.push('\n');
+            if std::mem::take(&mut u.erasure_exhausted) {
+                return format!("== unsupported {} @ -\n", tasty::ARRAY_OF_ITSELF);
+            }
             p.s.diags.items.extend(typed.diags.items.iter().cloned());
             diagnostics(&p.s.diags, &mut b);
         }
