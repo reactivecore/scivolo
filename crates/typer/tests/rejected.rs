@@ -193,6 +193,31 @@ fn private_members_out_of_reach() {
 }
 
 #[test]
+fn overrides_with_higher_kinded_or_refined_types() {
+    let error = "unsupported override with an incompatible type";
+    check(
+        &[
+            ("class A { type F[X] <: List[X] }\nclass B extends A { type F[X] = Option[X] }\n", error),
+            ("class A { type T <: AnyRef { def m: Int } }\nclass B extends A { type T = String }\n", error),
+            (
+                "class H[F[_]]\nclass A { def f: H[[x] =>> List[x]] = ??? }\n\
+                 class B extends A { override def f: H[[x] =>> Option[x]] = ??? }\n",
+                error,
+            ),
+        ],
+        &[
+            "class A { type F[X] <: Seq[X] }\nclass B extends A { type F[X] = List[X] }\n",
+            "class A { type F[X <: A] <: A }\nclass B extends A { type F[X <: A] = X }\n",
+            "class A { type T <: AnyRef { def length(): Int } }\nclass B extends A { type T = String }\n",
+            "class H[F[_]]\nclass A { def f: H[[x] =>> List[x]] = ??? }\n\
+             class B extends A { override def f: H[[y] =>> List[y]] = ??? }\n",
+            "trait L { type S <: L; type M <: L { type M = L.this.S } }\n\
+             trait I extends L { type S = I; type M = E }\ntrait E extends L { type S = E; type M = I }\n",
+        ],
+    );
+}
+
+#[test]
 fn types_bounded_by_arrays_of_themselves() {
     check(
         &[

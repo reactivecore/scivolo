@@ -26,7 +26,7 @@ struct Clause {
 
 /// Whether the result type of member `d` conforms to that of member `m`, both seen from `prefix`
 /// in the class of `site`, else with abstract types replaced by the aliases overriding them and a
-/// type parameter result by its bound; results with type lambdas are not compared.
+/// type parameter result by its bound.
 fn results_conform(t: &mut Typer<'_>, (site, prefix): (TypeId, TypeId), d: SymbolId, m: SymbolId) -> bool {
     let (mut rd, mut rm) = (t.u.own_member_info(prefix, d), t.u.own_member_info(prefix, m));
     let (td, tm) = (t.u.type_params(d), t.u.type_params(m));
@@ -65,7 +65,7 @@ fn results_conform(t: &mut Typer<'_>, (site, prefix): (TypeId, TypeId), d: Symbo
         info.and_then(|i| t.u.bounds(i)).map_or(ty, |(lo, hi)| if upper { hi } else { lo })
     };
     let (rd, rm) = (bound(t, rd, true), bound(t, rm, false));
-    t.conforms(rd, rm) || has_lambda(t, rd) || has_lambda(t, rm)
+    t.conforms(rd, rm)
 }
 
 /// Whether `a` conforms to `b`, else with the abstract types they refer to replaced by the aliases
@@ -75,19 +75,13 @@ pub fn conforms_overridden(t: &mut Typer<'_>, site: TypeId, a: TypeId, b: TypeId
         return true;
     }
     complete_overriders(t, site, &[a, b]);
+    t.complete_refined_members(a, b);
+    if t.conforms(a, b) {
+        return true;
+    }
     let overridden = |t: &mut Typer<'_>, ty: TypeId| t.u.map_type(ty, &mut |u, x| u.overriding_member(x));
     let (a, b) = (overridden(t, a), overridden(t, b));
     t.conforms(a, b)
-}
-
-/// Whether `ty` has a type lambda, as a higher-kinded type argument, which the check accepts.
-fn has_lambda(t: &mut Typer<'_>, ty: TypeId) -> bool {
-    let mut found = false;
-    t.u.map_type(ty, &mut |u, x| {
-        found |= matches!(*u.ty(x), Type::Lambda { .. });
-        None
-    });
-    found
 }
 
 /// `ty` without its annotations, as capture sets.
