@@ -531,6 +531,30 @@ fn var_handles_of_mixed_in_lazy_values_come_first() {
 }
 
 #[test]
+fn lazy_values_initialize_through_var_handles_on_the_jvm() {
+    runs_on_the_jvm("lazyhandles", "Lazyhandles");
+}
+
+#[test]
+fn a_lazy_value_without_the_jdk_s_var_handle_is_refused() {
+    let sources = written("nojdk-src", &[("nojdk.scala", "class NoJdk { lazy val a: String = \"a\" }\n")]);
+    let out = root().join("tmp/jvm-test/nojdk");
+    let _ = std::fs::remove_dir_all(&out);
+    let compiled = Command::new(env!("CARGO_BIN_EXE_scivolo-jvm"))
+        .env_remove("JAVA_HOME")
+        .env("PATH", "")
+        .arg("-d")
+        .arg(&out)
+        .args(&sources)
+        .output()
+        .expect("running scivolo-jvm");
+    let stderr = String::from_utf8_lossy(&compiled.stderr);
+    assert!(!compiled.status.success(), "{stderr}");
+    assert!(stderr.contains("lazy values on a JDK without VarHandle"), "{stderr}");
+    assert!(!out.join("NoJdk.class").exists());
+}
+
+#[test]
 fn a_pattern_of_a_generic_java_class_its_scrutinee_conforms_to_tests_null() {
     let java = "package jn;\nabstract class MainN<K, V> {}\n";
     let scala = "package jn\nclass Use[K, V] { def h(p: MainN[K, V]): Int = p match { case vn: MainN[?, ?] => 2 } }\n";

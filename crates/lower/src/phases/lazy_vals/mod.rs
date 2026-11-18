@@ -4,24 +4,26 @@
 //   nscplugin/src/main/scala-3/scala/scalanative/nscplugin/AdaptLazyVals.scala
 //! dotty's `LazyVals` (`transformMemberDefThreadSafeNew`, `transformStats`): each lazy value of a
 //! class becomes a volatile field, an accessor reading it and a `$lzyINIT` method computing it under
-//! compare-and-set of the field (Scala Native's `LazyVals.objCAS`); those `Mixin` adds come
-//! after the class's own.
+//! compare-and-set of the field (through a `VarHandle` on the JVM, Scala Native's `LazyVals.objCAS`
+//! otherwise); those `Mixin` adds come after the class's own.
 
 mod accessor;
 mod thread_unsafe;
+mod var_handles;
 
-use super::lazy_init::init_method;
+use super::lazy_init::{init_method, native_cas};
 use super::lazy_trees::object;
-use crate::definitions::{LazyVals, symbol};
+use crate::definitions::symbol;
 use crate::symbols::has;
-use crate::{Lower, Result};
+use crate::{Backend, Lower, Result, Unsupported};
 use accessor::accessor_body;
 use names::name_kinds;
 use rustc_hash::FxHashMap;
 use syntax::ast::Span;
-use tasty::tags::{LAZY, MUTABLE, PRIVATE, STATIC, SYNTHETIC};
+use tasty::tags::{LAZY, MUTABLE, PRIVATE, SYNTHETIC};
 use tasty::{Flags, Kind, SymbolId};
 use typer::tpd::{TNodeId, Tree};
+use var_handles::VarHandle;
 
 /// A lazy value's field: its class, the field, its accessor and the accessor's definition span
 /// before `LazyVals`.
@@ -52,7 +54,7 @@ pub fn transform(
     let Tree::Template { constr, parents, self_, body } = *l.tpd.tree(template) else { return Ok(()) };
     let mut stats = Vec::new();
     let mut mixed_in = Vec::new();
-    let (mut handles, mut mixed_in_handles) = (Vec::new(), Vec::new());
+    let (mut handles, mut mixed_in_handles): (Vec<VarHandle>, Vec<VarHandle>) = (Vec::new(), Vec::new());
     for stat in l.tpd.items(body).to_vec() {
         let lazy = l.tpd.sym(stat).filter(|&s| has(l.u, s, LAZY));
         let (Tree::DefDef { name, paramss, tpt, rhs: Some(rhs) }, Some(accessor)) =
@@ -82,8 +84,14 @@ pub fn transform(
         let field_tpt = l.type_tree(object, Span::NONE);
         let field_span = if l.mixed_in.contains(&accessor) { Span::NONE } else { span };
         stats.push(l.build().val_def(lazy.field, field_tpt, None, field_span));
-        if l.backend == crate::Backend::Jvm {
-            let handle = var_handle(l, class, lazy.field, defs);
+        let handle = match l.backend {
+            Backend::Jvm => {
+                let found = var_handles::define(l, class, lazy.field, defs);
+                Some(found.map_err(|e| Unsupported { at: span, ..e })?)
+            }
+            Backend::Native => None,
+        };
+        if let Some(handle) = handle {
             match l.mixed_in.contains(&accessor) {
                 true => mixed_in_handles.insert(0, handle),
                 false => handles.insert(0, handle),
@@ -100,7 +108,11 @@ pub fn transform(
         node.tree = Tree::DefDef { name, paramss, tpt, rhs: Some(body) };
         node.span = Span::NONE;
         stats.push(l.with_span(stat, at));
-        let init = init_method(l, &lazy, rhs, info, defs);
+        let cas = match handle {
+            Some(handle) => var_handles::compare_and_set(l, &lazy, handle.symbol)?,
+            None => native_cas(l, &lazy)?,
+        };
+        let init = init_method(l, &lazy, (rhs, info), cas, defs);
         if selected.is_some() {
             reselect(l, init, rhs);
         }
@@ -113,24 +125,13 @@ pub fn transform(
     }
     l.lazy_fields.extend(mixed_in);
     mixed_in_handles.extend(handles);
-    mixed_in_handles.extend(stats);
-    let body = l.tpd.list(&mixed_in_handles);
+    let inits: Vec<TNodeId> = mixed_in_handles.iter().map(|h| h.init).collect();
+    let mut members: Vec<TNodeId> = mixed_in_handles.iter().map(|h| h.def).collect();
+    members.extend(stats);
+    var_handles::initialize_first(l, class, &inits, &mut members);
+    let body = l.tpd.list(&members);
     l.tpd.get_mut(template).tree = Tree::Template { constr, parents, self_, body };
     Ok(())
-}
-
-/// The definition of the static `VarHandle` field `x$lzyN$lzyHandle` of lazy value field `field`
-/// of `class` (dotty's `transformMemberDefThreadSafeNew`), set in the class's `<clinit>`.
-fn var_handle(l: &mut Lower, class: SymbolId, field: SymbolId, defs: LazyVals) -> TNodeId {
-    let name = name_kinds::lazy_var_handle(&l.u.symbol(field).name);
-    let flags = Flags::default().with(PRIVATE).with(SYNTHETIC).with(STATIC);
-    let handle = l.u.define(symbol(&name, Kind::Val, class, flags));
-    let tpe = crate::definitions::type_ref(l.u, defs.var_handle);
-    l.u.set_info(handle, tpe);
-    l.fields.insert(handle, handle);
-    l.var_handles.insert(field, handle);
-    let tpt = l.type_tree(tpe, Span::NONE);
-    l.build().val_def(handle, tpt, None, Span::NONE)
 }
 
 /// Gives static object reference `r` in `$lzyINIT` method `init` the span that copying its parent

@@ -23,7 +23,7 @@ use defined::{java_class, java_static};
 pub use equality::Equality;
 pub use interfaces::{procedure, specialized, specialized_applies, specialized_apply};
 pub use known::Known;
-pub use lazy_vals::LazyVals;
+pub use lazy_vals::{LazyVals, NativeCas, VarHandles};
 pub use monitors::Monitors;
 use names::nme;
 pub use partial_functions::PartialFunctions;
@@ -69,6 +69,8 @@ pub struct Definitions {
     patmat: Option<Patmat>,
     case_classes: Option<CaseClasses>,
     lazy_vals: Option<LazyVals>,
+    native_cas: Option<NativeCas>,
+    var_handles: Option<VarHandles>,
     monitors: Option<Monitors>,
     sequences: Option<Sequences>,
     serialization: Option<Serialization>,
@@ -110,6 +112,8 @@ impl Definitions {
             patmat: None,
             case_classes: None,
             lazy_vals: None,
+            native_cas: None,
+            var_handles: None,
             monitors: None,
             sequences: None,
             serialization: None,
