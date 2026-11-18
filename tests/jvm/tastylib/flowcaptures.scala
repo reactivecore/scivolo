@@ -31,3 +31,4 @@ object Flows:
     var it: It[B]^{f} | Null = null
     it = f(x)
     it.hasNext
+  def forced[A](it: (It[A]^) | Null): It[A]^{it} = it.nn

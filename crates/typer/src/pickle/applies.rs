@@ -74,6 +74,8 @@ impl TreePickler<'_> {
             T::TypeApply { fun: inner, args: named } if is_named(self, named) => (inner, named, Some(args)),
             _ if is_named(self, args) => (fun, args, None),
             _ => {
+                let items = self.tpd.items(args).to_vec();
+                self.mark_inferred_type_args(fun, &items);
                 let written = self.new_tpts(fun);
                 return self.with_typed_tpts(written, &mut |p| p.node(TYPEAPPLY, &[fun], &[args]));
             }
@@ -95,6 +97,7 @@ impl TreePickler<'_> {
             });
             ordered.push(given.or_else(|| others.next()).ok_or("named type arguments missing a parameter")?);
         }
+        self.mark_inferred_type_args(tycon, &ordered);
         self.with_length(TYPEAPPLY, &mut |p| {
             p.tree(tycon)?;
             ordered.iter().try_for_each(|&a| p.tree(a))

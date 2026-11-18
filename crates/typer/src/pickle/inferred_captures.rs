@@ -8,9 +8,10 @@
 
 use super::retaining::emptied;
 use super::{Refusal, TreePickler};
+use crate::defn::type_ref;
 use crate::tpd::{TNodeId, Tree};
 use crate::typer::capture_types::has_captures;
-use tasty::tags::PRIVATE;
+use tasty::tags::{INLINE, PRIVATE};
 use tasty::{Binder, Kind, SymbolId, Type, TypeId, Universe};
 
 impl TreePickler<'_> {
@@ -31,6 +32,30 @@ impl TreePickler<'_> {
         }
         let kept = emptied(self.u, tpe);
         self.kept_captures.insert(tpt, kept);
+    }
+
+    /// Records in a capture-checked file the inferred type trees among type arguments `args` of
+    /// inline method `fun` with `@caps.internal.inferred` around their emptied types (dotty's
+    /// `PostTyper.markInferred`): `x.nn` is `x.nn[It[A]^{} @inferred]`.
+    pub fn mark_inferred_type_args(&mut self, fun: TNodeId, args: &[TNodeId]) {
+        let inline = self.tpd.sym(fun).is_some_and(|f| self.u.symbol(f).flags.has(INLINE));
+        if !inline || !self.capture_checked() {
+            return;
+        }
+        let Some(mark) = inferred_mark(self.u) else { return };
+        for &arg in args {
+            let arg = match *self.tpd.tree(arg) {
+                Tree::NamedArg { arg, .. } => arg,
+                _ => arg,
+            };
+            if let (Tree::TypeTree { inferred: true }, Some(tpe)) =
+                (self.tpd.tree(arg), self.tpd.get(arg).tpe)
+            {
+                let cleaned = emptied(self.u, tpe);
+                let marked = self.u.intern_type(Type::Annotated(cleaned, mark));
+                self.kept_captures.insert(arg, marked);
+            }
+        }
     }
 
     /// Type `t` of a pattern variable's info or an extractor pattern, with each capture set but
@@ -111,6 +136,14 @@ impl TreePickler<'_> {
             self.capture_classes.insert(tpt, class);
         }
     }
+}
+
+/// The class type of `scala.caps.internal.inferred`.
+fn inferred_mark(u: &mut Universe) -> Option<TypeId> {
+    let caps = u.package("scala.caps")?;
+    let internal = u.decl(caps, "internal$").ok()?.into_iter().find(|&d| u.is_class(d))?;
+    let class = u.decls_named(internal, "inferred").into_iter().find(|&d| u.is_class(d))?;
+    Some(type_ref(u, class))
 }
 
 /// Whether `t`, its capture sets too, names a parameter of method `meth` of binder `binder`.

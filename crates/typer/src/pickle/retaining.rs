@@ -5,15 +5,15 @@
 //! Capture-set annotations (`@retains`) in pickled types (dotty's `CompactAnnotation` case of
 //! `pickleNewType`), and emptied (`CleanupRetains`).
 
+use super::capture_refs::is_static_capture_set;
 use super::{Refusal, TreePickler};
 use crate::defn::type_ref;
 use crate::tpd::{TNodeId, Tree};
 use crate::typer::capture_types::is_retains_like;
 use crate::typer::seen_from::normalized;
 use names::nme;
-use rustc_hash::FxHashMap;
 use tasty::tags::{ANNOTATEDtype, APPLY, NEW, SELECTin, TYPEAPPLY};
-use tasty::{Binder, Kind, SymbolId, Type, TypeId, Universe};
+use tasty::{Kind, SymbolId, Type, TypeId, Universe};
 
 impl TreePickler<'_> {
     /// Type `parent @annot` if `annot` is a capture-set annotation class type, as `parent` and
@@ -46,6 +46,20 @@ impl TreePickler<'_> {
                 false => p.old_retains(annot),
             }
         }))
+    }
+
+    /// Annotation tree `annot` of a definition; of a capture-set annotation class in a file, its
+    /// type or, below source version 3.9, `new C[Ts]()` of it (dotty's `CompactAnnotation`).
+    pub fn definition_annotation(&mut self, annot: TNodeId) -> Result<(), Refusal> {
+        let tpe = self.tpd.tpe(annot);
+        if self.file.is_none() || !is_retains_like(self.u, tpe) {
+            return self.tree(annot);
+        }
+        let tpe = class_by_symbol(self.u, tpe);
+        match self.compact_annotations {
+            true => self.ty(tpe, false),
+            false => self.old_retains(tpe),
+        }
     }
 
     /// `new C[Ts]()` of capture-set annotation type `annot`, `C[Ts]` or `C`, through the class's
@@ -128,53 +142,6 @@ fn class_by_symbol(u: &mut Universe, annot: TypeId) -> TypeId {
         Some(args) => u.intern_applied(class_ref, &args),
         None => class_ref,
     }
-}
-
-/// Whether capture-set annotation type `annot` refers to no `this`, parameter or definition other
-/// than a static one, a parameter of definition `def` or of a method type whose parameters
-/// `defined` has, a member or local of a definition among `open` or the `this` of a class among
-/// them (those enclosing the tree: `case it: (It[E]^{it})` in `def from[E](it: It[E]^)`, the flow
-/// cast of `var cur: It[A]^{from} | Null`), neither in a super accessor, the `this` of class `own`
-/// or of a class enclosing it, which mapping a type that it annotates leaves alone; of an
-/// enclosing class only if seeing it from `seen`, the prefix and class of a super accessor's
-/// member, keeps it (`other.Views` of an inner trait `Views`).
-fn is_static_capture_set(
-    u: &mut Universe,
-    annot: TypeId,
-    (own, def): (Option<SymbolId>, Option<SymbolId>),
-    seen: Option<(TypeId, SymbolId)>,
-    defined: &FxHashMap<Binder, Vec<SymbolId>>,
-    open: &[SymbolId],
-) -> bool {
-    let open = if seen.is_some() { &[] } else { open };
-    let local = |s: SymbolId| open.contains(&s);
-    let mut is_static = true;
-    u.map_type(annot, &mut |u, part| {
-        let this = matches!(u.ty(part), Type::This(_));
-        is_static &= match *u.ty(part) {
-            Type::This(c) => match *u.ty(c) {
-                Type::Package(_) | Type::PackageName(_) => true,
-                _ => u.class_symbol(c).is_some_and(|c| {
-                    let mut enclosing = std::iter::successors(own, |&o| u.symbol(o).owner);
-                    let kept =
-                        |u: &mut Universe| seen.is_none_or(|(p, o)| u.as_seen_from(part, p, o) == part);
-                    u.is_static_owner(c)
-                        || Some(c) == own
-                        || local(c)
-                        || (enclosing.any(|o| o == c) && kept(u))
-                }),
-            },
-            Type::Sym(_, s) => {
-                let owner = u.symbol(s).owner;
-                u.is_static_symbol(s) || owner.is_some_and(|o| Some(o) == def || local(o))
-            }
-            Type::Param(b, _) => defined.contains_key(&b),
-            Type::Local(..) | Type::RecThis(_) | Type::Skolem(..) | Type::Var(_) => false,
-            _ => true,
-        };
-        this.then_some(part)
-    });
-    is_static
 }
 
 /// Empties in `t` the capture set of each capture-checking annotation, `retains[Nothing]`, but

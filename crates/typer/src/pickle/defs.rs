@@ -183,7 +183,7 @@ impl TreePickler<'_> {
             let class = type_ref(self.u, class);
             self.with_length(ANNOTATION, &mut |p| {
                 p.ty(class, false)?;
-                p.tree(annot)
+                p.definition_annotation(annot)
             })?;
         }
         Ok(())

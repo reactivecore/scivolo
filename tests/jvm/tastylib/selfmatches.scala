@@ -18,3 +18,6 @@ trait Ops[+A]:
   def e: Int = this match
     case _: Ix[?] => 1
     case x => x.n
+  def id[T](x: T): T = x
+  def me: Int = id(this).n
+  protected trait Keys @annotation.retains[Ops.this.type]()

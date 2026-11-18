@@ -6,6 +6,7 @@
 mod annotated;
 mod annotation_origins;
 mod applies;
+mod capture_refs;
 mod cases;
 mod defs;
 mod inferred_captures;
