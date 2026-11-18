@@ -137,7 +137,7 @@ impl Sig<'_> {
     /// The result type of context function type `t` with its parameter types added to `vparams`,
     /// else `t` (dotty's `collectMethodParams`).
     fn context_result(&mut self, t: TypeId, vparams: &mut Vec<TypeId>) -> TypeId {
-        let d = self.u.dealias(t);
+        let d = self.u.dealias_opaque(t);
         let Some((tycon, args)) = self.u.applied(d) else { return t };
         let mut args = args.to_vec();
         let name = self.u.class_symbol(tycon).map(|c| self.u.symbol(c).name.clone());

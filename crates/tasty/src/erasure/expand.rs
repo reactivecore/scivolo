@@ -7,6 +7,9 @@ use crate::tags::OPAQUE;
 use crate::types::{NameId, Type, TypeId};
 use crate::{Kind, Universe};
 
+/// How many opaque types `dealias_opaque` follows.
+const MAX_STEPS: u32 = 64;
+
 impl Universe {
     /// `tycon[args]` with `tycon` an alias of a type lambda, also by a refinement of its prefix's
     /// type (`f.A[Int]` of `f: R` with `R <: Foo { type A[T] = Long }`): its body as seen from
@@ -64,21 +67,45 @@ impl Universe {
         }
     }
 
-    /// `tycon[args]` with `tycon` an opaque type: the body of its right-hand side as seen from the
-    /// prefix of `tycon`, whatever the scope, arguments substituted (erasure and `ElimOpaque`).
+    /// Expands `tycon[args]`, `tycon` an opaque type, whatever the scope: the body of its
+    /// right-hand side as seen from the prefix of `tycon`, arguments substituted (for erasure).
     pub fn expand_opaque(&mut self, tycon: TypeId, args: &[TypeId]) -> Option<TypeId> {
-        let s = self.referenced(tycon).filter(|&s| self.symbol(s).flags.has(OPAQUE))?;
+        let rhs = self.seen_opaque_rhs(tycon)?;
+        self.lambda_applied(rhs, args, false)
+    }
+
+    /// Dealiases `t` and replaces opaque types by their right-hand sides, as generic signatures
+    /// see types after `ElimOpaque`.
+    pub fn dealias_opaque(&mut self, t: TypeId) -> TypeId {
+        let mut t = self.dealias(t);
+        for _ in 0..MAX_STEPS {
+            let next = match self.applied(t).map(|(c, a)| (c, a.to_vec())) {
+                Some((tycon, args)) => self.expand_opaque(tycon, &args),
+                None => self.seen_opaque_rhs(t),
+            };
+            match next {
+                Some(n) => t = self.dealias(n),
+                None => break,
+            }
+        }
+        t
+    }
+
+    /// The right-hand side of opaque type reference `tycon`, as seen from its prefix.
+    fn seen_opaque_rhs(&mut self, tycon: TypeId) -> Option<TypeId> {
+        let s = self
+            .referenced(tycon)
+            .filter(|&s| self.symbol(s).kind == Kind::Type && self.symbol(s).flags.has(OPAQUE))?;
         let rhs = self.opaque_rhs(s)?;
         let prefix = match *self.ty(tycon) {
             Type::Sym(p, _) => p,
             Type::TypeRef(p, _) => Some(p),
             _ => None,
         };
-        let rhs = match (prefix, self.symbol(s).owner) {
+        Some(match (prefix, self.symbol(s).owner) {
             (Some(p), Some(o)) if self.symbol(o).kind == Kind::Class => self.as_seen_from(rhs, p, o),
             _ => rhs,
-        };
-        self.lambda_applied(rhs, args, false)
+        })
     }
 
     /// The body of type lambda `info`, an alias of one (an export forwarder read from TASTy), or
