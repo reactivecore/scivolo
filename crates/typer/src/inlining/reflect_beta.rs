@@ -40,6 +40,10 @@ impl Host for NoHost {
         Err("an implicit search in Term.betaReduce")
     }
 
+    fn this_call_hides_implicits(&mut self, _: Lent<'_>, _: Ctx) -> Result<bool, &'static str> {
+        Ok(false)
+    }
+
     fn error(&mut self, _: Span, _: String) {}
 
     fn warning(&mut self, _: Span, _: String) {}

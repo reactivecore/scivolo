@@ -1,4 +1,4 @@
-//! Type projections `C#T` of a type alias `T`.
+//! Type projections `C#T` of a type alias `T`, and of a type constructor `C`.
 
 use super::Typer;
 use crate::tpd::{TNodeId, Tree as T};
@@ -9,6 +9,13 @@ use tasty::{SymbolId, Type, TypeId};
 const MAX_EXPANSIONS: usize = 64;
 
 impl Typer<'_> {
+    /// Reports projection `C#name` of type constructor `C`, tree `qualifier` of type `tpe`, as
+    /// dotty's adaptation of `C` to a type with member `name` does.
+    pub fn projection_of_constructor(&mut self, qualifier: NodeId, tpe: TypeId, name: &str) -> TNodeId {
+        let found = self.u.show_user(tpe);
+        self.error(qualifier, super::errors::type_mismatch(&found, &format!("?{{ {name}: ? }}")))
+    }
+
     /// Projection `id`, `qual#name`, of type alias `sym` of `alias`: the alias seen from `qual`
     /// with the aliases of its owner it refers to expanded, dealiased, its class its symbol;
     /// `qual#name` itself if it refers to `this`; refused if it refers to another member of

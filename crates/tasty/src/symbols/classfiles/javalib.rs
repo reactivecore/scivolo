@@ -125,7 +125,18 @@ impl Universe {
         if self.jdk.is_none() || self.javalib_sources || s.kind != Kind::Class || s.tree.is_none() {
             return None;
         }
-        let statics = s.flags.has(OBJECT);
+        if let Some(known) = self.jdk_classes.get(&c) {
+            return known.clone();
+        }
+        let found = self.read_jdk_class_of(c);
+        self.jdk_classes.insert(c, found.clone());
+        found
+    }
+
+    /// The JDK class file of library class `c` if `c` is named as a `java.*` or `javax.*` class
+    /// (or object's class) other than `Object`.
+    fn read_jdk_class_of(&mut self, c: SymbolId) -> Option<Rc<ClassInfo>> {
+        let statics = self.symbol(c).flags.has(OBJECT);
         if !self.full_name_starts_with(c, "java.") && !self.full_name_starts_with(c, "javax.") {
             return None;
         }

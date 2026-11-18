@@ -14,7 +14,7 @@ mod annotated;
 mod anon_classes;
 mod apply;
 mod apply_insertion;
-pub mod approx;
+pub use tasty::approx;
 mod ascriptions;
 mod assign;
 mod auto_apply;
@@ -332,6 +332,12 @@ pub struct Typer<'a> {
     pub object_parents_assumed: Vec<SymbolId>,
     /// The imports of the unit, root imports first, by `Level::Import` index.
     pub imports: Vec<imports::ImportEntry>,
+    /// While an import path is typed, the classes of the objects on it, completed after it.
+    pub import_path_objects: Option<Vec<SymbolId>>,
+    /// How many classes of objects are being completed with the values of the objects.
+    pub object_classes_completing: u32,
+    /// The level of the constructor body each context of `this(...)` arguments was made from.
+    pub this_call_bodies: FxHashMap<LevelId, LevelId>,
     /// The level each import tree opens.
     pub import_levels: FxHashMap<NodeId, LevelId>,
     /// The level of each nested package clause, whose statements are indexed with the enclosing ones.
@@ -453,6 +459,7 @@ impl<'a> Typer<'a> {
         check_source_version(v)?;
         let defn = u.enter_library_defn()?;
         u.reductions_exhausted = false;
+        u.erasure_exhausted = false;
         u.match_type_rules = match_type_rules(v);
         u.keeps_captures = cfg.features.capture_checking();
         let mut syms = std::mem::take(syms);
@@ -493,6 +500,9 @@ impl<'a> Typer<'a> {
             java_annotation_news: Default::default(),
             object_parents_assumed: Vec::new(),
             imports: Vec::new(),
+            import_path_objects: None,
+            object_classes_completing: 0,
+            this_call_bodies: FxHashMap::default(),
             import_levels: FxHashMap::default(),
             package_levels: FxHashMap::default(),
             constraint: Default::default(),

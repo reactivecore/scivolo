@@ -8,20 +8,19 @@ use crate::ctx::{Ctx, Level};
 use crate::tpd::{MatchKind, TNodeId, Tpd, Tree as T};
 use crate::typer::stability::is_stable_path;
 use rustc_hash::FxHashMap;
-use tasty::tags::{GIVEN, IMPLICIT, MACRO, PARAMsetter};
-use tasty::{Kind, Symbol, SymbolId, Universe};
+use tasty::tags::{GIVEN, IMPLICIT, MACRO};
+use tasty::{SymbolId, Universe};
 
 /// A scope inside the code being expanded: the implicits a block's statements define, an import
-/// statement, the body of a local class, whose members a search sees through `C.this`, the
-/// parents of one, which see its implicit parameters owned by its primary constructor, or a
-/// secondary constructor of one, where searches are refused.
+/// statement, the body of a local class, whose members a search sees through `C.this`, or a
+/// constructor call in place of that body: the parents, which see the implicit parameters of the
+/// class, owned by its primary constructor, or a `this(...)` call, owned by its constructor.
 #[derive(Clone)]
 pub enum Scope {
     Implicits(Vec<SymbolId>),
     Import(TNodeId),
     Class(SymbolId),
     SuperCall { constr: SymbolId, params: Vec<SymbolId> },
-    Constructor,
 }
 
 impl Inlining<'_> {
@@ -66,7 +65,6 @@ impl Inlining<'_> {
             Scope::SuperCall { constr, params } => {
                 return self.host.within(ctx, by_name(self, params)).with_owner(constr);
             }
-            Scope::Constructor => return ctx,
         };
         let T::Import { expr, selectors, .. } = *self.tpd.tree(imp) else { return ctx };
         let name = |i: &Self, t: TNodeId| match i.tpd.tree(t) {
@@ -147,34 +145,6 @@ impl Inlining<'_> {
             self.scopes.push(Scope::Implicits(defined));
         }
         mark
-    }
-
-    /// Runs `retype` on part `c` of tree `t`: a parent of class body `t` in a `SuperCall` scope, a
-    /// secondary constructor in a `Constructor` one (dotty's `superCallContext`, `thisCallArgContext`).
-    pub fn in_class_part<R>(&mut self, (t, c): (TNodeId, TNodeId), retype: impl FnOnce(&mut Self) -> R) -> R {
-        let (&T::Template { constr, parents, .. }, Some(&Scope::Class(cls))) =
-            (self.tpd.tree(t), self.scopes.last())
-        else {
-            return retype(self);
-        };
-
-        let scope = if self.tpd.items(parents).contains(&c) {
-            let param = |s: &Symbol| s.kind == Kind::Param || s.kind == Kind::Val && s.flags.has(PARAMsetter);
-            let decls = self.u.decls(cls).unwrap_or_default().into_iter();
-            let params =
-                decls.filter(|&d| param(self.u.symbol(d)) && self.u.symbol(d).is_implicit()).collect();
-            Scope::SuperCall { constr: self.tpd.sym(constr).unwrap_or(cls), params }
-        } else if c != constr && self.tpd.sym(c).is_some_and(|s| self.u.is_constructor(s)) {
-            Scope::Constructor
-        } else {
-            return retype(self);
-        };
-
-        let at = self.scopes.len() - 1;
-        let class = std::mem::replace(&mut self.scopes[at], scope);
-        let result = retype(self);
-        self.scopes[at] = class;
-        result
     }
 
     pub fn is_implicit_def(&self, t: TNodeId) -> bool {

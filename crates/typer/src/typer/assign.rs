@@ -6,7 +6,7 @@ use super::{Pt, Typer};
 use crate::ctx::{Ctx, Mode};
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{NodeId, Span, TName, Tree};
-use tasty::{Kind, SymbolId, Type};
+use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
     /// Whether identifier `qual`'s type has a structural refinement `setter`.
@@ -136,9 +136,50 @@ impl Typer<'_> {
             Some(t) if matches!(self.u.ty(t), Type::Sym(Some(_), _)) => self.u.widen(t),
             _ => self.u.info(var),
         };
+        let info = self.approximate_wildcard_selections(info, -1);
         let rhs = self.typed(rhs, Pt::Type(info), ctx);
         let unit = self.unit_type();
         let span = self.ast.span(id);
         self.tpd.node(T::Assign { lhs, rhs }, span, Some(unit), None)
+    }
+
+    /// `t` at variance `v` with each type parameter selected on an unstable prefix that gives it a
+    /// wildcard argument replaced by the argument's bound on that side; an invariant type argument
+    /// mentioning one makes the applied type `Nothing` below, `Any` above. At variance -1 this is
+    /// the type a value assigned to a variable of type `t` must have, as `L` for `box.v` of
+    /// `var box: Box[? >: L]` (dotty's `lhsBounds` in `typedAssign`).
+    fn approximate_wildcard_selections(&mut self, t: TypeId, v: i8) -> TypeId {
+        let ty = *self.u.ty(t);
+        match ty {
+            Type::Sym(Some(prefix), p) if !self.u.is_value_path(prefix) => {
+                let Some(arg) = self.u.arg_for_param(prefix, p) else { return t };
+                self.u.bounds(arg).map_or(t, |(lo, hi)| if v < 0 { lo } else { hi })
+            }
+            Type::Applied(tycon, args) => {
+                let Some(c) = self.u.class_symbol(tycon) else { return t };
+                let variances = self.u.variances(c);
+                let mut mapped = Vec::new();
+                for (i, a) in self.u.types_of(args).to_vec().into_iter().enumerate() {
+                    let variance = variances.get(i).copied().unwrap_or(0);
+                    let x = self.approximate_wildcard_selections(a, v * variance.signum());
+                    if variance == 0 && self.approximate_wildcard_selections(a, 1) != a {
+                        return if v < 0 { tasty::NOTHING } else { tasty::ANY };
+                    }
+                    mapped.push(x);
+                }
+                self.u.intern_applied(tycon, &mapped)
+            }
+            Type::And(a, b) => {
+                let (x, y) =
+                    (self.approximate_wildcard_selections(a, v), self.approximate_wildcard_selections(b, v));
+                self.u.intern_type(Type::And(x, y))
+            }
+            Type::Or(a, b, soft) => {
+                let (x, y) =
+                    (self.approximate_wildcard_selections(a, v), self.approximate_wildcard_selections(b, v));
+                self.u.intern_type(Type::Or(x, y, soft))
+            }
+            _ => t,
+        }
     }
 }

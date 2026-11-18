@@ -60,6 +60,7 @@ impl Typer<'_> {
         for &p in parents {
             let tpt = self.parent_tpt(p);
             let typed = self.typed_type(tpt, ctx.with_mode(ctx.mode.with(Mode::PARENT_TYPE)));
+            self.typed_ahead(tpt, typed, ctx);
             let mut tpe = self.tpd.tpe(typed);
             let dealiased = self.u.dealias(tpe);
             let dependent = self

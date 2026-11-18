@@ -61,6 +61,7 @@ impl Universe {
             }
         }
         self.java_classes = Some(JavaClasses { jars, ..JavaClasses::default() });
+        self.class_file_misses.clear();
         Ok(())
     }
 
@@ -73,6 +74,7 @@ impl Universe {
         if let Some(classes) = self.java_classes.as_mut() {
             classes.sources = sources;
         }
+        self.class_file_misses.clear();
     }
 
     /// The Java sources `use_java_sources` made known, if any.

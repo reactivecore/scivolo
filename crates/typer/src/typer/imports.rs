@@ -176,9 +176,15 @@ impl Typer<'_> {
         self.selection(i, &member, is_type, false)
     }
 
-    /// What import `i` makes visible as `name` by a wildcard (dotty's `wildImportRef`).
+    /// What import `i` makes visible as `name` by a wildcard (dotty's `wildImportRef`): nothing
+    /// while its path is typed (`!importSym.isCompleting` of `findRef`), except inside the class
+    /// of an object completed with the object's value, where the path is typed again.
     pub fn wild_import_ref(&mut self, i: usize, name: &str, is_type: bool) -> Option<Found> {
-        if !self.may_import_wild(i) || !self.import_info(i)?.wildcard_imports(name) {
+        let completing = matches!(self.imports[i], ImportEntry::Completing { .. });
+        if completing && self.object_classes_completing == 0 || !self.may_import_wild(i) {
+            return None;
+        }
+        if !self.import_info(i)?.wildcard_imports(name) {
             return None;
         }
         self.selection(i, name, is_type, true)

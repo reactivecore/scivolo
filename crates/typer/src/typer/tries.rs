@@ -90,6 +90,7 @@ impl Typer<'_> {
             Err(what) => return self.unsupported(id, what),
         };
         let (expr, typed_cases) = (all[0], &all[1..]);
+        self.check_catches(typed_cases, ctx);
         let expr_tpe = self.tpd.tpe(expr);
         let mut types: Vec<TypeId> = vec![self.types().by_name_result(expr_tpe)];
         for &c in typed_cases {
