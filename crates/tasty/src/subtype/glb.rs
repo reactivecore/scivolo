@@ -106,14 +106,32 @@ impl Cmp<'_> {
     }
 
     /// The argument of an intersection of two applications at a parameter of `variance`
-    /// (dotty's `glbArgs`): their `singleton_interval`, the glb of covariant and lub of
-    /// contravariant ones, the merged bounds of wildcards; `None` for different invariant
-    /// arguments.
+    /// (dotty's `glbArgs`): the single type between them (dotty's `singletonInterval`: the first
+    /// of two equivalent ones, `"a"` of `"a"` and `Singleton` or `String & Singleton` in either
+    /// order), the glb of covariant and lub of contravariant ones, the merged bounds of wildcards;
+    /// `None` for different invariant arguments.
     fn glb_arg(&mut self, x: TypeId, y: TypeId, variance: i8) -> Option<TypeId> {
-        if let Some(common) = self.singleton_interval(x, y) {
-            return Some(common);
+        if x == y {
+            return Some(x);
         }
+        let x_below = self.recur_frozen(x, y);
+        let y_singleton = self.is_singleton_ref(y);
+        let y_below = (x_below || variance != 0 || y_singleton) && self.recur_frozen(y, x);
+        if x_below && y_below || x_below && self.is_singleton_below(x, y) {
+            return Some(x);
+        }
+        if y_below && y_singleton && self.derives_from_singleton(x) {
+            return Some(y);
+        }
+
         let (bx, by) = (self.arg_bounds(x), self.arg_bounds(y));
+        if variance == 1 && bx.is_none() && by.is_none() && !self.is_connective(x) && !self.is_connective(y) {
+            match (x_below, y_below) {
+                (true, _) => return Some(x),
+                (_, true) => return Some(y),
+                _ => {}
+            }
+        }
         let (lo_x, hi_x) = bx.unwrap_or((x, x));
         let (lo_y, hi_y) = by.unwrap_or((y, y));
         match variance {
@@ -127,23 +145,23 @@ impl Cmp<'_> {
         }
     }
 
-    /// The single type between `x` and `y` (dotty's `singletonInterval`): the first of two
-    /// equivalent ones, `"a"` of `"a"` and `Singleton` or `String & Singleton` in either order.
-    fn singleton_interval(&mut self, x: TypeId, y: TypeId) -> Option<TypeId> {
-        if x == y || self.recur_frozen(x, y) && self.recur_frozen(y, x) {
-            return Some(x);
-        }
-        if self.is_singleton_bounds(x, y) {
-            return Some(x);
-        }
-        self.is_singleton_bounds(y, x).then_some(y)
+    /// Whether `lo`, known to be below `hi`, is a singleton and `hi` derives from `Singleton`.
+    fn is_singleton_below(&mut self, lo: TypeId, hi: TypeId) -> bool {
+        self.is_singleton_ref(lo) && self.derives_from_singleton(hi)
     }
 
-    /// Whether `lo` is a singleton below `hi`, which derives from `Singleton`.
-    fn is_singleton_bounds(&mut self, lo: TypeId, hi: TypeId) -> bool {
-        let dealiased = self.u.dealias(lo);
+    fn is_singleton_ref(&mut self, t: TypeId) -> bool {
+        let dealiased = self.u.dealias(t);
+        self.is_singleton(dealiased)
+    }
+
+    fn derives_from_singleton(&mut self, t: TypeId) -> bool {
         let singleton = self.u.defn().singleton;
-        self.is_singleton(dealiased) && self.u.base_type(hi, singleton).is_some() && self.recur_frozen(lo, hi)
+        self.u.base_type(t, singleton).is_some()
+    }
+
+    fn is_connective(&self, t: TypeId) -> bool {
+        matches!(self.u.ty(t), Type::And(..) | Type::Or(..))
     }
 
     /// Whether constructors `c1` and `c2` refer to the same class or type.
