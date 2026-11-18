@@ -3,6 +3,7 @@
 use super::atoms::Atoms;
 use super::refs::Meaning;
 use super::{Cmp, MAX_DEPTH};
+use crate::tags::PRIVATE;
 use crate::types::{Type, TypeId};
 use crate::{Kind, SymbolId};
 
@@ -19,6 +20,43 @@ impl Cmp<'_> {
             Atoms::Unknown if self.is_stable_ref(t) => Atoms::single(self.normalized(t, depth)),
             other => other.upper(),
         }
+    }
+
+    /// The declared type of term reference `t` if it is a singleton other than `t`.
+    pub fn singleton_underlying(&mut self, t: TypeId) -> Option<TypeId> {
+        let n = self.named(t)?;
+        let s = n.sym.filter(|&s| matches!(self.u.symbol(s).kind, Kind::Val | Kind::Param | Kind::Def))?;
+        let s = n.prefix.map_or(s, |p| self.selected_member(p, s));
+        let name = self.u.interned_name(s);
+        let refined = n.prefix.and_then(|p| self.u.term_refinement_named(p, name));
+        let underlying = refined.unwrap_or_else(|| self.u.term_type(n.prefix, s));
+        let underlying = self.u.by_name(underlying).unwrap_or(underlying);
+        let singleton = match *self.u.ty(underlying) {
+            Type::TermRef(..) | Type::This(_) | Type::Constant(..) | Type::Str(_) => true,
+            Type::Sym(_, s) => self.u.symbol(s).kind.is_term(),
+            _ => false,
+        };
+        (singleton && underlying != t).then_some(underlying)
+    }
+
+    /// The value overriding `s` nearest to the class of prefix `p`, else `s`: the member a
+    /// reference to `s` through `p` denotes.
+    fn selected_member(&mut self, p: TypeId, s: SymbolId) -> SymbolId {
+        let widened = self.u.widen(p);
+        let Some(class) = self.u.class_symbol(widened) else { return s };
+        let (owner, name) = (self.u.symbol(s).owner, self.u.symbol(s).name.clone());
+        for base in self.u.linearization(class) {
+            if Some(base) == owner {
+                break;
+            }
+            for d in self.u.decls_named(base, name.as_str()) {
+                let m = self.u.symbol(d);
+                if matches!(m.kind, Kind::Val | Kind::Param) && !m.flags.has(PRIVATE) {
+                    return d;
+                }
+            }
+        }
+        s
     }
 
     /// Whether singleton `t` is stable: a term it refers to is no variable, no method that is

@@ -8,7 +8,23 @@ package java.lang {
   final class SuppressWarnings(value: Array[String]) extends scala.annotation.StaticAnnotation
 }
 
+package java.lang.annotation {
+  trait Annotation { def annotationType(): Class[? <: Annotation] }
+}
+
 package java.lang {
+  class AssertionError private (message: String, cause: Throwable, unique: Unit) extends Error(message, cause) {
+    def this() = this(null, null, ())
+    def this(detailMessage: Object) = this(null, null, ())
+    def this(detailMessage: scala.Boolean) = this(null, null, ())
+    def this(detailMessage: Char) = this(null, null, ())
+    def this(detailMessage: Int) = this(null, null, ())
+    def this(detailMessage: scala.Long) = this(null, null, ())
+    def this(detailMessage: scala.Float) = this(null, null, ())
+    def this(detailMessage: scala.Double) = this(null, null, ())
+    def this(message: String, cause: Throwable) = this(message, cause, ())
+  }
+
   abstract class ClassValue[T] {
     protected def computeValue(tpe: Class[?]): T
     def get(tpe: Class[?]): T = computeValue(tpe)
