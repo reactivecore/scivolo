@@ -19,7 +19,7 @@ pub struct Forwarded {
     pub synthetic: bool,
     pub method: SymbolId,
     /// The method whose type, signature and flags the forwarder takes: the method a bridge
-    /// overrides, the trait method a mixin forwarder calls, else `method`.
+    /// overrides, the trait or JDK method a mixin forwarder calls, else `method`.
     pub target: SymbolId,
 }
 
@@ -49,7 +49,10 @@ impl Gen<'_, '_> {
                 let bridge = self.l.is_bridge(m);
                 let target = match bridge {
                     true => self.bridged(c, &name, &desc),
-                    false => Some(self.l.mixed_in_from(m).unwrap_or(m)),
+                    false => {
+                        let mixed = self.l.mixed_in_from(m).or_else(|| self.l.jdk_forwarded_from(m));
+                        Some(mixed.unwrap_or(m))
+                    }
                 };
                 let Some(target) = target else { continue };
                 if !conflicting.contains(&name) {

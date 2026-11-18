@@ -25,6 +25,22 @@ fn javap(out: &Path, class: &str) -> Option<String> {
     Some(String::from_utf8_lossy(&run.stdout).into_owned())
 }
 
+/// Static forwarders of JDK default methods see the object's type arguments; the outer reference
+/// of a class nested in an inner class of a generic class names the generic outer class.
+#[test]
+fn generic_signatures_of_forwarders_and_outer_references() {
+    let out = compile("generics");
+    let Some(forwarders) = javap(&out, "generics.ByLength") else { return };
+    let expected = "public static java.util.Comparator<java.lang.String> reversed()";
+    assert!(forwarders.contains(expected), "{forwarders}");
+    let Some(nested) = javap(&out, "generics.Outer$Mid$In") else { return };
+    for expected in
+        ["final generics.Outer<TA>.Mid $outer;", "generics.Outer<TA>.Mid generics$Outer$Mid$In$$$outer()"]
+    {
+        assert!(nested.contains(expected), "{expected} in\n{nested}");
+    }
+}
+
 #[test]
 fn raw_pointers_are_ordinary_classes() {
     let out = compile("rawtypes");
