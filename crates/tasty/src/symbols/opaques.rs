@@ -50,9 +50,10 @@ impl Universe {
         None
     }
 
-    /// Whether opaque types read as their right-hand sides everywhere (after `ElimOpaque`).
-    pub fn opaques_elided(&self) -> bool {
-        self.opaques_elided
+    /// Whether `s` is an opaque type read from TASTy, abstract until opaque types are elided.
+    pub fn is_hidden_opaque(&self, s: SymbolId) -> bool {
+        let sym = self.symbol(s);
+        sym.kind == Kind::Type && sym.flags.has(OPAQUE) && sym.tree.is_some() && !self.opaques_elided
     }
 
     /// Records `alias` as the right-hand side of opaque type `sym`, defined outside TASTy.

@@ -5,7 +5,9 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
 /// Programs dotty rejects, each with the refusal that names why.
-const REFUSED: [(&str, &str); 11] = [
+const REFUSED: [(&str, &str); 13] = [
+    ("val x = O.mkF != null", "compar"),
+    ("val x = VF.op != null", "compar"),
     ("val x: V.OI[String] = Nil", "adaptation"),
     ("val x = summon[O.G[Int] <:< Seq[Int]]", "no implicit argument"),
     ("val x = summon[O.F[Int] =:= List[Int]]", "no implicit argument"),

@@ -40,13 +40,13 @@ impl Universe {
             return self.lambda_applied(refined, args, upper);
         }
         if self.symbol(alias).flags.has(OPAQUE) && self.symbol(alias).tree.is_some() {
-            return match (self.opaques_elided(), upper) {
-                (true, _) => self.expand_opaque(tycon, args),
-                (false, true) => {
+            return match (self.is_hidden_opaque(alias), upper) {
+                (false, _) => self.expand_opaque(tycon, args),
+                (true, true) => {
                     let applied = self.intern_applied(tycon, args);
                     self.opaque_upper(applied)
                 }
-                (false, false) => None,
+                (true, false) => None,
             };
         }
 
