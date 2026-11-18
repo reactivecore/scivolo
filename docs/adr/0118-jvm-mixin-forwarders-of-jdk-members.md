@@ -1,9 +1,9 @@
 # ADR 0118 — On the JVM, JDK members and their mixin forwarders follow the JDK's class files
 
-Status: accepted · Date: 2026-11-12 · Amends ADR 0108
+Status: accepted · Date: 2026-11-12 · Amends ADR 0107
 
 ## Context
-JDK interfaces javalib has come from javalib's TASTy (ADR 0108), whose members differ from the
+JDK interfaces javalib has come from javalib's TASTy (ADR 0107), whose members differ from the
 JDK's: helpers the JDK lacks (`Map.usingEntry`, `protected[util]`) and other types
 (`Comparator.thenComparing[U <: Comparable[U]]` where the JDK has `Comparable<? super U>`).
 dotty reads the JDK's class files, so its mixin forwarders forward only the JDK's members, with

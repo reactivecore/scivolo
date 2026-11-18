@@ -1,7 +1,6 @@
 # ADR 0105 — The JVM backend's TASTy from the typer's trees before inlining
 
-Status: accepted · Date: 2026-11-08 · Amended by ADR 0111 (super accessors of protected and
-target-name members, their positions)
+Status: accepted · Date: 2026-11-08
 
 ## Context
 A class file dotty writes carries a `TASTY` attribute with the UUID of its `.tasty` file, which
@@ -16,12 +15,14 @@ only inside the typer, between the synthetic members and inlining.
   synthetic members and before inlining, with the quote pickler extended to files.
 - A tree the pickler lacks refuses the whole unit (`pickling … into TASTy`): no class file is
   written without its TASTy.
-- The pickler adds what dotty's trees have by then and ours get later or never: the super
-  accessors of calls `C.super[M].m` (`SuperAccessors`: in a trait without `M`, from a class nested
-  in `C` or a value class's method; the generator refuses a unit whose lowering made other
-  accessors, such as those of protected members), named type arguments by position
+- The pickler adds what dotty's trees have by then and ours get later or never: every super
+  accessor `SuperAccessors` makes (of calls `C.super[M].m`, and of `C.this.m` of a protected `m`
+  that a class nested in a trait reaches), the accessor of a member with a target name carrying
+  `@targetName` of its accessor name; named type arguments by position
   (`PostTyper.normalizeTypeArgs`) and the `@Child` annotations of sealed classes
-  (`Namer.addChild`).
+  (`Namer.addChild`). The generator refuses a unit whose lowering made an accessor the TASTy lacks.
+- **Not taken:** pickling the lowered trees, whose symbols have changed; refusing units with such
+  accessors, the earlier state.
 - `generate` gets the pickles; the generator puts the `TASTY` attribute on the class dotty puts
   it on (the mirror class of a lone top-level object, else the class) and writes the `.tasty`
   beside it.

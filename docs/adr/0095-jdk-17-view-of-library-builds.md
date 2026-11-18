@@ -1,6 +1,6 @@
 # ADR 0095 — Library builds see the JDK 17 API
 
-Status: accepted · Date: 2026-11-08 · Extends ADR 0082
+Status: accepted · Date: 2026-11-08 · Extends ADR 0072
 
 ## Context
 Scala Native's build compiles its libraries against JDK 17. javalib 0.5.12 defines members of
@@ -18,6 +18,8 @@ to `close()` that Scala Native's build lacks (`ExecutionContextImpl$$anon$4`, #2
 - A member is matched by name; the script fails if javalib has an overload JDK 17 lacks of an
   interface method name JDK 17 has.
 - User programs keep javalib's full API.
+- **Not taken:** reading JDK 17's class files during the compile, as the JVM backend reads the
+  JDK's (ADR 0118); the NIR path has no JDK (ADR 0107).
 
 ## Consequences
 - Typing still sees javalib's members and parents; a library source calling a member JDK 17

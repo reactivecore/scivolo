@@ -83,7 +83,7 @@ i13332, i12328a, i13332anonprod, i13332shapeless-b, i5924b, i12914, i13461-b, er
 | 2.10 | other printers | — | 13 | ~300 | `M/show_code/`, `show_source.rs`, `Yi/code_of.rs` | `Qi/printers/SourceCode.scala`, `core/Types.scala` `toString` |
 | 2.14 | types singles | — | 5 | ~150 | `Y/constructors.rs:93`, `Y/stats.rs:117`, `Y/type_args.rs:40`, `Y/select.rs`, `Yi/reduce/patterns.rs` | `T/Typer.scala:936` (`Fields`) |
 | 2.18 | patterns and mirrors | — | 3 | ~80 | `Y/unapply.rs:258`, `product_mirrors.rs:66,131` | `T/Applications.scala:1718` |
-| 2.12 | splices, patterns, annotations | — | 13 | ~400 | `Yi/macro_impls.rs`, `Yi/quote_matcher/`, `Yi/retype.rs`, `Yi/macro_definitions.rs` | research 26 P, B; ADR 0039 |
+| 2.12 | splices, patterns, annotations | — | 13 | ~400 | `Yi/macro_impls.rs`, `Yi/quote_matcher/`, `Yi/retype.rs`, `Yi/macro_definitions.rs` | research 26 P, B |
 | 2.13 | implicit search shapes (probe) | — | 10 | ~300 | `Y/implicits/{unsettled,search,dictionary,measures,adapt_by_result}.rs` | `T/Implicits.scala` |
 | 2.16 | inliner leftovers (with #165) | — | 14 | ~300 | `Yi/opaque_proxies.rs`, `Yi/reduce/`, `Y/accessor_defs.rs`, `Yu/locals.rs`, `Yu/selections.rs`, `Yi/retype.rs` | `inlines/Inliner.scala` |
 | 2.15 | adaptation and application (probe) | — | 31 | — | `Y/adapt.rs:129`, `Y/apply*.rs`, `Y/eta.rs`, `Y/named_args.rs` | — |
@@ -177,7 +177,7 @@ cases found by the owners test [I].
 
 ### 2.9 `typeChecks` leftovers (9 tests, ~150 lines)
 
-ADR 0053's intrinsic types the code string in a throwaway scope. Left [V texts]: a non-constant
+The `typeChecks` intrinsic types the code string in a throwaway scope. Left [V texts]: a non-constant
 argument that is an inline parameter (typeCheckErrors, reflect-inline: fold after the argument's
 inlining), `typeCheckErrors` of code with errors (i12656: collect the diagnostics instead of
 failing), a call of an inline method defined in the string (i11630, `Yi/mod.rs:257`), a class not

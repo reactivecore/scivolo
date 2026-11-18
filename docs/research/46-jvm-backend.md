@@ -3,7 +3,7 @@
 `D/` = `ref/scala3/compiler/src/dotty/tools/dotc/`, `J/` = `ref/scala3/compiler/src/dotty/tools/backend/jvm/`,
 `N/` = `ref/scala-native/nscplugin/src/main/scala-3/scala/scalanative/nscplugin/`, `L/` = `crates/lower/src/`.
 Context: issue #142 and its first assessment (2026-10-27); ADR 0010 (faithful post-typer phases),
-ADR 0020 (inlining in the typer), ADR 0067 (TASTy writer), ADR 0072/0082 (JDK declarations);
+ADR 0020 (inlining in the typer), ADR 0067 (TASTy writer), ADR 0072 (JDK declarations);
 `ROADMAP.md` Phase 5 lists JVM bytecode as optional, so the first MR needs an ADR (0101).
 
 ## 1. Target
@@ -43,7 +43,7 @@ phases behind a `Backend` switch, `G` = in the JVM generator only.
 | | dotty | Scala Native / ours | JVM shape |
 |---|---|---|---|
 | S | `LazyVals` `D/transform/LazyVals.scala` (706) | `N/AdaptLazyVals.scala`, `L/phases/lazy_vals/` (`objCAS` on the field) | `OFFSET$_m_N` static fields set by `LazyVals.getOffsetStatic`, `LazyVals.objCAS(this, offset, …)` |
-| S | `MoveStatics` `D/transform/MoveStatics.scala` | `L/phases/static_members.rs`, `static_values.rs` (ADR 0044/0047: fields of the object) | static fields and methods of the companion class, `<clinit>` |
+| S | `MoveStatics` `D/transform/MoveStatics.scala` | `L/phases/static_members.rs`, `static_values.rs` (ADR 0043: fields of the object) | static fields and methods of the companion class, `<clinit>` |
 | S | `CompleteJavaEnums` `D/transform/CompleteJavaEnums.scala` | `L/phases/java_enums.rs` "without the static forwarders" | `values`/`valueOf` forwarders, `$values` |
 | S | — | `L/phases/native_interop.rs` (`N/PostInlineNativeInterop.scala`) | skipped |
 | G | `Flatten` `D/transform/Flatten.scala` (68) + `InnerClasses`/`EnclosingMethod` (`J/BackendUtils.scala`, `J/BCodeHelpers.scala`) | flat NIR names | top-level class files `Outer$Inner.class` with the `InnerClasses` table |
@@ -101,7 +101,7 @@ proxies, `SyntheticMembers` (`writeReplace`, `L/phases/synthetic.rs:60`).
 
 ## 5. JDK symbols
 
-1. Today JDK classes are javalib's TASTy with the JDK's declarations over them (ADR 0072/0082).
+1. Today JDK classes are javalib's TASTy with the JDK's declarations over them (ADR 0072).
    For the JVM the descriptors must be the JDK's: the declaring class and the exact overload.
    The declarations fix the members scripts use; a javalib-only member (ADR 0072: hidden only
    when a declaration shares its name) becomes a `NoSuchMethodError` on the JVM, which the

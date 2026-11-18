@@ -1,11 +1,11 @@
 # ADR 0119 — GADT constraint as an ordering constraint narrowed by the comparer
 
-Status: accepted · Date: 2026-11-13 · Amends: ADR 0090, 0092, 0096, 0109
+Status: accepted · Date: 2026-11-13
 
 ## Context
-ADRs 0090–0109 narrow GADT bounds by turning a pattern's narrowable parameters into fresh
-variables of the ordinary constraint, comparing pattern and selector, and reading the bounds
-back, patched for the orderings that constraint lacks. That constraint has no ordering between
+GADT bounds were narrowed by turning a pattern's narrowable parameters into fresh variables of
+the ordinary constraint, comparing pattern and selector, and reading the bounds back, patched for
+the orderings that constraint lacks: the alternative not taken. That constraint has no ordering between
 variables and unifies `v <: w` at once, so the bounds, casts and binder infos dotty derives from
 the order in which bounds arrive cannot be reproduced; the `tests/pos` files of issue #41 stay refused.
 dotty keeps GADT symbols as type references and narrows a separate `OrderingConstraint` from
@@ -66,7 +66,7 @@ inside the comparer (`narrowGADTBounds`), after ordinary type variables.
   as dotty's `compareAppliedType1/2`: constructors equal by their GADT bounds or ordering, the
   arguments compared with the GADT constraint frozen unless one constructor is a class and the
   bound used made the other equal to it (`tyconIsInjective`); else through the GADT bounds of
-  the constructor, frozen (`byGadtBounds`). The read-back path of ADRs 0090–0109 is gone; an
+  the constructor, frozen (`byGadtBounds`). An
   extractor pattern outside a case that would need GADT mode is refused (pattern definitions
   are cases after desugaring).
 - While the GADT constraint is inferred, a type variable whose bounds become the same type
@@ -90,5 +90,5 @@ inside the comparer (`narrowGADTBounds`), after ordinary type variables.
   level, which the refused shape above alone has. Difference case 2.
 
 ## Consequences
-- The read-back rules of ADRs 0090, 0092, 0096 and 0109 go as the comparer narrows the store;
-  each refusal they list is dropped only with a golden typed test of dotty's tree.
+- The GADT shapes still refused are listed in `docs/conformance.md`; each is dropped only with a
+  golden typed test of dotty's tree.

@@ -27,9 +27,21 @@ a whole at its first refusal. dotty keeps the source version and the unit-wide f
   (`lib-compile`, `bench-compile`; `lib-jar` shares lib-compile's command but takes nothing of a
   refused unit), they write the output of the accepted files and exit with 1.
   `scivolo-aot` keeps refusing the whole program at its first refusal.
+- Each stage reports every file refused in it before the unit is typed again, as dotty's
+  `Run.compileUnits` reports the errors of all units of a phase: typing gives each file's first
+  unsupported construct and all type errors; the stages after typing run on the files without
+  refusals or type errors. The lowering stops at its first refusal, as its phases walk the whole
+  unit and share state across files. `Isolated::typings` counts the typings.
+- **Not taken:** leaving refused files out after typing, without typing again (!818), which lost
+  the super accessors and mixin members a refused file's lowering adds for classes of other files;
+  predicting the files that need a refused one, which would refuse files that type against another
+  definition once it is left out (the library jar's, with `--scalalib`).
 
 ## Consequences
-- A run types the unit once more per round of refusals: twice where no file needs a refused
-  one. A file typed after a refused one may be refused for its error trees and left out with it.
+- A unit takes one typing more than the depth of its chains of refusals; each lowering refusal
+  costs a round. A file typed after a refused one may be refused for its error trees and left out
+  with it.
+- The checks after typing run, unlike dotty's, beside type errors and may report errors dotty does
+  not; a unit with type errors is refused either way, so only the messages differ.
 - Until fresh names are counted per file (#115), the anonymous class and function names of an
   accepted file change when a file before it is left out.

@@ -28,8 +28,18 @@ JDK's declarations, as whole classes in place of javalib's (`--jdk-tasty libs/jd
   constants and static fields (`TimeUnit.SECONDS`) are `TimeUnit::static SECONDS()`.
 - Bodies stay javalib's: the VM runs javalib's NIR. NIR calls keep the JDK's declaring class and
   the JDK's static members (`Integer::static TYPE()`), which javalib's static forwarders define.
-- When JDK jars stand for the JDK (`--jdk-tasty`: nativelib's and javalib's builds), they replace
-  whole classes as before, and no declarations are loaded over them.
+- JDK jars (`--jdk-tasty`) replace whole classes, and no declarations are loaded over their files;
+  declarations are loaded over every other file unless javalib's sources are compiled. So scalalib's
+  build, which gives JDK jars only for the classes javalib lacks, sees the JDK's `Byte.TYPE`,
+  `Boolean.TRUE` and `Arrays.copyOf`.
+- `JdkMemberDeclarations.scala` holds declarations not whole enough to replace a class:
+  `just jdk-stubs` leaves them out of `libs/jdk-stubs.jar`, so nativelib's build sees them over
+  javalib's classes too.
+- A declared class or object Scala Native renames is declared under its defined name
+  (`scala.scalanative.runtime._Class`) and merged into the class entered under the JDK's name. A
+  merged class or object is public, a merged type parameter takes the declaration's bounds.
+- **Not taken:** whole classes in place of javalib's for every build, as `libs/jdk-stubs.jar` gives
+  nativelib: a class declared with a few members would hide javalib's others.
 
 ## Consequences
 - A JDK member typed differently by javalib is fixed by declaring it in `JdkDeclarations.scala`
