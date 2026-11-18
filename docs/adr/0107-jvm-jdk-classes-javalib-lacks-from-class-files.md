@@ -19,8 +19,8 @@ dotty reads all of them from class files (`ClassfileParser`). ADR 0106 finds the
   of the library other than `Object` enters, once per class and base classes first, the public
   and protected members of its class file named as no library member of the class or its bases
   is: instance members into the class, static ones into its object's class. The JDK class's type
-  parameters stand for the library class's by position; a different count enters nothing. A name
-  of which one member is refused is not entered, so no overload set is partial.
+  parameters stand for the library class's by position; a different count enters no instance
+  member. A name of which one member is refused is not entered, so no overload set is partial.
 - **Classes of jars.** A Java class file of a jar on the JVM's class path (on `--cp`, or the Scala
   library's own) is entered on lookup if the package lacks the class and its object; packages of
   such files are entered when the universe is opened. The library's runtime stubs of these classes
@@ -28,7 +28,8 @@ dotty reads all of them from class files (`ClassfileParser`). ADR 0106 finds the
 - **Nested classes** of `InnerClasses` are entered with their class, static ones into its object's
   class, inner ones into it (`enterOwnInnerClasses`). An inner class's constructor drops the outer
   instance its descriptor starts with, and its signatures see the enclosing classes' type
-  parameters (`normalizeConstructorParams`, `addEnclosingTParams`).
+  parameters (`normalizeConstructorParams`, `addEnclosingTParams`). A public or protected nested
+  class a library class lacks is entered on lookup (`Runtime.Version`).
 - **Types.** A class's type parameters and parents come from its `Signature`, else from its
   superclass and interfaces; a member's type from its `Signature`, else its descriptor, as dotty's
   `sigToType` and `cook` read them (`Object` as `<FromJavaObject>`, a raw type applied to
@@ -38,7 +39,10 @@ dotty reads all of them from class files (`ClassfileParser`). ADR 0106 finds the
 - **Visibility** is what dotty gives (`getPrivateWithin`): `private`, `protected[p]`, or
   `private[p]` if package-private, `p` the class's package.
 - **Annotation classes** are entered with dotty's constructor (`addAnnotationConstructor`): a
-  parameter per element. The class file's `@Retention` and `@Repeatable` are read.
+  parameter per element. The class file's `@Retention` and `@Repeatable` are read. As a Java
+  interface it is a trait: `new` of it is an error (`… is a trait; it cannot be instantiated`) but
+  inside an annotation of a Java annotation class, its arguments included (dotty's
+  `PostTyper.inJavaAnnot`).
 - **Not entered**, so refused as not found: synthetic and bridge members, private ones but
   constructors, native varargs methods outside `MethodHandle` and `VarHandle`, constructors with
   type parameters of their own, a class of a Scala 2 class file or of a Scala 3 one without its

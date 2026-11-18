@@ -4,10 +4,10 @@ Status: accepted · Date: 2026-11-08
 
 ## Context
 Stack map frames need the JDK's class hierarchy, and a static member of javalib's object for a
-JDK class must exist in the JDK. The JDK's class files are in `lib/modules` (jimage, the run-time image `java` loads them from, in every
-JDK; resources may be compressed by `jlink --compress`), `jmods/` (absent from Debian's headless
-JDK) or `lib/ct.sym` (stripped `.sig` class files of the earlier releases only, so JDK N's has
-N−1's API). dotty reads the running JDK's classes (jrt), scala-cli adds no `-release`.
+JDK class must exist in the JDK. The JDK's class files are in `lib/modules` (jimage, the run-time
+image `java` loads them from, in every JDK; resources may be compressed by `jlink --compress`),
+`jmods/` (absent from Debian's headless JDK) or `lib/ct.sym` (stripped `.sig` class files of the
+earlier releases only, so JDK N's has N−1's API). dotty reads the running JDK's classes (jrt), scala-cli adds no `-release`.
 
 ## Decision
 - The JDK is that of `JAVA_HOME`'s `java`, else of the `java` on the `PATH`, links resolved.

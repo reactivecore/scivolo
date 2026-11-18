@@ -38,6 +38,15 @@ JDK's declarations, as whole classes in place of javalib's (`--jdk-tasty libs/jd
 - A declared class or object Scala Native renames is declared under its defined name
   (`scala.scalanative.runtime._Class`) and merged into the class entered under the JDK's name. A
   merged class or object is public, a merged type parameter takes the declaration's bounds.
+- JDK members read as dotty reads class files. A `static final` field is a declared `val`, so
+  stable (`Boolean.TRUE` in a pattern, dotty's `isStableMember`). The parameters of JDK methods are
+  `x$0`, `x$1`, … A wildcard `?` in a JDK member's type is bounded by `<FromJavaObject>`, dotty's
+  alias of `Object` that every type conforms to (`Universe::with_java_wildcards`).
+- A declared type parameter is `<: Object` where an array of it erases to `Object[]`
+  (`Arrays.copyOf`), else unbounded. The `Object` bound of a Java member's type parameter and an
+  `Object` parameter stay `Object` and admit any type in the typer only (`Typer::instantiated`,
+  `Typer::from_java_object`), where dotty has `<FromJavaObject>`. A Java constructor's type
+  argument is checked against its class's type parameter where that is unbounded.
 - **Not taken:** whole classes in place of javalib's for every build, as `libs/jdk-stubs.jar` gives
   nativelib: a class declared with a few members would hide javalib's others.
 

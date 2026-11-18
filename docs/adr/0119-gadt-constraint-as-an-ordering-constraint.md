@@ -5,9 +5,10 @@ Status: accepted · Date: 2026-11-13
 ## Context
 GADT bounds were narrowed by turning a pattern's narrowable parameters into fresh variables of
 the ordinary constraint, comparing pattern and selector, and reading the bounds back, patched for
-the orderings that constraint lacks: the alternative not taken. That constraint has no ordering between
-variables and unifies `v <: w` at once, so the bounds, casts and binder infos dotty derives from
-the order in which bounds arrive cannot be reproduced; the `tests/pos` files of issue #41 stay refused.
+the orderings that constraint lacks: the alternative not taken. That constraint has no ordering
+between variables and unifies `v <: w` at once, so the bounds, casts and binder infos dotty derives
+from the order in which bounds arrive cannot be reproduced; the `tests/pos` files of issue #41 stay
+refused.
 dotty keeps GADT symbols as type references and narrows a separate `OrderingConstraint` from
 inside the comparer (`narrowGADTBounds`), after ordinary type variables.
 

@@ -841,7 +841,39 @@ Refusals and differences of the frontend and the lowering:
       case GK() => y.ext
     ```
 
-  - a block whose expression is a singleton that needs a GADT cast.
+  - a block typed before its expected type is known, as an argument of an overloaded method, whose
+    expression is a singleton that needs a GADT cast (`GADT cast of a singleton as a block's
+    expression`); scala-cli with Scala 3.9.0 compiles this file:
+
+    ```scala
+    enum EQ[A, B]:
+      case Refl[A]() extends EQ[A, A]
+
+    object O:
+      def h[T](t: T, u: Int): T = t
+      def h[T](t: T, u: String): T = t
+
+    def f[T](x: EQ[T, Int], a: Int): T = x match
+      case EQ.Refl() => O.h[T]({ println("x"); a }, 1)
+    ```
+
+  - the shapes ADR 0119 names: a GADT parameter inside a union or intersection bound made equal to
+    a type, and an extractor pattern outside a case that would need GADT mode.
+
+  Typed differently from dotty (`just typer-compare`):
+  - a block with a singleton expression as an `if` branch: one cast of the block where dotty has
+    two, to the same type:
+
+    ```scala
+    enum EQ[A, B]:
+      case Refl[A]() extends EQ[A, A]
+
+    def f[T](x: EQ[T, Int], a: Int): T = x match
+      case EQ.Refl() =>
+        if a > 0 then { println("y"); a } else { println("z"); a }
+    ```
+
+  - `tests/pos/gadt-TypeSafeLambda`: `c.first` without dotty's cast (Upstream bugs to report, 22).
 - **`typeChecks`.** Code the parser or typer reports an error for is `false`. A construct the typer
   refuses, with no error reported before it, refuses the program, where dotty may answer.
   `typeCheckErrors` gives `Nil` or the errors of inline expansions in the code, and is refused
@@ -852,8 +884,8 @@ Refusals and differences of the frontend and the lowering:
   a type, adds a top-level definition or one of another owner, or defines a symbol twice or defined
   elsewhere.
 - **`@static`.** Refused: lazy values; members of an object whose companion is a value class or in
-  another unit; methods that use the object's `this` or define local methods or classes; values
-  whose companion class has lazy values and constructor parameters, parents but `Object`, or
+  another unit; methods and initial values that use the object's `this` or define local methods or
+  classes; values whose companion class has lazy values and constructor parameters, parents but `Object`, or
   synthetic objects (Scala Native); a reference to a `@static` member of the library; on the JVM,
   an assignment to one through a value other than a path.
 - **Erased definitions.** An erased argument or value must be pure by the inliner's
