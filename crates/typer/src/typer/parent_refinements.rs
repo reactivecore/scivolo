@@ -11,14 +11,15 @@ use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::flags as f;
 use syntax::ast::{NodeId, Span, TName};
 use syntax::config::Features;
-use tasty::{Kind, NameId, SymbolId, Type, TypeId};
+use tasty::{Kind, NameId, SymbolId, Type, TypeId, Universe};
 
 impl Typer<'_> {
     /// Determines parent type `parent` of class `cls`, from parent tree `p`, without its
     /// refinements, and enters a member for each refined type the class does not declare, its
     /// info the refinement's, intersected with that of an earlier parent (dotty's
-    /// `separateRefinements` and `enterParentRefinementSyms`). Refuses a refined term member the
-    /// class does not declare, as tracked parameter `d` in `class Bar extends Foo("bar")`.
+    /// `separateRefinements` and `enterParentRefinementSyms`). A refined value, as tracked
+    /// parameter `d` in `class Bar extends Foo("bar")`, becomes a deferred tracked value. Refuses a
+    /// refined method the class does not declare.
     pub fn separate_parent_refinements(
         &mut self,
         cls: SymbolId,
@@ -46,11 +47,15 @@ impl Typer<'_> {
             if self.u.decls_named(cls, &text).iter().any(|&d| self.u.is_type_symbol(d) == is_type) {
                 continue;
             }
-            if !is_type {
-                self.unsupported(p, "parent refinement of a tracked parameter");
+            if matches!(self.u.ty(info), Type::Method { .. } | Type::Poly { .. }) {
+                self.unsupported(p, "parent refinement of a method");
                 continue;
             }
-            let sym = self.syms.define(self.u, &text, Kind::Type, cls, f::SYNTHETIC.or(f::DEFERRED));
+            let (kind, flags) = match is_type {
+                true => (Kind::Type, f::SYNTHETIC.or(f::DEFERRED)),
+                false => (Kind::Val, f::SYNTHETIC.or(f::DEFERRED).or(f::TRACKED)),
+            };
+            let sym = self.syms.define(self.u, &text, kind, cls, flags);
             self.u.set_info(sym, info);
             self.syms.parent_refinements.entry(cls).or_default().push(sym);
         }
@@ -62,6 +67,7 @@ impl Typer<'_> {
         match *self.u.ty(t) {
             Type::Refined(parent, name, info) => {
                 let parent = self.separated(parent, out);
+                let info = widen_skolems(self.u, info);
                 match out.iter_mut().find(|(n, _)| *n == name) {
                     Some((_, prev)) => *prev = self.u.glb(*prev, info),
                     None => out.push((name, info)),
@@ -91,10 +97,23 @@ impl Typer<'_> {
         syms.into_iter()
             .map(|s| {
                 let info = self.u.info(s);
-                let rhs = self.type_tree(info, at, false);
-                let name = TName { name: self.name(&self.u.symbol(s).name.clone()), is_type: true };
-                self.tpd.node(T::TypeDef { name, rhs }, at, None, Some(s))
+                let tpt = self.type_tree(info, at, false);
+                let is_type = self.u.is_type_symbol(s);
+                let name = TName { name: self.name(&self.u.symbol(s).name.clone()), is_type };
+                let tree = match is_type {
+                    true => T::TypeDef { name, rhs: tpt },
+                    false => T::ValDef { name, tpt, rhs: None },
+                };
+                self.tpd.node(tree, at, None, Some(s))
             })
             .collect()
     }
+}
+
+/// `t` with its skolems replaced by their types (dotty's `widenSkolems`).
+fn widen_skolems(u: &mut Universe, t: TypeId) -> TypeId {
+    u.map_type(t, &mut |u, part| match *u.ty(part) {
+        Type::Skolem(_, info) => Some(widen_skolems(u, info)),
+        _ => None,
+    })
 }

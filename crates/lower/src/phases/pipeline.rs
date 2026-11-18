@@ -128,5 +128,6 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
         constructors::transform(l, td)?;
     }
     expand_private::transform(l, &classes);
+    drop_parent_refinements::transform(l, &classes);
     Ok(())
 }

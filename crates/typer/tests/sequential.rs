@@ -675,16 +675,15 @@ fn constructs_diverging_from_dotty_are_refused() {
 }
 
 #[test]
-fn parent_refinements_of_tracked_parameters_are_refused() {
+fn parent_refinements_of_tracked_parameters_become_members() {
     let Some(mut u) = universe() else { return };
     let flagged = &["-source", "future", "-language:experimental.modularity"];
-    let refused = Err("unsupported parent refinement of a tracked parameter".to_owned());
     for (i, arg) in ["\"bar\"", "List(\"x\").head"].into_iter().enumerate() {
         let text =
             format!("abstract class Foo{i}(tracked val d: String); class Bar{i} extends Foo{i}({arg})");
         assert_eq!(
             type_unit_with(&mut u, &mut Units::default(), ("t.scala", &text), flagged),
-            refused,
+            Ok(()),
             "{text}"
         );
     }

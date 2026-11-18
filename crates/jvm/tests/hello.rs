@@ -135,6 +135,11 @@ fn inline_vals_run_on_the_jvm() {
 }
 
 #[test]
+fn members_of_parent_refinements_are_dropped_on_the_jvm() {
+    runs_on_the_jvm("parentrefinements", "ParentRefinements");
+}
+
+#[test]
 fn closures_run_on_the_jvm() {
     runs_on_the_jvm("closures", "Closures");
 }

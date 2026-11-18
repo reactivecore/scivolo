@@ -10,7 +10,7 @@ use crate::defn::{EQUALS, PRODUCT};
 use crate::symbols::Syms;
 use names::{name_kinds, nme};
 use rustc_hash::FxHashMap;
-use tasty::tags::{ARTIFACT, CASE, ENUM, MUTABLE, PRIVATE};
+use tasty::tags::{ARTIFACT, CASE, ENUM, MUTABLE, PRIVATE, TRACKED};
 use tasty::{Erased, Kind, SymbolId, Type, TypeId, Universe};
 
 impl OverrideChecks {
@@ -42,6 +42,7 @@ impl OverrideChecks {
                     || name == nme::CONSTRUCTOR
                     || mixin
                     || t.is_concrete(d)
+                    || t.u.symbol(d).flags.has(TRACKED)
                     || expanded && is_made(&t.syms, t.u, d)
                     || is_var_setter(t.u, base, d)
                     || t.is_deferred_given(d)

@@ -36,6 +36,7 @@ mod dependencies;
 mod drop_for_map;
 mod drop_imports;
 mod drop_inlined;
+mod drop_parent_refinements;
 mod elideable;
 mod elim_opaque;
 mod elim_static_this;
