@@ -566,6 +566,7 @@ impl<'a> Typer<'a> {
         let outer_nulls = self.u.set_null_mode(nulls);
         let outer_nesting = self.constraint.set_nesting(self.levels.nesting(ctx.level));
         let vars = self.constraint.count();
+        let locked = std::mem::replace(&mut self.locked_vars, vars);
         let top_only = crate::ctx::Mode::APPLY_QUALIFIER
             .with(crate::ctx::Mode::ASSIGNMENT_LHS)
             .with(crate::ctx::Mode::SINGLETON_REF)
@@ -599,7 +600,6 @@ impl<'a> Typer<'a> {
             self.settle_type(tree, inner);
         }
         let tree = self.structural_call(tree, inner);
-        let locked = std::mem::replace(&mut self.locked_vars, vars);
         let adapted = self.adapt(tree, pt, ctx);
         let adapted = self.structural_call(adapted, inner);
         self.locked_vars = locked;

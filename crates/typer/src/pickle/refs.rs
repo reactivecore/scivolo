@@ -20,6 +20,11 @@ enum Prefix {
 }
 
 impl TreePickler<'_> {
+    /// Whether `s` is defined in the quote.
+    pub fn is_defined_here(&self, s: SymbolId) -> bool {
+        self.defs.contains_key(&s)
+    }
+
     /// A reference to `s` through `prefix`, a member of a class or package without one through
     /// its owner's `this`.
     pub fn sym_ref(&mut self, prefix: Option<TypeId>, s: SymbolId) -> Result<(), Refusal> {

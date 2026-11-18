@@ -37,10 +37,8 @@ impl Typer<'_> {
             let result = ty.strip_implicit(result);
             return ty.may_accept(param, q, matches!(goal, Goal::Conform(_)))
                 && match goal {
-                    Goal::Member(name) | Goal::Call(name, _) | Goal::Typed(name, _) => {
-                        ty.may_have(result, param, name)
-                    }
                     Goal::Conform(to) => ty.may_conform(result, param, to),
+                    _ => goal.member().is_none_or(|name| ty.may_have(result, param, name)),
                 };
         }
         let value = self.strip_implicit(info);

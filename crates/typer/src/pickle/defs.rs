@@ -52,11 +52,6 @@ impl TreePickler<'_> {
         }
     }
 
-    /// Whether `s` is defined in the quote.
-    pub fn is_defined_here(&self, s: SymbolId) -> bool {
-        self.defs.contains_key(&s)
-    }
-
     /// Sets the address of `s` to the current one, filling the references written before.
     pub fn register_def(&mut self, s: SymbolId) {
         let at = self.buf.buf.current_addr();
@@ -83,6 +78,7 @@ impl TreePickler<'_> {
     /// A `ValDef`, `DefDef` or `TypeDef` tree `id`.
     pub fn definition(&mut self, id: TNodeId) -> Result<(), Refusal> {
         let sym = self.tpd.sym(id).ok_or("a definition without a symbol")?;
+        self.def_span = self.tpd.span(id);
         match self.tpd.tree(id).clone() {
             T::ValDef { tpt, rhs, .. } => self.def(VALDEF, sym, None, tpt, rhs),
             T::DefDef { paramss, tpt, rhs, .. } => self.def(DEFDEF, sym, Some(paramss), tpt, rhs),
@@ -106,8 +102,9 @@ impl TreePickler<'_> {
         }
         self.keep_captures(sym, tpt)?;
         self.keep_overriding_captures(sym, tpt);
-        self.check_closure_captures(tpt, rhs)?;
-        self.with_length(tag, &mut |p| {
+        self.declare_closure_formals(sym, tpt, rhs)?;
+        self.open_defs.push(sym);
+        let pickled = self.with_length(tag, &mut |p| {
             p.name(&local_name(p.u, sym));
             if let Some(paramss) = paramss {
                 p.paramss(sym, paramss)?;
@@ -117,7 +114,9 @@ impl TreePickler<'_> {
                 p.tree(rhs)?;
             }
             p.modifiers(sym)
-        })
+        });
+        self.open_defs.pop();
+        pickled
     }
 
     /// The parameter clauses `paramss` of a method (dotty's `pickleParamss`).
@@ -180,7 +179,7 @@ impl TreePickler<'_> {
             let class = type_ref(self.u, class);
             self.with_length(ANNOTATION, &mut |p| {
                 p.ty(class, false)?;
-                p.tree(annot)
+                p.definition_annotation(annot)
             })?;
         }
         Ok(())

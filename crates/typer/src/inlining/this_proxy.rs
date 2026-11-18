@@ -11,6 +11,14 @@ use syntax::ast::Span;
 use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Expansion<'_, '_> {
+    /// The tree of the prefix of call reference `fun`, if it has one.
+    pub fn call_prefix(&mut self, fun: TNodeId) -> Option<TNodeId> {
+        match *self.i.tpd.tree(fun) {
+            T::Select { qualifier, .. } => Some(qualifier),
+            _ => self.ident_prefix(fun),
+        }
+    }
+
     /// The classes and proxies of the `this`es the call needs, innermost first, their bindings
     /// put first: none if local, a static object's without opaque types or called inside its
     /// class, nor for its class if the body does not refer to its `this` and the prefix is idempotent.
@@ -21,10 +29,7 @@ impl Expansion<'_, '_> {
         body: TNodeId,
     ) -> Result<Vec<(SymbolId, SymbolId)>, Unsupported> {
         let cls = self.i.u.symbol(meth).owner.ok_or(self.err("inline method"))?;
-        let prefix = match *self.i.tpd.tree(fun) {
-            T::Select { qualifier, .. } => Some(qualifier),
-            _ => self.ident_prefix(fun),
-        };
+        let prefix = self.call_prefix(fun);
         let impure = prefix.is_some_and(|q| !self.i.pure().is_idempotent_expr(q));
         if self.i.u.is_static_owner(cls) {
             return self.bind_static_opaque_this((cls, meth), body, (prefix, impure));

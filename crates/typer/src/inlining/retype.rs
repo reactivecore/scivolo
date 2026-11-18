@@ -72,14 +72,16 @@ impl Inlining<'_> {
                 None => self.ident_as_select(t),
             },
             T::Literal { .. } | T::ClassLiteral { .. } | T::This { .. } | T::Super { .. } => Ok(t),
-            T::TypeTree { .. }
-            | T::SingletonTypeTree { .. }
+            T::SingletonTypeTree { .. }
             | T::ByNameTypeTree { .. }
-            | T::AppliedTypeTree { .. }
             | T::TypeBoundsTree { .. }
             | T::LambdaTypeTree { .. }
             | T::Annotated { .. }
             | T::Import { export: true, .. } => Ok(t),
+            T::TypeTree { .. } | T::AppliedTypeTree { .. } => {
+                self.normalize_type_of(t);
+                Ok(t)
+            }
             T::RefinedTypeTree { .. } => {
                 let tpe = self.tpd.get(t).tpe;
                 Ok(self.tpd.node(T::TypeTree { inferred: false }, span, tpe, None))

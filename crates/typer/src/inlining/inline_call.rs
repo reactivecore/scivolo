@@ -93,9 +93,6 @@ impl Inlining<'_> {
             self.outermost_span = self.typer_inlined.unwrap_or(span);
             self.enter_outermost_call(call);
         }
-        if self.depth > 0 && self.tpd.sym(def).is_some_and(|m| self.u.within_opaques(m)) {
-            return Err((span, "inline call of an object with opaque types in an inline expansion"));
-        }
         let op = self.compiletime_op(call);
         if let Some(reduced) = self.intrinsic(op.as_deref(), call, owner)? {
             return Ok(reduced);

@@ -24,7 +24,9 @@ impl Inlining<'_> {
         let T::Select { qualifier, name } = *self.tpd.tree(fun) else { return Ok(t) };
         let class = self.function_class(qualifier).unwrap_or_default();
         let fits = match targs {
-            None => class.strip_prefix("scala.Function").is_some_and(|n| n.parse::<u32>().is_ok()),
+            None => ["scala.Function", "scala.ContextFunction"]
+                .iter()
+                .any(|p| class.strip_prefix(p).is_some_and(|n| n.parse::<u32>().is_ok())),
             Some(_) => class == crate::defn::POLY_FUNCTION,
         };
         if self.names.text(name.name) != nme::APPLY || !fits {

@@ -9,12 +9,14 @@ mod extension_containers;
 mod extension_views;
 mod fallback;
 mod may_view;
+mod open_views;
 mod qualifier;
 mod root_members;
 mod view_kinds;
 mod view_scope;
 mod widened;
 
+pub use open_views::ViewProto;
 pub use qualifier::QualifierView;
 
 use super::super::{Pt, Typer};
@@ -38,6 +40,8 @@ pub enum Goal<'a> {
     Call(&'a str, usize),
     /// A member whose value is expected to conform to a type.
     Typed(&'a str, TypeId),
+    /// A member applied to arguments the divergence check counts, by their prototype.
+    Applied(&'a str, &'a ViewProto),
 }
 
 impl<'a> Goal<'a> {
@@ -54,7 +58,9 @@ impl<'a> Goal<'a> {
     /// The member the converted tree must have.
     pub fn member(self) -> Option<&'a str> {
         match self {
-            Goal::Member(name) | Goal::Call(name, _) | Goal::Typed(name, _) => Some(name),
+            Goal::Member(name) | Goal::Call(name, _) | Goal::Typed(name, _) | Goal::Applied(name, _) => {
+                Some(name)
+            }
             Goal::Conform(_) => None,
         }
     }

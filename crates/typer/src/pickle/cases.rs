@@ -6,15 +6,11 @@
 use super::names::local_name;
 use super::{Refusal, TreePickler};
 use crate::tpd::{List, MatchKind, TNodeId, Tree};
-use tasty::Type;
 use tasty::tags::*;
 
 impl TreePickler<'_> {
     pub fn match_(&mut self, selector: Option<TNodeId>, cases: List, kind: MatchKind) -> Result<(), Refusal> {
         let cases = self.tpd.items(cases).to_vec();
-        if selector.is_some_and(|s| self.is_untold_self_match(s, &cases)) {
-            return Err("a match on `this` of a class whose self type has a capture set");
-        }
         self.with_length(MATCH, &mut |p| {
             match (kind, selector) {
                 (MatchKind::Inline, None) => p.byte(IMPLICIT),
@@ -27,31 +23,6 @@ impl TreePickler<'_> {
                 p.scrutinee = selector;
                 p.tree(t)
             })
-        })
-    }
-
-    /// Whether `selector`, in a capture-checked file, is the `this` of a class whose self type is
-    /// its own type with a capture set, and a case of `cases` has a pattern other than one typed
-    /// with that class (`case _` of `self match` in `trait Ops { self: Ops^ => }`).
-    fn is_untold_self_match(&mut self, selector: TNodeId, cases: &[TNodeId]) -> bool {
-        let selector = match *self.tpd.tree(selector) {
-            Tree::Typed { expr, .. } => expr,
-            _ => selector,
-        };
-        let Some(tpe) = self.tpd.get(selector).tpe else { return false };
-        let Type::This(c) = *self.u.ty(tpe) else { return false };
-        let Some(class) = self.u.class_symbol(c) else { return false };
-        if !self.capturing_selves.contains(&class) || self.u.given_self_type(class).is_some() {
-            return false;
-        }
-        cases.iter().any(|&case| {
-            let Tree::CaseDef { pat, .. } = *self.tpd.tree(case) else { return true };
-            let pat = match *self.tpd.tree(pat) {
-                Tree::Bind { body, .. } => body,
-                _ => pat,
-            };
-            let Tree::Typed { tpt, .. } = *self.tpd.tree(pat) else { return true };
-            self.u.class_symbol(self.tpd.tpe(tpt)) != Some(class)
         })
     }
 

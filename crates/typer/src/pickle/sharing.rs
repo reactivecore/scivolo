@@ -52,6 +52,15 @@ impl TreePickler<'_> {
         Ok(scratch.buf.bytes)
     }
 
+    /// Tells the type keyed by the type tree pickled: a type dotty builds anew for each tree.
+    pub fn key_by_place(&mut self) {
+        self.keyed_by_place = true;
+        if self.keying {
+            let place = self.type_tree.map_or(u32::MAX, |t| t.index() as u32);
+            self.buf.buf.write_bytes(&place.to_le_bytes());
+        }
+    }
+
     /// Makes later occurrences of type `t` share the tree at the current address.
     pub fn share_here(&mut self, t: TypeId) -> Result<(), Refusal> {
         let key = self.key(t, false)?;

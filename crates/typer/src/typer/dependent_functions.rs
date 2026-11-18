@@ -98,7 +98,7 @@ impl Typer<'_> {
         for (i, &t) in checked.iter().enumerate() {
             let t = self.zonk(t);
             let t = if i == 0 { t } else { self.widen_singletons(t, false) };
-            self.u.map_type(t, &mut |u, part| {
+            self.u.map_with_capture_sets(t, &mut |u, part| {
                 dependent |= u.sym_of(part).is_some_and(|s| params.contains(&s));
                 None
             });

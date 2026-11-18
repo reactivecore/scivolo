@@ -99,7 +99,7 @@ fn several_files_run_on_the_jvm() {
 }
 
 #[test]
-fn a_class_parameter_field_capturing_another_parameter_refused() {
+fn a_case_class_parameter_capturing_another_parameter_refused() {
     let source = root().join("tests/jvm/refused/fieldcaptures.scala");
     let (_, compiled) = compile("fieldcaptures", &source);
     let stderr = String::from_utf8_lossy(&compiled.stderr);
@@ -172,6 +172,21 @@ fn traits_run_on_the_jvm() {
 #[test]
 fn inline_vals_run_on_the_jvm() {
     runs_on_the_jvm("inlinevals", "Inlinevals");
+}
+
+#[test]
+fn members_of_parent_refinements_are_dropped_on_the_jvm() {
+    runs_on_the_jvm("parentrefinements", "ParentRefinements");
+}
+
+#[test]
+fn conversions_for_members_diverge_by_their_prototypes() {
+    runs_on_the_jvm("viewdivergence", "ViewDivergence");
+}
+
+#[test]
+fn inline_arguments_narrowed_to_constants_keep_their_skolems() {
+    runs_on_the_jvm("namedtupleinit", "NamedTupleInit");
 }
 
 #[test]
