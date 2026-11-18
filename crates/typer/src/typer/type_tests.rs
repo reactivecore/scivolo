@@ -143,7 +143,10 @@ impl Typer<'_> {
     /// Whether `t` refers to an opaque type, applied or not, that it does not see through.
     pub fn is_opaque_ref(&mut self, t: TypeId) -> bool {
         let tycon = self.u.applied(t).map_or(t, |(tycon, _)| tycon);
-        self.referenced(tycon).is_some_and(|s| self.u.symbol(s).flags.has(OPAQUE))
+        self.referenced(tycon).is_some_and(|s| {
+            let sym = self.u.symbol(s);
+            sym.kind == Kind::Type && sym.flags.has(OPAQUE)
+        })
     }
 
     /// `x @ tag(e)` as `tag(x @ e)` if `body` is the extractor pattern of a type test.

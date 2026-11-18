@@ -10,10 +10,8 @@ use tasty::SymbolId;
 impl Typer<'_> {
     /// Removes the TASTy members and the Scala library's Java classes of package `package` that a
     /// unit's member `name` replaces: those of that name and of its companion's (dotty's
-    /// `isDefinedInCurrentRun`), not the JDK classes a name Scala Native gives them stands for;
-    /// replacing a TASTy one of package `scala` but not `scala.scalanative` marks the run as
-    /// building the Scala library. Keeps the removed well-known symbols for
-    /// `replace_well_known`.
+    /// `isDefinedInCurrentRun`), not the JDK classes a name Scala Native gives them stands for.
+    /// Keeps the removed well-known symbols for `replace_well_known`.
     pub fn unenter_classpath_members(&mut self, package: SymbolId, name: &str) {
         let base = name.strip_suffix('$').unwrap_or(name);
         for n in [base.to_owned(), format!("{base}$")] {
@@ -22,10 +20,6 @@ impl Typer<'_> {
                 if (tasty || self.u.is_library_java_stub(d)) && self.u.symbol(d).name == n {
                     if self.defn.is_well_known(d) || self.u.defn().is_well_known(d) {
                         self.replaced_well_known.push(d);
-                    }
-                    let full = self.u.full_name(d);
-                    if tasty && full.starts_with("scala.") && !full.starts_with("scala.scalanative.") {
-                        self.u.set_builds_scala_library();
                     }
                     self.u.unenter(d);
                 }

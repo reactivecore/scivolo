@@ -59,6 +59,18 @@ fn check(rejected: &[(&str, &str)], accepted: &[&str]) {
 }
 
 #[test]
+fn java_methods_implemented_with_object_for_any() {
+    check(
+        &[],
+        &["class S[A] extends java.util.AbstractSet[A] {
+  override def contains(o: Object) = false
+  def size = 0
+  def iterator: java.util.Iterator[A] = ???
+}\n"],
+    );
+}
+
+#[test]
 fn private_definitions_leaking_through_signatures() {
     check(
         &[

@@ -55,7 +55,6 @@ impl Universe {
             jvm_target: false,
             java_source_params: Default::default(),
             owners_before_lifting: Default::default(),
-            builds_scala_library: false,
             scala2_classes: Default::default(),
             lifted: Default::default(),
             java_stubs: Default::default(),

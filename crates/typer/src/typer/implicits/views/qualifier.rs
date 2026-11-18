@@ -46,7 +46,8 @@ impl Typer<'_> {
         {
             return None;
         }
-        let (reported, uniques) = (self.diags.items.len(), self.syms.uniques.clone());
+        let (reported, uniques, counters) =
+            (self.diags.items.len(), self.syms.uniques.clone(), self.fresh.counters());
         let ((fits, types), _, _) = self.speculatively(|t| {
             let (mut types, mut typed_args) = (Vec::new(), Vec::new());
             for &a in &args {
@@ -75,6 +76,7 @@ impl Typer<'_> {
         self.retract_diags(reported);
         if fits {
             self.syms.uniques = uniques;
+            self.fresh.reset_counters(counters);
         }
         if fits || diagnosed {
             return None;

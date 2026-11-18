@@ -106,7 +106,7 @@ impl<'u> Sig<'u> {
 
     fn and_parts(&mut self, t: TypeId, parts: &mut Vec<TypeId>) {
         let widened = self.u.widen(t);
-        let t = self.u.dealias(widened);
+        let t = self.u.dealias_opaque(widened);
         match *self.u.ty(t) {
             Type::And(a, b) => {
                 self.and_parts(a, parts);
@@ -131,7 +131,7 @@ impl<'u> Sig<'u> {
     }
 
     fn jsig(&mut self, t: TypeId, top: bool, boxing: Boxing) {
-        let t = self.u.dealias(t);
+        let t = self.u.dealias_opaque(t);
         match *self.u.ty(t) {
             Type::Refined(p, ..) | Type::Annotated(p, _) | Type::Lambda { result: p, .. } => {
                 self.jsig(p, top, boxing)

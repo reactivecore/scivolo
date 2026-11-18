@@ -5,7 +5,9 @@
 # their NIR into tmp/lib/sn/<module>: the oracle of `just lib-compile` in place of the published
 # jars (Scala 3.1.3). The build runs in a copy of ref/scala-native, tmp/lib/build, with the
 # scalalib/ of ref/scala-native-scalalib, patched to use the published compiler plugin of that
-# Scala version (the plugin's 0.5.12 sources do not compile against it) and without -Werror.
+# Scala version (the plugin's 0.5.12 sources do not compile against it), with the test modules on
+# auxlib and the Scala library of that version instead of scala3lib (which needs scalalib's Scala
+# 2.13 variant compiled, impossible with it) and without -Werror.
 set -euo pipefail
 scala=3.9.0
 root=$(cd "$(dirname "$0")/.." && pwd)
@@ -17,15 +19,26 @@ rsync -a --delete --exclude target --exclude .bsp "$native/" "$build/"
 rsync -a --delete --exclude target "$native-scalalib/scalalib/" "$build/scalalib/"
 perl -0pi -e 's/if \(isGeneratingForIDE\) project\s*else project\.dependsOn\(nscPlugin % "plugin"\)/project.settings(libraryDependencies += compilerPlugin("org.scala-native" % "nscplugin_'$scala'" % "0.5.12"))/' \
   "$build/project/Build.scala"
+perl -pi -e 's/_\.dependsOn\(scala3lib\.forBinaryVersion\(v\)\)/_.dependsOn(auxlib.forBinaryVersion(v))/' "$build/project/Build.scala"
 perl -pi -e 's/Seq\("-Werror", "-encoding:utf8"\)/Seq("-encoding:utf8")/' "$build/project/Settings.scala"
-grep -q "nscplugin_$scala" "$build/project/Build.scala" && ! grep -q '"-Werror", "-encoding:utf8"' "$build/project/Settings.scala" ||
+grep -q "nscplugin_$scala" "$build/project/Build.scala" && ! grep -q 'dependsOn(scala3lib.forBinaryVersion' "$build/project/Build.scala" &&
+  ! grep -q '"-Werror", "-encoding:utf8"' "$build/project/Settings.scala" ||
   { echo "patching the build in $build failed" >&2; exit 1; }
 jars="$root/tmp/lib/sn/jars"
 rm -rf "$jars"
 mkdir -p "$jars"
-modules=(nativelib clib posixlib windowslib javalib auxlib scalalib)
+modules=(nativelib clib posixlib windowslib javalib auxlib scalalib test-interface test-interface-sbt-defs junit-runtime)
+# The sbt project of module directory $1.
+project() {
+  case $1 in
+    test-interface) echo testInterface ;;
+    test-interface-sbt-defs) echo testInterfaceSbtDefs ;;
+    junit-runtime) echo junitRuntime ;;
+    *) echo "$1" ;;
+  esac
+}
 tasks=("++$scala!")
-for m in "${modules[@]}"; do tasks+=("${m}3/compile"); done
+for m in "${modules[@]}"; do tasks+=("$(project "$m")3/compile"); done
 (cd "$build" && sbt -batch "${tasks[@]}")
 for m in "${modules[@]}"; do
   dirs=$(find "$build/$m/.3/target" -type d -name classes -path "*scala-$scala*")

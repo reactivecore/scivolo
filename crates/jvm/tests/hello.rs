@@ -54,6 +54,11 @@ fn hello_runs_on_the_jvm() {
 }
 
 #[test]
+fn operands_ascribed_to_nothing_throw_on_the_jvm() {
+    runs_on_the_jvm("deadoperands", "deadoperands");
+}
+
+#[test]
 fn searches_in_this_calls_of_local_classes_skip_their_members() {
     runs_on_the_jvm("thiscallsearch", "Test");
 }

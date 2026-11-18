@@ -5,7 +5,7 @@
 use super::Gen;
 use super::callee::is_primitive;
 use crate::{Result, unsupported};
-use nir::{Type, Val, ValId};
+use nir::{GlobalId, Type, TypeId, Val, ValId};
 use syntax::ast::constant::Constant;
 use typer::tpd::TNodeId;
 
@@ -28,22 +28,17 @@ impl Gen<'_, '_> {
         self.val(v)
     }
 
+    /// The runtime class of arrays of `elem` (`Type.toArrayClass`).
+    pub fn array_class(&mut self, elem: TypeId) -> GlobalId {
+        let simple = primitive_name(self.pool.ty(elem)).unwrap_or("Object");
+        self.pool.top(&format!("scala.scalanative.runtime.{simple}Array"))
+    }
+
     /// `classOf[tpe]`: the class of an object for its singleton type.
     pub fn gen_class_literal(&mut self, t: TNodeId, tpe: tasty::TypeId) -> Result<ValId> {
         let ty = self.gen_type(tpe);
         if let Type::Array { elem, .. } = *self.pool.ty(ty) {
-            let simple = match self.pool.ty(elem) {
-                Type::Bool => "Boolean",
-                Type::Char => "Char",
-                Type::Byte => "Byte",
-                Type::Short => "Short",
-                Type::Int => "Int",
-                Type::Long => "Long",
-                Type::Float => "Float",
-                Type::Double => "Double",
-                _ => "Object",
-            };
-            let name = self.pool.top(&format!("scala.scalanative.runtime.{simple}Array"));
+            let name = self.array_class(elem);
             return Ok(self.val(Val::ClassOf(name)));
         }
         let object = tasty::Erased::object();
@@ -68,4 +63,19 @@ impl Gen<'_, '_> {
             _ => unsupported(self.l.tpd.span(t), "classOf of a type that is not a class"),
         }
     }
+}
+
+/// The Scala name of primitive type `t`, `Unit` left out.
+pub fn primitive_name(t: &Type) -> Option<&'static str> {
+    Some(match t {
+        Type::Bool => "Boolean",
+        Type::Char => "Char",
+        Type::Byte => "Byte",
+        Type::Short => "Short",
+        Type::Int => "Int",
+        Type::Long => "Long",
+        Type::Float => "Float",
+        Type::Double => "Double",
+        _ => return None,
+    })
 }

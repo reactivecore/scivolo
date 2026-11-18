@@ -138,6 +138,10 @@ impl Universe {
         };
         match self.symbol(s).kind {
             Kind::Class => Some(s),
+            Kind::Type if self.is_hidden_opaque(s) => {
+                let (_, hi) = self.opaque_bounds(s)?;
+                self.class_symbol_within(hi, depth).filter(|&c| c != self.defn().any)
+            }
             Kind::Type | Kind::TypeParam => {
                 let info = self.info(s);
                 self.class_symbol_within(info, depth)

@@ -53,7 +53,7 @@ impl Sig<'_> {
     /// applied, its bound's; `depth` bounds the members followed.
     fn class_of(&mut self, t: TypeId, depth: u32) -> Option<SymbolId> {
         let depth = depth.checked_sub(1)?;
-        let t = self.u.dealias(t);
+        let t = self.u.dealias_opaque(t);
         let unresolved = self.u.resolve_ref(t).is_none();
         let ty = *self.u.ty(t);
         match ty {
@@ -115,7 +115,7 @@ impl Sig<'_> {
 
     /// The class `t` refers to after dealiasing, none for a type parameter or member.
     pub fn class_ref(&mut self, t: TypeId) -> Option<SymbolId> {
-        let t = self.u.dealias(t);
+        let t = self.u.dealias_opaque(t);
         let s = match *self.u.ty(t) {
             Type::Sym(_, s) => Some(s),
             Type::TypeRef(..) => self.u.resolve_ref(t),

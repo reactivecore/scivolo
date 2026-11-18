@@ -127,8 +127,6 @@ pub struct Universe {
     java_source_params: FxHashMap<SymbolId, Vec<SymbolId>>,
     /// The owners lifted local classes had before lifting.
     owners_before_lifting: FxHashMap<SymbolId, SymbolId>,
-    /// Whether a unit replaces classes of the Scala library.
-    builds_scala_library: bool,
     /// The classes defined outside TASTy in a unit that behaves as the Scala 2 library.
     scala2_classes: FxHashSet<SymbolId>,
     /// The methods lifted out of terms into classes.
