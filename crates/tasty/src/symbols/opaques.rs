@@ -84,16 +84,17 @@ impl Universe {
         }
     }
 
-    /// The right-hand side of opaque type `s`, defined outside TASTy, if a reference through
-    /// `prefix` sees it: through the `this` of its owner, through any prefix once elided.
+    /// The right-hand side of opaque type `s` if a reference through `prefix` sees it: once
+    /// elided through any prefix, before that only one defined outside TASTy, through the `this`
+    /// of its owner.
     pub fn visible_opaque_alias(&mut self, s: SymbolId, prefix: Option<TypeId>) -> Option<TypeId> {
-        if !self.symbol(s).flags.has(OPAQUE) {
+        if self.symbol(s).kind != Kind::Type || !self.symbol(s).flags.has(OPAQUE) {
             return None;
         }
-        let alias = *self.opaque_aliases.get(&s)?;
         if self.opaques_elided {
-            return Some(alias);
+            return self.opaque_rhs(s);
         }
+        let alias = *self.opaque_aliases.get(&s)?;
         let c = self.this_of(prefix?)?;
         let owner = self.symbol(s).owner;
         let inside = self.comparison_owner.is_none_or(|o| self.encloses(owner, o));

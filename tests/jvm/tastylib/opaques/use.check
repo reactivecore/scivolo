@@ -1,0 +1,12 @@
+List(2)
+List(1)
+3
+3
+true
+bounded: scala.collection.immutable.List<java.lang.Object>
+direct: scala.collection.immutable.List<java.lang.Object>
+exported: scala.collection.immutable.List<java.lang.String>
+function: scala.Function1<java.lang.String, java.lang.Object>
+lambda: class java.lang.String
+nested: scala.collection.immutable.List<scala.collection.immutable.List<java.lang.Object>>
+field: scala.collection.immutable.List<java.lang.Object>

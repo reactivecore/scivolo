@@ -54,6 +54,11 @@ fn hello_runs_on_the_jvm() {
 }
 
 #[test]
+fn operands_ascribed_to_nothing_throw_on_the_jvm() {
+    runs_on_the_jvm("deadoperands", "deadoperands");
+}
+
+#[test]
 fn several_files_run_on_the_jvm() {
     runs_on_the_jvm("units", "Units");
 }
