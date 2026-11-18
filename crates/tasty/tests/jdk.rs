@@ -48,7 +48,8 @@ fn class(u: &mut Universe, pkg: &str, name: &str) -> SymbolId {
 fn java_source_parameters_are_stable_symbols() {
     let Some(mut u) = with_javalib() else { return };
     u.use_java_classfiles(&[]).unwrap();
-    let file = ("p/J.java".to_owned(), "package p; public class J { public int m(int a) { return a; } }".to_owned());
+    let file =
+        ("p/J.java".to_owned(), "package p; public class J { public int m(int a) { return a; } }".to_owned());
     u.use_java_sources(JavaSources::parse(&[file]).unwrap());
     let c = class(&mut u, "p", "J");
     let m = u.decls_named(c, "m")[0];
