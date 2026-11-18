@@ -5,7 +5,8 @@
 use super::Avoid;
 use crate::typer::Typer;
 use names::nme;
-use tasty::{Kind, SymbolId, Type, TypeId, Universe};
+use tasty::tags::MUTABLE;
+use tasty::{Kind, NameId, SymbolId, Type, TypeId, Universe};
 
 impl Avoid<'_> {
     /// Determines the type that stands for local class `c` outside its block: for
@@ -40,6 +41,25 @@ impl Avoid<'_> {
         }
         Some(closed_over(t, c, bound))
     }
+}
+
+/// Removes from `t` the refinements naming a `var` of a class among `locals`: `class_bound` refines
+/// by the `var`'s value type, to which the `var` itself does not conform.
+pub fn without_var_refinements(u: &mut Universe, t: TypeId, locals: &[SymbolId]) -> TypeId {
+    let classes = locals.iter().filter(|&&c| u.symbol(c).kind == Kind::Class);
+    let decls: Vec<SymbolId> = classes.flat_map(|&c| u.symbol(c).decls.iter().copied()).collect();
+    let is_var = |u: &Universe, d: SymbolId| u.symbol(d).kind == Kind::Val && u.symbol(d).flags.has(MUTABLE);
+    let vars: Vec<SymbolId> = decls.into_iter().filter(|&d| is_var(u, d)).collect();
+    let names: Vec<NameId> = vars.into_iter().map(|d| u.interned_name(d)).collect();
+    without_refinements_of(u, t, &names)
+}
+
+/// `t` without the refinements of `names`.
+fn without_refinements_of(u: &mut Universe, t: TypeId, names: &[NameId]) -> TypeId {
+    u.map_type(t, &mut |u, part| {
+        let Type::Refined(parent, name, _) = *u.ty(part) else { return None };
+        names.contains(&name).then(|| without_refinements_of(u, parent, names))
+    })
 }
 
 /// `tpe` with references to class `c` and its `this` replaced by the `this` of a recursive type

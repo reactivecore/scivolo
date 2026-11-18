@@ -59,6 +59,43 @@ fn check(rejected: &[(&str, &str)], accepted: &[&str]) {
 }
 
 #[test]
+fn local_class_vars_in_the_type_of_a_block() {
+    check(
+        &[],
+        &["trait Foo extends reflect.Selectable
+def f: Unit =
+  val x = new Foo { var i: Int = 0 }
+  x.i = 1\n"],
+    );
+}
+
+#[test]
+fn members_implemented_with_dependent_parameters() {
+    check(
+        &[],
+        &["trait A {
+  type D >: Null <: C
+  def foo(d: D)(d2: d.type): Unit
+  trait C
+}
+object B extends A {
+  class D extends C
+  def foo(d: D)(d2: d.type): Unit = ()
+}\n"],
+    );
+}
+
+#[test]
+fn overriding_results_of_parameter_singleton_types() {
+    check(
+        &[],
+        &["object I extends (Int => Int) {
+  def apply(i: Int): i.type = i
+}\n"],
+    );
+}
+
+#[test]
 fn java_methods_implemented_with_object_for_any() {
     check(
         &[],

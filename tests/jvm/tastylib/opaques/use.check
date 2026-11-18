@@ -14,6 +14,7 @@ scala.collection.immutable.$colon$colon
 true
 true
 5
+fx
 bounded: scala.collection.immutable.List<java.lang.Object>
 direct: scala.collection.immutable.List<java.lang.Object>
 exported: scala.collection.immutable.List<java.lang.String>

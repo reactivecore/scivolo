@@ -55,6 +55,10 @@ trait TF:
 trait TI:
   def f(x: Int): Int
 
+trait TR:
+  type Rep[X]
+  def app[A](f: Rep[A => A], x: Rep[A]): Rep[A]
+
 type R[X] = X match
   case List[t] => String
   case Any => Int

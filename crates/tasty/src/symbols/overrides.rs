@@ -23,7 +23,9 @@ impl Universe {
     /// Determines whether the signatures of members `a` and `b` of `site` have the same erased
     /// parameter types (dotty's `consistentParams`).
     pub fn parameters_agree(&mut self, site: TypeId, a: SymbolId, b: SymbolId) -> bool {
-        !matches!(self.signature_match(site, a, b), crate::erasure::MatchDegree::No)
+        let scala2 = self.erased_as_scala2(a) && self.erased_as_scala2(b);
+        let (sa, sb) = (self.dealiased_signature(site, a, scala2), self.dealiased_signature(site, b, scala2));
+        !matches!(crate::erasure::match_degree(&sa, &sb), crate::erasure::MatchDegree::No)
     }
 
     fn signature_match(&mut self, site: TypeId, a: SymbolId, b: SymbolId) -> crate::erasure::MatchDegree {

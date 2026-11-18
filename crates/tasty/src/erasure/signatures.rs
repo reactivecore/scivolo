@@ -5,8 +5,11 @@
 
 use super::Erased;
 use crate::tags::INLINE;
-use crate::types::{Type, TypeId};
+use crate::types::{Binder, NameId, Type, TypeId};
 use crate::{Kind, SymbolId, Universe};
+
+/// The binder and parameters of a value parameter clause.
+pub type ParamClause = (Binder, Vec<(NameId, TypeId)>);
 
 /// A part of a signature's parameters: a type-parameter clause's length or an erased parameter.
 #[derive(Clone, PartialEq, Debug)]
@@ -58,7 +61,7 @@ impl Universe {
             return None;
         }
         let previous = self.set_scala2_erasure(scala2);
-        let (mut parts, mut bounds) = (Vec::new(), Vec::new());
+        let (mut parts, mut bounds, mut clauses) = (Vec::new(), Vec::new(), Vec::new());
         loop {
             match *self.ty(t) {
                 Type::Poly { binder, params, result } => {
@@ -67,8 +70,10 @@ impl Universe {
                     bounds.push((binder, params.iter().map(|&(_, b)| b).collect::<Vec<_>>()));
                     t = result;
                 }
-                Type::Method { params, result, .. } => {
-                    parts.extend(self.params_of(params).iter().map(|&(_, p)| Ok(p)));
+                Type::Method { binder, params, result, .. } => {
+                    let params = self.params_of(params).to_vec();
+                    parts.extend(params.iter().map(|&(_, p)| Ok(p)));
+                    clauses.push((binder, params));
                     t = result;
                 }
                 _ => break,
@@ -80,15 +85,43 @@ impl Universe {
                 Err(n) => sig.push(ParamSig::TypeParams(n)),
                 Ok(p) if self.is_erased_param(p) => {}
                 Ok(p) => {
+                    let p = self.singleton_param_type(p, &clauses);
                     let p = self.upper_bound(p, &bounds);
                     sig.push(ParamSig::Param(self.erase(p)));
                 }
             }
         }
-        let result = self.upper_bound(t, &bounds);
+        let result = self.singleton_param_type(t, &clauses);
+        let result = self.upper_bound(result, &bounds);
         let result = self.erase(result);
         self.set_scala2_erasure(previous);
         Some((sig, result))
+    }
+
+    /// Determines the type that `t` has in a method type with `clauses`: for `x.type` of a
+    /// parameter `x` of a clause, the type of `x` there, else `t`.
+    pub fn singleton_param_type(&mut self, mut t: TypeId, clauses: &[ParamClause]) -> TypeId {
+        for _ in clauses.iter().flat_map(|(_, params)| params) {
+            let as_ref = clauses.iter().fold(t, |r, (b, ps)| self.param_syms_as_refs(r, ps, *b));
+            let Some((binder, i)) = self.param_ref(as_ref) else { break };
+            let clause = clauses.iter().find(|(b, _)| *b == binder);
+            let Some(&(_, param)) = clause.and_then(|(_, ps)| ps.get(i as usize)) else { break };
+            t = param;
+        }
+        t
+    }
+
+    /// Computes the signature of member `s` of `site` with the aliases `site` gives to the types
+    /// in its info followed, as `Repr[Int]` for `String` in a class with `type Repr[X] = String`.
+    pub fn dealiased_signature(&mut self, site: TypeId, s: SymbolId, scala2: bool) -> Signature {
+        let info = self.member_info(site, s);
+        let info = self.map_type(info, &mut |u, x| {
+            if !matches!(u.ty(x), Type::Applied(..) | Type::Sym(Some(_), _)) {
+                return None;
+            }
+            Some(u.normalize(x)).filter(|&n| n != x)
+        });
+        self.info_signature(info, scala2)
     }
 
     /// Whether method `s` is erased as Scala 2 erases: not inline, of a Scala 2 class, not lifted

@@ -9,6 +9,10 @@ class ViaExport extends TF:
 class ImplVar extends TV:
   var w = 5
 
+class ImplRep extends TR:
+  type Rep[X] = String
+  def app[A](f: Rep[A => A], x: Rep[A]): Rep[A] = f + x
+
 object Use:
   def direct: O.F[Int] = O.mkF
   def exported: Fw.F[String] = ???
@@ -43,6 +47,7 @@ object Use:
     println(Prim.i == (41: Any))
     println(Prim.u == Prim.u)
     println(ImplVar().w)
+    println(ImplRep().app[Int]("f", "x"))
     val cls = getClass
     val names = Set("direct", "exported", "nested", "function", "lambda", "bounded")
     for m <- cls.getDeclaredMethods.filter(m => names(m.getName)).sortBy(_.getName) do

@@ -30,13 +30,16 @@ struct Clause {
 fn results_conform(t: &mut Typer<'_>, (site, prefix): (TypeId, TypeId), d: SymbolId, m: SymbolId) -> bool {
     let (mut rd, mut rm) = (t.u.own_member_info(prefix, d), t.u.own_member_info(prefix, m));
     let (td, tm) = (t.u.type_params(d), t.u.type_params(m));
-    let (mut offset, mut bounds) = (0, Vec::new());
+    let (mut offset, mut bounds, mut own_clauses) = (0, Vec::new(), Vec::new());
     loop {
         match (clause(t, rd), clause(t, rm)) {
             (Some(a), Some(b)) if a.is_type == b.is_type && a.params.len() == b.params.len() => {
                 let rb = t.u.param_syms_as_refs(b.result, &b.params, b.binder);
                 rm = t.u.with_binder(rb, (b.binder, &b.params), a.binder);
                 rd = t.u.param_syms_as_refs(a.result, &a.params, a.binder);
+                if !a.is_type {
+                    own_clauses.push((a.binder, a.params.clone()));
+                }
                 if a.is_type {
                     let n = a.params.len();
                     rd = type_param_refs(t, rd, td.get(offset..offset + n).unwrap_or_default(), a.binder);
@@ -58,6 +61,7 @@ fn results_conform(t: &mut Typer<'_>, (site, prefix): (TypeId, TypeId), d: Symbo
     if conforms_overridden(t, site, rd, rm) {
         return true;
     }
+    let rd = t.u.singleton_param_type(rd, &own_clauses);
     let overridden = |t: &mut Typer<'_>, ty: TypeId| t.u.map_type(ty, &mut |u, x| u.overriding_member(x));
     let (rd, rm) = (overridden(t, rd), overridden(t, rm));
     let bound = |t: &Typer<'_>, ty: TypeId, upper: bool| {
