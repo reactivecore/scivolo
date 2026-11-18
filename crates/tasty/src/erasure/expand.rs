@@ -3,13 +3,15 @@
 //! Applied aliases and abstract types, whose arguments are substituted into their right-hand
 //! side or upper bound.
 
+use crate::tags::OPAQUE;
 use crate::types::{NameId, Type, TypeId};
 use crate::{Kind, Universe};
 
 impl Universe {
     /// `tycon[args]` with `tycon` an alias of a type lambda, also by a refinement of its prefix's
     /// type (`f.A[Int]` of `f: R` with `R <: Foo { type A[T] = Long }`): its body as seen from
-    /// the prefix of `tycon`, arguments substituted.
+    /// the prefix of `tycon`, arguments substituted. An opaque type read from TASTy is no alias
+    /// until opaque types are elided.
     pub fn expand(&mut self, tycon: TypeId, args: &[TypeId]) -> Option<TypeId> {
         self.applied_info(tycon, args, false)
     }
@@ -37,6 +39,16 @@ impl Universe {
         if let Some(refined) = refined.and_then(|r| self.type_alias(r)) {
             return self.lambda_applied(refined, args, upper);
         }
+        if self.symbol(alias).flags.has(OPAQUE) && self.symbol(alias).tree.is_some() {
+            return match (self.opaques_elided(), upper) {
+                (true, _) => self.expand_opaque(tycon, args),
+                (false, true) => {
+                    let applied = self.intern_applied(tycon, args);
+                    self.opaque_upper(applied)
+                }
+                (false, false) => None,
+            };
+        }
 
         let own = match prefix {
             Some(p) => self.member_info(p, alias),
@@ -50,6 +62,23 @@ impl Universe {
             }
             (r, o) => o.or(r),
         }
+    }
+
+    /// `tycon[args]` with `tycon` an opaque type: the body of its right-hand side as seen from the
+    /// prefix of `tycon`, whatever the scope, arguments substituted (erasure and `ElimOpaque`).
+    pub fn expand_opaque(&mut self, tycon: TypeId, args: &[TypeId]) -> Option<TypeId> {
+        let s = self.referenced(tycon).filter(|&s| self.symbol(s).flags.has(OPAQUE))?;
+        let rhs = self.opaque_rhs(s)?;
+        let prefix = match *self.ty(tycon) {
+            Type::Sym(p, _) => p,
+            Type::TypeRef(p, _) => Some(p),
+            _ => None,
+        };
+        let rhs = match (prefix, self.symbol(s).owner) {
+            (Some(p), Some(o)) if self.symbol(o).kind == Kind::Class => self.as_seen_from(rhs, p, o),
+            _ => rhs,
+        };
+        self.lambda_applied(rhs, args, false)
     }
 
     /// The body of type lambda `info`, an alias of one (an export forwarder read from TASTy), or

@@ -18,6 +18,15 @@ impl Typer<'_> {
         self.u.symbol(a).run_name() == self.u.symbol(b).run_name() && self.matches_loosely(site, a, b)
     }
 
+    /// Whether member `m` of `site` implements member `d`: as `same_member`, with method
+    /// parameter types compared even if the signatures agree (dotty's `matchesLoosely` with
+    /// `alwaysCompareTypes` in `isImplemented`).
+    pub fn implements(&mut self, site: TypeId, m: SymbolId, d: SymbolId) -> bool {
+        let methods = self.u.symbol(m).kind == Kind::Def && self.u.symbol(d).kind == Kind::Def;
+        self.same_member(site, m, d)
+            && (!methods || self.u.info_matches(site, m, d) || self.is_nullary(m) && self.is_nullary(d))
+    }
+
     /// Whether member `s` is concrete: a definition of the unit with a right-hand side, as
     /// `def f = 1`; a library member with a body, of `Any` or `Object`, or concrete in its class
     /// file.

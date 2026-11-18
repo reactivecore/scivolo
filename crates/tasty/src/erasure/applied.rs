@@ -65,14 +65,6 @@ impl Universe {
         found
     }
 
-    /// `tycon[args]` with `tycon` an opaque type lambda defined outside TASTy: its right-hand
-    /// side's body, arguments substituted.
-    pub fn expand_opaque(&mut self, tycon: TypeId, args: &[TypeId]) -> Option<TypeId> {
-        let alias = self.referenced(tycon).and_then(|s| self.opaque_alias(s))?;
-        let (binder, names, result) = self.lambda(alias).map(|l| (l.binder, l.names(), l.result))?;
-        Some(self.subst(result, binder, &names, args))
-    }
-
     /// `Array[Unit]` for `t = Array[? <: Unit]`, else `t`: the right-hand side of an opaque type
     /// erases as dotty's `IArray[Unit]` to `BoxedUnit[]`.
     fn without_array_wildcard(&mut self, t: TypeId) -> TypeId {

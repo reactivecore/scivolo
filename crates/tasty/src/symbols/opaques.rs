@@ -50,6 +50,11 @@ impl Universe {
         None
     }
 
+    /// Whether opaque types read as their right-hand sides everywhere (after `ElimOpaque`).
+    pub fn opaques_elided(&self) -> bool {
+        self.opaques_elided
+    }
+
     /// Records `alias` as the right-hand side of opaque type `sym`, defined outside TASTy.
     pub fn set_opaque_alias(&mut self, sym: SymbolId, alias: TypeId) {
         self.opaque_aliases.insert(sym, alias);
