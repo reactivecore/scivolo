@@ -36,6 +36,8 @@ fn generic_signatures_of_forwarders_and_outer_references() {
     let Some(forwarders) = javap(&out, "generics.ByLength") else { return };
     let expected = "public static java.util.Comparator<java.lang.String> reversed()";
     assert!(forwarders.contains(expected), "{forwarders}");
+    let Some(selfish) = javap(&out, "generics.Selfish$Inner") else { return };
+    assert!(selfish.contains("final generics.Selfish $outer;"), "{selfish}");
     let Some(nested) = javap(&out, "generics.Outer$Mid$In") else { return };
     for expected in
         ["final generics.Outer<TA>.Mid $outer;", "generics.Outer<TA>.Mid generics$Outer$Mid$In$$$outer()"]

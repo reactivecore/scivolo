@@ -16,6 +16,11 @@ class Blocks {
   }
 }
 
+object Facade extends Selfish
+trait Selfish { self: Facade.type =>
+  class Inner { def owner: AnyRef = self }
+}
+
 class Outer[TA] {
   class Mid {
     class In
