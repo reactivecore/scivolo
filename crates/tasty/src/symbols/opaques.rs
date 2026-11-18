@@ -111,18 +111,6 @@ impl Universe {
         false
     }
 
-    /// Whether a class enclosing `s` declares opaque types defined outside TASTy.
-    pub fn within_opaques(&self, s: SymbolId) -> bool {
-        let mut owner = self.symbol(s).owner;
-        while let Some(o) = owner {
-            if self.has_opaques(o) {
-                return true;
-            }
-            owner = self.symbol(o).owner;
-        }
-        false
-    }
-
     /// Whether class `c` declares opaque types defined outside TASTy (dotty's `containsOpaques`).
     pub fn has_opaques(&self, c: SymbolId) -> bool {
         self.symbol(c).flags.has(OPAQUE)

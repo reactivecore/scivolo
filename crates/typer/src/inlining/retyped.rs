@@ -14,6 +14,11 @@ impl Inlining<'_> {
         match *self.tpd.tree(t) {
             T::Select { .. } | T::Apply { .. } => {
                 self.fold_constants(t);
+                let method =
+                    |u: &tasty::Universe, x| matches!(u.ty(x), Type::Method { .. } | Type::Poly { .. });
+                if applied && !method(self.u, self.tpd.tpe(t)) {
+                    self.normalize_type_of(t);
+                }
                 Ok(self.const_to_literal(t))
             }
             _ if applied => Ok(self.const_to_literal(t)),
@@ -59,15 +64,34 @@ impl Inlining<'_> {
                 }
                 Ok(t)
             }
+            T::ValDef { .. } => {
+                if let Some(s) = self.tpd.sym(t) {
+                    let info = self.u.info(s);
+                    let info = crate::typer::simplify::normalize_all(self.u, info);
+                    self.u.set_info(s, info);
+                }
+                Ok(t)
+            }
             T::TypeApply { .. } => {
                 let tpe = self.tpd.tpe(t);
                 if matches!(self.u.ty(tpe), Type::Method { .. } | Type::Poly { .. }) {
                     return Ok(t);
                 }
-                self.tpd.get_mut(t).tpe = Some(crate::typer::simplify::simplified(self.u, tpe));
+                self.tpd.get_mut(t).tpe = Some(crate::typer::simplify::fully_simplified(self.u, tpe));
+                Ok(t)
+            }
+            T::Typed { .. } => {
+                self.normalize_type_of(t);
                 Ok(t)
             }
             _ => Ok(t),
+        }
+    }
+
+    /// Gives `t` its type with match types reduced.
+    pub fn normalize_type_of(&mut self, t: TNodeId) {
+        if let Some(tpe) = self.tpd.get(t).tpe {
+            self.tpd.get_mut(t).tpe = Some(crate::typer::simplify::normalize_all(self.u, tpe));
         }
     }
 
