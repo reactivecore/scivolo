@@ -42,7 +42,7 @@ phases behind a `Backend` switch, `G` = in the JVM generator only.
 
 | | dotty | Scala Native / ours | JVM shape |
 |---|---|---|---|
-| S | `LazyVals` `D/transform/LazyVals.scala` (706) | `N/AdaptLazyVals.scala`, `L/phases/lazy_vals/` (`objCAS` on the field) | `OFFSET$_m_N` static fields set by `LazyVals.getOffsetStatic`, `LazyVals.objCAS(this, offset, …)` |
+| S | `LazyVals` `D/transform/LazyVals.scala` (706) | `N/AdaptLazyVals.scala`, `L/phases/lazy_vals/` (`objCAS` on the field) | static `VarHandle` fields `x$lzyN$lzyHandle` set in `<clinit>`, `compareAndSet(this, …)` on them |
 | S | `MoveStatics` `D/transform/MoveStatics.scala` | `L/phases/static_members.rs`, `static_values.rs` (ADR 0043: fields of the object) | static fields and methods of the companion class, `<clinit>` |
 | S | `CompleteJavaEnums` `D/transform/CompleteJavaEnums.scala` | `L/phases/java_enums.rs` "without the static forwarders" | `values`/`valueOf` forwarders, `$values` |
 | S | — | `L/phases/native_interop.rs` (`N/PostInlineNativeInterop.scala`) | skipped |

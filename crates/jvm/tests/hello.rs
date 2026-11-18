@@ -539,22 +539,114 @@ fn lazy_values_initialize_through_var_handles_on_the_jvm() {
     runs_on_the_jvm("lazyhandles", "Lazyhandles");
 }
 
-#[test]
-fn a_lazy_value_without_the_jdk_s_var_handle_is_refused() {
-    let sources = written("nojdk-src", &[("nojdk.scala", "class NoJdk { lazy val a: String = \"a\" }\n")]);
-    let out = root().join("tmp/jvm-test/nojdk");
+/// A class with lazy values and a `given` alias.
+const LAZY_CLASS: &str = "class NoJdk { lazy val a: String = \"a\"; given Int = 1 }\n";
+
+/// Runs scivolo-jvm on `source` into tmp/jvm-test/`name` with `JAVA_HOME` set to `java_home`, no
+/// `java` on the `PATH`.
+fn compile_with_java_home(name: &str, source: &Path, java_home: Option<&Path>) -> (PathBuf, Output) {
+    let out = root().join("tmp/jvm-test").join(name);
     let _ = std::fs::remove_dir_all(&out);
-    let compiled = Command::new(env!("CARGO_BIN_EXE_scivolo-jvm"))
-        .env_remove("JAVA_HOME")
-        .env("PATH", "")
-        .arg("-d")
-        .arg(&out)
-        .args(&sources)
-        .output()
-        .expect("running scivolo-jvm");
+    let mut command = Command::new(env!("CARGO_BIN_EXE_scivolo-jvm"));
+    command.env_remove("JAVA_HOME").env("PATH", "");
+    if let Some(home) = java_home {
+        command.env("JAVA_HOME", home);
+    }
+    (out.clone(), command.arg("-d").arg(&out).arg(source).output().expect("running scivolo-jvm"))
+}
+
+/// Class file bytes of `name` with `methods`, each its flags, name and descriptor.
+fn class_bytes(name: &str, methods: &[(u16, &str, &str)]) -> Vec<u8> {
+    let mut class = classfile::ClassFile::new(classfile::ACC_PUBLIC, name, "java/lang/Object", &[]);
+    class.inner_classes(&[classfile::InnerClass {
+        inner: "java/lang/invoke/MethodHandles$Lookup".into(),
+        outer: Some("java/lang/invoke/MethodHandles".into()),
+        name: Some("Lookup".into()),
+        flags: classfile::ACC_PUBLIC | classfile::ACC_STATIC | classfile::ACC_FINAL,
+    }]);
+    for &(access, method, descriptor) in methods {
+        class.method(access | classfile::ACC_ABSTRACT, method, descriptor, None);
+    }
+    class.bytes(&mut |_, _| None).expect("a class file")
+}
+
+/// Creates tmp/jvm-test/`name`, a JDK whose `lib/ct.sym` holds `classes`, names and class files.
+fn jdk_of(name: &str, classes: &[(&str, Vec<u8>)]) -> PathBuf {
+    let home = root().join("tmp/jvm-test").join(name);
+    let _ = std::fs::remove_dir_all(&home);
+    std::fs::create_dir_all(home.join("bin")).expect("bin");
+    std::fs::create_dir_all(home.join("lib")).expect("lib");
+    std::fs::write(home.join("bin/java"), "").expect("bin/java");
+    let entry = |(class, bytes): &(&str, Vec<u8>)| (format!("H/java.base/{class}.sig"), bytes.clone());
+    let entries: Vec<(String, Vec<u8>)> = classes.iter().map(entry).collect();
+    let files: Vec<(String, &[u8])> = entries.iter().map(|(n, b)| (n.clone(), &b[..])).collect();
+    jvmgen::jar::write(&home.join("lib/ct.sym"), &files, None).expect("ct.sym");
+    home
+}
+
+#[test]
+fn lazy_values_compile_the_same_without_a_readable_jdk() {
+    let sources = written("nojdk-src", &[("nojdk.scala", LAZY_CLASS)]);
+    let (without, compiled) = compile_with_java_home("nojdk", &sources[0], None);
+    assert!(compiled.status.success(), "{}", String::from_utf8_lossy(&compiled.stderr));
+    if Command::new("java").arg("-version").output().is_err() {
+        eprintln!("no java on the PATH: not compared");
+        return;
+    }
+    let (with, compiled) = compile("withjdk", &sources[0]);
+    assert!(compiled.status.success(), "{}", String::from_utf8_lossy(&compiled.stderr));
+    let class = |dir: &Path| std::fs::read(dir.join("NoJdk.class")).expect("NoJdk.class");
+    assert!(class(&without) == class(&with));
+}
+
+#[test]
+fn a_lazy_value_on_a_jdk_without_var_handle_is_refused() {
+    let object = class_bytes("java/lang/Object", &[]);
+    let home = jdk_of("jdk8", &[("java/lang/Object", object)]);
+    let sources = written("oldjdk-src", &[("nojdk.scala", LAZY_CLASS)]);
+    let (out, compiled) = compile_with_java_home("oldjdk", &sources[0], Some(&home));
     let stderr = String::from_utf8_lossy(&compiled.stderr);
     assert!(!compiled.status.success(), "{stderr}");
     assert!(stderr.contains("lazy values on a JDK without VarHandle"), "{stderr}");
+    assert!(!out.join("NoJdk.class").exists());
+}
+
+#[test]
+fn a_lazy_value_on_a_jdk_without_polymorphic_compare_and_set_is_refused() {
+    use classfile::{ACC_PUBLIC, ACC_STATIC};
+    let classes = [
+        (
+            "java/lang/invoke/MethodHandles",
+            class_bytes(
+                "java/lang/invoke/MethodHandles",
+                &[(ACC_PUBLIC | ACC_STATIC, "lookup", "()Ljava/lang/invoke/MethodHandles$Lookup;")],
+            ),
+        ),
+        (
+            "java/lang/invoke/MethodHandles$Lookup",
+            class_bytes(
+                "java/lang/invoke/MethodHandles$Lookup",
+                &[(
+                    ACC_PUBLIC,
+                    "findVarHandle",
+                    "(Ljava/lang/Class;Ljava/lang/String;Ljava/lang/Class;)Ljava/lang/invoke/VarHandle;",
+                )],
+            ),
+        ),
+        (
+            "java/lang/invoke/VarHandle",
+            class_bytes(
+                "java/lang/invoke/VarHandle",
+                &[(ACC_PUBLIC, "compareAndSet", "([Ljava/lang/Object;)Z")],
+            ),
+        ),
+    ];
+    let home = jdk_of("jdk-plain-cas", &classes);
+    let sources = written("plaincas-src", &[("nojdk.scala", LAZY_CLASS)]);
+    let (out, compiled) = compile_with_java_home("plaincas", &sources[0], Some(&home));
+    let stderr = String::from_utf8_lossy(&compiled.stderr);
+    assert!(!compiled.status.success(), "{stderr}");
+    assert!(stderr.contains("compareAndSet is not signature polymorphic"), "{stderr}");
     assert!(!out.join("NoJdk.class").exists());
 }
 

@@ -3,6 +3,7 @@
 
 use super::ClassInfo;
 use super::jimage::Jimage;
+use super::var_handle_api;
 use std::collections::{HashMap, HashSet};
 use std::fs::File;
 use std::io::Read;
@@ -30,12 +31,15 @@ pub struct Jdk {
 }
 
 impl Jdk {
-    /// The JDK's class of internal name `name`, none if no JDK is found or it lacks the class.
+    /// Finds the JDK's class of internal name `name`, none if the JDK lacks it. Without a readable
+    /// JDK, only the classes lazy values call are known, with those members.
     pub fn class(&mut self, name: &str) -> Option<&Rc<ClassInfo>> {
         if !self.classes.contains_key(name) {
-            let info =
-                self.source().and_then(|s| s.bytes(name)).and_then(|b| super::read(&b).ok()).map(Rc::new);
-            self.classes.insert(name.to_owned(), info);
+            let info = match self.source() {
+                Some(s) => s.bytes(name).and_then(|b| super::read(&b).ok()),
+                None => var_handle_api::class(name),
+            };
+            self.classes.insert(name.to_owned(), info.map(Rc::new));
         }
         self.classes[name].as_ref()
     }
