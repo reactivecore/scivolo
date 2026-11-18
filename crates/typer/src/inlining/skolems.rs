@@ -7,59 +7,9 @@
 
 use super::{Inlining, Unsupported};
 use crate::tpd::{TNodeId, Tree as T};
-use crate::typer::seen_from::normalized;
-use crate::typer::stability::is_stable_path;
 use names::nme;
 use syntax::ast::{Span, TName};
-use tasty::{Binder, Kind, SymbolId, Type, TypeId, Universe};
-
-/// The skolem standing for each argument, of types `args`, in type `actual` of an application:
-/// the one of a type the argument's widened type conforms to, as retyping may narrow it to a
-/// constant, checked by substituting them for parameters `params`
-/// of binder `binder` in the method's result type `result`, as `applied_result` does; `None` if
-/// that does not give a type equivalent to `actual`.
-pub fn call_skolems(
-    u: &mut Universe,
-    (result, actual): (TypeId, TypeId),
-    (binder, params): (Binder, &[SymbolId]),
-    args: &[TypeId],
-) -> Option<Vec<Option<TypeId>>> {
-    let mut skolems = Vec::new();
-    u.map_type(actual, &mut |u, part| {
-        if matches!(u.ty(part), Type::Skolem(..)) && !skolems.contains(&part) {
-            skolems.push(part);
-        }
-        None
-    });
-    let mut chosen = Vec::new();
-    for &a in args {
-        let w = u.widen(a);
-        let n = normalized(u, w);
-        let found: Vec<TypeId> = skolems
-            .iter()
-            .copied()
-            .filter(|&s| {
-                let Type::Skolem(_, i) = *u.ty(s) else { return false };
-                i == w || i == n || u.is_subtype(w, i)
-            })
-            .collect();
-        chosen.push(match found[..] {
-            [s] if !is_stable_path(u, a) || matches!(u.ty(a), Type::Constant(..) | Type::Str(_)) => Some(s),
-            _ => None,
-        });
-    }
-    let substituted = u.map_type(result, &mut |u, part| {
-        let i = match *u.ty(part) {
-            Type::Param(b, i) if b == binder => i as usize,
-            Type::Sym(None, s) => params.iter().position(|&p| p == s)?,
-            _ => return None,
-        };
-        chosen.get(i).copied().flatten().or_else(|| args.get(i).copied())
-    });
-    let same =
-        substituted == actual || u.is_subtype(substituted, actual) && u.is_subtype(actual, substituted);
-    same.then_some(chosen)
-}
+use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Inlining<'_> {
     /// `expr.$asInstanceOf$[to]`, at `expr`'s span made synthetic (dotty's `cast`).

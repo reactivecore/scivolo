@@ -4,9 +4,9 @@
 //! proxies, and the body copied with the parameters replaced, retyped and rid of unused bindings
 //! (dotty's `Inliner.inlined`, `computeParamBindings`).
 
+use super::call_skolems::call_skolems;
 use super::copy::TreeTypeMap;
 use super::proxies::replace_param;
-use super::skolems::call_skolems;
 use super::this_proxy::replace_this;
 use super::{Inlining, Unsupported};
 use crate::tpd::{TNodeId, Tree as T};
