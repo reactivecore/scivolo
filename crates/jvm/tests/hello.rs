@@ -94,7 +94,7 @@ fn several_files_run_on_the_jvm() {
 }
 
 #[test]
-fn a_class_parameter_field_capturing_another_parameter_refused() {
+fn a_case_class_parameter_capturing_another_parameter_refused() {
     let source = root().join("tests/jvm/refused/fieldcaptures.scala");
     let (_, compiled) = compile("fieldcaptures", &source);
     let stderr = String::from_utf8_lossy(&compiled.stderr);

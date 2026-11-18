@@ -8,6 +8,7 @@ use super::{Refusal, TreePickler};
 use crate::defn::type_ref;
 use crate::tpd::{List, TNodeId, Tree};
 use names::nme;
+use syntax::ast::Span;
 use tasty::tags::{ANNOTATEDtpt, ANNOTATEDtype, APPLY, NEW, REFINEDtpt, SELECTin};
 use tasty::{Type, TypeId};
 
@@ -67,7 +68,7 @@ impl TreePickler<'_> {
         }
         self.with_length(ANNOTATEDtype, &mut |p| {
             p.ty(parent, false)?;
-            p.new_annotation(annot)
+            p.new_annotation(annot, None)
         })
     }
 
@@ -140,15 +141,16 @@ impl TreePickler<'_> {
         }
     }
 
-    /// Whether class type `class` is capture checking's `caps.internal.inferred`.
+    /// Whether class type `class` is capture checking's `caps.internal.inferred` or `declared`.
     pub fn is_inferred_mark(&mut self, class: TypeId) -> bool {
         self.u.is_class_named(class, crate::defn::INFERRED)
+            || self.u.is_class_named(class, crate::defn::DECLARED)
     }
 
     /// `new C()` of class type `class`, an annotation without arguments, through its constructor
-    /// of no parameters. Refuses a generic class, e.g. capture checking's `retains[T]`, whose
-    /// type arguments the annotated type does not keep.
-    pub fn new_annotation(&mut self, class: TypeId) -> Result<(), Refusal> {
+    /// of no parameters, at `span` or else at the type tree pickled. Refuses a generic class, e.g.
+    /// capture checking's `retains[T]`, whose type arguments the annotated type does not keep.
+    pub fn new_annotation(&mut self, class: TypeId, span: Option<Span>) -> Result<(), Refusal> {
         let c = self.u.class_symbol(class).ok_or("an annotation of no class")?;
         if !self.u.type_params(c).is_empty() {
             return Err("an annotated type of a generic annotation class without its annotation tree");
@@ -158,7 +160,7 @@ impl TreePickler<'_> {
         let init = init.ok_or("a type annotation without a constructor of no parameters")?;
         let ids = (u32::MAX - 2 * self.annots.len() as u32, u32::MAX - 2 * self.annots.len() as u32 - 1);
         if let Some(tpt) = self.type_tree.filter(|_| !self.keying) {
-            self.annots.push((ids.0, ids.1, tpt));
+            self.annots.push((ids.0, ids.1, span.unwrap_or_else(|| self.tpd.span(tpt))));
             self.buf.register_tree(ids.0);
         }
         self.with_length(APPLY, &mut |p| {
@@ -180,7 +182,6 @@ impl TreePickler<'_> {
         let refinements = self.tpd.items(refinements).to_vec();
         let Some(&first) = refinements.first() else { return self.tree(tpt) };
         let member = self.tpd.sym(first).ok_or("a refinement without a symbol")?;
-        self.check_refinement_captures(member)?;
         let class = self.u.symbol(member).owner.ok_or("a refinement without a class")?;
         self.register_def(class);
         let class_ref = type_ref(self.u, class);

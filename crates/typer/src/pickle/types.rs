@@ -4,6 +4,7 @@
 
 use super::names::{param_name, qualified};
 use super::{Refusal, TreePickler};
+use crate::typer::capture_types::has_captures;
 use tasty::tags::*;
 use tasty::write::{Addr, Name};
 use tasty::{Binder, ParamList, Type, TypeId};
@@ -105,14 +106,14 @@ impl TreePickler<'_> {
                 self.methodic(POLYtype, (binder, at), params, result, None)
             }
             Type::Method { binder, params, result, implicit, contextual } if rich => {
+                if self.capture_checked() && has_captures(self.u, t) {
+                    self.key_by_place();
+                }
                 let mods = if contextual { Some(GIVEN) } else { implicit.then_some(IMPLICIT) };
                 self.methodic(METHODtype, (binder, at), params, result, mods)
             }
             Type::Annotated(underlying, class) if self.is_inferred_mark(class) => {
-                self.with_length(ANNOTATEDtype, &mut |p| {
-                    p.ty(underlying, rich)?;
-                    p.new_annotation(class)
-                })
+                self.marked_type(t, underlying, class, rich)
             }
             Type::Param(binder, i) => self.param(binder, i),
             Type::Local(def, name) => {

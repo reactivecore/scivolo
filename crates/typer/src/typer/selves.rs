@@ -145,7 +145,8 @@ impl Typer<'_> {
         let Some((given, annot)) = self.u.annotated(info).filter(|&(_, a)| is_retains_like(self.u, a)) else {
             return applied;
         };
-        let parent = match given == applied {
+        let same = self.u.is_subtype(given, applied) && self.u.is_subtype(applied, given);
+        let parent = match same {
             true => applied,
             false => self.u.intern_type(Type::And(given, applied)),
         };

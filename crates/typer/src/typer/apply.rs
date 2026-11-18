@@ -187,7 +187,13 @@ impl Typer<'_> {
             typed_args.push(self.by_name_flow_dropped(arg, i, meth));
         }
         let result = match dependent {
-            true => self.dependent_result(result, (binder, &params), meth, &typed_args).filter(|_| plain),
+            true => self
+                .dependent_result(result, (binder, &params), meth, &typed_args)
+                .filter(|_| plain)
+                .or_else(|| {
+                    let untold = self.result_of_untold_sets(result, (binder, &params), meth)?;
+                    Some((untold, Vec::new()))
+                }),
             false => Some((result, Vec::new())),
         };
         let Some((result, singletons)) = result else { return self.unsupported(id, "dependent result type") };

@@ -106,13 +106,27 @@ const DOTTY_TASTY: &[(&str, &[&str])] = &[
     ("caseclasses", &["scala/probe/Pair", "scala/probe/Words"]),
     ("views", &["scala/probe/Views"]),
     ("widenedargs", &["W"]),
-    ("typercaptures", &["G", "Mk", "ByNames"]),
+    ("typercaptures", &["G", "Mk", "ByNames", "ByNameArgs"]),
     ("lambdabounds", &["scala/probe/LambdaBounds"]),
     ("witnessnames", &["scala/probe/WitnessNames"]),
     ("seencaptures", &["Q", "R"]),
     ("librarycaptures", &["scala/probe/Appending", "scala/probe/LibCaptures"]),
     ("thiscaptures", &["Node", "Plain", "Ops", "Ser"]),
     ("depsets", &["DepSets", "Slide"]),
+    ("selfmatches", &["Ops"]),
+    (
+        "flowcaptures",
+        &[
+            "scala/probe/Conc",
+            "scala/probe/Ops",
+            "scala/probe/Flows",
+            "scala/probe/Holder",
+            "scala/probe/SubHolder",
+            "scala/probe/Paths",
+        ],
+    ),
+    ("closurecaptures", &["Closures"]),
+    ("fieldcaptures", &["C", "D", "E", "F", "H"]),
     ("wildcardmembers", &["WildcardMembers"]),
     ("newarrays", &["NewArrays"]),
     ("anymembers", &["AnyMembers"]),
@@ -132,7 +146,15 @@ const DOTTY_TASTY: &[(&str, &[&str])] = &[
 /// the super accessor's parameters, the type of `this` its class's self type with the self
 /// type's capture set (thiscaptures.scala), a typed pattern's or `new`'s written capture set
 /// naming a method's or class's parameter as it is, its pattern variable's emptied
-/// (depsets.scala); annotated types take the annotation tree of their own
+/// (depsets.scala), a match on `this` has its class's self type with the capture set as selector
+/// type (selfmatches.scala), a flow cast or member type keeps a set naming enclosing definitions
+/// or a path, seen from the path selected on (flowcaptures.scala), a closure's inferred function
+/// type marks parameters with capture sets `@declared`, each its own type but for a dependent
+/// function type's parent, and is dependent if its result's sets name them
+/// (closurecaptures.scala), a by-name argument to a result whose set names the parameter keeps
+/// the argument's set in the type argument (`ByNameArgs` of typercaptures.scala), a field's
+/// written set names the fields for the constructor's parameters (fieldcaptures.scala);
+/// annotated types take the annotation tree of their own
 /// origin in match selectors and patterns, inferred types, super accessors and inline accessors,
 /// in super accessors with their class's type parameters seen from the accessor's class; secondary constructors have their own type parameters and parameters passed on to the
 /// superclass are its parameters' aliases; `@BeanProperty` values get their bean accessors;
@@ -304,11 +326,8 @@ fn exported_match_aliases_reduce_from_tasty() {
     assert_eq!(String::from_utf8_lossy(&run.stdout), "1\n");
 }
 
-/// A dependent function type whose function type parent dotty gives the capture sets of its
-/// refinement is refused, and so is the inferred function type of a closure whose parameters have
-/// capture sets (`@declared` in dotty's) or whose result's capture sets name its parameter (a
-/// dependent function type in dotty's), and a match on `this` of a class whose self type is its
-/// own with a capture set, which dotty's patterns keep.
+/// The synthetic type trees of a case class parameter whose capture set names another parameter
+/// are refused.
 #[test]
 fn untold_capture_sets_are_refused() {
     let out = root().join("tmp/jvm-test/untoldcaptures");
@@ -316,28 +335,11 @@ fn untold_capture_sets_are_refused() {
     std::fs::create_dir_all(&out).expect("tmp/jvm-test/untoldcaptures");
     let header = "import language.experimental.captureChecking\nclass Label[T]\nclass A\nclass B\n\
                   trait Coll:\n  def label: Label[Int]^{this}\n";
-    let cases = [
-        (
-            "dependent",
-            "object D:\n  val f: (x: A^) -> Label[Int]^{x} = x => Label[Int]()\n",
-            "drops its refinement's capture sets",
-        ),
-        (
-            "declared",
-            "object E:\n  def g() =\n    val f = (x: A^) => 1\n    1\n",
-            "a closure whose parameters have capture sets",
-        ),
-        (
-            "dependentclosure",
-            "object F:\n  def g() =\n    val f = (x: Coll) => x.label\n    1\n",
-            "a closure whose result's capture sets name its parameters",
-        ),
-        (
-            "selfmatch",
-            "trait G[+A]:\n  self: G[A]^ =>\n  def m(): Int = self match\n    case s: Product => 1\n    case _ => 2\n",
-            "a match on `this` of a class whose self type has a capture set",
-        ),
-    ];
+    let cases = [(
+        "caseclassparam",
+        "case class C(a: A^, b: Label[Int]^{a})\n",
+        "a capture set that refers to other than static definitions",
+    )];
     for (name, body, refusal) in cases {
         let source = out.join(format!("{name}.scala"));
         std::fs::write(&source, format!("{header}{body}")).expect("writing");

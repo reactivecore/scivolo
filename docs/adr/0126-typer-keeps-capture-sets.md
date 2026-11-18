@@ -24,9 +24,11 @@ its own re-implementation of dotty's inference in the pickler, which can differ 
   `avoid` for block and case ascriptions (rule 3), and for closure parameters and results.
 - The pickler writes the inferred types the typer gives, emptied as `CleanupRetains` does; the
   pickler-side derivation goes where the typer's types supersede it.
-- What stays unported is refused: nested sets in patterns, branches that differ only in capture
-  sets, dependent function parents, the inferred function type of a closure whose parameters
-  have capture sets (`explicifyTpt`'s `@declared`) or whose result's sets name a parameter.
+- A capture set is mapped with the type it annotates: seen from a prefix, and with arguments for
+  a method's parameters, which makes a result naming a parameter dependent as in dotty.
+- What stays unported is refused: a set of a synthetic definition naming a constructor's
+  parameters (`case class G(a: A^, b: B^{a})`), and a pickled set naming a definition out of
+  scope.
 
 ## Consequences
 - One home for dotty's inference rules; a shape becomes told by porting the rule that types it.
