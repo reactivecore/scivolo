@@ -13,7 +13,7 @@ use super::views::ViewProto;
 use crate::ctx::Ctx;
 use crate::tpd::TNodeId;
 use syntax::ast::Span;
-use tasty::{Type, TypeId};
+use tasty::TypeId;
 
 /// A candidate being tried for a type, by name or not; `view` for a conversion's, `proto` if that
 /// is searched for a member rather than for a type.
