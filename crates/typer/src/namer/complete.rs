@@ -82,6 +82,7 @@ impl Typer<'_> {
         self.u.set_comparison_owner(outer);
         self.u.set_null_mode(outer_nulls);
         self.syms.completions.insert(sym, Completion::Done);
+        self.complete_late_forwarders(sym);
         self.record_completion_diags(reported);
         self.constraint.keep(start);
         self.history.open = open;

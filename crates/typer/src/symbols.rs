@@ -9,7 +9,7 @@ use rustc_hash::FxHashMap;
 use syntax::ast::flags::{self as f, FlagSet};
 use syntax::ast::{NodeId, Span};
 use tasty::tags as t;
-use tasty::{Binder, FileId, Flags, Kind, Symbol, SymbolId, Universe};
+use tasty::{Binder, FileId, Flags, Kind, Symbol, SymbolId, TypeId, Universe};
 
 /// The file of the binders of `Symbols::fresh_binder`.
 pub const SCRIPT_BINDERS: FileId = FileId(u32::MAX);
@@ -27,10 +27,21 @@ pub enum Completion {
     Done,
 }
 
+/// An export forwarder made while the type member it forwards to was being completed, whose info
+/// is made again from `target`, the member seen from `path`, once that is done.
+#[derive(Clone, Copy)]
+pub struct LateForwarder {
+    pub forwarder: SymbolId,
+    pub path: TypeId,
+    pub target: TypeId,
+}
+
 #[derive(Clone, Default)]
 pub struct Syms {
     pub flags: FxHashMap<SymbolId, FlagSet>,
     pub completions: FxHashMap<SymbolId, Completion>,
+    /// The forwarders waiting for each type member being completed.
+    pub late_forwarders: FxHashMap<SymbolId, Vec<LateForwarder>>,
     /// The type definitions whose infos are being checked for cycles (dotty's `NoCompleter`).
     pub checking: Vec<SymbolId>,
     /// The span of the `@main` annotation of each method that has one; the universe keeps the

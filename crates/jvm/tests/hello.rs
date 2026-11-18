@@ -69,6 +69,21 @@ fn array_spreads_of_named_arguments_beside_defaults_stay_arrays() {
 }
 
 #[test]
+fn wildcard_imports_being_typed_are_skipped() {
+    runs_on_the_jvm("completingimport", "completingimport.Test");
+}
+
+#[test]
+fn legacy_match_types_keep_the_outer_constraint_frozen() {
+    runs_on_the_jvm("legacymatchvars", "Test");
+}
+
+#[test]
+fn partial_applications_take_apply_under_scala_3_3() {
+    runs_on_the_jvm("partialapply", "Test");
+}
+
+#[test]
 fn several_files_run_on_the_jvm() {
     runs_on_the_jvm("units", "Units");
 }
