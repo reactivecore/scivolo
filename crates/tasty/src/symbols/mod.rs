@@ -121,6 +121,8 @@ pub struct Universe {
     deferred: FxHashSet<SymbolId>,
     /// The classes defined outside TASTy that have initialization code.
     with_inits: FxHashSet<SymbolId>,
+    /// Whether the compilation targets the JVM.
+    jvm_target: bool,
     /// The parameter symbols of the methods of Java sources asked for.
     java_source_params: FxHashMap<SymbolId, Vec<SymbolId>>,
     /// The owners lifted local classes had before lifting.

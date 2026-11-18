@@ -1,21 +1,37 @@
 //! Members and references of class files as dotty writes them, read through `javap`.
 
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Output};
 
 fn root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")
 }
 
-/// Compiles tests/jvm/linkage/`name`.scala into tmp/jvm-test/linkage-`name`.
-fn compile(name: &str) -> PathBuf {
+/// Scala Native's library, whose classes the JVM has only when it is on the class path.
+const NATIVELIB: &str = "ref/libs/nativelib_native0.5_3-0.5.12.jar";
+
+/// Runs scivolo-jvm on tests/jvm/linkage/`name`.scala with `args`; the output directory and run.
+fn scivolo(name: &str, args: &[&Path]) -> (PathBuf, Output) {
     let out = root().join("tmp/jvm-test").join(format!("linkage-{name}"));
     let _ = std::fs::remove_dir_all(&out);
     let source = root().join("tests/jvm/linkage").join(format!("{name}.scala"));
-    let run = Command::new(env!("CARGO_BIN_EXE_scivolo-jvm")).arg("-d").arg(&out).arg(source).output();
-    let run = run.expect("running scivolo-jvm");
+    let mut command = Command::new(env!("CARGO_BIN_EXE_scivolo-jvm"));
+    for &cp in args {
+        command.arg("--cp").arg(cp);
+    }
+    let run = command.arg("-d").arg(&out).arg(source).output().expect("running scivolo-jvm");
+    (out, run)
+}
+
+/// Compiles tests/jvm/linkage/`name`.scala into tmp/jvm-test/linkage-`name`, seeing jars `cp`.
+fn compile_with(name: &str, cp: &[&Path]) -> PathBuf {
+    let (out, run) = scivolo(name, cp);
     assert!(run.status.success(), "{}", String::from_utf8_lossy(&run.stderr));
     out
+}
+
+fn compile(name: &str) -> PathBuf {
+    compile_with(name, &[])
 }
 
 /// The `javap -c -p` text of `class` under `out`; none without a `javap` on the PATH.
@@ -53,6 +69,10 @@ fn intersections_of_nested_classes_erase_to_the_subclass() {
     let out = compile("glb");
     let Some(text) = javap(&out, "glb.Nest") else { return };
     assert!(text.contains("public static int glb(glb.Nest$Z)"), "{text}");
+    let Some(names) = javap(&out, "glb.FullNames$") else { return };
+    for expected in ["named(glb.Ab, glb.Ab$c)", "swapped(glb.Ab, glb.Ab$c)", "values(int)"] {
+        assert!(names.contains(expected), "{expected} in\n{names}");
+    }
     let Some(mirror) = javap(&out, "glb.Operators") else { return };
     let at = |name: &str| mirror.find(&format!("int {name}(int)")).expect(name);
     assert!(at("$plus") < at("$less") && at("$less") < at("a"), "{mirror}");
@@ -91,9 +111,18 @@ fn null_values_are_adapted_after_their_joins() {
     assert_eq!(String::from_utf8_lossy(&run.stdout), "null\nnull\nnull\nread\n");
 }
 
+/// Without Scala Native's library on the class path its API does not exist, as for dotty.
+#[test]
+fn scala_native_api_without_its_jar_is_refused() {
+    let (_, run) = scivolo("rawtypes", &[]);
+    assert!(!run.status.success());
+    let stderr = String::from_utf8_lossy(&run.stderr);
+    assert!(stderr.contains("scala.scalanative.runtime.RawPtr"), "{stderr}");
+}
+
 #[test]
 fn raw_pointers_are_ordinary_classes() {
-    let out = compile("rawtypes");
+    let out = compile_with("rawtypes", &[&root().join(NATIVELIB)]);
     let Some(text) = javap(&out, "RawTypes$") else { return };
     for expected in [
         "public boolean isNull(scala.scalanative.runtime.RawPtr)",

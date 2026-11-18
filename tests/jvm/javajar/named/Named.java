@@ -7,6 +7,10 @@ public class Named {
         value = first * 10 - second;
     }
 
+    public static <A> A pick(A first, A second) {
+        return first;
+    }
+
     public static int minus(int left, int right) {
         return left - right;
     }

@@ -6,7 +6,7 @@ use super::Erased;
 use crate::defn::OBJECT;
 use crate::tags::TRAIT;
 use crate::types::{Type, TypeId};
-use crate::{SymbolId, Universe};
+use crate::{Kind, SymbolId, Universe};
 
 /// How many value classes `erased_class` unwraps.
 const MAX_UNWRAP: u32 = 16;
@@ -47,6 +47,12 @@ impl Universe {
             return true;
         }
         let (va, vb) = (self.is_value_class(a), self.is_value_class(b));
+        if va && vb {
+            let (wa, wb) = (self.widen(a), self.widen(b));
+            if let (Some(ca), Some(cb)) = (self.class_symbol(wa), self.class_symbol(wb)) {
+                return self.glb_full_name(ca) <= self.glb_full_name(cb);
+            }
+        }
         if va || vb {
             return va;
         }
@@ -71,8 +77,30 @@ impl Universe {
             if self.derives_from(cb, ca) {
                 return false;
             }
+            return self.glb_full_name(ca) <= self.glb_full_name(cb);
         }
         name(&ea) <= name(&eb)
+    }
+
+    /// Determines the name `compareErasedGlb` orders class `c` by (dotty's `fullName`): the names
+    /// of its enclosing classes and packages joined by `.`, each prefixed by a `_$` per term
+    /// between it and the next of them.
+    fn glb_full_name(&self, c: SymbolId) -> String {
+        let mut parts = Vec::new();
+        let mut part = self.symbol(c).name.clone();
+        let mut owner = self.owner_before_lifting(c);
+        while let Some(o) = owner.filter(|&o| o != self.root()) {
+            let s = self.symbol(o);
+            if matches!(s.kind, Kind::Class | Kind::Package) {
+                parts.push(std::mem::replace(&mut part, s.name.clone()));
+            } else {
+                part.insert_str(0, "_$");
+            }
+            owner = self.owner_before_lifting(o);
+        }
+        parts.push(part);
+        parts.reverse();
+        parts.join(".")
     }
 
     fn glb_rank(&mut self, t: TypeId, e: &Erased) -> u8 {

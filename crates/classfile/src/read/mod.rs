@@ -12,7 +12,8 @@ pub use jdk::Jdk;
 
 /// A field or method of a class read: its flags, name, descriptor, generic signature and a
 /// field's constant value, whether an annotation element has a default value, and a method's
-/// parameter names by position, those its source or `MethodParameters` attribute gives.
+/// parameter names by position, those its source or `MethodParameters` attribute gives; a class
+/// file's method with type parameters of its own has none (dotty's `fillInParamNames`).
 #[derive(Clone)]
 pub struct MemberInfo {
     pub access: u16,
@@ -163,7 +164,11 @@ fn members(b: &mut Bytes, c: &Constants) -> Result<Vec<MemberInfo>, String> {
         .map(|_| {
             let access = b.u2()?;
             let (name, descriptor) = (c.utf8(b.u2()?)?, c.utf8(b.u2()?)?);
-            let Attributes { signature, constant, annotation_default, param_names, .. } = attributes(b, c)?;
+            let Attributes { signature, constant, annotation_default, mut param_names, .. } =
+                attributes(b, c)?;
+            if signature.as_ref().is_some_and(|s| s.starts_with('<')) {
+                param_names.clear();
+            }
             Ok(MemberInfo { access, name, descriptor, signature, constant, annotation_default, param_names })
         })
         .collect()

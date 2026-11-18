@@ -47,10 +47,10 @@ pub fn special(full: &str) -> Option<Erased> {
 }
 
 impl Universe {
-    /// Determines the erasure of class `full` if it is special; with a JDK, Scala Native's
+    /// Determines the erasure of class `full` if it is special; on the JVM, Scala Native's
     /// `RawPtr` and `RawSize` are ordinary classes.
     pub fn special_class(&self, full: &str) -> Option<Erased> {
-        special(full).filter(|e| !(self.has_jdk() && matches!(e, Erased::Prim('R' | 'w'))))
+        special(full).filter(|e| !(self.targets_jvm() && matches!(e, Erased::Prim('R' | 'w'))))
     }
 }
 

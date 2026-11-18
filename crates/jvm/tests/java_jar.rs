@@ -61,6 +61,14 @@ fn method_parameters_of_class_files_name_parameters() {
     assert_eq!(stdout, "3\n7\n");
 }
 
+/// `MethodParameters` do not name the parameters of a class file's generic method.
+#[test]
+fn method_parameters_of_generic_methods_name_nothing() {
+    let Some(jar) = java_jar("javajar-generic-params", "named/Named.java", &["-parameters"]) else { return };
+    let run = scivolo(&jar, &jar.with_file_name("scala"), "namedgeneric").output().expect("scivolo-jvm");
+    assert!(!run.status.success(), "named arguments of a generic Java method were accepted");
+}
+
 #[test]
 fn a_java_jar_on_the_classpath_is_used() {
     let Some(jar) = shapes_jar("javajar") else { return };

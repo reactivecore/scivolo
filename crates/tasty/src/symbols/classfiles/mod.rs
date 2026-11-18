@@ -35,9 +35,14 @@ impl Universe {
         self.class_file_misses.clear();
     }
 
-    /// Tells whether `set_jdk` gave a JDK, which the JVM backend does.
-    pub fn has_jdk(&self) -> bool {
-        self.jdk.is_some()
+    /// Makes the JVM the target of the compilation.
+    pub fn set_jvm_target(&mut self) {
+        self.jvm_target = true;
+    }
+
+    /// Tells whether the compilation targets the JVM.
+    pub fn targets_jvm(&self) -> bool {
+        self.jvm_target
     }
 
     /// The JDK `set_jdk` gave, if any.

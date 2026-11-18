@@ -440,9 +440,10 @@ Results:
   `closuretypes` (a package named `java.*`), `matchtypearrays` (`ClassCastException`), `resources`
   (no resource directory on the classpath); linkage error `protectedaccess` (`NoSuchMethodError`
   of `Copies.clone()`, an `invokeinterface` of `Object`'s protected `clone`).
-- **Scala Native APIs:** 12 linkage errors (`scala.scalanative.unsafe`, `meta.LinktimeInfo`,
-  `runtime.LLVMIntrinsics`), `overflow` (typer refused: a `scalanative.unsafe` macro call),
-  `Ni26intrinsics` (JVM refused: an ordering of references).
+- **Scala Native APIs:** refused unless Scala Native's jars are on the class path, where dotty
+  does not find `scala.scalanative`; `overflow` is refused by the typer (a `scalanative.unsafe`
+  macro call). `nativeannotations`, which only imports annotations no class file keeps, compiles
+  and runs, while dotty refuses its imports.
 - **Typer refused:** `hkerasure` (no implicit argument, as on Scala Native).
 
 Scala's library (#222, ADR 0110): each of the 649 `.scala` files of `scala-library-3.9.0`'s

@@ -9,13 +9,18 @@ use crate::pool::Entry;
 use std::borrow::Cow;
 
 impl ClassFile {
-    /// The internal names with a `$` of the classes the class, its members, their descriptors and
-    /// signatures, and its code refer to, each once; not those only in the descriptor of its
-    /// enclosing method.
+    /// The internal names with a `$` of the classes `referenced_classes_where` finds.
     pub fn referenced_classes(&self) -> Vec<String> {
+        self.referenced_classes_where(|name| name.contains('$'))
+    }
+
+    /// The internal names satisfying `keep` of the classes the class, its members, their
+    /// descriptors and signatures, and its code refer to, each once; not those only in the
+    /// descriptor of its enclosing method.
+    pub fn referenced_classes_where(&self, keep: impl Fn(&str) -> bool) -> Vec<String> {
         let mut out: Vec<String> = Vec::new();
         let mut add = |name: &str| {
-            if name.contains('$') && !out.iter().any(|o| o == name) {
+            if keep(name) && !out.iter().any(|o| o == name) {
                 out.push(name.to_owned());
             }
         };
