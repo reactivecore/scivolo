@@ -140,6 +140,19 @@ fn clinit(
     inits: &[(SymbolId, TNodeId)],
     span: Span,
 ) -> TNodeId {
+    let sym = clinit_symbol(l, class);
+    let stores: Vec<TNodeId> = inits
+        .iter()
+        .map(|&(var, rhs)| {
+            let span = l.tpd.span(rhs);
+            store(l, source, var, rhs, span)
+        })
+        .collect();
+    clinit_def(l, sym, &stores, span)
+}
+
+/// Defines the static initializer of class `class`, private on the JVM.
+pub fn clinit_symbol(l: &mut Lower, class: SymbolId) -> SymbolId {
     let mut flags = Flags::default().with(STATIC);
     if l.backend == crate::Backend::Jvm {
         flags = flags.with(PRIVATE);
@@ -149,15 +162,14 @@ fn clinit(
     let binder = l.u.fresh_binder();
     let info = l.u.intern_method(binder, &[], unit, false, false);
     l.u.set_info(sym, info);
-    let stores: Vec<TNodeId> = inits
-        .iter()
-        .map(|&(var, rhs)| {
-            let span = l.tpd.span(rhs);
-            store(l, source, var, rhs, span)
-        })
-        .collect();
+    sym
+}
+
+/// Builds the definition of static initializer `sym` running `stats`, at `span`.
+pub fn clinit_def(l: &mut Lower, sym: SymbolId, stats: &[TNodeId], span: Span) -> TNodeId {
+    let unit = l.u.class_ref(tasty::defn::UNIT);
     let done = l.unit_literal(span);
-    let body = l.block(&stores, done, span);
+    let body = l.block(stats, done, span);
     let tpt = l.type_tree(unit, span);
     l.build().def_def(sym, &[&[]], tpt, Some(body), span)
 }

@@ -13,29 +13,49 @@ use super::lazy_trees::{
     assign, block, call, eq, field_read, field_ref, if_, local, object, return_, unit, val_def,
 };
 use super::lazy_vals::{Lazy, null_out};
-use crate::Lower;
 use crate::definitions::{LazyVals, type_ref};
+use crate::{Lower, Result};
 use syntax::ast::Span;
 use tasty::{Erased, SymbolId, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
+/// The compare-and-set of a lazy value's field: the function and its first argument, which every
+/// call shares.
+#[derive(Clone, Copy)]
+pub struct Cas {
+    pub fun: TNodeId,
+    pub target: TNodeId,
+}
+
 /// The trees every compare-and-set of one lazy value shares, and the symbols they refer to.
 struct Shared {
-    cas: TNodeId,
-    field: TNodeId,
+    cas: Cas,
     evaluating: TNodeId,
     null_value: TNodeId,
     defs: LazyVals,
 }
 
-/// The `$lzyINIT` method of `lazy` computing `rhs` of type `info`.
-pub fn init_method(l: &mut Lower, lazy: &Lazy, rhs: TNodeId, info: TypeId, defs: LazyVals) -> TNodeId {
-    let native = l.ident(defs.native, Span::NONE);
-    let cas = l.select(native, defs.obj_cas, Span::NONE);
-    let field = field_ref(l, lazy);
+/// Selects Scala Native's `LazyVals.objCAS`, to call on `this.x$lzy`.
+pub fn native_cas(l: &mut Lower, lazy: &Lazy) -> Result<Cas> {
+    let defs = l.native_cas()?;
+    let module = l.ident(defs.module, Span::NONE);
+    let fun = l.select(module, defs.obj_cas, Span::NONE);
+    let target = field_ref(l, lazy);
+    Ok(Cas { fun, target })
+}
+
+/// Builds the `$lzyINIT` method of `lazy` computing `rhs` of type `info`, setting its field through
+/// `cas`.
+pub fn init_method(
+    l: &mut Lower,
+    lazy: &Lazy,
+    (rhs, info): (TNodeId, TypeId),
+    cas: Cas,
+    defs: LazyVals,
+) -> TNodeId {
     let evaluating = l.ident(defs.evaluating, Span::NONE);
     let null_value = l.ident(defs.null_value, Span::NONE);
-    let s = Shared { cas, field, evaluating, null_value, defs };
+    let s = Shared { cas, evaluating, null_value, defs };
     let (object, unit) = (object(l), unit(l));
     let result = local(l, lazy.init, "result", object, true);
     let nullable = local(l, lazy.init, "resultNullable", object, true);
@@ -169,9 +189,10 @@ fn not_uninitialized(l: &mut Lower, lazy: &Lazy, s: &Shared, current: SymbolId) 
     if_(l, is_control, control_state, ready, unit)
 }
 
-/// `objCAS(this.x$lzy, expected, value)`.
+/// `objCAS(this.x$lzy, expected, value)`, on the JVM
+/// `x$lzy$lzyHandle.compareAndSet(this, expected, value)`.
 fn apply_cas(l: &mut Lower, s: &Shared, expected: TNodeId, value: TNodeId) -> TNodeId {
     let boolean = l.u.class_ref(tasty::defn::BOOLEAN);
-    let apply = l.apply(s.cas, &[s.field, expected, value], boolean, Span::NONE);
+    let apply = l.apply(s.cas.fun, &[s.cas.target, expected, value], boolean, Span::NONE);
     l.positioned(apply)
 }

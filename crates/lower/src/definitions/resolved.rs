@@ -1,7 +1,8 @@
 //! The definitions resolved on first use, each kept once resolved.
 
 use super::{
-    CaseClasses, Equality, LazyVals, Monitors, PartialFunctions, Patmat, Sequences, Strings, member, package,
+    CaseClasses, Equality, LazyVals, Monitors, NativeCas, PartialFunctions, Patmat, Sequences, Strings,
+    VarHandles, member, package,
 };
 use crate::{Lower, Result, Unsupported};
 use names::nme;
@@ -37,6 +38,14 @@ impl Lower<'_> {
 
     pub fn lazy_vals(&mut self) -> Result<LazyVals> {
         resolved(&mut self.defs.lazy_vals, self.u, LazyVals::new)
+    }
+
+    pub fn native_cas(&mut self) -> Result<NativeCas> {
+        resolved(&mut self.defs.native_cas, self.u, NativeCas::new)
+    }
+
+    pub fn var_handles(&mut self) -> Result<VarHandles> {
+        resolved(&mut self.defs.var_handles, self.u, VarHandles::new)
     }
 
     pub fn monitors(&mut self) -> Result<Monitors> {

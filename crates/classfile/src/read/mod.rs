@@ -4,6 +4,7 @@
 mod attributes;
 mod jdk;
 mod jimage;
+mod var_handle_api;
 
 use attributes::{Attributes, attributes};
 

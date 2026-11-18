@@ -197,8 +197,6 @@ pub struct Lower<'a> {
     /// Whether each file of the unit keeps capture-set annotations as types in TASTy, by index.
     compact_annotations: Vec<bool>,
     pub backend: Backend,
-    /// The static `VarHandle` field of each lazy value's field on the JVM.
-    var_handles: FxHashMap<SymbolId, SymbolId>,
     /// The warnings the phases report.
     warnings: Diagnostics,
 }
@@ -376,7 +374,6 @@ impl<'a> Lower<'a> {
             force_forwarders: true,
             compact_annotations: Vec::new(),
             backend: Backend::Native,
-            var_handles: FxHashMap::default(),
             warnings: Diagnostics::default(),
         })
     }
@@ -487,14 +484,9 @@ impl<'a> Lower<'a> {
         self.local_names.get(&s).unwrap_or(&self.u.symbol(s).name)
     }
 
-    /// The `VarHandle` field of lazy value field `field` on the JVM.
-    pub fn var_handle(&self, field: SymbolId) -> Option<SymbolId> {
-        self.var_handles.get(&field).copied()
-    }
-
-    /// The field whose `VarHandle` is static field `handle`.
-    pub fn var_handle_field(&self, handle: SymbolId) -> Option<SymbolId> {
-        self.var_handles.iter().find(|&(_, &h)| h == handle).map(|(&f, _)| f)
+    /// Whether `field` holds a thread-safe lazy value of a class.
+    pub fn is_thread_safe_lazy_field(&self, field: SymbolId) -> bool {
+        self.lazy_fields.iter().any(|lazy| lazy.field == field)
     }
 
     /// The getter `Memoize` made field `field` for, or the accessor of the lazy value it holds.
@@ -521,10 +513,5 @@ impl<'a> Lower<'a> {
             && base.len() < sym.name.len()
             && base.ends_with(names::name_kinds::BITMAP_PREFIX);
         flag || self.lazy_members.values().any(|m| m.field == s)
-    }
-
-    /// Whether `m` is Scala Native's `LazyVals.objCAS`, a `VarHandle.compareAndSet` on the JVM.
-    pub fn is_obj_cas(&mut self, m: SymbolId) -> bool {
-        self.lazy_vals().is_ok_and(|d| d.obj_cas == m)
     }
 }

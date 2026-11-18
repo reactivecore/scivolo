@@ -63,7 +63,7 @@ impl Gen<'_, '_> {
                     let desc = self.storage_descriptor(s);
                     let name = self.l.u.symbol(s).name.clone();
                     let mutable = self.l.u.symbol(s).flags.has(MUTABLE);
-                    let volatile = if self.l.var_handle(s).is_some() { ACC_VOLATILE } else { 0 };
+                    let volatile = if self.l.is_thread_safe_lazy_field(s) { ACC_VOLATILE } else { 0 };
                     let flags = java_flags(self.l, s) | if mutable { volatile } else { ACC_FINAL };
                     let flags = flags | self.annotated_field_flags(s);
                     cf.field(flags, &tasty::encode(&name), &desc);
@@ -75,9 +75,6 @@ impl Gen<'_, '_> {
                     }
                     if let Some(holder) = self.field_annotations_of(s) {
                         self.emit_annotations(&mut cf, Some(Last::Field), holder);
-                    }
-                    if self.l.var_handle_field(s).is_some() {
-                        init.handles.push(s);
                     }
                 }
                 Tree::TypeDef { .. } if self.l.tpd.class_template(stat).is_some() => {
