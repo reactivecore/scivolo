@@ -172,6 +172,39 @@ fn inferred_types_selecting_a_missing_member() {
 }
 
 #[test]
+fn private_members_out_of_reach() {
+    check(
+        &[
+            (
+                "import scala.language.implicitConversions\nclass E[L](val l: L)\n\
+                 class G { class N private[G](val i: Int) }\n\
+                 object S { implicit def c[T](x: T): E[T] = new E(x)\n  object g extends G\n  \
+                 import g.N\n  val m = new N(1) }\n",
+                "inaccessible member",
+            ),
+            (
+                "trait S { private type V = String\n  case class C(v: List[V]) }\n\
+                 object O { new S { val c = C(List(\"1\")) } }\n",
+                "",
+            ),
+        ],
+        &["trait S { private type V = String\n  case class C(v: List[V])\n  val c = C(List(\"1\")) }\n"],
+    );
+}
+
+#[test]
+fn types_bounded_by_arrays_of_themselves() {
+    check(
+        &[
+            ("class C[F[x] <: Array[F[x]]]\n", "type bounded by an array of itself"),
+            ("class C[T <: Array[T]]\n", "type bounded by an array of itself"),
+            ("trait C { type T <: Array[Array[T]] }\n", "type bounded by an array of itself"),
+        ],
+        &["class C[T <: Array[Int]]\n", "class C[T <: Comparable[T]]\n", "class C[T, U <: Array[T]]\n"],
+    );
+}
+
+#[test]
 fn checks_of_single_constructs() {
     check(
         &[

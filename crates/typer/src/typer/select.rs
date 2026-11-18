@@ -83,6 +83,7 @@ impl Typer<'_> {
             if !syms.is_empty()
                 && !converted
                 && !name.is_type
+                && text != nme::CONSTRUCTOR
                 && !self.has_selectable(&syms, qual_tpe, &text, ctx)
                 && let Ok(Some(Viewed::Converted(q))) = self.viewed(qual, Goal::Member(&text), ctx)
             {

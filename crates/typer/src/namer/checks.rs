@@ -7,7 +7,10 @@ use crate::ctx::Ctx;
 use crate::typer::Typer;
 use syntax::ast::NodeId;
 use syntax::ast::flags::{self as f, FlagSet};
-use tasty::{Kind, SymbolId};
+use tasty::{Kind, SymbolId, Type, TypeId};
+
+/// The full name of the class of arrays.
+const ARRAY: &str = "scala.Array";
 
 impl Typer<'_> {
     /// Checks definition `tree` of `name` with the dotty flags `flags` of its modifiers in
@@ -91,6 +94,30 @@ impl Typer<'_> {
             if matches!(kind, Kind::Class | Kind::Type) && self.inherits_class(cls, &name) {
                 return self.unsupported_at(self.ast.span(rhs), "type shadowing an inherited class");
             }
+        }
+    }
+
+    /// Refuses type `sym` of bounds `info` if its upper bound is an array of itself, as
+    /// `F[x] <: Array[F[x]]`, whose erasure does not end: dotty overflows its stack on it.
+    pub fn check_array_self_bound(&mut self, sym: SymbolId, info: TypeId, tree: NodeId) {
+        let strip = |t: &Self, x: TypeId| match *t.u.ty(x) {
+            Type::Lambda { result, .. } => result,
+            _ => x,
+        };
+        let info = strip(self, info);
+        let Some((_, hi)) = self.u.bounds(info) else { return };
+        let mut bound = strip(self, hi);
+        while let Some((tycon, args)) = self.u.applied(bound) {
+            let [elem] = *args else { return };
+            if self.u.class_symbol(tycon).is_none_or(|c| self.u.full_name(c) != ARRAY) {
+                return;
+            }
+            let head = self.u.applied(elem).map_or(elem, |(c, _)| c);
+            if self.u.sym_of(head) == Some(sym) {
+                self.unsupported(tree, "type bounded by an array of itself");
+                return;
+            }
+            bound = self.u.dealias(elem);
         }
     }
 
