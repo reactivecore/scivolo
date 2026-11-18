@@ -31,6 +31,8 @@ pub enum Completion {
 pub struct Syms {
     pub flags: FxHashMap<SymbolId, FlagSet>,
     pub completions: FxHashMap<SymbolId, Completion>,
+    /// Per package, the definitions of the unit entered with a package object's class name.
+    pub package_object_defs: FxHashMap<SymbolId, Vec<SymbolId>>,
     /// The type definitions whose infos are being checked for cycles (dotty's `NoCompleter`).
     pub checking: Vec<SymbolId>,
     /// The span of the `@main` annotation of each method that has one; the universe keeps the

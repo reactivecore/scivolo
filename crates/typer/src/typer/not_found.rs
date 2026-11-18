@@ -7,6 +7,7 @@ use super::Typer;
 use crate::ctx::{Ctx, Mode};
 use crate::tpd::TNodeId;
 use names::nme;
+use rustc_hash::FxHashSet;
 use syntax::ast::children::Child;
 use syntax::ast::{Ast, NodeId, TName, Tree};
 use tasty::{Kind, SymbolId};
@@ -40,7 +41,7 @@ impl Typer<'_> {
             owners.push(o);
             owner = self.u.symbol(o).owner;
         }
-        let defs: Vec<(NodeId, SymbolId)> = self.syms.by_tree.iter().map(|(&t, &s)| (t, s)).collect();
+        let defs = self.owner_definitions(&owners);
         let mut module_classes = vec![None; defs.len()];
         for &o in owners.iter().rev() {
             for (&(tree, s), class) in defs.iter().zip(&mut module_classes) {
@@ -55,6 +56,26 @@ impl Typer<'_> {
         }
         let (root, _) = self.checked_code?;
         self.ast.exists_subtree(root, &|_, n| n == id).then_some(root)
+    }
+
+    /// The definition trees of the unit, with their symbols, that can define one of `owners`: an
+    /// owner's own, and those of the values `Universe::module_class` can take to an owner, by the
+    /// owner's name or by the value's type.
+    fn owner_definitions(&self, owners: &[SymbolId]) -> Vec<(NodeId, SymbolId)> {
+        let u = &*self.u;
+        let objects: FxHashSet<&str> =
+            owners.iter().filter_map(|&o| tasty::module_name(&u.symbol(o).name)).collect();
+        let may_define = |s: SymbolId| {
+            let sym = u.symbol(s);
+            let typed_owner = || u.known_info(s).and_then(|i| u.sym_of(i)).is_some_and(|c| owners.contains(&c));
+            owners.contains(&s)
+                || sym.kind == Kind::Val
+                    && (sym.tree.is_some()
+                        || sym.name.starts_with('_')
+                        || objects.contains(sym.name.as_str())
+                        || typed_owner())
+        };
+        self.syms.by_tree.iter().filter(|&(_, &s)| may_define(s)).map(|(&t, &s)| (t, s)).collect()
     }
 }
 
