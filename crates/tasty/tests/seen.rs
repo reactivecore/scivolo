@@ -77,6 +77,23 @@ fn intersections_merge_equivalent_invariant_arguments() {
     assert_eq!(args[0], big_int);
 }
 
+/// `Array[1] & Array[Singleton]` and `Array[Int & Singleton] & Array[1]` hold the single type `1`
+/// (dotty's `singletonInterval`).
+#[test]
+fn intersections_merge_a_singleton_with_singleton_bounds() {
+    let Some(mut u) = stdlib() else { return };
+    let array = class(&mut u, "scala", "Array");
+    let (singleton, int) = (u.defn().singleton, class(&mut u, "scala", "Int"));
+    let [tycon, singleton, int] = [array, singleton, int].map(|s| u.intern_type(Type::Sym(None, s)));
+    let one = u.intern_type(Type::Constant(tasty::tags::INTconst, 1));
+    let both = u.intern_type(Type::And(int, singleton));
+    let array_one = u.intern_applied(tycon, &[one]);
+    let array_singleton = u.intern_applied(tycon, &[singleton]);
+    let array_both = u.intern_applied(tycon, &[both]);
+    assert_eq!(u.glb(array_one, array_singleton), array_one);
+    assert_eq!(u.glb(array_both, array_one), array_one);
+}
+
 fn this_type(u: &mut Universe, c: SymbolId) -> TypeId {
     let c = u.intern_type(Type::Sym(None, c));
     u.intern_type(Type::This(c))

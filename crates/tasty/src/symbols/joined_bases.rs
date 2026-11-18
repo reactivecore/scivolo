@@ -9,25 +9,26 @@ use crate::tags::{CONTRAVARIANT, COVARIANT};
 use crate::types::{Type, TypeId};
 
 impl Universe {
-    /// Whether two parents of class `c` give its base class `base` different types.
-    pub fn parents_disagree(&mut self, c: SymbolId, base: SymbolId) -> bool {
-        if let Some(&d) = self.disagreeing_bases.get(&(c, base)) {
-            return d;
+    /// The base types `x` and `y` of the parts of intersection (`and`) or union `t`, or of two
+    /// parents of class type `t`, merged by `glb` or `lub`; while that merge is in progress, `x`
+    /// of an intersection, else `None`, and the cut is counted.
+    pub fn merged_bases(
+        &mut self,
+        t: TypeId,
+        base: SymbolId,
+        (x, y): (TypeId, TypeId),
+        and: bool,
+    ) -> Option<TypeId> {
+        if x == y {
+            return Some(x);
         }
-        self.disagreeing_bases.insert((c, base), false);
-        let mut first = None;
-        let mut disagree = false;
-        if !self.type_params(base).is_empty() {
-            for parent in self.parents(c) {
-                if !self.class_symbol(parent).is_some_and(|p| self.derives_from(p, base)) {
-                    continue;
-                }
-                let Some(found) = self.base_type(parent, base) else { continue };
-                disagree |= *first.get_or_insert(found) != found;
-            }
+        if !self.merging_bases.insert((t, base)) {
+            self.base_type_cuts += 1;
+            return and.then_some(x);
         }
-        self.disagreeing_bases.insert((c, base), disagree);
-        disagree
+        let merged = if and { self.glb(x, y) } else { self.lub(x, y) };
+        self.merging_bases.remove(&(t, base));
+        Some(merged)
     }
 
     /// Base types `a` and `b` of class `base` intersected, argument by argument as their

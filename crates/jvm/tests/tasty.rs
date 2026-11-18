@@ -117,6 +117,7 @@ const DOTTY_TASTY: &[(&str, &[&str])] = &[
     ("newarrays", &["NewArrays"]),
     ("anymembers", &["AnyMembers"]),
     ("inheritedresults", &["InheritedResults"]),
+    ("wildcardselections", &["WildcardSelections"]),
 ];
 
 /// The trees, positions and flag attributes of the classes of `DOTTY_TASTY` are dotty's: the
@@ -142,7 +143,8 @@ const DOTTY_TASTY: &[(&str, &[&str])] = &[
 /// wildcard's bound where the parameter is variant (wildcardmembers.scala), `new Array` the
 /// constructor signature ending in `Object` (newarrays.scala), the members of `Any` refer to
 /// classes through their package's `this` (anymembers.scala), and an inherited result type comes
-/// from the parents' base types intersected in order (inheritedresults.scala). Needs a JDK (java
+/// from the parents' base types intersected in order (inheritedresults.scala), and a selection on
+/// a prefix with a wildcard argument is approximated (wildcardselections.scala). Needs a JDK (java
 /// on the PATH), as dotty's did.
 #[test]
 fn probes_pickle_as_dotty_s() {
@@ -168,6 +170,36 @@ fn probes_pickle_as_dotty_s() {
             assert!(same, "{name}'s {class}.tasty differs from dotty's");
         }
     }
+}
+
+/// Compiles tests/jvm/basetypes/`name`.scala.
+fn compile_base_types_probe(name: &str) -> std::process::Output {
+    let out = root().join("tmp/jvm-test/basetypes").join(name);
+    let _ = std::fs::remove_dir_all(&out);
+    Command::new(env!("CARGO_BIN_EXE_scivolo-jvm"))
+        .current_dir(root())
+        .arg("-d")
+        .arg(&out)
+        .arg(format!("tests/jvm/basetypes/{name}.scala"))
+        .output()
+        .expect("running scivolo-jvm")
+}
+
+/// A wildcard argument reaching an invariant place under a selection or a type lambda gives no
+/// exact base type: `Sub[?]` is no `Box[Outer[?]#In]`, which would let `Box.v` take another
+/// `Outer`'s `In`.
+#[test]
+fn wildcards_under_selections_and_lambdas_are_not_exact_base_types() {
+    for name in ["wildcardselection", "wildcardlambda"] {
+        assert!(!compile_base_types_probe(name).status.success(), "{name} compiled");
+    }
+}
+
+/// Parents whose base types depend on each other end in a result or a refusal, not in a stack
+/// overflow.
+#[test]
+fn cyclic_base_types_terminate() {
+    assert!(compile_base_types_probe("cyclicbases").status.code().is_some());
 }
 
 /// A capture-checked file compiled before a plain one in one unit keeps its capture sets, and

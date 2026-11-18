@@ -16,12 +16,19 @@ impl Universe {
     /// through its parents; `None` if `t` does not derive from `base`. Remembered while the
     /// universe and the context of comparisons stay the same (dotty's `baseTypeCache`).
     pub fn base_type(&mut self, t: TypeId, base: SymbolId) -> Option<TypeId> {
-        let compute = |u: &mut Self| u.base_type_within(t, base, MAX_DEPTH);
+        self.remembered_base_type(t, base, MAX_DEPTH)
+    }
+
+    fn remembered_base_type(&mut self, t: TypeId, base: SymbolId, depth: u32) -> Option<TypeId> {
+        let compute = |u: &mut Self| u.base_type_within(t, base, depth);
         remembered(self, |u| &mut u.base_types, (t, base), compute)
     }
 
     fn base_type_within(&mut self, t: TypeId, base: SymbolId, depth: u32) -> Option<TypeId> {
-        let depth = depth.checked_sub(1)?;
+        let Some(depth) = depth.checked_sub(1) else {
+            self.base_type_cuts += 1;
+            return None;
+        };
         let ty = *self.ty(t);
         let (tycon, args) = match ty {
             Type::Applied(tycon, args) => (tycon, self.types_of(args).to_vec()),
@@ -121,10 +128,10 @@ impl Universe {
             return None;
         }
         if !args.is_empty() {
-            let unapplied = self.base_type_within(tycon, base, depth)?;
+            let unapplied = self.remembered_base_type(tycon, base, depth)?;
             return Some(self.subst_approx(unapplied, s, &args));
         }
-        let join = self.parents_disagree(s, base);
+        let join = !self.type_params(base).is_empty();
         let mut joined = None;
         let mut parents = self.parents(s);
         if !join {
@@ -138,7 +145,7 @@ impl Universe {
                 (Some(p), Some(o)) if self.symbol(o).kind == Kind::Class => self.as_seen_from(parent, p, o),
                 _ => parent,
             };
-            let Some(found) = self.base_type_within(parent, base, depth) else { continue };
+            let Some(found) = self.remembered_base_type(parent, base, depth) else { continue };
             if !join {
                 return Some(found);
             }
@@ -148,27 +155,6 @@ impl Universe {
             });
         }
         joined
-    }
-
-    /// The base types `x` and `y` of the parts of intersection (`and`) or union `t` merged by
-    /// `glb` or `lub`; while that merge is in progress, `x` of an intersection, else `None`.
-    fn merged_bases(
-        &mut self,
-        t: TypeId,
-        base: SymbolId,
-        (x, y): (TypeId, TypeId),
-        and: bool,
-    ) -> Option<TypeId> {
-        if x == y {
-            return Some(x);
-        }
-        if !self.merging_bases.insert((t, base)) {
-            self.merge_cuts += 1;
-            return and.then_some(x);
-        }
-        let merged = if and { self.glb(x, y) } else { self.lub(x, y) };
-        self.merging_bases.remove(&(t, base));
-        Some(merged)
     }
 
     /// Whether `t` refers to `Nothing`, or to `Null` without safe nulls.
