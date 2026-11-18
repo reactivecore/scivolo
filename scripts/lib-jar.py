@@ -35,7 +35,7 @@ Implementation-Vendor-Id: org.scala-native
 Implementation-URL: http://www.scala-native.org
 {main}
 """
-SCALALIB_MAIN = "Main-Class: scala.util.Properties\n"
+MAIN_CLASSES = {"scalalib": "scala.util.Properties", "test-interface": "scala.scalanative.testinterface.TestMain"}
 # The modules whose source directories are lowered as one unit, as Scala Native's build does.
 JOINT = {"nativelib", "test-interface-sbt-defs", "test-interface", "junit-runtime"}
 
@@ -94,7 +94,7 @@ def entries(module, stage, published):
     """The jar's entries in order, (name, bytes), and the names of the NIR files not lowered here:
     scalalib's taken from the published jar or the oracle."""
     version = f"3.9.0+{lib.VERSION}" if module == "scalalib" else lib.VERSION
-    main = SCALALIB_MAIN if module == "scalalib" else ""
+    main = f"Main-Class: {MAIN_CLASSES[module]}\n" if module in MAIN_CLASSES else ""
     manifest = MANIFEST.format(m=module, v=version, main=main).replace("\n", "\r\n").encode()
     found = {"META-INF/MANIFEST.MF": manifest}
     resources = lib.SN / module / "src/main/resources"

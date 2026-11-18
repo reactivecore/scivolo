@@ -323,6 +323,19 @@ fn replacing_a_class_of_package_scala_outside_the_standard_library_keeps_its_tra
 }
 
 #[test]
+fn arguments_checked_before_a_selection_take_no_fresh_names() {
+    let Some(jars) = jars() else { return };
+    let source = SourceFile::new(
+        "o.scala",
+        "class M { def send(ep: String, id: Int)(msg: String): Unit = () }\n\
+         class F { def run(f: String => Unit): Unit = () }\n\
+         object O { def ep = \"\"; def go(m: M, f: F, id: Int) = f.run(m.send(ep, id)) }",
+    );
+    let dump = dump(&jars, &[source], "O$");
+    assert!(dump.contains("ep$1") && !dump.contains("ep$2"), "{dump}");
+}
+
+#[test]
 fn library_static_members_and_annotated_switch_selectors() {
     let Some(mut jars) = jars() else { return };
     jars.push(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../libs/jdk-stubs.jar"));
