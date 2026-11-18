@@ -18,6 +18,7 @@ given optColl: [S: Coll as c] => Coll[Option[S]]:
   def first(s: Option[S]): c.Pos = c.first(s.get)
 
 val l = summon[Coll[List[String]]]
+val o = summon[Coll[Option[String]]]
 
 def head[S: Coll as c](s: S): c.Pos = c.first(s)
 
