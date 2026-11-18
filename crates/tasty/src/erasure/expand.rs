@@ -52,9 +52,10 @@ impl Universe {
         }
     }
 
-    /// The body of type lambda `info`, or with `upper` of its upper bound, arguments `args`
-    /// substituted.
+    /// The body of type lambda `info`, an alias of one (an export forwarder read from TASTy), or
+    /// with `upper` of its upper bound, arguments `args` substituted.
     fn lambda_applied(&mut self, info: TypeId, args: &[TypeId], upper: bool) -> Option<TypeId> {
+        let info = self.type_alias(info).unwrap_or(info);
         let info = self.bounds(info).filter(|_| upper).map_or(info, |(_, hi)| hi);
         let (binder, names, result) = self.lambda(info).map(|l| (l.binder, l.names(), l.result))?;
         Some(self.subst(result, binder, &names, args))

@@ -230,6 +230,37 @@ fn library_annotations_pickle_as_dotty_s() {
     }
 }
 
+/// A named tuple type of tests/jvm/tastylib/exportedaliases/lib.scala, read from its TASTy, reduces
+/// through the export forwarders of match type aliases: use.scala selects a field of it.
+#[test]
+fn exported_match_aliases_reduce_from_tasty() {
+    let out = root().join("tmp/jvm-test/exportedaliases");
+    let _ = std::fs::remove_dir_all(&out);
+    let (lib, user) = (out.join("lib"), out.join("use"));
+    let compile = |dest: &Path, flags: &[&str], source: &str| {
+        let run = Command::new(env!("CARGO_BIN_EXE_scivolo-jvm"))
+            .current_dir(root())
+            .args(flags)
+            .arg("-d")
+            .arg(dest)
+            .arg(format!("tests/jvm/tastylib/exportedaliases/{source}.scala"))
+            .output()
+            .expect("running scivolo-jvm");
+        assert!(run.status.success(), "{}", String::from_utf8_lossy(&run.stderr));
+    };
+    compile(&lib, &[], "lib");
+    compile(&user, &["--cp", lib.to_str().expect("a path")], "use");
+    if Command::new("java").arg("-version").output().is_err() {
+        eprintln!("no java on the PATH: not run");
+        return;
+    }
+    let library = root().join("ref/libs/scala-library-3.9.0.jar");
+    let classpath = format!("{}:{}:{}", user.display(), lib.display(), library.display());
+    let run = Command::new("java").args(["-Xverify:all", "-cp", &classpath, "Use"]).output().expect("java");
+    assert!(run.status.success(), "{}", String::from_utf8_lossy(&run.stderr));
+    assert_eq!(String::from_utf8_lossy(&run.stdout), "1\n");
+}
+
 /// A dependent function type whose function type parent dotty gives the capture sets of its
 /// refinement is refused, and so is the inferred function type of a closure whose parameters have
 /// capture sets (`@declared` in dotty's) or whose result's capture sets name its parameter (a
