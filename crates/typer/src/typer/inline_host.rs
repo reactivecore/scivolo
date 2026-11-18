@@ -111,6 +111,14 @@ impl Host for Typer<'_> {
         found.unwrap_or_else(|panic| resume_unwind(panic))
     }
 
+    fn this_call_hides_implicits(&mut self, lent: Lent<'_>, ctx: Ctx) -> Result<bool, &'static str> {
+        let (u, tpd, names, fresh) = lent;
+        self.swap_lent((&mut *u, &mut *tpd, &mut *names, &mut *fresh));
+        let hides = catch_unwind(AssertUnwindSafe(|| Typer::this_call_hides_implicits(self, ctx)));
+        self.swap_lent((u, tpd, names, fresh));
+        hides.unwrap_or_else(|panic| resume_unwind(panic))
+    }
+
     fn error(&mut self, at: Span, msg: String) {
         self.expansion_errors.push((at, msg.clone()));
         self.error_at(at, msg);

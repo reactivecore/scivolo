@@ -78,6 +78,7 @@ impl Typer<'_> {
         own_private: bool,
     ) -> Vec<SymbolId> {
         let site = crate::defn::type_ref(self.u, c);
+        let name = self.u.intern_name(name);
         let mut out: Vec<SymbolId> = Vec::new();
         for &base in classes {
             let decls: Vec<SymbolId> = self.u.decls_named(base, name);

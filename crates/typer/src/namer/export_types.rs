@@ -5,6 +5,7 @@
 //! The type aliases export clauses define for type members (dotty's `addForwarder` of a type).
 
 use super::exports::{Export, Forwarder};
+use crate::symbols::{Completion, LateForwarder};
 use crate::typer::Typer;
 use syntax::ast::Span;
 use syntax::ast::flags as f;
@@ -52,6 +53,7 @@ impl Typer<'_> {
             }
             target = dealiased;
         }
+        let member = target;
         let Some(target) = self.eta_expanded_member(m, (e.path, target), class) else {
             self.unsupported_at(span, "export of a type constructor");
             return;
@@ -64,7 +66,23 @@ impl Typer<'_> {
         let sym = self.syms.define(self.u, alias, Kind::Type, e.cls, fl);
         let info = self.u.intern_type(Type::Alias(target));
         self.u.set_info(sym, info);
+        if matches!(self.syms.completions.get(&m), Some(Completion::Completing(_))) {
+            let late = LateForwarder { forwarder: sym, path: e.path, target: member };
+            self.syms.late_forwarders.entry(m).or_default().push(late);
+        }
         e.out.push(Forwarder { sym, target: m, span });
+    }
+
+    /// Gives the forwarders made while type member `m` was being completed the type parameters
+    /// `m` has now.
+    pub fn complete_late_forwarders(&mut self, m: SymbolId) {
+        let class = self.u.symbol(m).kind == Kind::Class;
+        for late in self.syms.late_forwarders.remove(&m).unwrap_or_default() {
+            if let Some(target) = self.eta_expanded_member(m, (late.path, late.target), class) {
+                let info = self.u.intern_type(Type::Alias(target));
+                self.u.set_info(late.forwarder, info);
+            }
+        }
     }
 
     /// `target`, a reference to type member `m`, as a type lambda applying it to its type

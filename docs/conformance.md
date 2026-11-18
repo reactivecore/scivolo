@@ -239,6 +239,13 @@ The VM fixes javalib bugs in its library overlay (`overlay/src`, ADR 0009).
       `obj().h$default$2` before the reordering lifts `obj()`: `obj()` runs twice, where SLS
       6.6.1 evaluates the prefix once.
     - Fix: count the fixed parameters' arguments only. Frontend: evaluates `obj()` once.
+25. **A named array spread beside a default argument throws `ClassCastException`** (dotty 3.9.0,
+    `compiler/src/dotty/tools/dotc/typer/EtaExpansion.scala`, `LiftComplex`).
+    - `k(xs = Array("x", "y")*)` with `def k(n: Int = 1, xs: String*)` lifts the argument to
+      `val xs$2: String* = Array(...)*`; the `val` erases to `Seq` and holds the array, so the
+      program fails at run time. A `Seq` spread works.
+    - Fix: wrap the array when lifting. Frontend: prints `1 x,y`
+      (`tests/jvm/namedarrayspread`).
 
 ## Own frontend: parser, symbols, typer
 
