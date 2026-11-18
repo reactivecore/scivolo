@@ -21,6 +21,8 @@ dotty's order.
 - Once the units are typed, before inlining, the recorded symbols and the trees that define
   or refer to them are renamed `$1$`, `$2$`, … per source file, in the order their names
   were met.
+- **Not taken:** desugaring pattern definitions when the namer enters them, as dotty; our
+  desugaring runs over the whole file before typing.
 
 ## Consequences
 - The source files of one unit each number from `$1$`, as dotty's compilation units do.

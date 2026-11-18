@@ -1,6 +1,6 @@
 # ADR 0026 — Type variables that bound each other are unified, in implicit searches only across the outermost one
 
-Status: accepted · Date: 2026-10-15 · Amended 2026-11-04 by ADR 0088
+Status: accepted · Date: 2026-10-15
 
 ## Context
 dotty unifies two type variables once each bounds the other (`ConstraintHandling.addLess`,
@@ -31,11 +31,15 @@ variable and are refused, and large literals compare unions of growing bounds ag
 - **Implicit searches:** while an implicit argument is searched, only a variable of a candidate
   of the outermost search is unified, with a variable made before that search (`f[B >: C](using
   Ordering[B])` with `ordered[A]: Ordering[A]`; without it the two bound each other in a cycle
-  the satisfiability checks cannot close). Other variables are not unified. Our
-  search does not interpolate a candidate's application, as dotty's `typed` does; with
-  unification in nested searches, candidates whose variables dotty instantiates there would get
-  other instances (tests/pos/t7983), and self-recursive candidates would no longer fail
-  (tests/pos/t3883).
+  the satisfiability checks cannot close). Other variables are not unified. With unification in
+  nested searches, candidates whose variables dotty instantiates there would get other instances
+  (tests/pos/t7983), and self-recursive candidates would no longer fail (tests/pos/t3883).
+- **Candidates:** as in dotty's `typedImplicit`, a candidate is interpolated against the expected
+  type once its implicit arguments are applied; one without implicit parameters is not, and its
+  open variables, constructor variables included, stay for the enclosing typing
+  (`util.Random.shuffle(xs)`). A candidate's definition is completed before its attempt starts
+  (`completeInCreationContext`). Not taken: refusing a candidate whose value type applies an open
+  constructor variable (#123), and completing inside the attempt (#103).
 
 ## Consequences
 - The symbol count is a coarse level in both directions: a variable made after a block's

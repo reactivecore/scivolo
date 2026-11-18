@@ -66,7 +66,7 @@ instead of the run.
   the files before the library sorted by class name, after `init`, which the heap snapshot
   holds (#188). A dependency jar's file that replaces a library file counts as having a
   `<clinit>` only if the library's has one. Files added to a REPL session run theirs on first
-  use of the class (ADR 0047).
+  use of the class.
 
 ## Upstream bugs to report
 
@@ -811,6 +811,96 @@ the release binaries, run from the repository root:
 | unsupported | 1 | 387 | 0 |
 | crashed | 0 | 0 | 0 |
 | skipped | 44 | 351 | 496 |
+
+Refusals and differences of the frontend and the lowering:
+
+- **GADT patterns** (ADR 0119). Refused:
+  - pattern alternatives that narrow differently (`different GADT bounds from pattern
+    alternatives`); scala-cli with Scala 3.9.0 compiles this file:
+
+    ```scala
+    sealed trait G[T]
+    case class GI() extends G[Int]
+    case class GS() extends G[String]
+    def f[T](x: G[T], y: T): Any = x match
+      case GI() | GS() => y
+    ```
+
+  - an implicit conversion found only for the qualifier's GADT approximation (`implicit conversion
+    of a GADT-approximated qualifier`); scala-cli with Scala 3.9.0 compiles this file:
+
+    ```scala
+    import scala.language.implicitConversions
+    sealed trait G[T]
+    class R { def ext: Int = 1 }
+    class K
+    object K:
+      given Conversion[K, R] = _ => R()
+    case class GK() extends G[K]
+    def f[T](x: G[T], y: T): Int = x match
+      case GK() => y.ext
+    ```
+
+  - a block typed before its expected type is known, as an argument of an overloaded method, whose
+    expression is a singleton that needs a GADT cast (`GADT cast of a singleton as a block's
+    expression`); scala-cli with Scala 3.9.0 compiles this file:
+
+    ```scala
+    enum EQ[A, B]:
+      case Refl[A]() extends EQ[A, A]
+
+    object O:
+      def h[T](t: T, u: Int): T = t
+      def h[T](t: T, u: String): T = t
+
+    def f[T](x: EQ[T, Int], a: Int): T = x match
+      case EQ.Refl() => O.h[T]({ println("x"); a }, 1)
+    ```
+
+  - the shapes ADR 0119 names: a GADT parameter inside a union or intersection bound made equal to
+    a type, and an extractor pattern outside a case that would need GADT mode.
+
+  Typed differently from dotty (`just typer-compare`):
+  - a block with a singleton expression as an `if` branch: one cast of the block where dotty has
+    two, to the same type:
+
+    ```scala
+    enum EQ[A, B]:
+      case Refl[A]() extends EQ[A, A]
+
+    def f[T](x: EQ[T, Int], a: Int): T = x match
+      case EQ.Refl() =>
+        if a > 0 then { println("y"); a } else { println("z"); a }
+    ```
+
+  - `tests/pos/gadt-TypeSafeLambda`: `c.first` without dotty's cast (Upstream bugs to report, 22).
+- **`typeChecks`.** Code the parser or typer reports an error for is `false`. A construct the typer
+  refuses, with no error reported before it, refuses the program, where dotty may answer.
+  `typeCheckErrors` gives `Nil` or the errors of inline expansions in the code, and is refused
+  for an error of the parser or typer, as messages and positions differ from dotty's.
+- **Macro annotations.** Refused: arguments other than literals or in several lists; on a
+  definition the typer did not type (in a quote or library inline body), arguments at all; a class
+  with an outer instance or erased parameters; a result that drops the annotated definition, returns
+  a type, adds a top-level definition or one of another owner, or defines a symbol twice or defined
+  elsewhere.
+- **`@static`.** Refused: lazy values; members of an object whose companion is a value class or in
+  another unit; methods and initial values that use the object's `this` or define local methods or
+  classes; values whose companion class has lazy values and constructor parameters, parents but `Object`, or
+  synthetic objects (Scala Native); a reference to a `@static` member of the library; on the JVM,
+  an assignment to one through a value other than a path.
+- **Erased definitions.** An erased argument or value must be pure by the inliner's
+  `isElideableExpr` with `isPureExpr`'s type applications, or be an erased value of `scala.caps` or
+  an inline value: some arguments dotty accepts are refused.
+- **Tail recursion.** dotty's phases run `Erasure`, `TailRec`, `LambdaLift`; ours `lambda_lift`,
+  `erasure`, `tailrec`. Before `lambda_lift`, `tailrec::name_vars` makes local methods loops and
+  names the variables of members, which closures and local classes capture by value, so a closure
+  made in an iteration sees that iteration's parameter (`tests/programs/tailcaptures`).
+- **REPL commands.** `:jar`, `:dep`, `:doc` and `:settings` print `-- unsupported: <command>`, and
+  `:help` lists only the commands that run. A `:load` of a path that exists but cannot be read
+  prints `Couldn't read file "<path>": <error>`, and more than 16 nested `:load`s print
+  `Couldn't load file "<path>": more than 16 nested :load commands`. `:imports` shows an identifier
+  naming an inherited member of an imported object under its defining class, and a selector's bound
+  as written.
 
 ## M4: dotty `tests/run`
 

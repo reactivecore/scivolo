@@ -1,5 +1,5 @@
 //! The Java classes of the jars' class files, entered on lookup with their nested classes
-//! (ADR 0117).
+//! (ADR 0107).
 
 use super::super::{SymbolId, Universe, module_class_name};
 use super::class;

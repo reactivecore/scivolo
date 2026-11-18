@@ -1,6 +1,11 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/backend/jvm/BCodeHelpers.scala
-//! The Java annotations a class file keeps (dotty's `emitAnnotations`).
+//! The Java annotations a class file keeps (dotty's `emitAnnotations`): those of annotation classes
+//! read from class files, unless of `SOURCE` retention. One of `RUNTIME` retention, or of a class
+//! without `@Retention`, goes to `RuntimeVisibleAnnotations`, one of `CLASS` retention to
+//! `RuntimeInvisibleAnnotations`, and likewise for parameters. Classes, mirror classes, methods,
+//! static and mixin forwarders and fields carry them; a value's go to its field unless
+//! meta-annotated for its getter or setter; `$init$` and a trait's static forwarders carry none.
 
 use super::Gen;
 use super::annotation_holders::Holder;

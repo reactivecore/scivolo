@@ -10,7 +10,7 @@ alternating. Prints and writes to tmp/bench-compile/CODEBASE.md, per tool: files
 scivolo typed the unit, wall and user+sys CPU seconds (min of the runs; warm: of the runs after
 WARMUP), CPU per file, peak RSS, and the ratios scalac / scivolo. The machine may be loaded: CPU
 time and minima are the numbers to read. A refused file is left out of the unit and the rest
-compiled again (lib.LEAVE_OUT, ADR 0121), so its codebase's scivolo times are not comparable.
+compiled again (lib.LEAVE_OUT, ADR 0116), so its codebase's scivolo times are not comparable.
 `compiler-accepted` and `compiler-half` are all and the first half of the compiler's files the last
 `compiler` run accepted (#241: time linear in the input).
 """

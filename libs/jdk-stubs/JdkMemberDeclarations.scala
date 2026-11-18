@@ -1,5 +1,5 @@
 // The JDK's declarations of classes javalib or nativelib also defines that every compile, nativelib's
-// too, sees over theirs (ADR 0082), as JdkDeclarations.scala's: a type parameter is `<: Object` where
+// too, sees over theirs (ADR 0072), as JdkDeclarations.scala's: a type parameter is `<: Object` where
 // an array of it erases to Java's `Object[]`; a class Scala Native renames is declared under its name.
 import scala.annotation.static
 

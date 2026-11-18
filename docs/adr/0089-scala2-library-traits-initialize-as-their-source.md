@@ -21,6 +21,8 @@ one scalalib file at a time against the published `scala-library` TASTy, where t
   asks `isNoInitsRealClass` (dotty's `isAssuredNoInits`).
 - Function classes get no `$init$` call (dotty's `Mixin.superCallOpt` exempts
   `isFunctionClass`) and closures of them stay closures (`ExpandSAMs` leaves function literals).
+- **Not taken:** compiling scalalib as one unit from the whole library's sources, as Scala Native
+  does.
 
 ## Consequences
 - Other runs, user programs replacing a library class and the other Scala Native libraries among

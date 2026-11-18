@@ -1,12 +1,12 @@
 # ADR 0124 — Java sources are entered as the class files javac would write, and compiled by javac
 
-Status: accepted · Date: 2026-11-15 · Amends ADR 0117
+Status: accepted · Date: 2026-11-15 · Amends ADR 0107
 
 ## Context
 Mixed projects (the Scala 3 compiler has 7 Java files) need Scala code to see Java classes of the
 same run, and Java code to see Scala classes. dotty parses Java sources for their declarations
 (`JavaParsers`), types them as `JavaDefined` trees with statics in the companion, and leaves the
-bodies to javac, which sbt and scala-cli run afterwards against dotty's output. ADR 0117 already
+bodies to javac, which sbt and scala-cli run afterwards against dotty's output. ADR 0107 already
 enters Java classes of jars from their class files on lookup.
 
 ## Decision
@@ -20,7 +20,7 @@ enters Java classes of jars from their class files on lookup.
   signatures (access flags, generic signatures, descriptors, inner-class entries, permitted
   subclasses, the members javac adds: default constructor, enum `values` and `valueOf`, a
   record's canonical constructor, accessors and component fields), and entered through ADR
-  0117's class-file reader, which makes a class with permitted subclasses sealed, as dotty's
+  0107's class-file reader, which makes a class with permitted subclasses sealed, as dotty's
   `ClassfileParser` does. An inner class named alone in its generic outer class gets no outer
   type arguments, so the reader enters it as `Outer.this.Inner`, as dotty types it in a Java
   unit. Names are resolved as in a Java unit: type variables, member classes of the
