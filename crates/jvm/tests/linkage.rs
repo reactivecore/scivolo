@@ -44,12 +44,16 @@ fn generic_signatures_of_forwarders_and_outer_references() {
     }
 }
 
-/// An intersection of nested classes erases to the subclass, whatever their names.
+/// An intersection of nested classes erases to the subclass, whatever their names; static
+/// forwarders come in the order of the methods' source names.
 #[test]
 fn intersections_of_nested_classes_erase_to_the_subclass() {
     let out = compile("glb");
     let Some(text) = javap(&out, "glb.Nest") else { return };
     assert!(text.contains("public static int glb(glb.Nest$Z)"), "{text}");
+    let Some(mirror) = javap(&out, "glb.Operators") else { return };
+    let at = |name: &str| mirror.find(&format!("int {name}(int)")).expect(name);
+    assert!(at("$plus") < at("$less") && at("$less") < at("a"), "{mirror}");
 }
 
 /// Hoisted superclass constructor arguments take the type parameters of the class and run.
