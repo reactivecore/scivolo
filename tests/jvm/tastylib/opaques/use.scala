@@ -6,6 +6,9 @@ class ViaOpaque extends TF:
 class ViaExport extends TF:
   def f(x: Fw.F[Int]) = 2
 
+class ImplVar extends TV:
+  var w = 5
+
 object Use:
   def direct: O.F[Int] = O.mkF
   def exported: Fw.F[String] = ???
@@ -27,6 +30,19 @@ object Use:
     println(seq.head)
     println(ViaOpaque().f(a) + ViaExport().f(a))
     println(b.toString.nonEmpty)
+    println(O.headOf(O.mkF) + 1)
+    println(O.firstOf(O.mkF) + 2)
+    println(O.mkB.map(_ + 1))
+    println(O.fs(0).getClass.getName)
+    println(O.fs.getClass.getName)
+    println(Prim.metres(Prim.m))
+    val unit: Any = Prim.u
+    val meters: Any = Prim.m
+    println(unit)
+    println(meters)
+    println(Prim.i == (41: Any))
+    println(Prim.u == Prim.u)
+    println(ImplVar().w)
     val cls = getClass
     val names = Set("direct", "exported", "nested", "function", "lambda", "bounded")
     for m <- cls.getDeclaredMethods.filter(m => names(m.getName)).sortBy(_.getName) do

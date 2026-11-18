@@ -64,7 +64,8 @@ impl OverrideChecks {
             return t.unsupported_at(self.span, what);
         }
         if let Some(what) = self.name_clash(t) {
-            t.unsupported_at(self.span, what);
+            let unimplemented = if self.is_concrete(t) { self.unimplemented(t, false) } else { None };
+            t.unsupported_at(self.span, unimplemented.unwrap_or(what));
         }
         if let Some(what) = self.member_refusal(t, own.clone()) {
             return t.unsupported_at(self.span, what);
@@ -91,6 +92,12 @@ impl OverrideChecks {
         if let Some(what) = self.unimplemented(t, false) {
             t.unsupported_at(self.span, what);
         }
+    }
+
+    /// Whether the class is neither abstract, a trait nor annotated by a macro.
+    fn is_concrete(&self, t: &mut Typer<'_>) -> bool {
+        let class = t.u.symbol(self.cls);
+        !class.flags.has(ABSTRACT) && !class.flags.has(TRAIT) && !has_macro_annotation(t.u, self.cls)
     }
 
     /// Why two methods of `own`, the class's declarations, may not be defined together, if they

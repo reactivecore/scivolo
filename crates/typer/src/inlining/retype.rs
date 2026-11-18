@@ -116,6 +116,7 @@ impl Inlining<'_> {
                     && let Some(tpe) = self.tpd.get(t).tpe
                     && let Some((Some(_), s)) = self.u.sym_ref(tpe)
                 {
+                    let prefix = self.u.revealed_opaque(prefix).unwrap_or(prefix);
                     self.tpd.get_mut(t).tpe = Some(self.u.intern_type(Type::Sym(Some(prefix), s)));
                 }
                 self.retyped(t, owner)

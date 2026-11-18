@@ -104,6 +104,9 @@ impl Typer<'_> {
                 self.unsupported(p, "cyclic reference");
             }
             self.check_simple_kinded(tpe, tpt);
+            if self.is_opaque_ref(tpe) {
+                self.unsupported(p, "parent that is not a class type");
+            }
             if let Some(c) = self.u.class_symbol(tpe) {
                 self.complete(c);
                 if self.ast.span(p).is_source_derived()

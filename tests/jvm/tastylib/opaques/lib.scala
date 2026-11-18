@@ -7,6 +7,27 @@ object O:
   def mkF: F[Int] = List(1)
   def mkG: G[Int] = List(2)
   def mkB: B[Int] = List(3)
+  def fs: Array[F[Int]] = Array(List(4))
+  inline def headOf[X](x: F[X]): X = x.head
+  transparent inline def firstOf[X](x: F[X]) = x.head
+
+class Meters(val v: Double) extends AnyVal:
+  override def toString = s"${v}m"
+
+object Prim:
+  opaque type I = Int
+  opaque type M = Meters
+  opaque type U = Unit
+  def i: I = 41
+  def m: M = Meters(1.5)
+  def u: U = ()
+  inline def metres(x: M): Double = x.v
+
+trait TB:
+  def f[A <: AnyRef](x: A): A
+
+trait TV:
+  var w: Int
 
 object V:
   opaque type OI[+X] = List[X]

@@ -35,7 +35,8 @@ impl Cmp<'_> {
             Type::Lambda { binder: b2, params: p2, result: r2 } => match *self.u.ty(a) {
                 Type::Lambda { binder: b1, params: p1, result: r1 } => {
                     let (p1, p2) = (self.u.params_of(p1).to_vec(), self.u.params_of(p2).to_vec());
-                    self.compare_binders((b1, &p1, r1), (b2, &p2, r2)) || self.fourth_try(a, b)
+                    self.variances_conform(a, b, b2)
+                        && (self.compare_binders((b1, &p1, r1), (b2, &p2, r2)) || self.fourth_try(a, b))
                 }
                 _ => match self.eta_expand(a) {
                     Some(eta) => self.recur(eta, b) || self.fourth_try(a, b),

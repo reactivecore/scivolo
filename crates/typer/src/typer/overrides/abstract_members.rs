@@ -43,8 +43,14 @@ impl OverrideChecks {
                     || mixin
                     || t.is_concrete(d)
                     || expanded && is_made(&t.syms, t.u, d)
-                    || is_var_setter(t.u, base, d)
                     || t.is_deferred_given(d)
+                {
+                    continue;
+                }
+                if let Some(getter) = var_of_setter(t.u, base, d)
+                    && members_named(t, self.cls, &getter, &mut FxHashMap::default())
+                        .into_iter()
+                        .any(|m| t.u.symbol(m).flags.has(MUTABLE))
                 {
                     continue;
                 }
@@ -77,14 +83,14 @@ fn is_made(syms: &Syms, u: &Universe, m: SymbolId) -> bool {
     !syms.flags.contains_key(&m) && owner.is_some_and(|o| syms.flags.contains_key(&o))
 }
 
-/// Whether `d`, a declaration of class `c`, is the setter of a variable of `c`; the variable
-/// is checked itself.
-fn is_var_setter(u: &Universe, c: SymbolId, d: SymbolId) -> bool {
-    let Some(getter) = u.symbol(d).name.strip_suffix("_=") else { return false };
-    u.symbol(c).decls.iter().any(|&v| {
+/// The name of the variable of class `c` whose setter `d`, a declaration of `c`, is.
+fn var_of_setter(u: &Universe, c: SymbolId, d: SymbolId) -> Option<String> {
+    let getter = u.symbol(d).name.strip_suffix("_=")?;
+    let is_var = u.symbol(c).decls.iter().any(|&v| {
         let s = u.symbol(v);
         s.name == getter && matches!(s.kind, Kind::Val | Kind::Param) && s.flags.has(MUTABLE)
-    })
+    });
+    is_var.then(|| getter.to_owned())
 }
 
 /// The non-private term members of class `c` named `name`: its own, and those of its parents

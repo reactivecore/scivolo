@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
 /// Programs dotty rejects, each with the refusal that names why.
-const REFUSED: [(&str, &str); 13] = [
+const REFUSED: [(&str, &str); 19] = [
     ("val x = O.mkF != null", "compar"),
     ("val x = VF.op != null", "compar"),
     ("val x: V.OI[String] = Nil", "adaptation"),
@@ -14,8 +14,14 @@ const REFUSED: [(&str, &str); 13] = [
     ("val x: R[O.F[String]] = \"\"", "match type"),
     ("val x = O.mkF.head", "member"),
     ("val x: List[Int] = O.mkB", "adaptation"),
-    ("val x = new TF { def f(x: List[Int]) = 1 }", "name clash"),
-    ("val x = new TI { def f(x: PF.FB[Int]) = 1 }", "name clash"),
+    ("val x = new TF { def f(x: List[Int]) = 1 }", "unimplemented member"),
+    ("val x = new TI { def f(x: PF.FB[Int]) = 1 }", "unimplemented member"),
+    ("class C extends O.F[Int]", "parent that is not a class type"),
+    ("class C extends Prim.M", "parent that is not a class type"),
+    ("def g[C[+_]] = 1; val x = g[V.Op]", "bounds"),
+    ("def g[C[-_]] = 1; val x = g[V.OI]", "bounds"),
+    ("class C extends TB { def f[A <: String](x: A): A = x }", "unimplemented member"),
+    ("class C extends TV { val w = 1 }", "unimplemented member"),
     ("class I { def f(x: List[Int]) = 1 }; val x = new I with TF {}", "unimplemented member"),
     ("class I { def f(x: PF.FB[Int]) = 1 }; val x = new I with TI {}", "unimplemented member"),
     (
