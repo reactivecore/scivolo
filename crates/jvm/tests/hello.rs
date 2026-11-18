@@ -74,6 +74,11 @@ fn wildcard_imports_being_typed_are_skipped() {
 }
 
 #[test]
+fn parents_completed_under_an_import_being_typed_keep_their_types() {
+    runs_on_the_jvm("completingparent", "Test");
+}
+
+#[test]
 fn legacy_match_types_keep_the_outer_constraint_frozen() {
     runs_on_the_jvm("legacymatchvars", "Test");
 }

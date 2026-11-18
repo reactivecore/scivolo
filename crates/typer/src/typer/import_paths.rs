@@ -11,8 +11,8 @@ use tasty::{SymbolId, Type};
 
 impl Typer<'_> {
     /// Determines the info of import `i`, its path typed if not yet. A lookup through `i` while
-    /// its path is typed, other than by a wildcard, which skips `i`, types the path again once;
-    /// `None` for a lookup through `i` during that typing. Refuses that lookup when the path
+    /// its path is typed, unless `wild_import_ref` skips `i`, types the path again once; `None`
+    /// for a lookup through `i` during that typing. Refuses that lookup when the path
     /// selects a member of a term, as `import B.C.*` in an object that `B` exports (dotty's cyclic
     /// reference involving the import).
     pub fn import_info(&mut self, i: usize) -> Option<&ImportInfo> {

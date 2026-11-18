@@ -26,6 +26,17 @@ const CASES: &[(&str, &str)] = &[
     ("object O { def g(y: Int) = codeOf(`y`) }", "codeOf an argument"),
     ("object O { import scala.Predef.{print as p}; def g = codeOf(p(1)) }", "codeOf an argument"),
     ("object O { def g = summonInline[Show[String]] }", "no implicit argument"),
+    (
+        "given Int = 1; object I { given Int = 3 }; object H { inline def s: Int = summonInline[Int] }; \
+         class C(val a: Int) { import I.given; def this() = this(H.s) }",
+        "implicit search of an inline call in this(...) of a class with implicits",
+    ),
+    (
+        "object Y { type U = Long }; import Y.*; object Z { type U = Int }; trait B[T]; \
+         object M { import S.h.*; object R extends B[U] }; \
+         object S { val h = { def q: Any = M.R; Z } }",
+        "cyclic reference",
+    ),
 ];
 
 #[test]

@@ -49,6 +49,9 @@ pub trait Host {
         at: Span,
         ctx: Ctx,
     ) -> Result<Option<TNodeId>, &'static str>;
+    /// Whether `ctx` is in `this(...)` arguments of a class whose body has implicits they do not
+    /// see.
+    fn this_call_hides_implicits(&mut self, lent: Lent<'_>, ctx: Ctx) -> Result<bool, &'static str>;
     /// Reports error `msg` at `at`.
     fn error(&mut self, at: Span, msg: String);
     /// Reports warning `msg` at `at`.
@@ -119,6 +122,12 @@ impl Inlining<'_> {
         self.outer_implicits = outer;
         if self.local_implicits || fits_outer {
             return Err((at, "implicit search in an inline body with local implicits"));
+        }
+        if !self.transparent_only {
+            let lent = (&mut *self.u, &mut *self.tpd, &mut *self.names, &mut *self.fresh);
+            if self.host.this_call_hides_implicits(lent, ctx).map_err(|what| (at, what))? {
+                return Err((at, "implicit search of an inline call in this(...) of a class with implicits"));
+            }
         }
         let mut ctx = ctx;
         let owner = defined.iter().flatten().next_back().and_then(|&d| self.u.symbol(d).owner);

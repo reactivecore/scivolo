@@ -29,7 +29,9 @@ impl Typer<'_> {
         }
         let completing = self.syms.completions.insert(sym, Completion::Done);
         self.u.set_info(sym, info);
+        self.object_classes_completing += 1;
         self.complete(class);
+        self.object_classes_completing -= 1;
         if let Some(c) = completing {
             self.syms.completions.insert(sym, c);
         }
