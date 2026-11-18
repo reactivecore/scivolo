@@ -14,7 +14,7 @@ mod annotated;
 mod anon_classes;
 mod apply;
 mod apply_insertion;
-pub mod approx;
+pub use tasty::approx;
 mod ascriptions;
 mod assign;
 mod auto_apply;
@@ -459,6 +459,7 @@ impl<'a> Typer<'a> {
         check_source_version(v)?;
         let defn = u.enter_library_defn()?;
         u.reductions_exhausted = false;
+        u.erasure_exhausted = false;
         u.match_type_rules = match_type_rules(v);
         u.keeps_captures = cfg.features.capture_checking();
         let mut syms = std::mem::take(syms);

@@ -47,7 +47,13 @@ pub fn match_degree(a: &Signature, b: &Signature) -> MatchDegree {
 impl Universe {
     /// The signature of member `s` as a member of `site`, erased as Scala 2 erases if `scala2`.
     pub fn signature(&mut self, site: TypeId, s: SymbolId, scala2: bool) -> Signature {
-        let mut t = self.member_info(site, s);
+        let info = self.member_info(site, s);
+        self.info_signature(info, scala2)
+    }
+
+    /// Computes the signature of method type `t`, erased as Scala 2 erases if `scala2`; `None` for
+    /// any other type.
+    pub fn info_signature(&mut self, mut t: TypeId, scala2: bool) -> Signature {
         if !matches!(self.ty(t), Type::Method { .. } | Type::Poly { .. }) {
             return None;
         }

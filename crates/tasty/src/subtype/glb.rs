@@ -73,9 +73,10 @@ impl Cmp<'_> {
         }
     }
 
-    /// `a & b`, merged into one application of a common constructor where the merged arguments
-    /// give a type below both; of an annotated type, its parent's with the other type, `(A & B)`
-    /// of `A @x & B` and `B @x & A` (dotty's `distributeAnd` both ways).
+    /// `a & b`, merged into one application of a common constructor where all arguments merge, and
+    /// with a wildcard among them where that gives a type below both; of an annotated type, its
+    /// parent's with the other type, `(A & B)` of `A @x & B` and `B @x & A` (dotty's
+    /// `distributeAnd` both ways).
     fn and_type(&mut self, a: TypeId, b: TypeId) -> TypeId {
         if let (Some((c1, args1)), Some((c2, args2))) = (self.u.applied(a), self.u.applied(b))
             && let (args1, args2) = (args1.to_vec(), args2.to_vec())
@@ -86,8 +87,9 @@ impl Cmp<'_> {
             let args: Option<Vec<TypeId>> =
                 (0..args1.len()).map(|i| self.glb_arg(args1[i], args2[i], variances[i])).collect();
             if let Some(args) = args {
+                let wildcards = args1.iter().chain(&args2).any(|&x| self.arg_bounds(x).is_some());
                 let merged = self.u.intern_applied(c1, &args);
-                if self.recur_frozen(merged, a) && self.recur_frozen(merged, b) {
+                if !wildcards || self.recur_frozen(merged, a) && self.recur_frozen(merged, b) {
                     return merged;
                 }
             }
@@ -104,13 +106,32 @@ impl Cmp<'_> {
     }
 
     /// The argument of an intersection of two applications at a parameter of `variance`
-    /// (dotty's `glbArgs`): the common one, the glb of covariant and lub of contravariant
-    /// ones, the merged bounds of wildcards; `None` for different invariant arguments.
+    /// (dotty's `glbArgs`): the single type between them (dotty's `singletonInterval`: the first
+    /// of two equivalent ones, `"a"` of `"a"` and `Singleton` or `String & Singleton` in either
+    /// order), the glb of covariant and lub of contravariant ones, the merged bounds of wildcards;
+    /// `None` for different invariant arguments.
     fn glb_arg(&mut self, x: TypeId, y: TypeId, variance: i8) -> Option<TypeId> {
         if x == y {
             return Some(x);
         }
+        let x_below = self.recur_frozen(x, y);
+        let y_singleton = self.is_singleton_ref(y);
+        let y_below = (x_below || variance != 0 || y_singleton) && self.recur_frozen(y, x);
+        if x_below && y_below || x_below && self.is_singleton_below(x, y) {
+            return Some(x);
+        }
+        if y_below && y_singleton && self.derives_from_singleton(x) {
+            return Some(y);
+        }
+
         let (bx, by) = (self.arg_bounds(x), self.arg_bounds(y));
+        if variance == 1 && bx.is_none() && by.is_none() && !self.is_connective(x) && !self.is_connective(y) {
+            match (x_below, y_below) {
+                (true, _) => return Some(x),
+                (_, true) => return Some(y),
+                _ => {}
+            }
+        }
         let (lo_x, hi_x) = bx.unwrap_or((x, x));
         let (lo_y, hi_y) = by.unwrap_or((y, y));
         match variance {
@@ -122,6 +143,25 @@ impl Cmp<'_> {
             }
             _ => None,
         }
+    }
+
+    /// Whether `lo`, known to be below `hi`, is a singleton and `hi` derives from `Singleton`.
+    fn is_singleton_below(&mut self, lo: TypeId, hi: TypeId) -> bool {
+        self.is_singleton_ref(lo) && self.derives_from_singleton(hi)
+    }
+
+    fn is_singleton_ref(&mut self, t: TypeId) -> bool {
+        let dealiased = self.u.dealias(t);
+        self.is_singleton(dealiased)
+    }
+
+    fn derives_from_singleton(&mut self, t: TypeId) -> bool {
+        let singleton = self.u.defn().singleton;
+        self.u.base_type(t, singleton).is_some()
+    }
+
+    fn is_connective(&self, t: TypeId) -> bool {
+        matches!(self.u.ty(t), Type::And(..) | Type::Or(..))
     }
 
     /// Whether constructors `c1` and `c2` refer to the same class or type.

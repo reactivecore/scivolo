@@ -26,6 +26,7 @@ struct MemoContext {
     /// The symbol comparisons are made in, which opaque types it sees through.
     owner: Option<SymbolId>,
     null_mode: NullMode,
+    checks_bounds_or_self_type: bool,
     opaques_elided: bool,
     /// How many opaque types defined outside TASTy have their aliases.
     opaque_aliases: usize,
@@ -39,14 +40,15 @@ struct MemoEffects {
     context: Option<MemoContext>,
     binders: u32,
     opaque_lifts: u64,
+    base_type_cuts: u64,
     reductions: (u32, bool),
 }
 
 /// Runs `compute` for `key`, or gets what it gave for `key` in the same context, kept in the
-/// memo `memo` selects. A result is kept when computing it left the context as it was and made
-/// no binder, skolem or opaque lift and took no match type reduction, and no refused reduction is
-/// recorded (`reductions_exhausted`); none is kept or used while a GADT constraint, a merge of
-/// base types, a resolution or a reduction is in progress.
+/// memo `memo` selects. A result is kept when computing it left the context as it was, made no
+/// binder, skolem or opaque lift, took no match type reduction and cut no base type short, and no
+/// refused reduction is recorded (`reductions_exhausted`); none is kept or used while a GADT
+/// constraint, a resolution or a reduction is in progress.
 pub fn remembered<K: Hash + Eq, V: Copy>(
     u: &mut Universe,
     memo: fn(&mut Universe) -> &mut ContextMemo<K, V>,
@@ -75,11 +77,12 @@ pub fn remembered<K: Hash + Eq, V: Copy>(
 }
 
 fn context(u: &Universe) -> Option<MemoContext> {
-    let free = u.gadt.is_empty() && u.merging_bases.is_empty() && u.resolving == 0 && u.reducing == 0;
+    let free = u.gadt.is_empty() && u.resolving == 0 && u.reducing == 0;
     free.then_some(MemoContext {
         generation: u.generation,
         owner: u.comparison_owner,
         null_mode: u.null_mode,
+        checks_bounds_or_self_type: u.checks_bounds_or_self_type,
         opaques_elided: u.opaques_elided,
         opaque_aliases: u.opaque_aliases.len(),
         rules: u.match_type_rules,
@@ -91,6 +94,7 @@ fn effects(u: &Universe) -> MemoEffects {
         context: context(u),
         binders: u.binders,
         opaque_lifts: u.opaque_lifts,
+        base_type_cuts: u.base_type_cuts,
         reductions: (u.reductions_left, u.reductions_exhausted),
     }
 }

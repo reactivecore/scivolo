@@ -78,9 +78,11 @@ impl Typer<'_> {
                 let info = self.type_member_info(sym, rhs, mctx);
                 self.u.set_info(sym, info);
                 self.check_non_cyclic(sym, info, tree);
+                self.check_array_self_bound(sym, info, tree);
             }
             _ => {}
         }
+        self.avoid_private_leaks(sym, span);
         self.u.set_comparison_owner(outer);
         self.u.set_null_mode(outer_nulls);
         self.syms.completions.insert(sym, Completion::Done);

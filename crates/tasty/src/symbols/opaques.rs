@@ -28,6 +28,17 @@ impl Universe {
         self.null_mode
     }
 
+    /// Sets whether comparisons check a type argument's bounds or a self type (dotty's
+    /// `Mode.CheckBoundsOrSelfType`); the previous setting.
+    pub fn set_checks_bounds_or_self_type(&mut self, on: bool) -> bool {
+        std::mem::replace(&mut self.checks_bounds_or_self_type, on)
+    }
+
+    /// Tells whether comparisons check a type argument's bounds or a self type.
+    pub fn checks_bounds_or_self_type(&self) -> bool {
+        self.checks_bounds_or_self_type
+    }
+
     /// How many comparisons succeeded through a lifted reference (dotty's `opaquesUsed`).
     pub fn opaque_lifts(&self) -> u64 {
         self.opaque_lifts

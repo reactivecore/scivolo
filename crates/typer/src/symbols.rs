@@ -170,12 +170,21 @@ impl Syms {
         self.flags.get(&s).copied().unwrap_or_default()
     }
 
-    /// Names `sym` as dotty's messages do, by its kind and name: `trait T`, `method f`,
-    /// `parameter x`, `lazy value v`.
+    /// Names `sym` as dotty's messages do, by its kind and name: `trait T`, `object O`, `method f`,
+    /// `constructor C`, `parameter x`, `lazy value v`, `given instance g`.
     pub fn described(&self, u: &Universe, sym: SymbolId) -> String {
         let s = u.symbol(sym);
         let flags = self.flags_of(sym);
+        if let Some(name) = tasty::module_name(&s.name).filter(|_| u.is_module_class(sym)) {
+            return format!("object {name}");
+        }
+        if s.name == names::nme::CONSTRUCTOR
+            && let Some(owner) = s.owner
+        {
+            return format!("constructor {}", u.symbol(owner).name);
+        }
         let kind = match s.kind {
+            _ if s.kind.is_term() && flags.is(f::GIVEN) => "given instance",
             Kind::Class if flags.is(f::TRAIT) => "trait",
             Kind::Class => "class",
             Kind::Type | Kind::TypeParam => "type",
