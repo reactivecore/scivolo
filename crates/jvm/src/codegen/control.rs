@@ -107,7 +107,6 @@ impl Gen<'_, '_> {
         let adapt_join = desc == NULL && !b.null_values.remove(&t);
         if desc == NULL {
             self.expect_null(b, thenp);
-            self.expect_null(b, elsep);
         }
         let (success, failure, after) = (b.code.new_label(), b.code.new_label(), b.code.new_label());
         let depth = b.code.stack();

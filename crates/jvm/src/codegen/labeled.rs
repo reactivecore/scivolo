@@ -19,7 +19,6 @@ impl Gen<'_, '_> {
         let adapt_join = desc == NULL && !b.null_values.remove(&t);
         if desc == NULL {
             b.null_labels.push(label);
-            self.expect_null(b, expr);
         }
         b.labels.push((label, Dest::Jump(end), slots));
         self.expr_expect(b, expr, &desc)?;

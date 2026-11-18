@@ -117,9 +117,6 @@ impl Gen<'_, '_> {
         let desc = self.storage_descriptor(sym);
         let Some(rhs) = rhs else { return unsupported(self.l.tpd.span(t), "a local without a value") };
         let slot = b.local(sym, desc.clone());
-        if desc == NULL {
-            self.expect_null(b, rhs);
-        }
         self.expr_expect(b, rhs, &desc)?;
         self.cast_to_null(b, rhs, &desc);
         b.code.store(&desc, slot);
