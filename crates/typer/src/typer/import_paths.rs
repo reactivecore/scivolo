@@ -7,6 +7,7 @@ use super::{Pt, Typer};
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{NodeId, Tree};
+use tasty::{SymbolId, Type};
 
 impl Typer<'_> {
     /// Determines the info of import `i`, its path typed if not yet. A lookup through `i` while
@@ -22,15 +23,27 @@ impl Typer<'_> {
         };
         if let Some((tree, ctx, again)) = pending {
             self.imports[i] = ImportEntry::Completing { tree, ctx, again };
+            let outer = self.import_path_objects.replace(Vec::new());
             let info = self.typed_import_path(tree, ctx);
+            let classes = std::mem::replace(&mut self.import_path_objects, outer).unwrap_or_default();
             if again && let Some(expr) = info.expr.filter(|&e| self.selects_from_term(e)) {
                 self.unsupported_tree(self.tpd.span(expr), "cyclic reference involving an import");
             }
             self.imports[i] = ImportEntry::Done(info);
+            self.complete_import_path_objects(classes);
         }
         match &self.imports[i] {
             ImportEntry::Done(info) => Some(info),
             _ => None,
+        }
+    }
+
+    /// Completes `classes`, the classes of the objects on a typed import path, or leaves them to
+    /// the import path around it.
+    fn complete_import_path_objects(&mut self, classes: Vec<SymbolId>) {
+        match &mut self.import_path_objects {
+            Some(outer) => outer.extend(classes),
+            None => classes.into_iter().for_each(|c| self.complete(c)),
         }
     }
 
@@ -47,6 +60,8 @@ impl Typer<'_> {
         let tpe = self.tpd.tpe(typed);
         if !package && !self.is_stable_path(typed) && !super::stability::is_stable_path(self.u, tpe) {
             self.unsupported(expr, "import prefix that is not a pure expression");
+        } else if !package && !self.is_idempotent_expr(typed) && !matches!(self.u.ty(tpe), Type::Error) {
+            self.error(expr, "import prefix is not a pure expression");
         }
         let qual = self.import_qual(typed);
         self.check_language_path(expr, qual);

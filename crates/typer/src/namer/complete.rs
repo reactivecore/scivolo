@@ -34,6 +34,8 @@ impl Typer<'_> {
 
     fn complete_pending(&mut self, sym: SymbolId, tree: NodeId, ctx: Ctx) {
         self.syms.completions.insert(sym, Completion::Completing(tree));
+        let object_val = self.is_module_val(sym);
+        let import_path_objects = if object_val { None } else { self.import_path_objects.take() };
         let span = self.ast.span(tree);
         let outer_file = if span.exists() { self.enter_file(self.file_of(span)) } else { self.file };
         let reported = self.diags.items.len();
@@ -82,6 +84,9 @@ impl Typer<'_> {
         self.u.set_comparison_owner(outer);
         self.u.set_null_mode(outer_nulls);
         self.syms.completions.insert(sym, Completion::Done);
+        if !object_val {
+            self.import_path_objects = import_path_objects;
+        }
         self.complete_late_forwarders(sym);
         self.record_completion_diags(reported);
         self.constraint.keep(start);
