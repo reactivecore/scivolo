@@ -4,9 +4,11 @@
 
 use super::Gen;
 use super::body::{Body, Dest};
-use super::descriptors::{NOTHING, descriptor};
+use super::callee::adapt_phantom;
+use super::descriptors::{NOTHING, NULL, descriptor};
 use lower::Result;
 use syntax::ast::constant::Constant;
+use tasty::Erased;
 use typer::tpd::{TNodeId, Tree};
 
 impl Gen<'_, '_> {
@@ -102,6 +104,11 @@ impl Gen<'_, '_> {
     ) -> Result<i32> {
         let desc = self.desc_of(t);
         let slots = classfile::value_slots(&desc);
+        let adapt_join = desc == NULL && !b.null_values.remove(&t);
+        if desc == NULL {
+            self.expect_null(b, thenp);
+            self.expect_null(b, elsep);
+        }
         let (success, failure, after) = (b.code.new_label(), b.code.new_label(), b.code.new_label());
         let depth = b.code.stack();
         self.cond(b, cond, success, failure, success)?;
@@ -118,7 +125,32 @@ impl Gen<'_, '_> {
         self.expr_expect(b, elsep, &desc)?;
         b.code.place(after);
         b.code.set_stack(depth + slots);
+        if adapt_join && b.code.live() {
+            adapt_phantom(b, NULL);
+        }
         Ok(slots)
+    }
+
+    /// Marks the `Null$` values `t` ends in as expected as they are: dotty loads the branches of
+    /// an `if` of type `Null` at that type and adapts its value after the join.
+    pub fn expect_null(&mut self, b: &mut Body, t: TNodeId) {
+        match *self.l.tpd.tree(t) {
+            Tree::Typed { expr, .. } | Tree::Block { expr, .. } => self.expect_null(b, expr),
+            Tree::Labeled { .. } => _ = b.null_values.insert(t),
+            Tree::If { thenp, elsep, .. } => {
+                b.null_values.insert(t);
+                self.expect_null(b, thenp);
+                self.expect_null(b, elsep);
+            }
+            Tree::Apply { fun, .. } => {
+                let m = self.l.tpd.sym(fun);
+                if m.is_some_and(|m| self.l.u.erased_method_value(m).1 == Erased::Null) {
+                    b.null_values.insert(fun);
+                }
+            }
+            Tree::Ident { .. } => _ = b.null_values.insert(t),
+            _ => {}
+        }
     }
 
     /// `while cond do body` `t`; an endless loop's labeled body jumps to the loop's start.

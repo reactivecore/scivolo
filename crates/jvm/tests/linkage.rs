@@ -67,6 +67,24 @@ fn hoisted_super_arguments_are_polymorphic() {
     assert_eq!(String::from_utf8_lossy(&run.stdout), "first\n(1,c)\nd\n");
 }
 
+/// A `Null$` call in a branch of a join of type `Null` jumps without being replaced by `null`;
+/// the value is adapted after the join, and the code verifies and runs.
+#[test]
+fn null_values_are_adapted_after_their_joins() {
+    let out = compile("nulljoin");
+    let Some(text) = javap(&out, "nulljoin.Main$") else { return };
+    let lines: Vec<&str> = text.lines().collect();
+    let call = "Method none:()Lscala/runtime/Null$;";
+    let jumps = lines.windows(2).filter(|w| w[0].contains(call) && w[1].contains("goto")).count();
+    assert_eq!(jumps, 2, "{text}");
+    let library = root().join("ref/libs/scala-library-3.9.0.jar");
+    let classpath = format!("{}:{}", out.display(), library.display());
+    let run = Command::new("java").args(["-Xverify:all", "-cp", &classpath, "nulljoin.Main"]).output();
+    let run = run.expect("running java");
+    assert!(run.status.success(), "{}", String::from_utf8_lossy(&run.stderr));
+    assert_eq!(String::from_utf8_lossy(&run.stdout), "null\nnull\nnull\nread\n");
+}
+
 #[test]
 fn raw_pointers_are_ordinary_classes() {
     let out = compile("rawtypes");

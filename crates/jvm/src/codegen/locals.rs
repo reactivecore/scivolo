@@ -5,7 +5,7 @@
 //! locals and fields.
 
 use super::body::Body;
-use super::descriptors::descriptor;
+use super::descriptors::{NULL, descriptor};
 use super::{Gen, unsupported};
 use classfile::Label;
 use lower::Result;
@@ -117,6 +117,9 @@ impl Gen<'_, '_> {
         let desc = self.storage_descriptor(sym);
         let Some(rhs) = rhs else { return unsupported(self.l.tpd.span(t), "a local without a value") };
         let slot = b.local(sym, desc.clone());
+        if desc == NULL {
+            self.expect_null(b, rhs);
+        }
         self.expr_expect(b, rhs, &desc)?;
         self.cast_to_null(b, rhs, &desc);
         b.code.store(&desc, slot);
@@ -128,7 +131,7 @@ impl Gen<'_, '_> {
     /// another erased reference result (dotty's `Erasure` cast to `Null`).
     pub fn cast_to_null(&mut self, b: &mut Body, t: TNodeId, desc: &str) {
         let reference = matches!(self.call_result(t), Some(Erased::Class(_) | Erased::Array(_)));
-        if desc == "Lscala/runtime/Null$;" && reference {
+        if desc == NULL && reference {
             b.code.checkcast(b.pool, "scala/runtime/Null$");
         }
     }

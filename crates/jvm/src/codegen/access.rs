@@ -4,7 +4,7 @@
 //! `genCallMethod`).
 
 use super::body::Body;
-use super::callee::{Receiver, adapt_phantom};
+use super::callee::{Receiver, adapt_value};
 use super::descriptors::{class_internal, method_descriptor, with_receiver};
 use super::{Gen, is_static_member, method_name, unsupported};
 use classfile::{FieldOp, Invoke};
@@ -95,6 +95,7 @@ impl Gen<'_, '_> {
     /// of a receiver; returns the slots of the result.
     pub fn apply(&mut self, b: &mut Body, mut fun: TNodeId, args: List) -> Result<i32> {
         let sent = b.sent_phantom.take() == Some(fun);
+        let key = fun;
         while let Tree::TypeApply { fun: f, .. } = *self.l.tpd.tree(fun) {
             fun = f;
         }
@@ -193,7 +194,7 @@ impl Gen<'_, '_> {
         let interface = interface || kind == Invoke::Interface || in_trait || jdk_interface;
         b.code.invoke_in(kind, interface, b.pool, (&owner_name, &name, &call_desc));
         if !sent {
-            adapt_phantom(b, classfile::split_method(&call_desc).1);
+            adapt_value(b, key, classfile::split_method(&call_desc).1);
         }
         Ok(result)
     }
