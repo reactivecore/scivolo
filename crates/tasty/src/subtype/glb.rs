@@ -104,13 +104,17 @@ impl Cmp<'_> {
     }
 
     /// The argument of an intersection of two applications at a parameter of `variance`
-    /// (dotty's `glbArgs`): the common one, the glb of covariant and lub of contravariant
-    /// ones, the merged bounds of wildcards; `None` for different invariant arguments.
+    /// (dotty's `glbArgs`): the first of two equivalent ones, the glb of covariant and lub of
+    /// contravariant ones, the merged bounds of wildcards; `None` for different invariant
+    /// arguments.
     fn glb_arg(&mut self, x: TypeId, y: TypeId, variance: i8) -> Option<TypeId> {
         if x == y {
             return Some(x);
         }
         let (bx, by) = (self.arg_bounds(x), self.arg_bounds(y));
+        if bx.is_none() && by.is_none() && self.recur_frozen(x, y) && self.recur_frozen(y, x) {
+            return Some(x);
+        }
         let (lo_x, hi_x) = bx.unwrap_or((x, x));
         let (lo_y, hi_y) = by.unwrap_or((y, y));
         match variance {

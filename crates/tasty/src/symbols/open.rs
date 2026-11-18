@@ -85,6 +85,7 @@ impl Universe {
             same_run_jar: None,
             resolving: 0,
             merging_bases: Default::default(),
+            merge_cuts: 0,
             defn: Defn::PENDING,
             binders: 0,
             lambda_variances: FxHashMap::default(),

@@ -42,6 +42,41 @@ fn base_types_pass_arguments_through_parents() {
     assert_eq!(u.show(base), "scala.collection.Iterable[scala.Tuple2[Long, Int]]");
 }
 
+/// `SortedSet`'s parents give `IterableOps` different results `C`, some `@uncheckedVariance`:
+/// intersected in their order as dotty's `baseTypeOf` does, the annotation goes.
+#[test]
+fn base_types_intersect_what_the_parents_of_a_library_class_give() {
+    let Some(mut u) = stdlib() else { return };
+    let (set, int) =
+        (class(&mut u, "scala.collection.immutable", "SortedSet"), class(&mut u, "scala", "Int"));
+    let set_int = applied(&mut u, set, &[int]);
+    let ops = class(&mut u, "scala.collection", "IterableOps");
+    let base = u.base_type(set_int, ops).unwrap();
+    let (_, args) = u.applied(base).unwrap();
+    let c = args[2];
+    assert!(u.annotated(c).is_none() && u.applied(c).is_some_and(|(_, a)| u.annotated(a[0]).is_none()));
+    assert_eq!(u.show(c), "scala.collection.immutable.SortedSet[Int]");
+}
+
+/// `Map[math.BigInt, Int] & Map[scala.BigInt, Long]` merges: the invariant keys are the same type
+/// through an alias, the first is kept (dotty's `glbArgs`, `singletonInterval`).
+#[test]
+fn intersections_merge_equivalent_invariant_arguments() {
+    let Some(mut u) = stdlib() else { return };
+    let map = class(&mut u, "scala.collection.immutable", "Map");
+    let big_int = class(&mut u, "scala.math", "BigInt");
+    let (int, long) = (class(&mut u, "scala", "Int"), class(&mut u, "scala", "Long"));
+    let package = class(&mut u, "scala", "package$");
+    let alias = u.decl(package, "BigInt").unwrap()[0];
+    let tycon = u.intern_type(Type::Sym(None, map));
+    let [big_int, alias, int, long] = [big_int, alias, int, long].map(|s| u.intern_type(Type::Sym(None, s)));
+    let a = u.intern_applied(tycon, &[big_int, int]);
+    let b = u.intern_applied(tycon, &[alias, long]);
+    let glb = u.glb(a, b);
+    let (_, args) = u.applied(glb).expect("one application of Map");
+    assert_eq!(args[0], big_int);
+}
+
 fn this_type(u: &mut Universe, c: SymbolId) -> TypeId {
     let c = u.intern_type(Type::Sym(None, c));
     u.intern_type(Type::This(c))

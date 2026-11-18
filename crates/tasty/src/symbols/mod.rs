@@ -190,6 +190,8 @@ pub struct Universe {
     resolving: u32,
     /// The intersections and unions whose base types `base_type` is merging, with the base class.
     merging_bases: FxHashSet<(TypeId, SymbolId)>,
+    /// How many merges of base types were cut short by the same merge in progress.
+    merge_cuts: u64,
     defn: Defn,
     /// How many binders `fresh_binder` has made.
     binders: u32,

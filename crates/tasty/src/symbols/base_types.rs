@@ -163,6 +163,7 @@ impl Universe {
             return Some(x);
         }
         if !self.merging_bases.insert((t, base)) {
+            self.merge_cuts += 1;
             return and.then_some(x);
         }
         let merged = if and { self.glb(x, y) } else { self.lub(x, y) };

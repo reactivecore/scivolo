@@ -39,14 +39,15 @@ struct MemoEffects {
     context: Option<MemoContext>,
     binders: u32,
     opaque_lifts: u64,
+    merge_cuts: u64,
     reductions: (u32, bool),
 }
 
 /// Runs `compute` for `key`, or gets what it gave for `key` in the same context, kept in the
-/// memo `memo` selects. A result is kept when computing it left the context as it was and made
-/// no binder, skolem or opaque lift and took no match type reduction, and no refused reduction is
-/// recorded (`reductions_exhausted`); none is kept or used while a GADT constraint, a merge of
-/// base types, a resolution or a reduction is in progress.
+/// memo `memo` selects. A result is kept when computing it left the context as it was, made no
+/// binder, skolem or opaque lift, took no match type reduction and cut no merge of base types
+/// short, and no refused reduction is recorded (`reductions_exhausted`); none is kept or used
+/// while a GADT constraint, a resolution or a reduction is in progress.
 pub fn remembered<K: Hash + Eq, V: Copy>(
     u: &mut Universe,
     memo: fn(&mut Universe) -> &mut ContextMemo<K, V>,
@@ -75,7 +76,7 @@ pub fn remembered<K: Hash + Eq, V: Copy>(
 }
 
 fn context(u: &Universe) -> Option<MemoContext> {
-    let free = u.gadt.is_empty() && u.merging_bases.is_empty() && u.resolving == 0 && u.reducing == 0;
+    let free = u.gadt.is_empty() && u.resolving == 0 && u.reducing == 0;
     free.then_some(MemoContext {
         generation: u.generation,
         owner: u.comparison_owner,
@@ -91,6 +92,7 @@ fn effects(u: &Universe) -> MemoEffects {
         context: context(u),
         binders: u.binders,
         opaque_lifts: u.opaque_lifts,
+        merge_cuts: u.merge_cuts,
         reductions: (u.reductions_left, u.reductions_exhausted),
     }
 }
