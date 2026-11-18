@@ -107,7 +107,8 @@ impl TreePickler<'_> {
         self.keep_captures(sym, tpt)?;
         self.keep_overriding_captures(sym, tpt);
         self.check_closure_captures(tpt, rhs)?;
-        self.with_length(tag, &mut |p| {
+        self.open_defs.push(sym);
+        let pickled = self.with_length(tag, &mut |p| {
             p.name(&local_name(p.u, sym));
             if let Some(paramss) = paramss {
                 p.paramss(sym, paramss)?;
@@ -117,7 +118,9 @@ impl TreePickler<'_> {
                 p.tree(rhs)?;
             }
             p.modifiers(sym)
-        })
+        });
+        self.open_defs.pop();
+        pickled
     }
 
     /// The parameter clauses `paramss` of a method (dotty's `pickleParamss`).

@@ -141,6 +141,8 @@ pub struct TreePickler<'a> {
     member_tpts: Vec<TNodeId>,
     /// The span of the innermost tree with one whose pickling was refused.
     refused_at: Option<Span>,
+    /// The definitions enclosing the tree pickled, outermost first.
+    open_defs: Vec<SymbolId>,
     /// The selector of the match whose case is pickled next, and of the pattern pickled now.
     scrutinee: Option<TNodeId>,
     pattern_selector: Option<TNodeId>,
@@ -260,6 +262,7 @@ fn pickle_trees<'a>(
         annots: Vec::new(),
         typed_tpts: Vec::new(),
         member_tpts: Vec::new(),
+        open_defs: Vec::new(),
         scrutinee: None,
         pattern_selector: None,
         type_annots: Vec::new(),

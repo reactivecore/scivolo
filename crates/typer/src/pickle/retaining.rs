@@ -13,26 +13,23 @@ use crate::typer::seen_from::normalized;
 use names::nme;
 use rustc_hash::FxHashMap;
 use tasty::tags::{ANNOTATEDtype, APPLY, NEW, SELECTin, TYPEAPPLY};
-use tasty::write::Addr;
 use tasty::{Binder, Kind, SymbolId, Type, TypeId, Universe};
 
 impl TreePickler<'_> {
     /// Type `parent @annot` if `annot` is a capture-set annotation class type, as `parent` and
     /// the type `annot`, `retains[C]` of capture set `C`, or below source version 3.9 the tree
     /// `new retains[C]()` without positions (dotty's `oldTree`); `None` for another annotation.
-    /// Refuses a capture set that refers to other than static definitions, but for one written in
-    /// a typed pattern or `new` a definition of the file, and, in a kept synthetic tree or a
-    /// super accessor, the `this` of its class.
+    /// Refuses a capture set that refers to other than static definitions and those enclosing the
+    /// tree pickled, in a super accessor only to the `this` of its class.
     pub fn retaining(&mut self, parent: TypeId, annot: TypeId) -> Option<Result<(), Refusal>> {
         if !is_retains_like(self.u, annot) {
             return None;
         }
         let own = self.type_tree.and_then(|t| self.capture_classes.get(&t).copied()).or(self.accessor_class);
         let def = self.type_tree.and_then(|t| self.capture_defs.get(&t).copied());
-        let annotated = self.u.intern_type(Type::Annotated(parent, annot));
-        let written = self.typed_tpts.iter().flatten().any(|&t| self.tpd.get(t).tpe == Some(annotated));
-        let (defined, here) = (&self.method_binders, written.then_some(&self.defs));
-        if !is_static_capture_set(self.u, annot, (own, def), self.accessor_seen, defined, here) {
+        let defined = &self.method_binders;
+        let open = &self.open_defs;
+        if !is_static_capture_set(self.u, annot, (own, def), self.accessor_seen, defined, open) {
             return Some(Err(
                 "an annotated type of a capture set that refers to other than static definitions",
             ));
@@ -107,7 +104,7 @@ impl TreePickler<'_> {
         let class =
             std::iter::successors(Some(sym), |&s| self.u.symbol(s).owner).find(|&s| self.u.is_class(s));
         let defined = &self.method_binders;
-        if captures.iter().any(|&c| !is_static_capture_set(self.u, c, (class, None), None, defined, None)) {
+        if captures.iter().any(|&c| !is_static_capture_set(self.u, c, (class, None), None, defined, &[])) {
             return Err(
                 "a synthetic type tree of a capture set that refers to other than static definitions",
             );
@@ -135,20 +132,22 @@ fn class_by_symbol(u: &mut Universe, annot: TypeId) -> TypeId {
 
 /// Whether capture-set annotation type `annot` refers to no `this`, parameter or definition other
 /// than a static one, a parameter of definition `def` or of a method type whose parameters
-/// `defined` has, a definition or class `this` among definitions `here` (those of the file for a
-/// set written in a typed pattern or `new`: `case it: (It[E]^{it})` in `def from[E](it: It[E]^)`), the
-/// `this` of class `own` or of a class enclosing it, which mapping a type that it annotates
-/// leaves alone; of an enclosing class only if seeing it from `seen`, the prefix and class of a
-/// super accessor's member, keeps it (`other.Views` of an inner trait `Views`).
+/// `defined` has, a member or local of a definition among `open` or the `this` of a class among
+/// them (those enclosing the tree: `case it: (It[E]^{it})` in `def from[E](it: It[E]^)`, the flow
+/// cast of `var cur: It[A]^{from} | Null`), neither in a super accessor, the `this` of class `own`
+/// or of a class enclosing it, which mapping a type that it annotates leaves alone; of an
+/// enclosing class only if seeing it from `seen`, the prefix and class of a super accessor's
+/// member, keeps it (`other.Views` of an inner trait `Views`).
 fn is_static_capture_set(
     u: &mut Universe,
     annot: TypeId,
     (own, def): (Option<SymbolId>, Option<SymbolId>),
     seen: Option<(TypeId, SymbolId)>,
     defined: &FxHashMap<Binder, Vec<SymbolId>>,
-    here: Option<&FxHashMap<SymbolId, Option<Addr>>>,
+    open: &[SymbolId],
 ) -> bool {
-    let local = |s: SymbolId| here.is_some_and(|h| h.contains_key(&s));
+    let open = if seen.is_some() { &[] } else { open };
+    let local = |s: SymbolId| open.contains(&s);
     let mut is_static = true;
     u.map_type(annot, &mut |u, part| {
         let this = matches!(u.ty(part), Type::This(_));
@@ -166,7 +165,8 @@ fn is_static_capture_set(
                 }),
             },
             Type::Sym(_, s) => {
-                u.is_static_symbol(s) || def.is_some_and(|d| u.symbol(s).owner == Some(d)) || local(s)
+                let owner = u.symbol(s).owner;
+                u.is_static_symbol(s) || owner.is_some_and(|o| Some(o) == def || local(o))
             }
             Type::Param(b, _) => defined.contains_key(&b),
             Type::Local(..) | Type::RecThis(_) | Type::Skolem(..) | Type::Var(_) => false,
