@@ -73,9 +73,10 @@ impl Cmp<'_> {
         }
     }
 
-    /// `a & b`, merged into one application of a common constructor where all arguments merge; of
-    /// an annotated type, its parent's with the other type, `(A & B)` of `A @x & B` and `B @x & A`
-    /// (dotty's `distributeAnd` both ways).
+    /// `a & b`, merged into one application of a common constructor where all arguments merge, and
+    /// with a wildcard among them where that gives a type below both; of an annotated type, its
+    /// parent's with the other type, `(A & B)` of `A @x & B` and `B @x & A` (dotty's
+    /// `distributeAnd` both ways).
     fn and_type(&mut self, a: TypeId, b: TypeId) -> TypeId {
         if let (Some((c1, args1)), Some((c2, args2))) = (self.u.applied(a), self.u.applied(b))
             && let (args1, args2) = (args1.to_vec(), args2.to_vec())
@@ -86,7 +87,11 @@ impl Cmp<'_> {
             let args: Option<Vec<TypeId>> =
                 (0..args1.len()).map(|i| self.glb_arg(args1[i], args2[i], variances[i])).collect();
             if let Some(args) = args {
-                return self.u.intern_applied(c1, &args);
+                let wildcards = args1.iter().chain(&args2).any(|&x| self.arg_bounds(x).is_some());
+                let merged = self.u.intern_applied(c1, &args);
+                if !wildcards || self.recur_frozen(merged, a) && self.recur_frozen(merged, b) {
+                    return merged;
+                }
             }
         }
         match (*self.u.ty(a), *self.u.ty(b)) {
