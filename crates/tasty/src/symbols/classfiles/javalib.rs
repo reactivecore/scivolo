@@ -1,5 +1,5 @@
 //! The members of a JDK class file that the library's class of the same name lacks, entered into
-//! that class (ADR 0108).
+//! that class (ADR 0107).
 
 use super::super::{Kind, SymbolId, Universe};
 use super::class::{Owners, member};

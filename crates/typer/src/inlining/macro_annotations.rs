@@ -3,7 +3,9 @@
 //   compiler/src/dotty/tools/dotc/transform/Inlining.scala
 //! Macro annotations: each definition of a statement list that an annotation extending
 //! `scala.annotation.MacroAnnotation` is on, replaced by the definitions its `transform` returns,
-//! and its companion by the one returned (dotty's `MacroAnnotations.expandAnnotations`).
+//! and its companion by the one returned (dotty's `MacroAnnotations.expandAnnotations`). The
+//! inlining expands a list before its children, so the definitions returned are inlined like the
+//! others and not expanded again; annotations apply last first.
 
 use super::macro_definitions::is_definition;
 use super::macros::{AnnotationCall, Expanded, MacroError};

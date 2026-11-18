@@ -19,7 +19,12 @@ backend may be added later, with annotations of its own (`@JSExport`, `@native`,
   checks every definition of a unit against it before its phases run, so an annotation it does not
   implement is refused, never ignored. The JVM backend's are in `crates/jvm/src/codegen`
   (`annotation_holders.rs`, `annotation_values.rs`, `java_annotations.rs`).
+- `@static` follows the same split: the namer keeps only dotty's `CheckStatic` checks, and what a
+  static member becomes is the lowering's (`phases/static_members.rs`, `static_values.rs`), as
+  dotty's `MoveStatics` and Scala Native's fields of the object differ by backend.
 - A new backend adds its own handling in its code generator; the typer does not change.
+- **Not taken:** a table in the typer of the annotations and `@static` shapes a backend refuses,
+  the earlier state, which puts each backend's limits into the frontend.
 
 ## Consequences
 - `just typer-report` types files with Native annotations that it refused before; the refusal

@@ -33,32 +33,9 @@ The typer has no VM; scripts created theirs after compiling; Immix allows one VM
   a hole), and run the term-hole closures themselves, so natives never call back into Scala.
   Every other member throws `Unsupported(<member>)`. The natives reach the frontend through
   `vm::QuoteHost`, a trait object the VM holds only while a macro runs.
-- **Quote patterns** are matched by the typer (`inlining::quote_matcher`, dotty's
-  `QuoteMatcher.=?=` over the typed trees): the pattern's type bindings become type variables of
-  one constraint for every subtype check of the match, and are approximated after it; type
-  patterns `'[P]` the same way with `P` as the hole's type. Higher-order holes, method and type
-  definitions in patterns are refused by name.
-- **`quotes.reflect`** is the overlay's abstract `ReflectImpl` with the members macros such as
-  Circe's use (terms as `ExprImpl`s, `TypeRepr`s as `TypeImpl`s, symbols by number), each a
-  named operation the typer runs (`inlining::Reflect`). `reflect`'s getter and the `given`
-  method objects are allocated by a native without a constructor, since the traits' other
-  members stay unimplemented; calling one is a VM error naming the member, which refuses the
-  expansion.
-- **Symbol flags** are the TASTy modifier bits as dotty's `TreeUnpickler` reads them, with a few
-  bits for flags from the kind (`Method`, `Package`, `Param`) or the file (`Scala2x`); flags TASTy
-  does not carry (`Deferred`, `ParamAccessor`, `NoInits`) or dotty sets while typing
-  (`StableRealizable`) are refused by name. dotty's symbols the
-  universe lacks are made per expansion and entered in no scope: the splice's owner `macro`
-  (`Splicer.splice`) and the empty package, owner of the root's definitions.
-- **Term extractors** read a tree through one host operation, its kind and the numbers of its
-  children in the extractor's order; the overlay's `TypeTest`s and `unapply`s are written over
-  it. Trees a macro builds take the expansion's span (dotty's `withDefaultPos`), and a hole
-  filled with a tree of the call's source takes the hole's span (`PickledQuotes.spliceTerms`).
-- **`report`**: errors are recorded on the host with their spans and reported for the expansion
-  (`errorAndAbort` throws `StopMacroExpansion` after recording); warnings and infos are refused.
-  Type checks (`=:=`, `<:<`, `isExprOf`) run without type variables; a `false` on types the
-  universe may not decide (type variables, wildcards, match types, unresolved references) is
-  refused.
+- **`quotes.reflect`** is the overlay's abstract `ReflectImpl`, its members named operations the
+  typer runs (`inlining::Reflect`); quote patterns are matched by the typer
+  (`inlining::quote_matcher`).
 - **Lifetime of the typer's state.** The typer lends its universe, trees and names to the
   expansion (`typer::inlining::Macros`); the `macros` crate moves them into the `QuoteHost`
   for the run and back afterwards, as the typer lends them to its own implicit searches.

@@ -2,7 +2,9 @@
 //   compiler/src/dotty/tools/dotc/transform/MoveStatics.scala
 //! `@static` values of an object as Scala Native emulates static fields: fields of the object
 //! without initializers, set by a `<clinit>` of the companion class, their setters static methods
-//! of the companion (dotty's `MoveStatics` for values).
+//! of the companion (dotty's `MoveStatics` for values). For Scala Native the `<clinit>` is
+//! positioned at the first initial value, or at the companion's first statement if that comes
+//! before it and the companion has lazy values.
 
 use crate::definitions::symbol;
 use crate::symbols::has;

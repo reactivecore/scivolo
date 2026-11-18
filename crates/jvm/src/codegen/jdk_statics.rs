@@ -1,4 +1,4 @@
-//! The JDK classes' static members that javalib's objects stand for (ADR 0103, 0106).
+//! The JDK classes' static members that javalib's objects stand for (ADR 0106).
 
 use super::descriptors::{descriptor, internal, method_descriptor};
 use super::{Gen, unsupported};

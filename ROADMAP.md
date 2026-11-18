@@ -86,7 +86,7 @@ executables. A library macro runs from its NIR in the VM; its quotes are unpickl
 typer's trees. Macro libraries compile from source, their quotes pickled to TASTy as dotty does
 ([research 43](docs/research/43-pickle-quotes.md)). Typed-hole quote patterns and a
 `quotes.reflect` subset work; the rest of `Quotes` is refused by name. Macro annotations expand
-in the inlining (ADR 0039). Circe 0.14.10's `derives Codec.AsObject` and the com-lihaoyi
+in the inlining. Circe 0.14.10's `derives Codec.AsObject` and the com-lihaoyi
 libraries work (`just dotty-lower-report "" run-macros`).
 
 ## Phase 5 — precompiled code and wider reach
@@ -100,10 +100,10 @@ libraries work (`just dotty-lower-report "" run-macros`).
   [research 46](docs/research/46-jvm-backend.md)): `scivolo-jvm` writes class version 61 with
   stack map frames, TASTy per top-level class
   ([ADR 0105](docs/adr/0105-jvm-tasty-from-the-typer.md)) and jars scala-cli compiles against;
-  JDK classes and members javalib lacks come from the JDK's class files (ADR 0106–0108). dotty's
+  JDK classes and members javalib lacks come from the JDK's class files (ADR 0106, 0107). dotty's
   `tests/run`, `tests/run-macros` (macros run from a Scala Native build, ADR 0112) and
   `tests/programs` on the JVM: docs/conformance.md. Open:
-  - what ADR 0107 and 0108 do not enter: nested and annotation classes, `sun.*`;
+  - what ADR 0107 does not enter;
   - the crash and JVM refusals listed in docs/conformance.md;
   - TASTy as dotty's: type sharing, positions, the trees ADR 0105 refuses;
   - JVM jars on the classpath (`--dep`, scalac's class files) through the class file reader;

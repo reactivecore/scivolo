@@ -18,6 +18,7 @@ runs in `Units::finish`, but the port of `SyntheticMembers` runs in the lowering
   class gets a member twice; it skips the mirror parent of a class that has one only in that
   second run, as the first adds it again to a companion that extends a mirror itself, as dotty does.
 - Fresh names the pass takes follow dotty's order: PostTyper, then Inlining, then PostInlining.
+- **Not taken:** moving the port of `SyntheticMembers` into the typer crate.
 
 ## Consequences
 - Macros, `declarations` and NIR agree on the members of a class; research 44 §5 is the plan.
