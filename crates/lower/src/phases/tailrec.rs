@@ -2,7 +2,10 @@
 //   compiler/src/dotty/tools/dotc/transform/TailRec.scala
 //! dotty's `TailRec`: a method that cannot be overridden and calls itself in tail position
 //! becomes a loop, `{ var p$tailLocal1 = p; while true do tailLabel1: { return rhs } }`, its
-//! tail calls assignments of the variables and a jump to the label.
+//! tail calls assignments of the variables and a jump to the label. `name_vars`, before
+//! `lambda_lift`, makes local methods loops and names the variables of members, which the methods
+//! and classes nested in them read and capture by value; `transform` makes the members loops
+//! after `lambda_lift` and erasure.
 
 use super::lazy_trees::{block, local, return_, val_def};
 use super::local_free::{enclosing_class, is_term};
