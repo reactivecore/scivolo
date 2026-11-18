@@ -4,6 +4,7 @@
 //! Classes the compiler defines itself or erases specially, and the erasure of constants.
 
 use super::Erased;
+use crate::Universe;
 use crate::defn::OBJECT;
 
 /// The primitive value classes (dotty's `ScalaValueClasses`), `Unit` last.
@@ -43,6 +44,14 @@ pub fn special(full: &str) -> Option<Erased> {
         "scala.Tuple" | "scala.NonEmptyTuple" => Erased::Class("scala.Product".into()),
         _ => return function(full),
     })
+}
+
+impl Universe {
+    /// Determines the erasure of class `full` if it is special; with a JDK, Scala Native's
+    /// `RawPtr` and `RawSize` are ordinary classes.
+    pub fn special_class(&self, full: &str) -> Option<Erased> {
+        special(full).filter(|e| !(self.has_jdk() && matches!(e, Erased::Prim('R' | 'w'))))
+    }
 }
 
 /// `FunctionN`, `ContextFunctionN` and their `Impure` forms: `FunctionN`, or `FunctionXXL` above

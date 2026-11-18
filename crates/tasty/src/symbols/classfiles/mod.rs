@@ -35,6 +35,11 @@ impl Universe {
         self.class_file_misses.clear();
     }
 
+    /// Tells whether `set_jdk` gave a JDK, which the JVM backend does.
+    pub fn has_jdk(&self) -> bool {
+        self.jdk.is_some()
+    }
+
     /// The JDK `set_jdk` gave, if any.
     pub fn jdk_mut(&mut self) -> Option<&mut classfile::Jdk> {
         self.jdk.as_mut()
