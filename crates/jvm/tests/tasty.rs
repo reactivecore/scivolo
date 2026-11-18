@@ -113,6 +113,10 @@ const DOTTY_TASTY: &[(&str, &[&str])] = &[
     ("librarycaptures", &["scala/probe/Appending", "scala/probe/LibCaptures"]),
     ("thiscaptures", &["Node", "Plain", "Ops", "Ser"]),
     ("depsets", &["DepSets", "Slide"]),
+    ("wildcardmembers", &["WildcardMembers"]),
+    ("newarrays", &["NewArrays"]),
+    ("anymembers", &["AnyMembers"]),
+    ("inheritedresults", &["InheritedResults"]),
 ];
 
 /// The trees, positions and flag attributes of the classes of `DOTTY_TASTY` are dotty's: the
@@ -134,8 +138,12 @@ const DOTTY_TASTY: &[(&str, &[&str])] = &[
 /// synthesized case class members refer to package members through the package's `this`, and
 /// numeric widenings their companion through the prefix of the widened type; a type lambda
 /// written as a wildcard's bound pickles without variances; a type with context bounds keeps its
-/// `@WitnessNames` annotation. Needs a JDK (java on
-/// the PATH), as dotty's did.
+/// `@WitnessNames` annotation; a member seen through a subclass's wildcard argument has the
+/// wildcard's bound where the parameter is variant (wildcardmembers.scala), `new Array` the
+/// constructor signature ending in `Object` (newarrays.scala), the members of `Any` refer to
+/// classes through their package's `this` (anymembers.scala), and an inherited result type comes
+/// from the parents' base types intersected in order (inheritedresults.scala). Needs a JDK (java
+/// on the PATH), as dotty's did.
 #[test]
 fn probes_pickle_as_dotty_s() {
     if Command::new("java").arg("-version").output().is_err() {

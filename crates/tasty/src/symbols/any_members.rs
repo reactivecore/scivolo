@@ -103,10 +103,14 @@ pub fn enter(u: &mut Universe, any: SymbolId, object: SymbolId) {
     }
 }
 
-/// A reference to class `name` of package `pkg`, resolved when used.
+/// A reference to class `name` of package `pkg` through the package's `this` (dotty's `typeRef`),
+/// resolved when used.
 pub fn class_type(u: &mut Universe, pkg: &str, name: &str) -> TypeId {
     let prefix = match u.package(pkg) {
-        Some(p) => u.types.intern(Type::Package(p)),
+        Some(p) => {
+            let package = u.types.intern(Type::Package(p));
+            u.types.intern(Type::This(package))
+        }
         None => {
             let pkg = u.types.intern_name(pkg);
             u.types.intern(Type::PackageName(pkg))

@@ -174,6 +174,7 @@ impl Universe {
         match *self.ty(t) {
             Type::Package(pkg) => Some((self.full_name(pkg), false)),
             Type::PackageName(pkg) => Some((self.name(pkg).to_owned(), false)),
+            Type::This(c) if matches!(self.ty(c), Type::Package(_)) => self.path_name(c),
             Type::TermRef(p, n) => {
                 let (path, in_class) = self.path_name(p)?;
                 let sep = if in_class { '$' } else { '.' };

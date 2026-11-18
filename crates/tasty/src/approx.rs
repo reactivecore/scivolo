@@ -2,7 +2,7 @@
 //   compiler/src/dotty/tools/dotc/core/Types.scala
 //! Approximations of mapped types by ranges (dotty's `ApproximatingTypeMap`).
 
-use tasty::{ANY, NOTHING, NameId, Type, TypeId, Universe};
+use crate::{ANY, NOTHING, NameId, Type, TypeId, Universe};
 
 /// A mapped type, or the range of types between a lower and an upper bound.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]

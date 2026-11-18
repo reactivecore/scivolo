@@ -49,6 +49,7 @@ mod runtime_stubs;
 mod same_run;
 mod seen;
 mod selves;
+mod subst_approx;
 mod symbol;
 mod table;
 mod type_params;

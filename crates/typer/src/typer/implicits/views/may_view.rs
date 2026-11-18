@@ -74,7 +74,10 @@ impl TypeOps<'_> {
         }
         let tycon = self.u.applied(param).map_or(param, |(tycon, _)| tycon);
         if let Some((p, n)) = self.u.type_ref(tycon)
-            && matches!(self.u.ty(p), Type::Package(_) | Type::PackageName(_))
+            && matches!(
+                self.u.ty(crate::defn::package_ref(self.u, p)),
+                Type::Package(_) | Type::PackageName(_)
+            )
             && self.u.resolve(p, n, true).is_none()
         {
             return false;
@@ -140,7 +143,7 @@ impl TypeOps<'_> {
         let tycon = self.u.applied(t).map_or(t, |(tycon, _)| tycon);
         let (prefix, name) = self.u.type_ref(tycon)?;
         let name = self.u.name(name);
-        match *self.u.ty(prefix) {
+        match *self.u.ty(crate::defn::package_ref(self.u, prefix)) {
             Type::Package(p) => Some(format!("{}.{name}", self.u.full_name(p))),
             Type::PackageName(p) => Some(format!("{}.{name}", self.u.name(p))),
             _ => None,

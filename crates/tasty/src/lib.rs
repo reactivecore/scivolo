@@ -2,6 +2,7 @@
 //! models a library's symbols and types from them.
 #![allow(non_upper_case_globals)]
 
+pub mod approx;
 mod comments;
 mod cursor;
 mod erasure;

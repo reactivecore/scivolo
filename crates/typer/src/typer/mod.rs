@@ -14,7 +14,7 @@ mod annotated;
 mod anon_classes;
 mod apply;
 mod apply_insertion;
-pub mod approx;
+pub use tasty::approx;
 mod ascriptions;
 mod assign;
 mod auto_apply;

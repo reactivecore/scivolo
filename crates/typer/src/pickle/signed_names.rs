@@ -5,7 +5,7 @@
 
 use super::names::package_name;
 use super::{Refusal, TreePickler};
-use crate::signatures::{params_sig, result_sig};
+use crate::signatures::{constructor_results_in_class, params_sig, result_sig};
 use crate::tpd::print::symbols::full_name;
 use tasty::tags::OBJECT;
 use tasty::write::{Name, ParamSig};
@@ -144,9 +144,7 @@ impl TreePickler<'_> {
             (None, None) => orig.clone(),
         };
         let class = self.u.symbol(s).owner.filter(|_| self.u.is_constructor(s));
-        let named =
-            class.filter(|&c| self.u.underlying(c).is_none() && full_name(self.u, c) != crate::defn::PAIR);
-        let result = match named {
+        let result = match class.filter(|&c| constructor_results_in_class(self.u, c)) {
             Some(class) => Box::new(class_sig_name(self.u, class)),
             None => Box::new(sig_type_name(self.u, &result)?),
         };

@@ -120,13 +120,20 @@ impl Universe {
         if !self.derives_from(s, base) || self.is_null_without(s, base) {
             return None;
         }
+        if !args.is_empty() {
+            let unapplied = self.base_type_within(tycon, base, depth)?;
+            return Some(self.subst_approx(unapplied, s, &args));
+        }
         let join = self.parents_disagree(s, base);
         let mut joined = None;
-        for parent in self.parents(s).into_iter().rev() {
+        let mut parents = self.parents(s);
+        if !join {
+            parents.reverse();
+        }
+        for parent in parents {
             if !self.class_symbol(parent).is_some_and(|p| self.derives_from(p, base)) {
                 continue;
             }
-            let parent = self.subst_class_params(parent, s, &args);
             let parent = match (prefix, self.symbol(s).owner) {
                 (Some(p), Some(o)) if self.symbol(o).kind == Kind::Class => self.as_seen_from(parent, p, o),
                 _ => parent,
@@ -136,7 +143,7 @@ impl Universe {
                 return Some(found);
             }
             joined = Some(match joined {
-                Some(j) => self.joined_base_type(base, j, found).unwrap_or(j),
+                Some(j) => self.merged_bases(t, base, (j, found), true)?,
                 None => found,
             });
         }
@@ -185,16 +192,5 @@ impl Universe {
         self.symbol(s).kind == Kind::Type
             && self.given_self_type(c).is_some()
             && owner.is_some_and(|o| self.symbol(o).kind == Kind::Class && !self.derives_from(c, o))
-    }
-
-    /// `t` with the type parameters of class `c` replaced by `args`.
-    fn subst_class_params(&mut self, t: TypeId, c: SymbolId, args: &[TypeId]) -> TypeId {
-        if args.is_empty() {
-            return t;
-        }
-        self.map_type(t, &mut |u, x| match u.class_param(x) {
-            Some((owner, i)) if owner == c => args.get(i).copied(),
-            _ => None,
-        })
     }
 }
