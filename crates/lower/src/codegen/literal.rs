@@ -30,17 +30,7 @@ impl Gen<'_, '_> {
 
     /// The runtime class of arrays of `elem` (`Type.toArrayClass`).
     pub fn array_class(&mut self, elem: TypeId) -> GlobalId {
-        let simple = match self.pool.ty(elem) {
-            Type::Bool => "Boolean",
-            Type::Char => "Char",
-            Type::Byte => "Byte",
-            Type::Short => "Short",
-            Type::Int => "Int",
-            Type::Long => "Long",
-            Type::Float => "Float",
-            Type::Double => "Double",
-            _ => "Object",
-        };
+        let simple = primitive_name(self.pool.ty(elem)).unwrap_or("Object");
         self.pool.top(&format!("scala.scalanative.runtime.{simple}Array"))
     }
 
@@ -73,4 +63,19 @@ impl Gen<'_, '_> {
             _ => unsupported(self.l.tpd.span(t), "classOf of a type that is not a class"),
         }
     }
+}
+
+/// The Scala name of primitive type `t`, `Unit` left out.
+pub fn primitive_name(t: &Type) -> Option<&'static str> {
+    Some(match t {
+        Type::Bool => "Boolean",
+        Type::Char => "Char",
+        Type::Byte => "Byte",
+        Type::Short => "Short",
+        Type::Int => "Int",
+        Type::Long => "Long",
+        Type::Float => "Float",
+        Type::Double => "Double",
+        _ => return None,
+    })
 }

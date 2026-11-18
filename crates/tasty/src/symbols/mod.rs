@@ -121,8 +121,6 @@ pub struct Universe {
     deferred: FxHashSet<SymbolId>,
     /// The classes defined outside TASTy that have initialization code.
     with_inits: FxHashSet<SymbolId>,
-    /// Whether a unit replaces classes of the Scala library.
-    builds_scala_library: bool,
     /// The classes defined outside TASTy in a unit that behaves as the Scala 2 library.
     scala2_classes: FxHashSet<SymbolId>,
     /// The methods lifted out of terms into classes.

@@ -309,17 +309,51 @@ fn extern_vararg_declarations() {
 }
 
 #[test]
-fn replacing_a_class_of_package_scala_outside_the_standard_library_keeps_its_traits_uninitialized() {
+fn replacing_a_class_of_package_scala_keeps_the_library_traits_uninitialized() {
     let Some(mut jars) = jars() else { return };
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     jars.push(root.join("ref/libs/test-interface_native0.5_3-0.5.12.jar"));
-    let replacing = SourceFile::new(
-        "annotation.scala",
+    let replacements = [
         "package scala.scalajs.reflect\npackage object annotation { type T = Int }",
+        "package scala.util.hashing\nclass ByteswapHashing[T]",
+    ];
+    for replacing in replacements {
+        let replacing = SourceFile::new("replacing.scala", replacing);
+        let case_class = SourceFile::new("c.scala", "case class C(x: Int)");
+        let dump = dump(&jars, &[replacing, case_class], "C");
+        assert!(!dump.contains("@scala.Product::$init$"), "{dump}");
+    }
+}
+
+#[test]
+fn a_static_object_assigned_to_a_captured_variable_is_loaded_at_the_end_of_the_left_side() {
+    let Some(jars) = jars() else { return };
+    let source = SourceFile::new(
+        "t.scala",
+        "object R { class V; object A extends V }\n\
+         object T { def f(): Unit = { var v: R.V = null; def g() = { v = R.A }; g() } }",
     );
-    let case_class = SourceFile::new("c.scala", "case class C(x: Int)");
-    let dump = dump(&jars, &[replacing, case_class], "C");
-    assert!(!dump.contains("@scala.Product::$init$"), "{dump}");
+    let dump = dump(&jars, &[source], "T$");
+    let column = "object T { def f(): Unit = { var v: R.V = null; def g() = { v".len();
+    assert!(dump.contains(&format!("t.scala:1:{column}\n")), "{dump}");
+}
+
+#[test]
+fn reflective_instantiation_refuses_constructor_parameters_without_a_class() {
+    let Some(jars) = jars() else { return };
+    for param in ["Nothing", "Null", "scala.scalanative.runtime.RawPtr", "scala.scalanative.runtime.RawSize"]
+    {
+        let source = SourceFile::new(
+            "p.scala",
+            format!(
+                "@scala.scalanative.reflect.annotation.EnableReflectiveInstantiation trait P\n\
+                 class C(x: {param}) extends P"
+            ),
+        );
+        let mut u = Universe::open(&jars).unwrap();
+        let refusal = lower::compile(&mut u, &source, &[]).err().expect("a refusal").what;
+        assert!(refusal.contains("reflective instantiation"), "{refusal}");
+    }
 }
 
 #[test]

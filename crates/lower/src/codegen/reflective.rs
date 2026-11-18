@@ -5,6 +5,7 @@
 //! passes.
 
 use super::Gen;
+use super::literal::primitive_name;
 use crate::phases::casts::class_named;
 use crate::{Result, unsupported};
 use names::nme;
@@ -32,11 +33,12 @@ struct Constructor {
 }
 
 impl Gen<'_, '_> {
-    /// Generates what registers class `sym` of definition span `span` with `Reflect` if a base
-    /// class of it is `@EnableReflectiveInstantiation` (nscplugin's `genReflectiveInstantiation`):
-    /// a top-level object by a loader function, a concrete class that is not local by an
-    /// instantiating function per public constructor, in `<clinit>`. Refuses a constructor taking
-    /// a pointer, which nscplugin fails on.
+    /// Generates what registers class `sym` of definition `td` with `Reflect` if a base class of
+    /// it is `@EnableReflectiveInstantiation` (nscplugin's `genReflectiveInstantiation`): an object
+    /// that is not local by a loader function, a concrete class that is not local by an
+    /// instantiating function per public constructor, in `<clinit>`. Refuses a public constructor
+    /// with a parameter of type `Nothing`, `Null`, `RawPtr` or `RawSize`, which have no runtime
+    /// class and which nscplugin fails on.
     pub fn gen_reflective_instantiation(&mut self, td: TNodeId, sym: SymbolId) -> Result<()> {
         let span = self.l.tpd.span(td);
         let bases = self.l.u.linearization(sym);
@@ -109,8 +111,8 @@ impl Gen<'_, '_> {
                 continue;
             }
             let params = self.param_types(c);
-            if params.iter().any(|&p| matches!(self.pool.ty(p), Type::Ptr | Type::Size)) {
-                return unsupported(span, "reflective instantiation through a pointer parameter");
+            if !params.iter().all(|&p| has_param_class(self.pool.ty(p))) {
+                return unsupported(span, "reflective instantiation through a parameter without a class");
             }
             let declared = primary.filter(|&(p, _)| p == c).map(|(_, at)| at);
             let at = declared.or(self.spans.get(&c).copied()).unwrap_or(span);
@@ -254,21 +256,14 @@ impl Gen<'_, '_> {
         alloc
     }
 
-    /// The class standing for constructor parameter type `t` (`Type.typeToName`).
+    /// The class standing for constructor parameter type `t`, one of `has_param_class`
+    /// (`Type.typeToName`).
     fn param_class(&mut self, t: TypeId) -> GlobalId {
         let primitive = match *self.pool.ty(t) {
             Type::Ref { name, .. } if self.pool.top_name(name) == "scala.runtime.BoxedUnit" => "Unit",
             Type::Ref { name, .. } => return name,
             Type::Array { elem, .. } => return self.array_class(elem),
-            Type::Bool => "Boolean",
-            Type::Char => "Char",
-            Type::Byte => "Byte",
-            Type::Short => "Short",
-            Type::Int => "Int",
-            Type::Long => "Long",
-            Type::Float => "Float",
-            Type::Double => "Double",
-            ref other => unreachable!("a constructor parameter of type {other:?}"),
+            ref other => primitive_name(other).expect("a parameter type with a class"),
         };
         self.pool.top(&format!("scala.scalanative.runtime.Primitive{primitive}"))
     }
@@ -294,4 +289,9 @@ impl Gen<'_, '_> {
             kind: DefnKind::Define { ty, body },
         });
     }
+}
+
+/// Whether constructor parameter type `t` has a runtime class to register.
+fn has_param_class(t: &Type) -> bool {
+    matches!(t, Type::Ref { .. } | Type::Array { .. }) || primitive_name(t).is_some()
 }
