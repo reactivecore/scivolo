@@ -117,7 +117,7 @@ impl Inlining<'_> {
         let outer = std::mem::take(&mut self.outer_implicits);
         let fits_outer = self.may_fit(&outer, pt);
         self.outer_implicits = outer;
-        if self.local_implicits || fits_outer || self.scopes.iter().any(|s| matches!(s, Scope::Constructor)) {
+        if self.local_implicits || fits_outer {
             return Err((at, "implicit search in an inline body with local implicits"));
         }
         let mut ctx = ctx;
