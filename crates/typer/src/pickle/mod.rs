@@ -144,8 +144,6 @@ pub struct TreePickler<'a> {
     /// The selector of the match whose case is pickled next, and of the pattern pickled now.
     scrutinee: Option<TNodeId>,
     pattern_selector: Option<TNodeId>,
-    /// The classes of a capture-checked file whose self type has a capture set.
-    capturing_selves: FxHashSet<SymbolId>,
     /// The annotation trees pickled in types, in order (dotty's `typeAnnots`).
     type_annots: Vec<TNodeId>,
     root: TNodeId,
@@ -264,7 +262,6 @@ fn pickle_trees<'a>(
         member_tpts: Vec::new(),
         scrutinee: None,
         pattern_selector: None,
-        capturing_selves: FxHashSet::default(),
         type_annots: Vec::new(),
         root,
         origins: None,

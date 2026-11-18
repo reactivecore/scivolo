@@ -113,6 +113,7 @@ const DOTTY_TASTY: &[(&str, &[&str])] = &[
     ("librarycaptures", &["scala/probe/Appending", "scala/probe/LibCaptures"]),
     ("thiscaptures", &["Node", "Plain", "Ops", "Ser"]),
     ("depsets", &["DepSets", "Slide"]),
+    ("selfmatches", &["Ops"]),
 ];
 
 /// The trees, positions and flag attributes of the classes of `DOTTY_TASTY` are dotty's: the
@@ -127,7 +128,8 @@ const DOTTY_TASTY: &[(&str, &[&str])] = &[
 /// the super accessor's parameters, the type of `this` its class's self type with the self
 /// type's capture set (thiscaptures.scala), a typed pattern's or `new`'s written capture set
 /// naming a method's or class's parameter as it is, its pattern variable's emptied
-/// (depsets.scala); annotated types take the annotation tree of their own
+/// (depsets.scala), a match on `this` has its class's self type with the capture set as selector
+/// type (selfmatches.scala); annotated types take the annotation tree of their own
 /// origin in match selectors and patterns, inferred types, super accessors and inline accessors,
 /// in super accessors with their class's type parameters seen from the accessor's class; secondary constructors have their own type parameters and parameters passed on to the
 /// superclass are its parameters' aliases; `@BeanProperty` values get their bean accessors;
@@ -233,8 +235,7 @@ fn library_annotations_pickle_as_dotty_s() {
 /// A dependent function type whose function type parent dotty gives the capture sets of its
 /// refinement is refused, and so is the inferred function type of a closure whose parameters have
 /// capture sets (`@declared` in dotty's) or whose result's capture sets name its parameter (a
-/// dependent function type in dotty's), and a match on `this` of a class whose self type is its
-/// own with a capture set, which dotty's patterns keep.
+/// dependent function type in dotty's).
 #[test]
 fn untold_capture_sets_are_refused() {
     let out = root().join("tmp/jvm-test/untoldcaptures");
@@ -257,11 +258,6 @@ fn untold_capture_sets_are_refused() {
             "dependentclosure",
             "object F:\n  def g() =\n    val f = (x: Coll) => x.label\n    1\n",
             "a closure whose result's capture sets name its parameters",
-        ),
-        (
-            "selfmatch",
-            "trait G[+A]:\n  self: G[A]^ =>\n  def m(): Int = self match\n    case s: Product => 1\n    case _ => 2\n",
-            "a match on `this` of a class whose self type has a capture set",
         ),
     ];
     for (name, body, refusal) in cases {

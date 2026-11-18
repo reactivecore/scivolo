@@ -69,9 +69,13 @@ impl Typer<'_> {
     }
 
     /// `t` widened as a match selector: a singleton, annotated or not, to its underlying type
-    /// without annotations (dotty's `widen`).
+    /// without annotations (dotty's `widen`), `this` of a capture-checked file to its class's self
+    /// type with the self type's capture set.
     pub fn widened_selector(&mut self, t: TypeId) -> TypeId {
         let stripped = self.stripped(t);
+        if let (true, &Type::This(c)) = (self.u.keeps_captures, self.u.ty(stripped)) {
+            return self.widened_this(stripped, c);
+        }
         if self.is_singleton(stripped) { self.u.widen(stripped) } else { t }
     }
 

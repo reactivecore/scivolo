@@ -145,16 +145,6 @@ impl TreePickler<'_> {
     /// The self definition `s` of a template.
     fn self_def(&mut self, s: TNodeId) -> Result<(), Refusal> {
         let T::ValDef { name, tpt, .. } = *self.tpd.tree(s) else { return Err("a self of another kind") };
-        let class = self.tpd.sym(s).and_then(|s| self.u.symbol(s).owner);
-        let captures = self
-            .tpd
-            .get(tpt)
-            .tpe
-            .and_then(|t| self.u.annotated(t))
-            .is_some_and(|(_, a)| self.u.is_capture_set(a));
-        if let Some(class) = class.filter(|_| captures && self.capture_checked()) {
-            self.capturing_selves.insert(class);
-        }
         self.byte(SELFDEF);
         self.name(&Name::utf8(self.names.text(name.name)));
         self.tree(tpt)
