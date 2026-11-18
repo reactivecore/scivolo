@@ -71,8 +71,10 @@ A `pub` fn of 30+ lines or several cases also names its inputs, cases, effects, 
 and the dotty / Scala Native method it ports, in a Scala developer's words: cases by the
 Scala code they handle, refusals by the programs not supported, no restated code (gaps:
 `just doc-gaps`). The more an item is used, the more it is documented.
-Rationale goes in `docs/adr/`, one decision per file. A file with translated
-code starts with its license notice, which lists its upstream files:
+Rationale goes in `docs/adr/`, one decision per file. An ADR records a decision with its
+alternatives, not implementation details; an MR that changes an ADR also scans the others for
+ones no longer needed. A file with translated code starts with its license notice, which lists
+its upstream files:
 
 ```rust
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
