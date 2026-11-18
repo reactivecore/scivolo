@@ -16,8 +16,8 @@ use tasty::{Erased, Kind, SymbolId, Type, TypeId, Universe};
 impl OverrideChecks {
     /// Why the class, which is concrete, may not be defined, if it may not: an abstract term
     /// member of it or of a base class has no concrete member of the class matching it, as `f` in
-    /// `trait A { def f: Int }; class B extends A`. Once macro annotations `expanded`, the members
-    /// a macro made count as concrete.
+    /// `trait A { def f: Int }; class B extends A`; tracked members do not count. Once macro
+    /// annotations `expanded`, the members a macro made count as concrete.
     pub fn unimplemented(&self, t: &mut Typer<'_>, expanded: bool) -> Option<&'static str> {
         let bases = t.u.linearization(self.cls);
         let case = bases.iter().any(|&b| t.u.symbol(b).flags.has(CASE));

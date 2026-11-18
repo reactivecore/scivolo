@@ -9,6 +9,7 @@ use crate::symbols::has;
 use tasty::tags::{SYNTHETIC, TRACKED};
 use typer::tpd::{TNodeId, Tree};
 
+/// Removes the members of refined parent values from the templates of `classes`.
 pub fn transform(l: &mut Lower, classes: &[TNodeId]) {
     for &td in classes {
         let Tree::TypeDef { rhs, .. } = *l.tpd.tree(td) else { continue };
