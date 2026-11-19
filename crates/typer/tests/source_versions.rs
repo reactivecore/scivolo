@@ -68,6 +68,19 @@ fn inline_results_are_constrained_by_wildcards_below_3_4() {
 }
 
 #[test]
+fn legacy_constructs_are_errors_under_future_and_warnings_under_future_migration() {
+    let cases = [
+        ("object F { def inc(x: Int) = x + 1; val f = inc _ }", "eta-expansion is unnecessary"),
+        ("object F { val xs = List(2, 1).sorted(Ordering.Int) }", "provided with a `using` clause"),
+        ("object F { val Some(y) = Option(1) }", "is more specialized than"),
+    ];
+    for (text, error) in cases {
+        assert_eq!(typed(text, "future-migration"), Ok(()), "{text}");
+        assert!(typed(text, "future").is_err_and(|e| e.contains(error)), "{text}");
+    }
+}
+
+#[test]
 fn source_versions_but_3_0_migration() {
     for v in ["3.0", "3.1", "3.2", "3.2-migration", "3.9-migration", "future-migration", "future"] {
         assert_eq!(typed("object V { val x = 1 }", v), Ok(()), "{v}");

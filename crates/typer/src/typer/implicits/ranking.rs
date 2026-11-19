@@ -34,9 +34,11 @@ pub fn most_specific(t: &mut Typer<'_>, found: &[Candidate], ctx: Ctx) -> Option
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Scheme {
     /// Up to Scala 3.5, and between two old-style implicits: the more specific type wins, with
-    /// arguments of contravariant parameters compared as covariant ones; owners decide first.
+    /// arguments of contravariant parameters compared as covariant ones; a candidate whose owner
+    /// derives from the other's but whose type loses ranks neither above nor below.
     Intermediate,
-    /// From Scala 3.7: the more general type wins, a given beats an old-style implicit.
+    /// From Scala 3.7: the more general type wins, a given beats an old-style implicit; a
+    /// deriving owner wins over the type.
     New,
 }
 
