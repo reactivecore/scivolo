@@ -12,11 +12,12 @@ use tasty::{Binder, Const, Kind, NameId, SymbolId, Type, TypeId, constant};
 
 const STRUCTURE: &str = "Printer.TypeReprStructure of a type the frontend does not print";
 
-/// The text printed so far and the recursive types entered, numbered from 1 in order.
+/// The text printed so far and the recursive types entered with their numbers, from 1 in order,
+/// equal ones sharing one.
 #[derive(Default)]
 struct Structure {
     text: Printed,
-    recs: Vec<Binder>,
+    recs: Vec<(Binder, TypeId, usize)>,
 }
 
 impl Deref for Structure {
@@ -35,7 +36,7 @@ impl DerefMut for Structure {
 
 /// The number of the recursive type `binder` among those `out` entered.
 fn rec_id(out: &Structure, binder: Binder) -> Option<usize> {
-    out.recs.iter().position(|&b| b == binder).map(|i| i + 1)
+    out.recs.iter().find(|r| r.0 == binder).map(|r| r.2)
 }
 
 /// The `ThisType` of the package class named `name`.
@@ -117,10 +118,16 @@ impl Host {
             Type::Alias(a) => self.node(out, "TypeBounds", &[a, a], None)?,
             Type::ByName(u) => self.node(out, "ByNameType", &[u], None)?,
             Type::Rec(binder, underlying) => {
-                let id = rec_id(out, binder).unwrap_or_else(|| {
-                    out.recs.push(binder);
-                    out.recs.len()
-                });
+                let id = match rec_id(out, binder) {
+                    Some(id) => id,
+                    None => {
+                        let equal = out.recs.iter().find(|r| self.u.same_but_rec_binders(r.1, t));
+                        let id = equal
+                            .map_or_else(|| out.recs.iter().map(|r| r.2).max().unwrap_or(0) + 1, |r| r.2);
+                        out.recs.push((binder, t, id));
+                        id
+                    }
+                };
                 out.push_str(&format!("RecursiveType(rec{id} => "));
                 self.visit_type(underlying, out)?;
                 out.push(')');
