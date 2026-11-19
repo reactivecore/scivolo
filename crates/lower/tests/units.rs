@@ -549,6 +549,37 @@ fn scala_library_units_complete_the_aliases_library_classes_refer_to() {
 }
 
 #[test]
+fn tuples_are_pair_children_by_their_offsets_in_their_own_files() {
+    let Some(jars) = jars() else { return };
+    let pair = "package scala\nsealed trait Tuple extends Product\nsealed trait NonEmptyTuple extends Tuple\n\
+                sealed abstract class *:[+H, +T <: Tuple] extends NonEmptyTuple\nobject *:\n";
+    let tuple = |n: usize, header: &str| {
+        let params = (1..=n).map(|i| format!("+T{i}")).collect::<Vec<_>>().join(", ");
+        let fields = (1..=n).map(|i| format!("_{i}: T{i}")).collect::<Vec<_>>().join(", ");
+        let types = (1..=n).map(|i| format!("T{i}")).collect::<Vec<_>>().join(", ");
+        format!(
+            "package scala\n{header}final case class Tuple{n}[{params}]({fields}) extends Product{n}[{types}]\n"
+        )
+    };
+    let sources = [
+        SourceFile::new("Tuple.scala", pair),
+        SourceFile::new("Tuple20.scala", tuple(20, &"\n".repeat(50))),
+        SourceFile::new("Tuple21.scala", tuple(21, "")),
+    ];
+    let mut u = Universe::open(&jars).unwrap();
+    u.set_same_run_jar(0);
+    let (files, _) = lower::compile_sources(&mut u, &sources, Config::from_options(&[]), None)
+        .map_err(|r| r.what)
+        .unwrap();
+    let pair = files.iter().find(|f| f.name == "scala.$times$colon$").expect("`*:`'s companion");
+    let (mut caches, mut pool) = (nir::Caches::default(), nir::Pool::default());
+    let defs = nir::Reader::new(&pair.bytes, &mut caches, &mut pool).unwrap().all().unwrap();
+    let shown: String = defs.iter().map(|d| nir::show::defn_with_debug_info(&pool, d)).collect();
+    let at = |n: usize| shown.find(&format!("is[@scala.Tuple{n}]")).unwrap_or_else(|| panic!("{shown}"));
+    assert!(at(21) < at(20), "{shown}");
+}
+
+#[test]
 fn methods_returning_an_object_are_stable_paths() {
     let Some(jars) = jars() else { return };
     let a = "package p\nobject A { object N { class Q }; @inline def M = N }\n";
