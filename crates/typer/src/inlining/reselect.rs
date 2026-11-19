@@ -23,8 +23,8 @@ impl Inlining<'_> {
     }
 
     /// The member named `name` that selection `t` from `qualifier` finds in the class of the
-    /// qualifier's type before the owner of the selected symbol with the selected symbol's
-    /// signature, abstract ones only for an abstract selected symbol: none if there is none, `Err`
+    /// qualifier's type before the owner of the selected symbol, a type for a type, a term with
+    /// the selected symbol's signature for a term, abstract ones only for an abstract selected symbol: none if there is none, `Err`
     /// if there are several or it is private.
     fn reselected(&mut self, t: TNodeId, qualifier: TNodeId, name: String) -> Result<Option<SymbolId>, ()> {
         let (Some(sym), Some(q)) = (self.tpd.sym(t), self.tpd.get(qualifier).tpe) else { return Ok(None) };
@@ -40,10 +40,11 @@ impl Inlining<'_> {
             let site = crate::defn::type_ref(self.u, c);
             let same: Vec<SymbolId> = (decls.into_iter())
                 .filter(|&d| {
+                    let term = self.u.symbol(d).kind.is_term();
                     self.u.symbol(d).name == name
-                        && self.u.symbol(d).kind.is_term()
+                        && term == self.u.symbol(sym).kind.is_term()
                         && !(concrete && self.is_abstract(d))
-                        && self.u.matches(site, d, sym)
+                        && (!term || self.u.matches(site, d, sym))
                 })
                 .collect();
             let public = same.iter().all(|&d| !self.u.symbol(d).flags.has(PRIVATE));
@@ -79,6 +80,18 @@ impl Inlining<'_> {
             false => instantiate_poly(self.u, result, (binder, &names), &args, meth),
         };
         self.tpd.get_mut(t).tpe = Some(tpe);
+    }
+
+    /// Gives selection `t` from a qualifier of type `before` until retyped the local prefix of
+    /// `local_prefix`, if it has one.
+    pub fn reprefix(&mut self, t: TNodeId, before: Option<TypeId>) {
+        if let Some(prefix) = before.and_then(|b| self.local_prefix(b))
+            && let Some(tpe) = self.tpd.get(t).tpe
+            && let Some((Some(_), s)) = self.u.sym_ref(tpe)
+        {
+            let prefix = self.u.revealed_opaque(prefix).unwrap_or(prefix);
+            self.tpd.get_mut(t).tpe = Some(self.u.intern_type(Type::Sym(Some(prefix), s)));
+        }
     }
 
     /// Whether member `s` has no body: deferred in the source or without a right-hand side in TASTy.
