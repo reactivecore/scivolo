@@ -78,7 +78,9 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
                     (false, s) if !l.tpd.span(stat).exists() && s.exists() => s.with_point(s.start()),
                     (false, _) => l.tpd.span(stat),
                 };
-                let lhs = l.field_ref(field, at);
+                let rhs_at = l.tpd.span(rhs);
+                let lhs =
+                    l.field_ref(field, if rhs_at.exists() { rhs_at.with_point(rhs_at.start()) } else { at });
                 let init = assign(l, lhs, rhs, at);
                 if super::lazy_vals::is_eager_field(l, field) { &mut eager } else { &mut inits }.push(init);
                 l.tpd.get_mut(stat).tree = Tree::ValDef { name, tpt, rhs: None };

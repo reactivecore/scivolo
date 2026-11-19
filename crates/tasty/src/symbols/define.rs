@@ -73,10 +73,14 @@ impl Universe {
         self.binders
     }
 
-    /// Sets the declared type of `sym`; replacing a different info drops the resolved references.
+    /// Sets the declared type of `sym`; replacing a different info drops the resolved references,
+    /// and the linearizations if `sym` is a type member, which a parent may refer to.
     pub fn set_info(&mut self, sym: SymbolId, info: TypeId) {
         self.nullified_infos.remove(&sym);
         if self.infos.insert(sym, info).is_some_and(|old| old != info) {
+            if self.symbol(sym).kind == Kind::Type {
+                self.linearizations.clear();
+            }
             self.changed();
         }
     }

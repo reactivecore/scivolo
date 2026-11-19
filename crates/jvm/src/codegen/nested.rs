@@ -178,8 +178,9 @@ impl Gen<'_, '_> {
             let cuts = rest.match_indices('$').map(|(i, _)| i).chain([rest.len()]);
             for cut in cuts.collect::<Vec<_>>() {
                 let seg = &rest[..cut];
-                let mut cands = self.l.u.decls_named(owner, seg);
-                cands.extend(self.l.u.decls_named(owner, &tasty::module_class_name(seg)));
+                let decoded = tasty::decode(seg);
+                let mut cands = self.l.u.decls_named(owner, &decoded);
+                cands.extend(self.l.u.decls_named(owner, &tasty::module_class_name(&decoded)));
                 let decls = self.l.u.symbol(owner).decls.iter().copied();
                 let target = |t: String| t.strip_suffix('$').unwrap_or(&t) == seg;
                 cands.extend(decls.filter(|&d| self.l.u.class_target(d).is_some_and(target)));

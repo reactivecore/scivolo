@@ -14,7 +14,7 @@ use tasty::{Kind, SymbolId, Type, TypeId};
 
 /// Why a method among parameterless alternatives whose results have `apply` methods, as
 /// `def f(x: Int)` beside `def f: Int => Int`, is not resolved.
-const RESULT_APPLY: &str = "overloaded method whose result has an apply method";
+pub const RESULT_APPLY: &str = "overloaded method whose result has an apply method";
 
 impl Resolution {
     /// Chooses the alternative of `syms` that the expected type selects: the only one, the only
@@ -33,9 +33,8 @@ impl Resolution {
         }
         match self.pt {
             Pt::PolyFun(poly) => self.choose_poly(t, syms, poly),
-            Pt::Any | Pt::Type(_) => Ok(self.parameterless_alternative(t, syms)?),
+            Pt::Any | Pt::Type(_) | Pt::AnyFunction => Ok(self.parameterless_alternative(t, syms)?),
             Pt::Fun(proto) => self.choose_applied(t, syms, proto),
-            Pt::AnyFunction => Err("overloaded reference".into()),
         }
     }
 
@@ -85,6 +84,7 @@ impl Resolution {
         let chosen = match fitting.as_slice() {
             [s] => *s,
             [] if applies.is_empty() => return Err(NO_SIZE.into()),
+            [] if values.is_empty() => return self.result_apply_alternative(t, &methods, proto),
             [] => return Err(RESULT_APPLY.into()),
             _ => self.resolve_overloaded(t, &fitting, proto)?,
         };
@@ -140,7 +140,7 @@ fn by_size(
 
 /// Finds the `apply` members of the result of parameterless method type `info` whose first
 /// clause may take `n` arguments.
-fn result_applies(t: &mut Typer, info: TypeId, n: usize) -> Vec<ApplyMember> {
+pub fn result_applies(t: &mut Typer, info: TypeId, n: usize) -> Vec<ApplyMember> {
     let value = match *t.u.ty(info) {
         Type::Poly { result, .. } | Type::ByName(result) => result,
         _ => info,

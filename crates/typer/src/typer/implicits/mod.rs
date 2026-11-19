@@ -1,7 +1,7 @@
 //! Implicit search (dotty's `Implicits`, `Synthesizer`): implicit arguments, class tags, and
 //! implicit conversions.
 
-mod alt_types;
+pub(super) mod alt_types;
 mod as_good;
 mod attempts;
 pub(super) mod candidates;

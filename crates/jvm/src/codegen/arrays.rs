@@ -43,7 +43,7 @@ impl Gen<'_, '_> {
             return Ok(Some(1));
         }
         self.expr(b, array)?;
-        Ok(Some(match (name.as_str(), &args[..]) {
+        let slots = match (name.as_str(), &args[..]) {
             (nme::APPLY, &[i]) => {
                 self.operand(b, i, Kind::Int)?;
                 b.code.element(&elem, false);
@@ -60,7 +60,9 @@ impl Gen<'_, '_> {
                 1
             }
             _ => return unsupported(self.l.tpd.span(t), "array operations"),
-        }))
+        };
+        self.line(b, t);
+        Ok(Some(slots))
     }
 
     /// Array literal `t` of `elems`: the array, then each element stored.
