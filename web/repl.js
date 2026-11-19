@@ -93,28 +93,28 @@ function restart() {
   worker.postMessage({ type: "start", module, image, width: WIDTH, heapMib: HEAP_MIB });
 }
 
-// Echoes the input after a blank line, its first line after the prompt, as the native REPL shows it.
+// Echoes the input, its first line after the prompt.
 function echo(text) {
   const indent = " ".repeat(prompt.textContent.length);
-  print("");
   text.split("\n").forEach((l, i) => print(`${i === 0 ? prompt.textContent : indent}${l}`, "input"));
 }
 
+// Runs the input; its output and a blank line follow it, as in the native REPL.
 async function run(text) {
   echo(text);
   input.value = "";
   redraw();
-  if (text.trim() === "") return;
+  if (text.trim() === "") return print("");
   if (history.at(-1) !== text) history.push(text);
   back = 0;
   busy(true);
   const reply = await ask({ type: "eval", text });
-  if (!reply) return;
-  reply.lines.forEach((l) => print(l));
-  if (reply.exit !== null) {
-    print(`The session ended with exit code ${reply.exit}; a new one starts.`, "note");
-    restart();
-  } else busy(false);
+  reply?.lines.forEach((l) => print(l));
+  const exit = reply?.exit ?? null;
+  if (exit !== null) print(`The session ended with exit code ${exit}; a new one starts.`, "note");
+  print("");
+  if (exit !== null) restart();
+  else if (reply) busy(false);
 }
 
 // The start of the identifier that ends at `cursor` of `text`.
@@ -187,6 +187,7 @@ try {
   editor = await load(module);
   prompt.textContent = editor.prompt();
   print(editor.welcome());
+  print("");
   const mb = (n) => (n / 1e6).toFixed(1);
   image = await download(IMAGE, (loaded, total) => {
     status.textContent = `Downloading the Scala libraries: ${mb(loaded)}${total ? ` of ${mb(total)}` : ""} MB`;
