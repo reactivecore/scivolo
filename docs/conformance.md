@@ -791,17 +791,18 @@ the release binaries, run from the repository root:
   desugaring on 5,891.
 - **Symbols from TASTy:** 99.8% of the library's signatures match Scala Native's mangled names.
 - **Typer** (`just typer-report`): each file typed by dotty's oracle and ours,
-  compared node by node; `neg` counts files whose errors match.
+  compared node by node, against the JDK; `neg` counts files whose errors match; tests/programs
+  also against Scala Native's javalib.
 
-| Outcome | tests/programs | tests/pos | tests/neg |
-|---|---:|---:|---:|
-| passed | 267 | 2521 | 1296 |
-| differ | 30 | 108 | 0 |
-| warnings differ | 0 | 9 | 0 |
-| accepted (neg) | 0 | 0 | 2 |
-| unsupported | 1 | 387 | 0 |
-| crashed | 0 | 0 | 0 |
-| skipped | 44 | 351 | 496 |
+| Outcome | tests/programs | tests/pos | tests/neg | tests/programs (Native) |
+|---|---:|---:|---:|---:|
+| passed | 287 | 2702 | 1300 | 283 |
+| differ | 24 | 85 | 0 | 28 |
+| warnings differ | 0 | 9 | 0 | 0 |
+| accepted (neg) | 0 | 0 | 2 | 0 |
+| unsupported | 1 | 242 | 0 | 1 |
+| crashed | 0 | 0 | 0 | 0 |
+| skipped | 32 | 338 | 492 | 0 |
 
 Refusals and differences of the frontend and the lowering:
 
@@ -1025,20 +1026,23 @@ Results:
 
 | Outcome | tests/run | tests/run-macros |
 |---|---:|---:|
-| passed | 1693 | 320 |
+| passed | 1690 | 320 |
 | wrong output | 0 | 0 |
 | verify error | 0 | 0 |
 | linkage error | 0 | 0 |
 | crashed | 1 | 0 |
 | timeout | 0 | 0 |
-| frontend crashed | 0 | 0 |
+| frontend crashed | 1 | 0 |
 | jvm refused | 0 | 0 |
 | lowering refused | 0 | 0 |
-| typer refused | 3 | 0 |
+| typer refused | 5 | 0 |
 | skipped | 14 | 1 |
 | **total** | **1711** | **321** |
 
-- **Typer refused (run):** the three of the VM's report.
+- **Typer refused (run):** `i13332shapeless` and `typeCheckErrors` of the VM's report;
+  `mapConserve` (a nullary overloaded method against an undetermined type);
+  `varargs-extend-java` and `varargs-extend-java-2` (a concrete class with an unimplemented member).
+- **Frontend crashed:** `named-tuples-strawman-2` (a stack overflow).
 - **Tests with Java sources:** all pass.
 - **Crash:** `lambda-serialization-gc` casts the application class loader to `URLClassLoader`,
   which fails for scalac's class files too, as the runner does not load tests through one.
@@ -1054,13 +1058,13 @@ Results:
 
 | Outcome | Programs |
 |---|---:|
-| passed | 297 |
-| wrong output | 6 |
-| linkage error | 13 |
+| passed | 301 |
+| wrong output | 7 |
+| linkage error | 1 |
 | crashed | 3 |
-| jvm refused | 1 |
+| jvm refused | 17 |
 | typer refused | 2 |
-| **total** | **322** |
+| **total** | **331** |
 
 - **As scalac's class files on the JVM** (platform differences): wrong output `bottomarrays`,
   `universaljoins`, `exprforms` (array class names), `classtags` (`ClassTag` of a nested array),
@@ -1083,18 +1087,17 @@ the optimizer (1883 of its 3134 classes dotty also writes differ in code from do
 
 | Outcome | Files | Classes |
 |---|---:|---:|
-| same | 612 | 3214 |
-| attributes differ | 32 | 43 |
-| code differs | 5 | 16 |
-| refused | 0 | |
+| same | 641 | 3254 |
+| attributes differ | 5 | 5 |
+| code differs | 2 | 11 |
+| refused | 1 | |
 
+- **Refused:** `scala/util/Properties.scala`, a nullary overloaded method against an undetermined
+  type.
 - **Code differs:** the pickled quotes of `scala.quoted.FromExpr` and `ToExpr` (strings of
-  TASTy) and static forwarders (`from`, `iterableFactory`, `isDefinedAt`) of `immutable.List`,
-  `immutable.Seq` and `Vector`.
-- **Attributes differ:** mostly line numbers (of extension method calls and implicit
-  conversions, of the `()` ending a secondary constructor); `InnerClasses` entries, a
-  `LocalVariableTable` entry, a `MethodParameters` entry, a `Deprecated` attribute and a method's
-  flags.
+  TASTy).
+- **Attributes differ:** `TrieMap`, `HashSet`, `Vector`, `runtime.Tuples` and
+  `ProcessBuilderImpl`.
 
 `just jvm-lib-jar scalalib` packs those class files and TASTy into a library jar laid out as the
 published one (ADR 0123): the classes scala3's build takes from Scala 2.13 and javac's come from
