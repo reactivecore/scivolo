@@ -261,6 +261,11 @@ fn jdkstatics_run_on_the_jvm() {
 }
 
 #[test]
+fn jdk_nullary_overloads_against_a_type_variable_run_on_the_jvm() {
+    runs_on_the_jvm("jdkoverloads", "Jdkoverloads");
+}
+
+#[test]
 fn jdk_mixin_forwarders_run_on_the_jvm() {
     runs_on_the_jvm("jdkmixins", "Jdkmixins");
 }
