@@ -206,6 +206,20 @@ fn forwarders_see_the_bridges_and_mixin_forwarders_of_the_library() {
     assert!(text.contains(thrown), "{text}");
 }
 
+/// As dotty's member lookup: a concrete member of a superclass forwarded over a deferred one of a
+/// trait mixed in later; a trait member reached by a path past a class's bridge forwarded over
+/// that bridge, so the forwarder is not synthetic.
+#[test]
+fn forwarders_take_the_member_dotty_selects() {
+    let out = compile("forwardermerge");
+    let Some(m) = javap_verbose(&out, "forwardermerge.M") else { return };
+    assert!(m.contains("public static int m();"), "{m}");
+    let Some(w) = javap_verbose(&out, "forwardermerge.W") else { return };
+    let start = w.find("public static java.lang.Object view();").unwrap_or_else(|| panic!("{w}"));
+    let flags = w[start..].lines().find(|l| l.trim().starts_with("flags:")).unwrap_or_default();
+    assert!(!flags.contains("ACC_SYNTHETIC"), "{w}");
+}
+
 /// As dotty: the `this` qualifier of an enum case kept as a statement, a `Null$` or `Nothing$`
 /// cast returned as it is, and, in a method with a protected range, a dead block after each store.
 #[test]
