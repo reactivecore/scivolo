@@ -116,8 +116,8 @@ pub fn applied_to_none(l: &mut Lower, t: TNodeId) -> TNodeId {
 }
 
 /// `t` adapted to erased type `pt` (dotty's `Boxing.adaptToType`): boxed if a primitive value or
-/// `()` where a reference is expected, unboxed if a reference where a primitive is, cast if a
-/// reference of a class that does not conform.
+/// `()` where a reference is expected, the box then adapted in turn, unboxed if a reference where
+/// a primitive is, cast if a reference of a class that does not conform.
 pub fn adapt(l: &mut Lower, t: TNodeId, pt: &Erased) -> TNodeId {
     let from = erased_type(l, t);
     value::adapt_from(l, t, from, pt)
@@ -135,12 +135,15 @@ fn adapt_plain(l: &mut Lower, t: TNodeId, from: &Erased, pt: &Erased) -> TNodeId
     match (from, pt) {
         (Erased::Prim(c), pt) if reference(pt) => match l.primitive(*c) {
             Some(p) => {
-                let (module, box_method) = (p.module, p.box_method);
-                converted(l, t, module, box_method)
+                let boxed = converted(l, t, p.module, p.box_method);
+                adapt(l, boxed, pt)
             }
             None => t,
         },
-        (Erased::Unit, pt) if reference(pt) => boxed_unit(l, t),
+        (Erased::Unit, pt) if reference(pt) => {
+            let boxed = boxed_unit(l, t);
+            adapt(l, boxed, pt)
+        }
         (Erased::Prim(a), Erased::Prim(b)) if a != b => match primitive_conversion(l, t, *a, *b) {
             Some(select) => applied_to_none(l, select),
             None => {
@@ -149,10 +152,7 @@ fn adapt_plain(l: &mut Lower, t: TNodeId, from: &Erased, pt: &Erased) -> TNodeId
             }
         },
         (Erased::Class(_), Erased::Prim(c)) => match l.primitive(*c) {
-            Some(p) => {
-                let (module, unbox_method) = (p.module, p.unbox_method);
-                converted(l, t, module, unbox_method)
-            }
+            Some(p) => converted(l, t, p.module, p.unbox_method),
             None => t,
         },
         (from, Erased::Unit) if reference(from) || matches!(from, Erased::Prim(_) | Erased::Null) => {

@@ -627,3 +627,8 @@ fn exports_of_a_java_class_skip_its_statics() {
         &["export java.util.UUID\ndef bar = println(new UUID(1, 2))\n"],
     );
 }
+
+#[test]
+fn exports_of_a_package_skip_its_packages() {
+    check(&[("package A { package inner { class D } }\npackage B { export A.inner }\n", "")], &[]);
+}

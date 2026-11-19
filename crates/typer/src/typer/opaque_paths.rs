@@ -1,49 +1,47 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
-//   compiler/src/dotty/tools/dotc/core/TypeComparer.scala
 //   compiler/src/dotty/tools/dotc/typer/Typer.scala
-//! References to an opaque type through the path of its object, inside the object (where
-//! dotty's `liftToThis` and `tryLiftToThis` apply).
+//! Selections of members of an opaque type named through the path of its object, inside the
+//! object.
 
 use super::Typer;
 use crate::ctx::Ctx;
-use tasty::{Type, TypeId};
-
-pub const OPAQUE_THROUGH_OBJECT: &str = "opaque type through its object's path inside the object";
+use crate::tpd::{TNodeId, Tree as T};
+use tasty::TypeId;
 
 impl Typer<'_> {
-    /// Whether `t`, widened, refers to an opaque type of the script through the path of an
-    /// enclosing object, and its right-hand side has a member `name`.
-    pub fn opaque_member_through_object(&mut self, t: TypeId, name: &str, ctx: Ctx) -> bool {
-        let Some(alias) = self.opaque_through_object(t) else { return false };
-        !self.type_members_in(alias, name, ctx).is_empty()
-    }
-
-    /// Whether `t`, widened, refers to an opaque type of the script through the path of an
-    /// enclosing object.
-    pub fn is_opaque_through_object(&mut self, t: TypeId) -> bool {
-        self.opaque_through_object(t).is_some()
-    }
-
-    /// The right-hand side of the opaque type `t`, widened, refers to through the path of an
-    /// enclosing object.
-    fn opaque_through_object(&mut self, t: TypeId) -> Option<TypeId> {
-        let w = self.u.widen(t);
-        let mut d = self.u.dealias(w);
-        if let Some((tycon, _)) = self.u.applied(d) {
-            d = tycon;
+    /// Casts `qual` to its widened type with references to enclosing objects with opaque types
+    /// made their `this`, if that type has a member `name`: `x.length` for `x: o.T` inside
+    /// `object o { opaque type T = String }` (dotty's `tryLiftToThis`).
+    pub fn lifted_to_this(&mut self, qual: TNodeId, name: &str, ctx: Ctx) -> Option<TNodeId> {
+        let widened = self.u.widen(self.tpd.tpe(qual));
+        let lifted = self.u.lift_to_this(widened);
+        if lifted == widened || self.type_members_in(lifted, name, ctx).is_empty() {
+            return None;
         }
-        let (prefix, s) = match *self.u.ty(d) {
-            Type::Sym(Some(p), s) => (p, Some(s)),
-            Type::TypeRef(p, _) => (p, self.u.resolve_ref(d)),
-            _ => return None,
-        };
-        let alias = self.u.opaque_alias(s?)?;
-        let module = match *self.u.ty(prefix) {
-            Type::Sym(_, m) if self.u.symbol(m).kind.is_term() => Some(m),
-            Type::TermRef(..) => self.u.resolve_ref(prefix),
-            _ => None,
-        };
-        self.u.enclosing_opaque_module(module?)?;
-        Some(alias)
+        Some(self.type_cast(qual, lifted))
+    }
+
+    /// Ascribes `pt` to `tree` if its type conforms to `pt` only through references lifted to
+    /// `this` since the count of lifts was `lifts`: `g(n)` for `n: Int` and `def g(c: o.T)`
+    /// inside `object o { opaque type T = Int }` (dotty's `OKwithOpaquesUsed` in `adapt`).
+    pub fn opaque_ascribed(&mut self, tree: TNodeId, pt: TypeId, lifts: u64) -> Option<TNodeId> {
+        let tpe = self.tpd.tpe(tree);
+        if self.u.opaque_lifts() == lifts || self.types().conforms_unlifted(tpe, pt) {
+            return None;
+        }
+        let span = self.tpd.span(tree);
+        let tpt = self.type_tree(pt, span.end_pos(), false);
+        let typed = self.tpd.node(T::Typed { expr: tree, tpt }, span.to_synthetic(), Some(pt), None);
+        self.opaque_ascriptions.insert(typed);
+        Some(typed)
+    }
+
+    /// Drops the ascription `opaque_ascribed` inserted around a method's right-hand side `rhs`
+    /// (dotty's `InsertedTyped` in `typedDefDef`).
+    pub fn without_opaque_ascription(&self, rhs: TNodeId) -> TNodeId {
+        match *self.tpd.tree(rhs) {
+            T::Typed { expr, .. } if self.opaque_ascriptions.contains(&rhs) => expr,
+            _ => rhs,
+        }
     }
 }

@@ -14,7 +14,6 @@ compiled again (lib.LEAVE_OUT, ADR 0116), so its codebase's scivolo times are no
 `compiler-accepted` and `compiler-half` are all and the first half of the compiler's files the last
 `compiler` run accepted (#241: time linear in the input).
 """
-import importlib
 import os
 import re
 import shutil
@@ -27,8 +26,7 @@ from pathlib import Path
 
 import jvm_lib_compile
 import jvm_lib_oracle
-
-lib = importlib.import_module("lib-compile")
+import native_modules as lib
 
 ROOT = Path(__file__).resolve().parent.parent
 WORK = ROOT / "tmp/bench-compile"

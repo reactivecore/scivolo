@@ -90,6 +90,19 @@ impl Typer<'_> {
         }
     }
 
+    /// Replaces `prefix`, a path to the static object owning static class `class`, by the `this`
+    /// of that object: the class reference a constructor proxy creates, which a static owner does
+    /// not see from the path (dotty's `underlyingClassRef` of `applyProxyResultType`).
+    pub fn static_class_prefix(&mut self, prefix: Option<TypeId>, class: SymbolId) -> Option<TypeId> {
+        let owner = self.u.symbol(class).owner?;
+        let path = prefix.and_then(|p| self.u.sym_of(p)).is_some_and(|m| self.u.symbol(m).kind.is_term());
+        if !path || !self.u.is_static_module(owner) || !self.u.is_static_symbol(class) {
+            return prefix;
+        }
+        let cls = self.u.intern_type(Type::Sym(None, owner));
+        Some(self.u.intern_type(Type::This(cls)))
+    }
+
     /// Whether module value `s` is reachable from the root through objects.
     pub fn is_static_term(&self, s: SymbolId) -> bool {
         self.u.is_static_symbol(s)

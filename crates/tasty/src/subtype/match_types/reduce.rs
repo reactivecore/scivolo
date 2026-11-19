@@ -180,9 +180,6 @@ impl Cmp<'_> {
         let t = self.widen_term_refs(t);
         let t = self.u.dealias(t);
         let t = self.normal(t);
-        match *self.u.ty(t) {
-            Type::Constant(INTconst, n) if (0..=i32::MAX as i64).contains(&n) => Some(n),
-            _ => None,
-        }
+        self.int_constant(t).filter(|&n| n >= 0).map(i64::from)
     }
 }
