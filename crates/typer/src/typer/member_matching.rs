@@ -19,9 +19,9 @@ impl Typer<'_> {
     }
 
     /// Whether member `m` of `site` implements member `d`: as `same_member`, methods with
-    /// parameters having the same parameter types and the same signature, for a Java method
-    /// either, `Any` and `Object` being one parameter type there (dotty's `matchesLoosely` with
-    /// `alwaysCompareTypes` in `isImplemented`).
+    /// parameters having the same parameter types and the same signature, a repeated parameter
+    /// `T*` matching `Seq[T]` and a Java method's `Object` parameter `Any` (dotty's
+    /// `matchesLoosely` with `alwaysCompareTypes` in `isImplemented`).
     pub fn implements(&mut self, site: TypeId, m: SymbolId, d: SymbolId) -> bool {
         if !self.same_member(site, m, d) {
             return false;
@@ -30,11 +30,14 @@ impl Typer<'_> {
         if !methods || self.is_nullary(m) && self.is_nullary(d) {
             return true;
         }
-        let java = [m, d].into_iter().any(|s| {
-            self.is_java_member(s) || self.u.symbol(s).owner.is_some_and(|o| self.is_java_class_name(o))
-        });
-        let (types, signatures) = (self.u.info_matches(site, m, d), self.u.parameters_agree(site, m, d));
-        if java { types || signatures } else { types && signatures }
+        let java = (self.is_java_method(m), self.is_java_method(d));
+        self.u.info_matches_in_refchecks(site, m, d, java) && self.u.parameters_agree(site, m, d)
+    }
+
+    /// Whether `s` is a Java member or a member of a JDK class.
+    pub fn is_java_method(&mut self, s: SymbolId) -> bool {
+        let owner = self.u.symbol(s).owner;
+        self.is_java_member(s) || owner.is_some_and(|o| self.is_java_class_name(o))
     }
 
     /// Whether member `s` is concrete: a definition of the unit with a right-hand side, as

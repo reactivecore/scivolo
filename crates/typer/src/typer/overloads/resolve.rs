@@ -10,7 +10,7 @@ use super::{AMBIGUOUS, NO_APPLICABLE, Resolution, UNDECIDED, Unchosen, applicabi
 use crate::ctx::Ctx;
 use crate::typer::type_ops::TypeOps;
 use crate::typer::{Pt, Typer};
-use tasty::{SymbolId, Type};
+use tasty::{SymbolId, Type, TypeId};
 
 impl Resolution {
     /// Chooses the alternative of `alts` that the arguments of `proto` select: of those they
@@ -154,6 +154,14 @@ impl Resolution {
             -1 => -i32::from(wins_b || !wins_a),
             _ => i32::from(wins_a && !wins_b) - i32::from(wins_b && !wins_a),
         })
+    }
+}
+
+impl Typer<'_> {
+    /// Compares members `a` and `b` of `prefix` as overloading resolution does in `ctx` (dotty's
+    /// `compare`): 1 if `a` is better, -1 if `b` is, 0 if neither; `None` if undecided.
+    pub fn compare_members(&mut self, prefix: TypeId, (a, b): (SymbolId, SymbolId), ctx: Ctx) -> Option<i32> {
+        Resolution { prefix: Some(prefix), pt: Pt::Any }.compare_alts(self, (a, b), true, ctx)
     }
 }
 
