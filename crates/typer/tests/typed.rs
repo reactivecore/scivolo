@@ -25,6 +25,10 @@ fn typed_trees_and_diagnostics_match_dotty() {
 
 #[test]
 fn typed_trees_against_the_jdk_match_dotty() {
+    if std::process::Command::new("java").arg("-version").output().is_err() {
+        eprintln!("no java on the PATH: skipped");
+        return;
+    }
     check_all("tests/typed/jvm", true);
 }
 
