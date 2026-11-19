@@ -113,7 +113,9 @@ impl Typer<'_> {
             return Some(false);
         }
         let module_class = kind == Kind::Class && flags.has(t::OBJECT);
-        if name == nme::CONSTRUCTOR || module_class || kind == Kind::Package || flags.has(t::INVISIBLE) {
+        let java_module = kind.is_term() && flags.has(t::OBJECT) && self.is_java_class_name(m);
+        let package = kind == Kind::Package;
+        if name == nme::CONSTRUCTOR || module_class || java_module || package || flags.has(t::INVISIBLE) {
             return None;
         }
         let owner = owner?;

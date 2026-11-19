@@ -570,3 +570,14 @@ fn checks_of_single_constructs() {
         ],
     );
 }
+
+#[test]
+fn exports_of_a_package_forward_neither_packages_nor_java_statics() {
+    check(
+        &[
+            ("export java.util.UUID\ndef foo = UUID.randomUUID()\n", ""),
+            ("package A { package inner { class D } }\npackage B { export A.inner }\n", ""),
+        ],
+        &["export java.util.UUID\ndef bar = new UUID(1, 2)\n"],
+    );
+}
