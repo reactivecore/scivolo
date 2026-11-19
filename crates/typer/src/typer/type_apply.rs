@@ -165,6 +165,7 @@ impl Typer<'_> {
             }
         }
         let instantiated = self.instantiate_poly(result, binder, &names, args, method);
+        let instantiated = self.with_false_deps_dealiased(instantiated, method);
         Ok(if fresh { instantiated } else { self.with_case_fields(instantiated) })
     }
 

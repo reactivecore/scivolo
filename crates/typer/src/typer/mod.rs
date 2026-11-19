@@ -82,6 +82,7 @@ mod export_trees;
 mod extension_calls;
 mod extension_setters;
 mod extractor_members;
+mod false_deps;
 mod features;
 mod find_ref;
 mod format_views;

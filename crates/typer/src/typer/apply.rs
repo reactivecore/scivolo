@@ -87,7 +87,7 @@ impl Typer<'_> {
         }
         let meth = self.tpd.sym(self.tpd.meth_part(f));
         let names: Vec<NameId> = params.iter().map(|&(n, _)| n).collect();
-        let result = self.without_false_deps(result, binder, meth);
+        let result = self.without_false_deps(result, (binder, &params), meth);
         let dependent = self.mentions_clause_params(result, (binder, &names), meth);
         let (approx, approx_vars) = match dependent {
             true => self.result_type_approx(result, (binder, &params), meth, pt).unzip(),
@@ -121,10 +121,9 @@ impl Typer<'_> {
         };
         let formals: Vec<TypeId> =
             params.iter().map(|&(_, p)| p).chain(repeated).map(|p| self.u.by_name(p).unwrap_or(p)).collect();
-        let in_order = aligned.is_none() && pretyped.is_none() && repeated.is_none();
         let clause = ((binder, &names[..]), meth);
         let applied = self.applied_params(f, meth);
-        let param_dependent = match self.param_dependent(&formals, clause, &applied, in_order) {
+        let param_dependent = match self.param_dependent(&formals, clause, &applied, pretyped.is_none()) {
             Ok(dependent) => dependent,
             Err(what) => return self.unsupported(id, what),
         };
@@ -143,11 +142,18 @@ impl Typer<'_> {
         }
         let seq = seq_arg.filter(|_| aligned.is_some());
         let seq_pre = seq.and_then(|_| pretyped.as_ref().and_then(|typed| typed[arg_ids.len() - 1]));
-        let varargs =
+        let mut varargs =
             repeated.map(|elem| Varargs { elem, meth, result, by_name: by_name_repeated, seq, seq_pre });
         let aligned_args = aligned.as_ref().map(|a| {
             let call = (f, method, varargs.as_ref());
-            self.typed_aligned_args(call, (&arg_ids, a, pretyped.as_deref()), (&all_params, &formals), ctx)
+            let args = (&arg_ids[..], a, pretyped.as_deref());
+            self.typed_aligned_args(
+                call,
+                args,
+                (&all_params, &formals),
+                param_dependent.then_some(clause),
+                ctx,
+            )
         });
         let (f, mut typed_args, lifted) = match aligned_args {
             _ if !outer.is_empty() && aligned.is_some() => {
@@ -158,12 +164,12 @@ impl Typer<'_> {
             None => (f, Vec::new(), Vec::new()),
         };
         let plain = lifted.is_empty() && repeated.is_none();
-        let result = match lifted.is_empty() {
-            true => result,
-            false => match self.lifted_result(f, meth) {
-                Some(r) => r,
-                None => return self.unsupported(id, "dependent result type"),
-            },
+        let lifted_result = (!lifted.is_empty()).then(|| self.lifted_result(f, meth));
+        let result = match lifted_result {
+            None => result,
+            Some(Some(r)) => r,
+            Some(None) if dependent && repeated.is_none() => result,
+            Some(None) => return self.unsupported(id, "dependent result type"),
         };
         let ctx = self.nullable_in_arg_ctx(f, ctx);
         let positional = if aligned.is_some() { &[][..] } else { &arg_ids[..] };
@@ -186,7 +192,12 @@ impl Typer<'_> {
             let arg = if by_name { self.by_name_uncaptured(arg) } else { arg };
             typed_args.push(self.by_name_flow_dropped(arg, i, meth));
         }
+        if let Some(v) = varargs.as_mut().filter(|_| param_dependent) {
+            let fixed = &typed_args[..typed_args.len().min(params.len())];
+            v.elem = self.dependent_formal(v.elem, clause, fixed);
+        }
         let result = match dependent {
+            true if lifted_result == Some(None) => self.lifted_dependent_result(f, meth, &typed_args),
             true => self
                 .dependent_result(result, (binder, &params), meth, &typed_args)
                 .filter(|_| plain)
@@ -197,6 +208,7 @@ impl Typer<'_> {
             false => Some((result, Vec::new())),
         };
         let Some((result, singletons)) = result else { return self.unsupported(id, "dependent result type") };
+        let result = self.with_false_deps_dealiased(result, meth);
         let arg_types: Vec<TypeId> = typed_args.iter().map(|&a| self.tpd.tpe(a)).collect();
         if let Err(what) = self.constrain_approx_vars(&approx_vars, (&singletons, &arg_types)) {
             return self.unsupported(id, what);

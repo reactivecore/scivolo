@@ -9,18 +9,21 @@ use super::{Pt, Typer};
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{NodeId, Tree};
-use tasty::{NameId, SymbolId, TypeId};
+use tasty::{Binder, NameId, SymbolId, TypeId};
 
 impl Typer<'_> {
     /// Call `f` of `method` and its arguments `aligned`, typed against `formals`, the types of
     /// `params`, a missing one its default, with the definitions lifted out of them (dotty's
     /// `TypedApply` with `liftFun` and `liftArgs`). The arguments after the slots of the
-    /// parameters before repeated parameter `varargs` are packed into its sequence.
+    /// parameters before repeated parameter `varargs` are packed into its sequence. If the
+    /// formals depend on the parameters of clause `dependent`, each formal has the types of the
+    /// arguments before it substituted (dotty's `safeSubstParam` in `matchArgs`).
     pub fn typed_aligned_args(
         &mut self,
         (mut f, method, varargs): (TNodeId, Option<SymbolId>, Option<&Varargs>),
         (args, aligned, pretyped): (&[NodeId], &Aligned, Option<&[Option<TNodeId>]>),
         (params, formals): (&[(NameId, TypeId)], &[TypeId]),
+        dependent: Option<((Binder, &[NameId]), Option<SymbolId>)>,
         ctx: Ctx,
     ) -> Result<(TNodeId, Vec<TNodeId>, Vec<TNodeId>), &'static str> {
         let pre = |a: NodeId| pretyped.and_then(|p| args.iter().position(|&b| b == a).and_then(|i| p[i]));
@@ -39,13 +42,19 @@ impl Typer<'_> {
                 lifted_formals = self.lifted_formals(f, formals.len());
             }
         }
+        if dependent.is_some() && lifted_formals.is_some() {
+            return Err("dependent parameter");
+        }
         let formals = lifted_formals.as_deref().unwrap_or(formals);
         let fixed = params.len() - usize::from(varargs.is_some());
         let mut typed = Vec::new();
         let mut safe = true;
         let mut before_elems = None;
         for (i, slot) in aligned.iter().enumerate() {
-            let formal = formals[i.min(formals.len() - 1)];
+            let mut formal = formals[i.min(formals.len() - 1)];
+            if let Some(clause) = dependent {
+                formal = self.dependent_formal(formal, clause, &typed[..typed.len().min(fixed)]);
+            }
             if i == fixed {
                 before_elems = Some(self.before_harmonic());
             }
@@ -72,10 +81,13 @@ impl Typer<'_> {
             safe &= self.is_pure_expr(arg);
             typed.push(arg);
         }
-        if let Some(v) = varargs {
+        if let Some(&(mut v)) = varargs {
             let elems = typed.split_off(fixed);
+            if let Some(clause) = dependent {
+                v.elem = self.dependent_formal(v.elem, clause, &typed);
+            }
             let before = typed.last().copied().unwrap_or(f);
-            let seq = self.packed_varargs(elems, (before, before_elems), v, ctx)?;
+            let seq = self.packed_varargs(elems, (before, before_elems), &v, ctx)?;
             safe &= self.is_pure_expr(seq);
             typed.push(seq);
         }

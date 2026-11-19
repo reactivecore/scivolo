@@ -127,7 +127,7 @@ const DOTTY_TASTY: &[(&str, &[&str])] = &[
     ),
     ("closurecaptures", &["Closures"]),
     ("fieldcaptures", &["C", "D", "E", "F", "H"]),
-    ("casecaptures", &["C", "G", "H", "W", "O"]),
+    ("casecaptures", &["C", "G", "H", "W", "O", "V"]),
     ("dependentcases", &["S", "O"]),
     ("wildcardmembers", &["WildcardMembers"]),
     ("newarrays", &["NewArrays"]),
@@ -332,33 +332,6 @@ fn exported_match_aliases_reduce_from_tasty() {
     let run = Command::new("java").args(["-Xverify:all", "-cp", &classpath, "Use"]).output().expect("java");
     assert!(run.status.success(), "{}", String::from_utf8_lossy(&run.stderr));
     assert_eq!(String::from_utf8_lossy(&run.stdout), "1\n");
-}
-
-/// A case class whose repeated parameter's capture set names another parameter is refused: its
-/// `apply` passes on a dependent repeated argument.
-#[test]
-fn untold_capture_sets_are_refused() {
-    let out = root().join("tmp/jvm-test/untoldcaptures");
-    let _ = std::fs::remove_dir_all(&out);
-    std::fs::create_dir_all(&out).expect("tmp/jvm-test/untoldcaptures");
-    let header = "import language.experimental.captureChecking\nclass Label[T]\nclass A\n";
-    let cases = [(
-        "caserepeated",
-        "case class V(a: A^, cs: Label[Int]^{a}*)\n",
-        "does not support dependent parameter",
-    )];
-    for (name, body, refusal) in cases {
-        let source = out.join(format!("{name}.scala"));
-        std::fs::write(&source, format!("{header}{body}")).expect("writing");
-        let run = Command::new(env!("CARGO_BIN_EXE_scivolo-jvm"))
-            .arg("-d")
-            .arg(out.join(name))
-            .arg(&source)
-            .output()
-            .expect("running scivolo-jvm");
-        let stderr = String::from_utf8_lossy(&run.stderr);
-        assert!(!run.status.success() && stderr.contains(refusal), "{name}: {stderr}");
-    }
 }
 
 /// scala-cli 3.9.0 compiles tests/jvm/tastylib/user.scala against the jar, and the result runs
