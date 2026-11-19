@@ -5,6 +5,10 @@ List(1)
 true
 2
 3
+4
+List(1)
+List(1)
+List(1)
 List(4)
 scala.collection.immutable.$colon$colon
 [Lscala.collection.immutable.List;

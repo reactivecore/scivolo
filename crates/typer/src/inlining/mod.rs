@@ -5,6 +5,7 @@
 //! replaced by an `Inlined` tree of the method's body with the arguments bound (`Inlining`,
 //! `Inlines.inlineCall`).
 
+mod avoid;
 mod beta;
 mod blocks;
 mod call_skolems;
