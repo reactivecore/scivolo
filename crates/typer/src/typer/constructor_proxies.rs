@@ -71,6 +71,7 @@ impl Typer<'_> {
             return self.unsupported(id, what);
         }
         let name = TName { is_type: true, ..name };
+        let prefix = self.static_class_prefix(prefix, class);
         let tpe = self.ref_type(prefix, class);
         let span = self.ast.span(id);
         let tpt = if self.term_prefix_is_elidable(prefix, class, ctx) {

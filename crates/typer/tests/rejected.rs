@@ -400,6 +400,25 @@ fn conversions_to_object_or_null_are_not_searched() {
 }
 
 #[test]
+fn sequence_arguments_of_unions_or_intersections_of_arrays_are_refused() {
+    let error = "unsupported sequence argument of a union or intersection of arrays";
+    check(
+        &[
+            ("def m(xs: Any*) = xs.length\ndef f(a: Array[Int] | Array[String]) = m(a*)\n", error),
+            ("def m(xs: Any*) = xs.length\ndef f(a: Array[Int] & Array[Any]) = m(a*)\n", error),
+            (
+                "def m(xs: Any*) = xs.length\ndef f(p: Boolean, a: Array[Any], b: Array[Any]) = m((if p then a else b)*)\n",
+                error,
+            ),
+        ],
+        &[
+            "def m(xs: Any*) = xs.length\ndef f(a: Array[Int] | Null) = m(a*)\n",
+            "def m(xs: Any*) = xs.length\ndef f(a: List[Int] | Vector[String]) = m(a*)\n",
+        ],
+    );
+}
+
+#[test]
 fn comparisons_with_null_of_a_value_type_argument() {
     check(
         &[
@@ -607,4 +626,9 @@ fn exports_of_a_java_class_skip_its_statics() {
         &[("export java.util.UUID\ndef foo = println(UUID.randomUUID())\n", "")],
         &["export java.util.UUID\ndef bar = println(new UUID(1, 2))\n"],
     );
+}
+
+#[test]
+fn exports_of_a_package_skip_its_packages() {
+    check(&[("package A { package inner { class D } }\npackage B { export A.inner }\n", "")], &[]);
 }
