@@ -270,5 +270,5 @@ test:macos:
       paths: *libs_cache_paths
   script:
     - rustc --version && cargo --version && just --version && clang --version && node --version
-    - rustup target add wasm32-unknown-unknown
+    - rustup toolchain install "$(rustc --version | cut -d' ' -f2)" --profile minimal --target wasm32-unknown-unknown
     - just ci
