@@ -165,8 +165,7 @@ impl ImplicitSearch {
         if coherent && existence && !t.types().is_fully_defined(pt) {
             return self.first_fitting(t, &group);
         }
-        let unpruned = coherent || has_unbounded_var(&mut t.types(), pt);
-        match self.best_first(t, &group, unpruned)? {
+        match self.best_first(t, &group, coherent)? {
             BestFirst::Found(tree) => return Ok(Some(tree)),
             BestFirst::Failed if group.len() == 1 => return Ok(None),
             _ => {}
