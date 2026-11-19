@@ -65,7 +65,8 @@ impl Typer<'_> {
     /// of a type parameter of any kind (dotty's `preCheckKind`).
     pub fn is_nothing_arg(&mut self, t: TypeId) -> bool {
         let widened = self.u.widen(t);
-        self.u.is_nothing_ref(widened)
+        let dealiased = self.u.dealias(widened);
+        self.u.is_nothing_ref(dealiased)
     }
 
     /// Whether `t` refers to a type symbol being completed.
