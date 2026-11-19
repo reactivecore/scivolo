@@ -70,7 +70,8 @@ impl Universe {
 
     /// Determines the argument a union of base types `base` gives the parameter at `index` of
     /// `variance` (dotty's `argForParam` of an `OrType`): the lub of the parts' covariant
-    /// arguments, the glb of contravariant ones; `None` for different invariant ones or wildcards.
+    /// arguments, the glb of contravariant ones; `None` for different invariant ones, wildcards
+    /// or arguments with type variables.
     pub fn union_base_arg(
         &mut self,
         base: TypeId,
@@ -84,7 +85,7 @@ impl Universe {
         if x == y {
             return Some(x);
         }
-        if self.bounds(x).is_some() || self.bounds(y).is_some() {
+        if self.bounds(x).is_some() || self.bounds(y).is_some() || self.has_var(x) || self.has_var(y) {
             return None;
         }
         match variance {
@@ -92,5 +93,14 @@ impl Universe {
             -1 => Some(self.glb(x, y)),
             _ => None,
         }
+    }
+
+    fn has_var(&mut self, t: TypeId) -> bool {
+        let mut found = false;
+        self.map_type(t, &mut |u, part| {
+            found |= u.var(part).is_some();
+            None
+        });
+        found
     }
 }
