@@ -25,6 +25,7 @@ mod class_calls;
 mod class_moves;
 mod closures;
 mod companion_order;
+mod conforming_casts;
 mod constructor_instance;
 mod constructors;
 mod context_bridges;

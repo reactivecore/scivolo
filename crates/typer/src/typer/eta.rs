@@ -13,6 +13,7 @@ use names::{name_kinds, nme};
 use syntax::ast::flags as f;
 use syntax::ast::modifiers::Modifiers;
 use syntax::ast::{NodeId, Span, TName, Tree};
+use syntax::config::Migration;
 use tasty::{MAX_IMPLEMENTED_ARITY, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
@@ -170,7 +171,7 @@ impl Typer<'_> {
             automatically, so you can write the function value directly instead."
             .to_owned()
             + &self.rewrite_notice("This construct", "3.4-migration");
-        self.diags.warning_at(span.start(), span.end(), span.point(), msg);
+        self.error_or_migration_warning(span, msg, Migration::FunctionUnderscore);
         res
     }
 

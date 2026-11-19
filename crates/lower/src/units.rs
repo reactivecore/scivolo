@@ -1,5 +1,6 @@
 //! Several source files through the whole frontend as one unit, each referring to the others.
 
+use crate::output::Pickles;
 use crate::{NirFile, Refusal};
 use syntax::ast::Ast;
 use syntax::config::Config;
@@ -10,7 +11,6 @@ use syntax::parse::Parser;
 use syntax::source::{Offset, SourceFile, Sources};
 use tasty::Universe;
 use typer::inlining::Macros;
-use typer::pickle::Pickled;
 use typer::tpd::TNodeId;
 use typer::{Fallback, SourceUnit};
 
@@ -29,8 +29,8 @@ pub fn compile_sources(
 }
 
 /// `compile_sources` with the phases for `backend` and `generate` in place of NIR generation;
-/// on the JVM, `generate` gets the TASTy of the top-level classes, pickled before the inline
-/// calls expand.
+/// except on `Native`, `generate` gets the TASTy of the top-level classes, pickled before the
+/// inline calls expand.
 pub fn compile_units<R>(
     u: &mut Universe,
     files: &[SourceFile],
@@ -38,7 +38,7 @@ pub fn compile_units<R>(
     macros: Option<&mut dyn Macros>,
     (backend, generate): (
         crate::Backend,
-        impl FnOnce(&mut crate::Lower, TNodeId, Vec<Pickled>) -> crate::Result<R>,
+        impl FnOnce(&mut crate::Lower, TNodeId, Pickles) -> crate::Result<R>,
     ),
 ) -> Result<(R, Diagnostics), Refusal> {
     compile_attributed(u, files, cfg, macros, (backend, generate)).map_err(|mut r| r.swap_remove(0).refusal)
@@ -59,7 +59,7 @@ pub fn compile_attributed<R>(
     macros: Option<&mut dyn Macros>,
     (backend, generate): (
         crate::Backend,
-        impl FnOnce(&mut crate::Lower, TNodeId, Vec<Pickled>) -> crate::Result<R>,
+        impl FnOnce(&mut crate::Lower, TNodeId, Pickles) -> crate::Result<R>,
     ),
 ) -> Result<(R, Diagnostics), Vec<Attributed>> {
     if backend == crate::Backend::Jvm {
@@ -93,11 +93,12 @@ pub fn compile_attributed<R>(
         return Err(syntax_errors);
     }
     let mut typer = crate::typer_units();
-    typer.source_names = files.iter().map(|f| f.name.clone()).collect();
-    if backend == crate::Backend::Jvm {
+    typer.source_names = files.iter().map(|f| f.tasty_path().to_owned()).collect();
+    if backend != crate::Backend::Native {
         let copies = sources.files().iter().map(|&(base, f)| (copy(f), base));
         typer.tasty_sources = Some(copies.collect());
     }
+    typer.unpickled = (backend == crate::Backend::NativeWithTasty).then(Vec::new);
     let typed = typer.type_units(u, &mut ast, (&mut names, &mut fresh), &units, macros);
     let mut typed = match typed {
         Ok(typed) => typed,
@@ -122,7 +123,9 @@ pub fn compile_attributed<R>(
         false => units.iter().map(|unit| unit.cfg).collect(),
     };
     let sources = (sources, cfgs.as_slice());
-    let pickles = std::mem::take(&mut typed.pickles);
+    let unpickled = typer.unpickled.take().unwrap_or_default().into_iter();
+    let unpickled = unpickled.map(|(at, what)| format!("{what}{}", at_point(&located, at))).collect();
+    let pickles = Pickles { classes: std::mem::take(&mut typed.pickles), refused: unpickled };
     let mut in_backend = false;
     let generate = |l: &mut crate::Lower, root| generate(l, root, pickles).inspect_err(|_| in_backend = true);
     let trees = (&mut typed.tpd, &mut typed.diags);
