@@ -61,11 +61,47 @@ fn check(rejected: &[(&str, &str)], accepted: &[&str]) {
 #[test]
 fn local_class_vars_in_the_type_of_a_block() {
     check(
-        &[],
-        &["trait Foo extends reflect.Selectable
+        &[(
+            "import scala.language.reflectiveCalls
+trait Foo
+def f: Int =
+  val x = new Foo { var i: Int = 0 }
+  x.i\n",
+            "value i is not a member of Foo",
+        )],
+        &[
+            "trait Foo extends reflect.Selectable
 def f: Unit =
   val x = new Foo { var i: Int = 0 }
-  x.i = 1\n"],
+  x.i = 1\n",
+            "trait Foo extends reflect.Selectable
+def f: Int =
+  val x = new Foo { var i: Int = 0 }
+  x.i\n",
+            "trait Foo extends reflect.Selectable
+def f: Int =
+  val x = new Foo { val i: Int = 0 }
+  x.i\n",
+        ],
+    );
+}
+
+#[test]
+fn structural_members_of_local_values_aliasing_paths_in_the_type_of_a_block() {
+    check(
+        &[],
+        &[
+            "trait Foo extends reflect.Selectable
+val y = new Foo { val i: Int = 7 }
+def f =
+  val x: y.type = y
+  x.i\n",
+            "trait Foo extends reflect.Selectable
+val y = new Foo { val i: Int = 7 }
+def f =
+  val x = new Foo { val z: y.type = y }
+  x.z\n",
+        ],
     );
 }
 
@@ -341,6 +377,29 @@ fn erasing_a_type_bounded_by_an_array_of_itself_is_refused() {
     let source = SourceFile::new("main.scala", "trait C { type T <: Array[T]; def f(x: T): T }\n");
     let dumped = typer::dump::dump(&mut u, &source, &[], true, false);
     assert!(dumped.contains(tasty::ARRAY_OF_ITSELF), "{dumped}");
+}
+
+#[test]
+fn conversions_of_a_qualifier_do_not_convert_the_arguments() {
+    let conversions = "import scala.language.implicitConversions\nclass Q { def m(x: Boolean) = 0 }\n\
+                       class A { def m(x: BigInt) = 1 }\nclass B { def m(x: String) = 2 }\n";
+    let both = "implicit def toA(q: Q): A = A()\nimplicit def toB(q: Q): B = B()\n";
+    let ambiguous = format!("{conversions}object O {{\n{both}val r = Q().m(1) }}\n");
+    let single = format!("{conversions}object O {{\nimplicit def toA(q: Q): A = A()\nval r = Q().m(1) }}\n");
+    let no_member = format!(
+        "{conversions}class P\nobject O {{\nimplicit def pA(p: P): A = A()\nimplicit def pB(p: P): B = B()\n\
+         val r = P().m(1) }}\n"
+    );
+    let argument_scope = format!(
+        "{conversions}class W\nobject W {{ implicit def toA2(q: Q): A2 = A2() }}\n\
+         class A2 {{ def m(w: W, y: BigInt) = 1 }}\nval r = Q().m(W(), 1)\n"
+    );
+    let by_type = format!("{conversions}object O {{\n{both}val r = Q().m(\"s\") }}\n");
+    let converted = format!("{conversions}object O {{\n{both}val r = Q().m(BigInt(1)) }}\n");
+    check(
+        &[(ambiguous.as_str(), ""), (&single, ""), (&no_member, ""), (&argument_scope, "")],
+        &[by_type.as_str(), &converted],
+    );
 }
 
 #[test]

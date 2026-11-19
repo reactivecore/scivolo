@@ -9,6 +9,7 @@ use crate::tpd::TNodeId;
 use names::nme;
 use syntax::ast::flags::CASE;
 use syntax::ast::{List, NodeId, Tree};
+use syntax::config::SourceVersion;
 use tasty::{ANY, Kind, NOTHING, NameId, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
@@ -45,6 +46,9 @@ impl Typer<'_> {
                 lub = if self.is_provisional_type(body) { ANY } else { self.u.lub(lub, avoided) };
             }
             case_types.push(case);
+        }
+        if bound.is_none() && lub != ANY && self.source_version == SourceVersion::V3_6.migrating_variant() {
+            return self.unsupported(id, "inferred match type bound under 3.6-migration");
         }
         let bound = bound.unwrap_or(lub);
         let tpe = self.u.intern_match(bound, scrutinee, &case_types);
