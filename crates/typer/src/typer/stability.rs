@@ -43,8 +43,8 @@ impl TypeOps<'_> {
 }
 
 impl Typer<'_> {
-    /// Whether `tree` is a literal, `this`, a path of stable members, or a reference to a
-    /// parameterless method whose result type is a stable path (dotty's `isStable` of a `TermRef`).
+    /// Whether `tree` is a literal, `this`, or a path of stable members and of parameterless
+    /// methods whose result types are stable paths (dotty's `isStable` of a `TermRef`).
     pub fn is_stable_path(&mut self, tree: TNodeId) -> bool {
         let stable = |t: &mut Self, r| t.tpd.sym(r).is_some_and(|s| t.is_stable_member(s));
         let stable_result = |t: &mut Self, r| t.tpd.sym(r).is_some_and(|s| t.has_stable_result(s));
@@ -52,7 +52,7 @@ impl Typer<'_> {
             T::Literal { .. } | T::This { .. } => true,
             T::Ident { .. } => stable(self, tree) || stable_result(self, tree),
             T::Select { qualifier, .. } => {
-                stable(self, tree) && self.is_stable_path(qualifier) || stable_result(self, tree)
+                (stable(self, tree) || stable_result(self, tree)) && self.is_stable_path(qualifier)
             }
             _ => false,
         }

@@ -1175,7 +1175,9 @@ completes `CompoundProcess` first when a name lookup on `ProcessImpl`'s self typ
 `SingleDenotation.computeAsSeenFrom` forcing the class's info); our lookup does not complete
 member classes. `Process.scala`, `ProcessBuilderImpl.scala` and `ProcessImpl.scala` alone: dotty
 `$3$`, ours `$2$` for `DummyProcess`; without `Process.scala` both `$2$`. Case 1: private names,
-the same meaning.
+the same meaning. `DummyProcess`'s is a local of its constructor; `CompoundProcess`'s lazy value
+is referenced only by `ProcessImpl$CompoundProcess` and its companion's `VarHandle` of the
+same unit, and `ProcessImpl.scala` has no inline methods whose TASTy could refer to it.
 
 ## Native executables
 

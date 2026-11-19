@@ -132,6 +132,36 @@ fn overriding_results_of_parameter_singleton_types() {
 }
 
 #[test]
+fn methods_with_stable_results_through_a_variable_are_not_stable() {
+    check(
+        &[(
+            "class C { def me: this.type = this }
+var v: C = new C
+def f = { val a: v.me.type = v.me; a }\n",
+            "unsupported singleton type of an unstable reference",
+        )],
+        &["class C { def me: this.type = this }
+val v: C = new C
+def f = { val a: v.me.type = v.me; a }\n"],
+    );
+}
+
+#[test]
+fn exports_through_methods_with_stable_results() {
+    check(
+        &[(
+            "object N { val k = 3 }
+object A { def M = N }
+object B { export A.M.k }\n",
+            "import prefix is not a pure expression",
+        )],
+        &["object N { val k = 3 }
+object A { val M = N }
+object B { export A.M.k }\n"],
+    );
+}
+
+#[test]
 fn f_bounded_wildcard_parameters_stay_abstract() {
     check(
         &[(

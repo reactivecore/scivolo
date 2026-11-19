@@ -46,6 +46,10 @@ impl Typer<'_> {
             self.unsupported(expr, "export prefix that is not a stable path to a value");
             return None;
         }
+        if !self.is_idempotent_expr(path) {
+            self.error(expr, "import prefix is not a pure expression");
+            return None;
+        }
         Some(self.tpd.tpe(path))
     }
 
