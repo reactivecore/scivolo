@@ -77,6 +77,7 @@ mod erased_function_types;
 mod errors;
 mod escaping;
 mod eta;
+mod export_closures;
 mod export_trees;
 mod extension_calls;
 mod extension_setters;

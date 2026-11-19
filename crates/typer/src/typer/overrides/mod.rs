@@ -4,6 +4,8 @@
 //   compiler/src/dotty/tools/dotc/core/SymDenotations.scala
 
 mod abstract_members;
+mod access;
+mod clauses;
 mod inherited_conflicts;
 mod inherited_pairs;
 mod member_overrides;
@@ -20,10 +22,14 @@ use syntax::ast::flags as f;
 use tasty::tags::{ABSTRACT, TRAIT};
 use tasty::{Kind, SymbolId, TypeId, Universe};
 
+/// The annotation that marks a member as overriding as `override` does.
+const UNCHECKED_OVERRIDE: &str = "scala.annotation.unchecked.uncheckedOverride";
+
 /// The override checks of one class (dotty's `RefChecks.checkAllOverrides` with
 /// `checkNoAbstractMembers` and `ElimErasedValueType.checkNoClashes`): refuses the class at its
 /// span when two of its methods clash, a member overrides another it may not or without
-/// `override` or with an incompatible type, an `override` member overrides nothing, it inherits conflicting members, or it is
+/// `override` or with weaker access or an incompatible type, an `override` member overrides
+/// nothing, it inherits conflicting members, or it is
 /// concrete with an abstract member left unimplemented. A class with a macro annotation keeps its
 /// last check until the annotations expanded.
 pub struct OverrideChecks {
@@ -69,6 +75,9 @@ impl OverrideChecks {
         }
         if let Some(what) = self.member_refusal(t, own.clone()) {
             return t.unsupported_at(self.span, what);
+        }
+        if self.weaker_access(t, &own) {
+            return t.unsupported_at(self.span, "override with weaker access");
         }
         if !t.diags.has_errors() && self.incompatible_type(t, &own) {
             return t.unsupported_at(self.span, "override with an incompatible type");
