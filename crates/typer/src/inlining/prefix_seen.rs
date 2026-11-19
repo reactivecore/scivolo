@@ -32,6 +32,17 @@ pub fn class_params_seen(u: &mut Universe, t: TypeId) -> TypeId {
     })
 }
 
+/// Whether `t` refers to a static member through the `this` of a static owner or a static
+/// object (dotty's `stopBecauseStaticOrLocal` under `StopAt.Static`).
+pub fn is_static_ref(u: &mut Universe, t: TypeId) -> bool {
+    let Some((Some(p), s)) = u.sym_ref(t) else { return false };
+    let owner = match *u.ty(p) {
+        Type::This(c) => u.class_symbol(c),
+        _ => u.sym_of(p).and_then(|m| u.module_class(m)),
+    };
+    u.is_static_symbol(s) && owner.is_some_and(|o| u.is_static_owner(o))
+}
+
 /// `t` with each abstract type member selected from a path selecting instead the member of that
 /// name the path's type defines, if it defines a concrete one.
 pub fn reselected_members(u: &mut Universe, t: TypeId) -> TypeId {
