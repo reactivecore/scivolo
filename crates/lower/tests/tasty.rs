@@ -43,6 +43,17 @@ fn top_level_classes_are_pickled_under_their_binary_names_with_the_source_root_p
 }
 
 #[test]
+fn the_constructor_of_any_val_results_in_object_as_dotty_signs_it() {
+    let Some(out) = lowered(&[SourceFile::new("v.scala", "class V(val x: Int) extends AnyVal")]) else {
+        return;
+    };
+    let tasty = tasty::Tasty::parse(&out.tasty[0].bytes).expect("our TASTy");
+    let signed: Vec<String> = tasty.names.iter().map(|(r, _)| tasty.names.show_signed(r)).collect();
+    let any_val = signed.iter().find(|n| n.contains("<init>") && n.contains("scala.AnyVal"));
+    assert!(any_val.is_none(), "{signed:?}");
+}
+
+#[test]
 fn a_file_whose_classes_are_not_pickled_keeps_its_nir() {
     let captures =
         "import language.experimental.captureChecking\nclass A\nclass B\ncase class K(a: A^, b: B^{a})";

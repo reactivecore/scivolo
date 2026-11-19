@@ -5,7 +5,8 @@ Scala Native's build (`just lib-oracle`, tmp/lib/sn/jars).
 Usage: scripts/lib-tasty.py MODULE [FILTER]
 
 Lowers the units of MODULE (those of `just lib-compile`, their files' paths containing FILTER) as
-lib-compile does, with `--pickle`, into tmp/lib/MODULE/tasty-out/UNIT/, and compares each TASTy
+lib-compile does, with `--pickle`, into tmp/lib/MODULE/tasty-out/UNIT/ (UNIT its first file's path
+with `%` for `/`), and compares each TASTy
 file with the oracle's as scripts/jvm-tasty.py does. Each NIR file written is compared with the
 one lib-compile wrote for the unit, if there, to show that pickling leaves the NIR alone.
 
@@ -31,10 +32,15 @@ PICKLE = "--pickle"
 PRINTED_PER_RUN = 400
 
 
+def unit_dir(module, shown):
+    """The output directory of unit `shown`, beside those of the others, not inside one."""
+    return lib.WORK / module / "tasty-out" / shown.replace("/", "%")
+
+
 def lower(module, unit, env):
     """(unit directory, state, stderr lines) of lowering `unit` with PICKLE."""
     shown = f"{unit[0][0].name}/{unit[0][1].relative_to(unit[0][0])}".removesuffix(".scala")
-    out = lib.WORK / module / "tasty-out" / shown
+    out = unit_dir(module, shown)
     cmd = lib.lower_cmd(module, unit, out)
     cmd.insert(1, PICKLE)
     try:
@@ -58,7 +64,7 @@ def oracle(module):
 
 def nir_changed(module, shown):
     """The NIR files of unit `shown` that differ from lib-compile's, where it wrote them."""
-    ours, plain = lib.WORK / module / "tasty-out" / shown, lib.WORK / module / "out" / shown
+    ours, plain = unit_dir(module, shown), lib.WORK / module / "out" / shown
     if not plain.is_dir():
         return []
     return [str(p.relative_to(ours)) for p in ours.rglob("*.nir")
@@ -124,7 +130,7 @@ def main(module, filter_):
         done = list(pool.map(lambda u: lower(module, u, env), lib.units(module, filter_)))
     ours, unpickled, changed = {}, [], []
     for shown, _, stderr in done:
-        unit = work / "tasty-out" / shown
+        unit = unit_dir(module, shown)
         ours |= {str(p.relative_to(unit)): unit for p in unit.rglob("*.tasty")}
         unpickled += [f"{shown}: {l.removeprefix('no TASTy: ')}" for l in stderr if l.startswith("no TASTy: ")]
         changed += [f"{shown}: {p}" for p in nir_changed(module, shown)]
