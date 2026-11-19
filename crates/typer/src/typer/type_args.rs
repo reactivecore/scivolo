@@ -11,7 +11,7 @@ use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
     /// What about type arguments `args` of type constructor `tycon` taking `arity` is outside
-    /// the subset: their number, `AnyKind` for a type other than a class, a constructor where a
+    /// the subset: their number, an annotated `tycon`, `AnyKind` for a type other than a class, a constructor where a
     /// parameter of another kind is, or a class constructor where the parameters are unknown.
     pub fn type_args_problem(
         &mut self,
@@ -21,6 +21,9 @@ impl Typer<'_> {
     ) -> Option<&'static str> {
         if arity != args.len() {
             return Some("wrong number of type arguments");
+        }
+        if matches!(self.u.ty(tycon), Type::Annotated(..)) {
+            return Some("annotated type constructor applied");
         }
         let class_tycon = self.u.sym_of(tycon).is_some_and(|s| self.u.symbol(s).kind == Kind::Class);
         for (i, &a) in args.iter().enumerate() {
@@ -33,6 +36,7 @@ impl Typer<'_> {
             let class = self.u.sym_of(a).is_some_and(|s| self.u.symbol(s).kind == Kind::Class);
             let param_arity = self.param_arity(tycon, i);
             match param_arity {
+                _ if self.is_nothing_ref(a) => {}
                 Some(m) if m > 0 && wildcard => {
                     return Some("wildcard argument of a higher-kinded type parameter");
                 }
@@ -120,10 +124,10 @@ impl Typer<'_> {
         if self.u.symbol(c).kind != Kind::Class || self.u.type_params(c).is_empty() {
             return Ok(tpe);
         }
+        let mut lambda = self.eta_expanded(c, tpe)?;
         if self.is_java_class_name(c) {
-            return Err("Java class type constructor argument");
+            lambda = self.java_eta_expanded(c, lambda)?;
         }
-        let lambda = self.eta_expanded(c, tpe)?;
         let node = self.tpd.get_mut(arg);
         (node.tpe, node.sym) = (Some(lambda), None);
         Ok(lambda)
@@ -144,7 +148,8 @@ impl Typer<'_> {
             let info = self.u.info(c);
             let lambda = self.u.bounds(info).map_or(info, |(_, hi)| hi);
             let bounds = self.u.lambda(lambda)?.params.get(i)?.1;
-            return Some(self.bounds_of(bounds).2);
+            let (_, hi, arity) = self.bounds_of(bounds);
+            return (self.u.class_symbol(hi) != Some(self.u.defn().any_kind)).then_some(arity);
         }
         if self.u.symbol(c).kind != Kind::Class {
             return None;
