@@ -9,6 +9,7 @@ mod name_table;
 mod narrowing;
 mod overriders;
 mod parts;
+mod rec_equality;
 mod refined_aliases;
 mod refinements;
 mod show;

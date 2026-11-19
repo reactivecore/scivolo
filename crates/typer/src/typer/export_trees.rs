@@ -89,6 +89,7 @@ impl Typer<'_> {
             }
             path_clauses = path_clauses.saturating_sub(1);
         }
+        let fun = self.eta_expand_cft(fun, at, ctx.with_owner(f.sym));
         let tpt = self.type_tree(tpe, at, false);
         let clauses: Vec<&[TNodeId]> = clauses.iter().map(Vec::as_slice).collect();
         let def = self.build().def_def(f.sym, &clauses, tpt, Some(fun), f.span);
@@ -143,7 +144,12 @@ impl Typer<'_> {
     fn applied_path_type(&mut self, fun: TNodeId, refs: &[TypeId]) -> TypeId {
         let fun_tpe = self.tpd.tpe(fun);
         let info = self.method_info(fun_tpe).unwrap_or(fun_tpe);
-        let Some(m) = self.u.poly(info).or_else(|| self.u.method(info)) else { return info };
+        if let Some(p) = self.u.poly(info) {
+            let (binder, result, names) = (p.binder, p.result, p.names());
+            let method = self.tpd.sym(self.tpd.meth_part(fun));
+            return self.instantiate_poly(result, binder, &names, refs, method);
+        }
+        let Some(m) = self.u.method(info) else { return info };
         let (binder, result, names) = (m.binder, m.result, m.names());
         self.u.subst(result, binder, &names, refs)
     }

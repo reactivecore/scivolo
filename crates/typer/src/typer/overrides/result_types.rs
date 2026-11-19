@@ -5,6 +5,7 @@
 //! conform to the overridden one's (`isOverridingPair`).
 
 use super::super::Typer;
+use super::clauses::split_bounds;
 use super::result_conformance::{conforms_overridden, result_conforms};
 use super::{OverrideChecks, overridable};
 use names::{name_kinds, nme};
@@ -55,19 +56,7 @@ impl OverrideChecks {
         [this, self.site].into_iter().any(|prefix| {
             let bounds = |t: &mut Typer<'_>, s: SymbolId| {
                 let info = t.u.own_member_info(prefix, s);
-                let node = *t.u.ty(info);
-                match node {
-                    Type::Alias(a) => Some((a, a)),
-                    Type::Bounds(lo, hi) => Some((lo, hi)),
-                    Type::Lambda { binder, params, result } => Some(match t.u.bounds(result) {
-                        Some((lo, hi)) => {
-                            let mut lambda = |x| t.u.intern_type(Type::Lambda { binder, params, result: x });
-                            (lambda(lo), lambda(hi))
-                        }
-                        None => (info, info),
-                    }),
-                    _ => None,
-                }
+                split_bounds(t, info)
             };
             let (Some((lo1, hi1)), Some((lo2, hi2))) = (bounds(t, d), bounds(t, m)) else { return true };
             conforms_overridden(t, self.site, lo2, lo1) && conforms_overridden(t, self.site, hi1, hi2)
@@ -100,8 +89,8 @@ impl OverrideChecks {
         false
     }
 
-    /// Whether member `d` overrides member `m`, which it may match, with an incompatible result
-    /// type; members of two Java classes, not interfaces, are not compared.
+    /// Whether member `d` overrides member `m`, which it may match with the same signature, with
+    /// an incompatible type; members of two Java classes, not interfaces, are not compared.
     pub fn incompatible_pair(&self, t: &mut Typer<'_>, d: SymbolId, m: SymbolId) -> bool {
         let java_class = |t: &mut Typer<'_>, s: SymbolId| {
             let owner = t.u.symbol(s).owner.is_some_and(|o| !t.u.symbol(o).flags.has(TRAIT));
@@ -111,6 +100,7 @@ impl OverrideChecks {
         !java
             && t.u.symbol(d).run_name() == t.u.symbol(m).run_name()
             && t.u.info_matches(self.site, d, m)
+            && t.u.parameters_agree(self.site, d, m)
             && !result_conforms(t, self.site, d, m)
     }
 }

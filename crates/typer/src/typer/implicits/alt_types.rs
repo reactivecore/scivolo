@@ -18,7 +18,9 @@ pub fn alt_type(t: &mut Typer<'_>, c: Candidate) -> TypeId {
     widen_given(t.u, info, c.sym)
 }
 
-fn widen_given(u: &mut Universe, t: TypeId, alt: SymbolId) -> TypeId {
+/// Widens type `t` of `alt`, a given or implicit method whose result is the class defined with
+/// it, to that class's parents (dotty's `widenGiven`).
+pub fn widen_given(u: &mut Universe, t: TypeId, alt: SymbolId) -> TypeId {
     match *u.ty(t) {
         Type::Method { binder, params, result, implicit: true, contextual } => {
             let result = widen_given(u, result, alt);

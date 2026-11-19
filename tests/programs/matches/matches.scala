@@ -53,6 +53,12 @@ object M:
       case 2 => count += 2
       case _ => count -= 1
     count
+  def reduce(x: Double, ops: List[(String, Double)]): Double = (ops: @unchecked) match
+    case Nil => x
+    case ("+", y) :: ys => reduce(x + y, ys)
+    case ("-", y) :: ys => reduce(x - y, ys)
+    case ("*", y) :: ys => reduce(x * y, ys)
+    case ("/", y) :: ys => reduce(x / y, ys)
 
 object B:
   final val Three = 3
@@ -105,3 +111,6 @@ class K:
   println(M.inLambda(5))
   println(M.statement(2))
   println(M.statement(7))
+  println(M.reduce(1.0, List(("+", 2.0), ("*", 3.0), ("-", 0.5), ("/", 2.0))))
+  try M.reduce(1.0, List(("%", 2.0)))
+  catch case e: MatchError => println(e.getMessage)
