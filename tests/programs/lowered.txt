@@ -239,3 +239,5 @@ trackedparams
 localclassmirrors
 reflectiveinstantiation
 refinedendpoints
+overloadrefs
+implicitchoice

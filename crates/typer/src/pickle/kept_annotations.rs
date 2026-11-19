@@ -6,6 +6,7 @@
 
 use super::TreePickler;
 use crate::tpd::{TNodeId, Tree as T};
+use crate::typer::patterns::MAX_ALIAS_STEPS;
 use names::name_kinds::SETTER_SUFFIX;
 use tasty::defn::{NON_BEAN_TARGETS, UNUSED};
 use tasty::tags::{FIELDaccessor, PARAMsetter, SYNTHETIC};
@@ -59,7 +60,12 @@ impl TreePickler<'_> {
         let kept = self.u.annotations_carrying(s, targets, none_of);
         trees.retain(|&a| {
             let t = self.tpd.tpe(a);
-            self.u.class_symbol(t).is_some_and(|c| kept.contains(&c))
+            let carried = match (self.u.class_symbol(t), self.meta_annotations(a)) {
+                (Some(c), Some(metas)) => self.u.carries(c, metas, targets, none_of),
+                (c, None) => c.is_some_and(|c| kept.contains(&c)),
+                (None, Some(_)) => false,
+            };
+            carried
                 || param && self.u.is_class_named(t, UNUSED)
                 || accessor && !param && PARAM_ACCESSOR_ALSO.iter().any(|&n| self.u.is_class_named(t, n))
         });
@@ -70,6 +76,31 @@ impl TreePickler<'_> {
             trees[..=i].rotate_right(1);
         }
         trees
+    }
+
+    /// The meta-annotation classes of annotation `annot`, on its class's type through aliases;
+    /// none if it creates no instance.
+    fn meta_annotations(&mut self, annot: TNodeId) -> Option<Vec<SymbolId>> {
+        let mut t = annot;
+        while let T::Apply { fun: inner, .. }
+        | T::TypeApply { fun: inner, .. }
+        | T::Select { qualifier: inner, .. } = *self.tpd.tree(t)
+        {
+            t = inner;
+        }
+        let T::New { tpt } = *self.tpd.tree(t) else { return None };
+        let (mut tpe, mut metas) = (self.tpd.tpe(tpt), Vec::new());
+        for _ in 0..MAX_ALIAS_STEPS {
+            while let Some((inner, meta)) = self.u.annotated(tpe) {
+                metas.extend(self.u.class_symbol(meta));
+                tpe = inner;
+            }
+            match self.u.dealias_step(tpe) {
+                next if next == tpe => break,
+                next => tpe = next,
+            }
+        }
+        Some(metas)
     }
 
     /// Marks parts of annotation `annot` of `sym` to be pickled anew if pickled before, its other

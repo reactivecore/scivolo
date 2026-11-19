@@ -88,6 +88,6 @@ impl Gen<'_, '_> {
     /// Whether `m`, which a bridge forwards to, is a bridge or mixin forwarder, whose type before
     /// erasure dotty does not know.
     fn made_after_erasure(&self, m: SymbolId) -> bool {
-        self.l.is_bridge(m) || self.l.mixed_in_from(m).is_some()
+        self.l.is_bridge(m) || self.l.mixed_in_from(m).is_some() || self.is_library_made(m)
     }
 }

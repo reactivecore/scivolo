@@ -25,6 +25,7 @@ impl Typer<'_> {
         let tpt = self.typed_type(tpt, ctx);
         let tpe = self.tpd.tpe(tpt);
         if let T::Select { qualifier, .. } = *self.tpd.tree(tpt)
+            && !matches!(self.tpd.tree(qualifier), T::SingletonTypeTree { .. })
             && !self.is_stable_path(qualifier)
         {
             return self.unsupported(id, "new with an unstable prefix");
@@ -50,8 +51,11 @@ impl Typer<'_> {
                 self.error_at(span, super::errors::cannot_instantiate(&name, flags.has(TRAIT)));
             }
             self.ensure_self(c);
-            if self.u.given_self_type(c).is_some() {
-                return self.unsupported(id, "new of a class not conforming to its self type");
+            if let Some(given) = self.u.given_self_type(c) {
+                let seen = self.u.as_seen_from(given, tpe, c);
+                if !self.conforms(tpe, seen) {
+                    return self.unsupported(id, "new of a class not conforming to its self type");
+                }
             }
         }
         if let Some(c) = self.u.sym_of(tpe)

@@ -1,8 +1,8 @@
-//! Symbols defined outside TASTy (a script's), what completes them, binders for their types.
+//! Symbols defined outside TASTy (a script's) and what completes them.
 
-use super::{FileId, Flags, Kind, Symbol, SymbolId, Universe};
+use super::{Flags, Kind, Symbol, SymbolId, Universe};
 use crate::tags::PARAMsetter;
-use crate::types::{Binder, TypeId};
+use crate::types::TypeId;
 
 impl Universe {
     /// Enters `s` into its owner; `s.tree` is `None` for a symbol without TASTy.
@@ -68,15 +68,14 @@ impl Universe {
         self.generation
     }
 
-    /// How many binders `fresh_binder` has made.
-    pub fn binders_made(&self) -> u32 {
-        self.binders
-    }
-
-    /// Sets the declared type of `sym`; replacing a different info drops the resolved references.
+    /// Sets the declared type of `sym`; replacing a different info drops the resolved references,
+    /// and the linearizations if `sym` is a type member, which a parent may refer to.
     pub fn set_info(&mut self, sym: SymbolId, info: TypeId) {
         self.nullified_infos.remove(&sym);
         if self.infos.insert(sym, info).is_some_and(|old| old != info) {
+            if self.symbol(sym).kind == Kind::Type {
+                self.linearizations.clear();
+            }
             self.changed();
         }
     }
@@ -191,23 +190,5 @@ impl Universe {
         if let Some(owner) = self.symbol(sym).owner {
             self.decls_changed(owner);
         }
-    }
-
-    /// The file of the common binders of two type lambdas or polymorphic types being compared.
-    pub const COMPARED_BINDERS: FileId = FileId(u32::MAX - 5);
-
-    /// The file of the binders of `fresh_binder`.
-    pub const FRESH_BINDERS: FileId = FileId(u32::MAX - 1);
-
-    /// A binder no other type uses, for a type lambda or method type made outside TASTy.
-    pub fn fresh_binder(&mut self) -> Binder {
-        self.binders += 1;
-        Binder(Self::FRESH_BINDERS, self.binders)
-    }
-
-    /// A skolem of type `info`, different from every other.
-    pub fn fresh_skolem(&mut self, info: TypeId) -> TypeId {
-        let b = self.fresh_binder();
-        self.intern_type(crate::Type::Skolem(b, info))
     }
 }

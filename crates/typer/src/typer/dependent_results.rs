@@ -10,7 +10,7 @@ use super::dependent_params::{
     applied_result, clause_param, has_false_dependency, mentions_clause_params, mentions_params,
     mentions_params_except, singleton_args, substituted,
 };
-use crate::tpd::TNodeId;
+use crate::tpd::{TNodeId, Tree as T};
 use tasty::{Binder, Kind, NameId, SymbolId, Type, TypeId, TypeVars};
 
 impl Typer<'_> {
@@ -59,19 +59,19 @@ impl Typer<'_> {
     /// Whether one of `formals` of the clause `clause` of method `method` refers to an earlier
     /// parameter of the clause; `Err` for a formal outside the subset: by-name inside, referring
     /// to a parameter of another clause but those `applied`, or to its own clause unless the
-    /// arguments are `in_order`.
+    /// arguments are `untyped`, not typed by overloading resolution.
     pub fn param_dependent(
         &mut self,
         formals: &[TypeId],
         (clause, method): ((Binder, &[NameId]), Option<SymbolId>),
         applied: &[SymbolId],
-        in_order: bool,
+        untyped: bool,
     ) -> Result<bool, &'static str> {
         let mut dependent = false;
         for &p in formals {
             let own = self.mentions_clause_params(p, clause, method);
             dependent |= own;
-            if own && !in_order
+            if own && !untyped
                 || !own
                     && (self.is_special_param(p)
                         || mentions_params_except(self.u, p, clause.0, method, applied))
@@ -103,11 +103,34 @@ impl Typer<'_> {
         let info = self.method_info(tpe).unwrap_or(tpe);
         let Type::Method { binder, params, result, .. } = *self.u.ty(info) else { return None };
         let params = self.u.params_of(params).to_vec();
-        let result = self.without_false_deps(result, binder, method);
+        let result = self.without_false_deps(result, (binder, &params), method);
         match self.mentions_params(result, binder, method) {
             true => self.result_of_untold_sets(result, (binder, &params), method),
             false => Some(result),
         }
+    }
+
+    /// The result type of call `f` of method `method` after it or its arguments were lifted, the
+    /// lifted arguments `args` substituted for its parameters (dotty's `safeSubstParams` on the
+    /// arguments of `liftArgs`), with what it substituted.
+    pub fn lifted_dependent_result(
+        &mut self,
+        f: TNodeId,
+        method: Option<SymbolId>,
+        args: &[TNodeId],
+    ) -> Option<(TypeId, Vec<TypeId>)> {
+        let tpe = self.tpd.tpe(f);
+        let info = self.method_info(tpe).unwrap_or(tpe);
+        let Type::Method { binder, params, result, .. } = *self.u.ty(info) else { return None };
+        let params = self.u.params_of(params).to_vec();
+        let result = self.without_false_deps(result, (binder, &params), method);
+        let values: Vec<TNodeId> = (args.iter())
+            .map(|&a| match *self.tpd.tree(a) {
+                T::NamedArg { arg, .. } => arg,
+                _ => a,
+            })
+            .collect();
+        self.dependent_result(result, (binder, &params), method, &values)
     }
 
     /// Result `t` of an application whose arguments are not known per parameter, its references
@@ -137,33 +160,6 @@ impl Typer<'_> {
             })
             .collect();
         Some(substituted(self.u, t, &param, &skolems))
-    }
-
-    /// Result `t` of the method type of binder `binder` of method `method` with the aliases
-    /// selected from parameters dealiased, if that leaves no reference to a parameter, else `t`
-    /// (dotty's `TermLambda.resultType` for `FalseDeps`).
-    pub fn without_false_deps(&mut self, t: TypeId, binder: Binder, method: Option<SymbolId>) -> TypeId {
-        if !mentions_params(self.u, t, binder, method) {
-            return t;
-        }
-        let mut current = t;
-        for _ in 0..8 {
-            self.complete_type_members(current);
-            let next = self.u.map_type(current, &mut |u, part| {
-                let Some((Some(pre), s)) = u.sym_ref(part) else { return None };
-                if u.symbol(s).kind != Kind::Type || !mentions_params(u, pre, binder, method) {
-                    return None;
-                }
-                let seen = u.referenced_alias(part)?;
-                let declared = u.alias_of(s).is_some_and(|a| has_wildcard(u, a));
-                (declared || !has_wildcard(u, seen)).then_some(seen)
-            });
-            if next == current {
-                break;
-            }
-            current = next;
-        }
-        if mentions_params(self.u, current, binder, method) { t } else { current }
     }
 
     /// Result `t` of a method of parameters `params` applied to the typed arguments `args`, if

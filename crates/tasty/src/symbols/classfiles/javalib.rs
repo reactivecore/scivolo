@@ -133,6 +133,14 @@ impl Universe {
         found
     }
 
+    /// Determines for each type parameter of library class `c`'s JDK class file whether only
+    /// `Object` bounds it; `None` without that class file or its signature.
+    pub fn jdk_object_bounded_params(&mut self, c: SymbolId) -> Option<Vec<bool>> {
+        let info = self.jdk_class_of(c)?;
+        let params = Sig::new(info.signature.as_deref()?).type_params(self).ok()?;
+        Some(params.iter().map(|(_, b)| bounded_by_object(b)).collect())
+    }
+
     /// The JDK class file of library class `c` if `c` is named as a `java.*` or `javax.*` class
     /// (or object's class) other than `Object`.
     fn read_jdk_class_of(&mut self, c: SymbolId) -> Option<Rc<ClassInfo>> {

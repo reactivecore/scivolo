@@ -11,14 +11,20 @@ use tasty::Type;
 use tasty::tags::INLINE;
 
 impl Typer<'_> {
-    /// Whether the unit writes a capture set, an annotation other than the `@Repeated` of `T*`,
-    /// a function or a by-name type.
+    /// Whether the current source file of the unit writes a capture set, an annotation other than
+    /// the `@Repeated` of `T*`, a function or a by-name type.
     pub fn has_capture_syntax(&self) -> bool {
-        self.ast.exists_subtree(self.unit, &|a, n| match *a.tree(n) {
-            Tree::CapturesAndResult { .. } | Tree::UseRef { .. } => true,
-            Tree::Annotated { annot, .. } => !self.is_repeated_syntax(annot),
-            Tree::Function { .. } | Tree::ByNameTypeTree { .. } => a.is_type(n),
-            _ => false,
+        self.ast.exists_subtree(self.unit, &|a, n| {
+            let in_file = |n| {
+                let span = a.span(n);
+                !span.exists() || self.file_of(span) == self.file
+            };
+            match *a.tree(n) {
+                Tree::CapturesAndResult { .. } | Tree::UseRef { .. } => in_file(n),
+                Tree::Annotated { annot, .. } => in_file(n) && !self.is_repeated_syntax(annot),
+                Tree::Function { .. } | Tree::ByNameTypeTree { .. } => in_file(n) && a.is_type(n),
+                _ => false,
+            }
         })
     }
 

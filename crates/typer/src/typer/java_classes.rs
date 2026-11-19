@@ -3,7 +3,7 @@
 //! or member is a Java one; the JDK's functional interfaces.
 
 use super::Typer;
-use tasty::{SymbolId, Universe};
+use tasty::{SymbolId, Type, TypeId, Universe};
 
 /// Whether `s` is a member of a `java.*` or `javax.*` class, a Java class of the Scala library
 /// or a class of a class file, its parameter names unknown.
@@ -56,6 +56,36 @@ impl Typer<'_> {
     pub fn java_class_params(&mut self, ctor: Option<SymbolId>) -> Vec<SymbolId> {
         let Some(c) = ctor.filter(|&m| self.u.is_constructor(m)) else { return Vec::new() };
         self.u.symbol(c).owner.map_or_else(Vec::new, |o| self.u.type_params(o))
+    }
+
+    /// Bounds the parameters of eta-expansion `lambda` of Java class `c` of the library by
+    /// `<FromJavaObject>`, as the JDK class file's `Object` bounds read (dotty's `etaExpand` of a
+    /// Java class); refused without that class file or if a parameter has other bounds in either.
+    pub fn java_eta_expanded(&mut self, c: SymbolId, lambda: TypeId) -> Result<TypeId, &'static str> {
+        const REFUSED: &str = "Java class type constructor argument";
+        let object_bounded = self.u.jdk_object_bounded_params(c).ok_or(REFUSED)?;
+        let params = self.u.type_params(c);
+        if object_bounded.len() != params.len() || !object_bounded.iter().all(|&b| b) {
+            return Err(REFUSED);
+        }
+        if !params.iter().all(|&p| self.is_bounded_by_object(p)) {
+            return Err(REFUSED);
+        }
+        let l = self.u.lambda(lambda).ok_or(REFUSED)?;
+        let (binder, result, n) = (l.binder, l.result, l.params.len());
+        let names: Vec<_> = l.params.iter().map(|&(name, _)| name).collect();
+        let from_java_object = self.u.intern_type(Type::Sym(None, self.u.defn().from_java_object));
+        let bounds = self.u.intern_type(Type::Bounds(tasty::NOTHING, from_java_object));
+        let params: Vec<_> = names.into_iter().zip(std::iter::repeat_n(bounds, n)).collect();
+        Ok(self.u.intern_lambda(binder, &params, result))
+    }
+
+    /// Whether type parameter `p` has the bounds `>: Nothing <: Any` or `>: Nothing <: AnyRef`.
+    fn is_bounded_by_object(&mut self, p: SymbolId) -> bool {
+        let info = self.u.info(p);
+        let Some((lo, hi)) = self.u.bounds(info) else { return false };
+        let (b, hi) = (self.u.defn(), self.u.class_symbol(hi));
+        self.u.class_symbol(lo) == Some(b.nothing) && (hi == Some(b.any) || hi == Some(b.object))
     }
 
     /// Whether type parameter `p` has the bounds `>: Nothing <: Any`.

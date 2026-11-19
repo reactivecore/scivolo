@@ -77,10 +77,12 @@ mod erased_function_types;
 mod errors;
 mod escaping;
 mod eta;
+mod export_closures;
 mod export_trees;
 mod extension_calls;
 mod extension_setters;
 mod extractor_members;
+mod false_deps;
 mod features;
 mod find_ref;
 mod format_views;
@@ -188,6 +190,7 @@ pub(crate) mod seen_from;
 mod select;
 mod selectable_fields;
 mod selves;
+mod sequence_args;
 mod settle;
 mod shown_prefix;
 mod signature_polymorphic;
@@ -299,8 +302,6 @@ pub struct Typer<'a> {
     pub experimental: Option<&'static str>,
     /// The `-W` lints the options enable.
     pub lints: Lints,
-    /// Whether the source version is `future`.
-    pub source_future: bool,
     /// Whether `$` in a definition's name is warned about (source 3.9 and later).
     pub dollar_names_warned: bool,
     /// Whether the unit behaves as the Scala 2 library (`language.\`2.13\``).
@@ -321,6 +322,8 @@ pub struct Typer<'a> {
     pub splice_owners: FxHashMap<NodeId, SymbolId>,
     /// The spliced receivers of extension method calls (`TypedSplice.isExtensionReceiver`).
     pub extension_receivers: rustc_hash::FxHashSet<NodeId>,
+    /// The term member each qualifier being typed is selected for (dotty's `SelectionProto`).
+    pub selected_members: FxHashMap<NodeId, syntax::names::Name>,
     /// The `new`s of parent calls (dotty's `noCheckNews`).
     pub parent_news: rustc_hash::FxHashSet<NodeId>,
     /// The `new`s of annotations, which may create a Java annotation, each with its annotation.
@@ -400,6 +403,8 @@ pub struct Typer<'a> {
     pub dynamic_calls: FxHashMap<TNodeId, dynamic::DynamicCall>,
     /// The selections of structural methods not rewritten to `applyDynamic` calls yet.
     pub structural_selects: FxHashSet<TNodeId>,
+    /// The ascriptions inserted for a conformance through opaque types lifted to `this`.
+    pub opaque_ascriptions: FxHashSet<TNodeId>,
     /// The left-hand side of the assignment being typed.
     pub dynamic_lhs: Option<NodeId>,
     /// The functions of polymorphic function values, whose results may refer to their
@@ -439,11 +444,13 @@ pub fn match_type_rules(v: SourceVersion) -> tasty::MatchTypeRules {
     }
 }
 
-/// Refuses source versions before 3.3 and migrating ones.
-pub fn check_source_version(v: SourceVersion) -> Result<(), String> {
-    match v.is_at_least(SourceVersion::V3_3) && !v.migrating {
-        true => Ok(()),
-        false => Err("source versions other than 3.3 to 3.9".into()),
+/// Refuses source version `3.0-migration`, which types as Scala 2 does (dotty's `migrateTo3`),
+/// and `-rewrite`, which patches the source where a migrating version warns.
+pub fn check_source_version(cfg: &Config) -> Result<(), String> {
+    match (cfg.source_version.migrate_to_3(), cfg.rewrite) {
+        (true, _) => Err("source version 3.0-migration".into()),
+        (_, true) => Err("-rewrite".into()),
+        _ => Ok(()),
     }
 }
 
@@ -456,11 +463,12 @@ impl<'a> Typer<'a> {
         syms: &mut Syms,
     ) -> Result<Self, String> {
         let v = cfg.source_version;
-        check_source_version(v)?;
+        check_source_version(&cfg)?;
         let defn = u.enter_library_defn()?;
         u.reductions_exhausted = false;
         u.erasure_exhausted = false;
         u.match_type_rules = match_type_rules(v);
+        u.distributes_and = v.enables_distribute_and();
         u.keeps_captures = cfg.features.capture_checking();
         let mut syms = std::mem::take(syms);
         let ops = u.package(nme::OPS_PACKAGE);
@@ -485,7 +493,6 @@ impl<'a> Typer<'a> {
             nullables: Default::default(),
             experimental: cfg.experimental,
             lints: cfg.warnings.lints,
-            source_future: v.requires_new_syntax(),
             dollar_names_warned: v.is_at_least(SourceVersion::V3_9),
             scala2: v.is_scala2(),
             source_version: v,
@@ -495,6 +502,7 @@ impl<'a> Typer<'a> {
             splices: FxHashMap::default(),
             splice_owners: FxHashMap::default(),
             extension_receivers: Default::default(),
+            selected_members: FxHashMap::default(),
             parent_news: Default::default(),
             annotation_news: Default::default(),
             java_annotation_news: Default::default(),
@@ -532,6 +540,7 @@ impl<'a> Typer<'a> {
             gadt: Default::default(),
             dynamic_calls: FxHashMap::default(),
             structural_selects: FxHashSet::default(),
+            opaque_ascriptions: FxHashSet::default(),
             dynamic_lhs: None,
             poly_closures: FxHashMap::default(),
             hidden_params: FxHashSet::default(),

@@ -10,6 +10,9 @@ object O:
   def fs: Array[F[Int]] = Array(List(4))
   inline def headOf[X](x: F[X]): X = x.head
   transparent inline def firstOf[X](x: F[X]) = x.head
+  transparent inline def same[X](x: F[X]) = x
+  inline def sameVia[X](x: F[X]) = same(x)
+  transparent inline def sameAgain[X](x: F[X]) = same(x)
 
 class Meters(val v: Double) extends AnyVal:
   override def toString = s"${v}m"

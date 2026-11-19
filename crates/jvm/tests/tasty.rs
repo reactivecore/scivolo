@@ -127,11 +127,15 @@ const DOTTY_TASTY: &[(&str, &[&str])] = &[
     ),
     ("closurecaptures", &["Closures"]),
     ("fieldcaptures", &["C", "D", "E", "F", "H"]),
+    ("casecaptures", &["C", "G", "H", "W", "O"]),
+    ("dependentcases", &["S", "O"]),
     ("wildcardmembers", &["WildcardMembers"]),
     ("newarrays", &["NewArrays"]),
     ("anymembers", &["AnyMembers"]),
     ("inheritedresults", &["InheritedResults"]),
     ("wildcardselections", &["WildcardSelections"]),
+    ("valueclasses", &["Count", "Name"]),
+    ("metatargets", &["MetaTargets"]),
 ];
 
 /// The trees, positions and flag attributes of the classes of `DOTTY_TASTY` are dotty's: the
@@ -153,7 +157,9 @@ const DOTTY_TASTY: &[(&str, &[&str])] = &[
 /// function type's parent, and is dependent if its result's sets name them
 /// (closurecaptures.scala), a by-name argument to a result whose set names the parameter keeps
 /// the argument's set in the type argument (`ByNameArgs` of typercaptures.scala), a field's
-/// written set names the fields for the constructor's parameters (fieldcaptures.scala);
+/// written set names the fields for the constructor's parameters (fieldcaptures.scala), and a
+/// case class's `copy`, `apply` and `fromProduct` their own parameters and values for them
+/// (casecaptures.scala), also in path-dependent types (dependentcases.scala);
 /// annotated types take the annotation tree of their own
 /// origin in match selectors and patterns, inferred types, super accessors and inline accessors,
 /// in super accessors with their class's type parameters seen from the accessor's class; secondary constructors have their own type parameters and parameters passed on to the
@@ -166,8 +172,10 @@ const DOTTY_TASTY: &[(&str, &[&str])] = &[
 /// constructor signature ending in `Object` (newarrays.scala), the members of `Any` refer to
 /// classes through their package's `this` (anymembers.scala), and an inherited result type comes
 /// from the parents' base types intersected in order (inheritedresults.scala), and a selection on
-/// a prefix with a wildcard argument is approximated (wildcardselections.scala). Needs a JDK (java
-/// on the PATH), as dotty's did.
+/// a prefix with a wildcard argument is approximated (wildcardselections.scala), and a value class
+/// calls `AnyVal`'s constructor signed with result `Object` and its `hashCode` refers to its value
+/// by name (valueclasses.scala), and of two annotations of one class a parameter or value keeps
+/// those meant for it (metatargets.scala). Needs a JDK (java on the PATH), as dotty's did.
 #[test]
 fn probes_pickle_as_dotty_s() {
     if Command::new("java").arg("-version").output().is_err() {
@@ -192,6 +200,29 @@ fn probes_pickle_as_dotty_s() {
             assert!(same, "{name}'s {class}.tasty differs from dotty's");
         }
     }
+}
+
+/// The trees of `V` of tests/jvm/tastylib/casecaptures.scala, whose repeated parameter has a
+/// capture set naming another parameter, are dotty's: `fromProduct` ascribes its `Seq` value the
+/// repeated type. Needs a JDK (java on the PATH), as dotty's did.
+#[test]
+fn annotated_repeated_case_params_pickle_as_dotty_s() {
+    if Command::new("java").arg("-version").output().is_err() {
+        return;
+    }
+    let out = root().join("tmp/jvm-test/casecaptures-v");
+    let _ = std::fs::remove_dir_all(&out);
+    let run = Command::new(env!("CARGO_BIN_EXE_scivolo-jvm"))
+        .current_dir(root())
+        .arg("-d")
+        .arg(&out)
+        .arg("tests/jvm/tastylib/casecaptures.scala")
+        .output()
+        .expect("running scivolo-jvm");
+    assert!(run.status.success(), "{}", String::from_utf8_lossy(&run.stderr));
+    let ours = std::fs::read(out.join("V.tasty")).expect("our TASTy");
+    let theirs = std::fs::read(root().join("tests/jvm/tastylib/casecaptures-V.tasty")).expect("dotty's");
+    assert!(trees_and_flags(&ours).0 == trees_and_flags(&theirs).0, "V.tasty's trees differ from dotty's");
 }
 
 /// Compiles tests/jvm/basetypes/`name`.scala.
@@ -324,34 +355,6 @@ fn exported_match_aliases_reduce_from_tasty() {
     let run = Command::new("java").args(["-Xverify:all", "-cp", &classpath, "Use"]).output().expect("java");
     assert!(run.status.success(), "{}", String::from_utf8_lossy(&run.stderr));
     assert_eq!(String::from_utf8_lossy(&run.stdout), "1\n");
-}
-
-/// The synthetic type trees of a case class parameter whose capture set names another parameter
-/// are refused.
-#[test]
-fn untold_capture_sets_are_refused() {
-    let out = root().join("tmp/jvm-test/untoldcaptures");
-    let _ = std::fs::remove_dir_all(&out);
-    std::fs::create_dir_all(&out).expect("tmp/jvm-test/untoldcaptures");
-    let header = "import language.experimental.captureChecking\nclass Label[T]\nclass A\nclass B\n\
-                  trait Coll:\n  def label: Label[Int]^{this}\n";
-    let cases = [(
-        "caseclassparam",
-        "case class C(a: A^, b: Label[Int]^{a})\n",
-        "a capture set that refers to other than static definitions",
-    )];
-    for (name, body, refusal) in cases {
-        let source = out.join(format!("{name}.scala"));
-        std::fs::write(&source, format!("{header}{body}")).expect("writing");
-        let run = Command::new(env!("CARGO_BIN_EXE_scivolo-jvm"))
-            .arg("-d")
-            .arg(out.join(name))
-            .arg(&source)
-            .output()
-            .expect("running scivolo-jvm");
-        let stderr = String::from_utf8_lossy(&run.stderr);
-        assert!(!run.status.success() && stderr.contains(refusal), "{name}: {stderr}");
-    }
 }
 
 /// scala-cli 3.9.0 compiles tests/jvm/tastylib/user.scala against the jar, and the result runs

@@ -46,9 +46,9 @@ impl Typer<'_> {
         while let Some((binder, ps, result)) =
             self.u.method(method).map(|m| (m.binder, m.params.to_vec(), m.result))
         {
-            for (_, p) in ps {
+            for &(_, p) in &ps {
                 let owner = self.param_owner(p);
-                let p = self.without_false_deps(p, binder, owner);
+                let p = self.without_false_deps(p, (binder, &ps), owner);
                 if self.mentions_params(p, binder, owner) || self.repeated_elem(p).is_some() {
                     return self
                         .unsupported_tree(span, "structural method of dependent or repeated parameters");
@@ -134,6 +134,13 @@ impl Typer<'_> {
         for &p in params {
             let widened = self.u.widen(p);
             let dealiased = self.u.dealias(widened);
+            let dealiased = self.u.refinement_dealiased(dealiased);
+            let dealiased = self.u.dealias(dealiased);
+            let dealiased = match *self.u.ty(dealiased) {
+                Type::Rec(_, t) => t,
+                _ => dealiased,
+            };
+            let (dealiased, _) = self.u.without_refinements(dealiased);
             if self.types().class_args(dealiased, ARRAY).is_some() || self.is_value_class_type(dealiased) {
                 return None;
             }

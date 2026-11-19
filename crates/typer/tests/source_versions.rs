@@ -1,4 +1,4 @@
-//! Source versions below 3.7: what the typer refuses where dotty's older rules apply.
+//! Source versions other than 3.9: what the typer refuses where dotty's older rules apply.
 
 use std::path::Path;
 use syntax::config::Config;
@@ -43,9 +43,12 @@ object R { given Base = Base(); given Sub = Sub(); val b = summon[Base] }";
 const DEFINED_AFTER: &str = "object L { def g: Int = { given k: Long = 1L; given i: Int = summon[Long].toInt; given j: Long = 2L; i } }";
 
 #[test]
-fn implicits_are_ranked_from_3_7() {
+fn implicit_priority_changes_are_refused_in_3_6_and_3_7_migration() {
+    let refused = Err("implicit priority change between Scala 3.6 and 3.7".to_owned());
+    assert_eq!(typed(RANKED, "3.5"), Ok(()));
+    assert_eq!(typed(RANKED, "3.6"), refused);
+    assert_eq!(typed(RANKED, "3.7-migration"), refused);
     assert_eq!(typed(RANKED, "3.7"), Ok(()));
-    assert_eq!(typed(RANKED, "3.6"), Err("ranking implicits below Scala 3.7".into()));
 }
 
 #[test]
@@ -65,7 +68,40 @@ fn inline_results_are_constrained_by_wildcards_below_3_4() {
 }
 
 #[test]
-fn source_versions_from_3_3() {
-    assert_eq!(typed("object V { val x = 1 }", "3.3"), Ok(()));
-    assert_eq!(typed("object V { val x = 1 }", "3.2"), Err("source versions other than 3.3 to 3.9".into()));
+fn legacy_constructs_are_errors_under_future_and_warnings_under_future_migration() {
+    let cases = [
+        ("object F { def inc(x: Int) = x + 1; val f = inc _ }", "eta-expansion is unnecessary"),
+        ("object F { val xs = List(2, 1).sorted(Ordering.Int) }", "provided with a `using` clause"),
+        ("object F { val Some(y) = Option(1) }", "is more specialized than"),
+    ];
+    for (text, error) in cases {
+        assert_eq!(typed(text, "future-migration"), Ok(()), "{text}");
+        assert!(typed(text, "future").is_err_and(|e| e.contains(error)), "{text}");
+    }
+}
+
+const NOTHING_ARGUMENT: &str = "final class Bar[+F[_]]; object B { val b: Bar[Nothing] = new Bar[Nothing] }";
+
+const PULL: &str = "abstract class Pull[+F[_], +O, +R]
+object Pull:
+  abstract class Terminal[+R] extends Pull[Nothing, Nothing, R]
+  class StreamPullOps[F[_], O](self: Pull[F, O, Unit]):
+    def flatMapOutput[F2[x] >: F[x], O2](): Pull[F2, O2, Unit] =
+      self match
+        case r: Terminal[?] => r
+        case _              => ???
+";
+
+#[test]
+fn nothing_arguments_of_any_kind_and_intersections_kept_apart_under_future() {
+    assert_eq!(typed(NOTHING_ARGUMENT, "future"), Ok(()));
+    assert!(typed(PULL, "future").is_err());
+}
+
+#[test]
+fn source_versions_but_3_0_migration() {
+    for v in ["3.0", "3.1", "3.2", "3.2-migration", "3.9-migration", "future-migration", "future"] {
+        assert_eq!(typed("object V { val x = 1 }", v), Ok(()), "{v}");
+    }
+    assert_eq!(typed("object V { val x = 1 }", "3.0-migration"), Err("source version 3.0-migration".into()));
 }

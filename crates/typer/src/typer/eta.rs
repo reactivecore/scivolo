@@ -13,6 +13,7 @@ use names::{name_kinds, nme};
 use syntax::ast::flags as f;
 use syntax::ast::modifiers::Modifiers;
 use syntax::ast::{NodeId, Span, TName, Tree};
+use syntax::config::Migration;
 use tasty::{MAX_IMPLEMENTED_ARITY, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
@@ -70,9 +71,7 @@ impl Typer<'_> {
             return Err("method value");
         };
         let params = self.u.params_of(params).to_vec();
-        if params.last().is_some_and(|&(_, p)| self.repeated_elem(p).is_some()) {
-            return Err("method value with a repeated parameter");
-        }
+        let repeated = params.last().is_some_and(|&(_, p)| self.repeated_elem(p).is_some());
         let last = self.u.method(result).is_none_or(|m| m.implicit);
         let below = match pt {
             Pt::Type(p) => Some(self.var_upper(p)),
@@ -121,6 +120,9 @@ impl Typer<'_> {
             self.ast.with_span(id, start);
             ids.push(id);
         }
+        if repeated && let Some(last) = ids.last_mut() {
+            *last = self.spread(*last, start);
+        }
         let fun = self.ast.node(Tree::TypeTree);
         self.ast.with_span(fun, self.tpd.span(lifted));
         self.splices.insert(fun, lifted);
@@ -147,6 +149,16 @@ impl Typer<'_> {
         Ok(self.adapt(closure, pt, ctx))
     }
 
+    /// Builds `expr*` at `span`, passing `expr` to a repeated parameter.
+    fn spread(&mut self, expr: NodeId, span: Span) -> NodeId {
+        let star = self.name(nme::WILDCARD_STAR);
+        let tpt = self.ast.node(Tree::Ident { name: TName { name: star, is_type: true } });
+        self.ast.with_span(tpt, span);
+        let typed = self.ast.node(Tree::Typed { expr, tpt });
+        self.ast.with_span(typed, span);
+        typed
+    }
+
     /// `qual _` (dotty's `typedAsFunction`): `qual` eta-expanded, or a function value already.
     pub fn typed_as_function(&mut self, id: NodeId, qual: NodeId, pt: Pt, ctx: Ctx) -> TNodeId {
         let pt1 = match pt {
@@ -170,7 +182,7 @@ impl Typer<'_> {
             automatically, so you can write the function value directly instead."
             .to_owned()
             + &self.rewrite_notice("This construct", "3.4-migration");
-        self.diags.warning_at(span.start(), span.end(), span.point(), msg);
+        self.error_or_migration_warning(span, msg, Migration::FunctionUnderscore);
         res
     }
 

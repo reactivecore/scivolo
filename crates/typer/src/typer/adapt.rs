@@ -109,9 +109,8 @@ impl Typer<'_> {
             || self.complete_reached_unit_classes(tpe, pt) && self.conforms(tpe, pt)
             || self.complete_named_type_members(tpe, pt) && self.conforms(tpe, pt)
         {
-            if self.u.opaque_lifts() != lifts && !self.types().conforms_unlifted(tpe, pt) {
-                let tpt = self.type_tree(pt, span.end_pos(), true);
-                return self.tpd.node(T::Typed { expr: tree, tpt }, span.to_synthetic(), Some(pt), None);
+            if let Some(ascribed) = self.opaque_ascribed(tree, pt, lifts) {
+                return ascribed;
             }
             return self.gadt_adapted_in(tree, pt);
         }

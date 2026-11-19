@@ -12,9 +12,10 @@ use tasty::{Kind, SymbolId};
 use typer::tpd::{TNodeId, Tree};
 
 impl Gen<'_, '_> {
-    /// Generates statement `t` of a block and drops its value; generates nothing for a pure `t`.
+    /// Generates statement `t` of a block and drops its value; generates nothing for a pure `t`
+    /// but the qualifier of a static selection.
     pub fn block_stat(&mut self, b: &mut Body, t: TNodeId) -> Result<()> {
-        match self.is_pure_stat(t) {
+        match self.is_pure_stat(t) && !self.l.is_static_qualifier(t) {
             true => Ok(()),
             false => self.stat(b, t),
         }
@@ -25,6 +26,12 @@ impl Gen<'_, '_> {
         let Some(m) = m.filter(|&m| self.l.u.is_constructor(m)) else { return false };
         let Some(class) = self.l.u.symbol(m).owner else { return false };
         self.l.u.decls_named(class, nme::CONSTRUCTOR).first() == Some(&m)
+    }
+
+    /// Determines whether `m` is a secondary constructor, whose body ends with a `()` added by
+    /// the parser (dotty's `SyntheticUnit`).
+    pub fn is_secondary_constructor(&mut self, m: Option<SymbolId>) -> bool {
+        m.is_some_and(|m| self.l.u.is_constructor(m)) && !self.is_primary_constructor(m)
     }
 
     /// Whether statement `t` has no effect: a literal, `this`, `super`, a parameter or an

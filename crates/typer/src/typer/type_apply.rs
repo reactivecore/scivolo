@@ -134,7 +134,7 @@ impl Typer<'_> {
                 self.constraint.declare(self.u, arg, lo.unwrap_or(tasty::NOTHING), hi);
             }
             let any_kind = self.u.class_symbol(hi) == Some(self.u.defn().any_kind);
-            if var.is_none() && !any_kind && self.type_arity(arg) != arity {
+            if var.is_none() && !any_kind && !self.is_nothing_arg(arg) && self.type_arity(arg) != arity {
                 return Err("type argument of another kind");
             }
             let within = |t: &mut Self, a: TypeId, b: TypeId| {
@@ -165,6 +165,7 @@ impl Typer<'_> {
             }
         }
         let instantiated = self.instantiate_poly(result, binder, &names, args, method);
+        let instantiated = self.with_false_deps_dealiased(instantiated, method);
         Ok(if fresh { instantiated } else { self.with_case_fields(instantiated) })
     }
 
@@ -184,7 +185,7 @@ impl Typer<'_> {
 }
 
 /// `t` with the type parameters of binder `binder`, named `names`, and the type parameter
-/// symbols of `method` replaced by `args`.
+/// symbols of `method` replaced by `args`, the false dependencies of its method results dealiased.
 pub fn instantiate_poly(
     u: &mut tasty::Universe,
     t: TypeId,
@@ -201,5 +202,6 @@ pub fn instantiate_poly(
         }
         _ => None,
     });
-    u.subst(t, binder, names, args)
+    let t = u.subst(t, binder, names, args);
+    super::implicits::method_without_false_deps(u, t, method)
 }

@@ -30,16 +30,20 @@ fn children(l: &mut Lower, root: TNodeId, sealed: SymbolId) -> Vec<SymbolId> {
         let referenced = |l: &mut Lower, t: TypeId| l.u.sym_of(t).or_else(|| l.u.resolve_ref(t));
         return types.into_iter().filter_map(|t| referenced(l, t)).collect();
     }
-    if l.is_known(sealed, Known::Pair) {
-        let mut tuples: Vec<SymbolId> =
-            (1..=22).filter_map(|n| class_named(l, &format!("scala.Tuple{n}"))).collect();
-        tuples.sort_by_cached_key(|&c| l.u.pickled_span(c).map(|s| s.start));
-        return tuples;
-    }
     let classes: Vec<(u32, SymbolId)> = class_defs(l.tpd, root)
         .into_iter()
         .filter_map(|td| Some((l.tpd.span(td).start(), l.tpd.sym(td)?)))
         .collect();
+    if l.is_known(sealed, Known::Pair) {
+        let mut tuples: Vec<SymbolId> =
+            (1..=22).filter_map(|n| class_named(l, &format!("scala.Tuple{n}"))).collect();
+        let start_in_file = |l: &mut Lower, c| match classes.iter().find(|&&(_, s)| s == c) {
+            Some(&(start, _)) => Some(l.offset_in_file(start)),
+            None => l.u.pickled_span(c).map(|s| s.start),
+        };
+        tuples.sort_by_cached_key(|&c| start_in_file(l, c));
+        return tuples;
+    }
     typer::sealed::direct_children(l.u, sealed, &classes)
 }
 

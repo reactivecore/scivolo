@@ -61,11 +61,47 @@ fn check(rejected: &[(&str, &str)], accepted: &[&str]) {
 #[test]
 fn local_class_vars_in_the_type_of_a_block() {
     check(
-        &[],
-        &["trait Foo extends reflect.Selectable
+        &[(
+            "import scala.language.reflectiveCalls
+trait Foo
+def f: Int =
+  val x = new Foo { var i: Int = 0 }
+  x.i\n",
+            "value i is not a member of Foo",
+        )],
+        &[
+            "trait Foo extends reflect.Selectable
 def f: Unit =
   val x = new Foo { var i: Int = 0 }
-  x.i = 1\n"],
+  x.i = 1\n",
+            "trait Foo extends reflect.Selectable
+def f: Int =
+  val x = new Foo { var i: Int = 0 }
+  x.i\n",
+            "trait Foo extends reflect.Selectable
+def f: Int =
+  val x = new Foo { val i: Int = 0 }
+  x.i\n",
+        ],
+    );
+}
+
+#[test]
+fn structural_members_of_local_values_aliasing_paths_in_the_type_of_a_block() {
+    check(
+        &[],
+        &[
+            "trait Foo extends reflect.Selectable
+val y = new Foo { val i: Int = 7 }
+def f =
+  val x: y.type = y
+  x.i\n",
+            "trait Foo extends reflect.Selectable
+val y = new Foo { val i: Int = 7 }
+def f =
+  val x = new Foo { val z: y.type = y }
+  x.z\n",
+        ],
     );
 }
 
@@ -96,6 +132,36 @@ fn overriding_results_of_parameter_singleton_types() {
 }
 
 #[test]
+fn methods_with_stable_results_through_a_variable_are_not_stable() {
+    check(
+        &[(
+            "class C { def me: this.type = this }
+var v: C = new C
+def f = { val a: v.me.type = v.me; a }\n",
+            "unsupported singleton type of an unstable reference",
+        )],
+        &["class C { def me: this.type = this }
+val v: C = new C
+def f = { val a: v.me.type = v.me; a }\n"],
+    );
+}
+
+#[test]
+fn exports_through_methods_with_stable_results() {
+    check(
+        &[(
+            "object N { val k = 3 }
+object A { def M = N }
+object B { export A.M.k }\n",
+            "import prefix is not a pure expression",
+        )],
+        &["object N { val k = 3 }
+object A { val M = N }
+object B { export A.M.k }\n"],
+    );
+}
+
+#[test]
 fn f_bounded_wildcard_parameters_stay_abstract() {
     check(
         &[(
@@ -120,6 +186,120 @@ fn java_methods_implemented_with_object_for_any() {
   def size = 0
   def iterator: java.util.Iterator[A] = ???
 }\n"],
+    );
+}
+
+#[test]
+fn implementations_with_other_clauses_access_or_java_parameters() {
+    let incompatible = "override with an incompatible type";
+    check(
+        &[
+            (
+                "trait A { def f(using x: Int): Int }\nclass B extends A { def f(x: Int): Int = x }\n",
+                incompatible,
+            ),
+            (
+                "trait A { def f(implicit x: Int): Int }\nclass B extends A { def f(x: Int): Int = x }\n",
+                incompatible,
+            ),
+            ("trait A { def f[D[X]]: Int }\nclass B extends A { def f[D[+X]]: Int = 1 }\n", incompatible),
+            (
+                "class Q[T](t: T) {
+  def m[E](x: E): T = {
+    val q: Q[E] = new Q[E](x) { override def m[E2](y: E2): E2 = y }
+    t
+  }
+}\n",
+                incompatible,
+            ),
+            (
+                "trait A { def f: Int }\nclass P { protected def f: Int = 1 }\nclass B extends P with A\n",
+                "override with weaker access",
+            ),
+            (
+                "class C extends Comparable[Any] { def compareTo(o: Object): Int = 7 }\n",
+                "concrete class with an unimplemented member",
+            ),
+            (
+                "trait TB { def f[A <: AnyRef](x: A): A }\nclass C extends TB { def f[A <: String](x: A): A = x }\n",
+                "concrete class with an unimplemented member",
+            ),
+        ],
+        &[
+            "trait A { def f(using x: Int): Int }\nclass B extends A { def f(using x: Int): Int = x }\n",
+            "trait A { def f(x: Int): Int }\nclass B extends A { def f(using x: Int): Int = x }\n",
+            "trait A { def f[D[+X]]: Int }\nclass B extends A { def f[D[X]]: Int = 3 }\n",
+            "trait A { def f: Int }\nclass P { def f: Int = 4 }\nclass B extends P with A\n",
+            "trait A { protected def f: Int }\nclass P { protected def f: Int = 5 }\nclass B extends P with A { def g = f }\n",
+            "trait A { def f(x: Int*): Int }\nclass B extends A { def f(x: Seq[Int]): Int = x.sum }\n",
+            "class C extends Comparable[String] { def compareTo(o: String): Int = 7 }\n",
+            "abstract class L[+T] { def append[E >: T](that: => L[E]): L[E] }
+class Push[+T] extends L[T] {
+  override def append[E >: T](that: => L[E]): L[E] =
+    new Push[E] { override def append[E2 >: E](that2: => L[E2]): L[E2] = that2 }
+}\n",
+            "trait Cmp[T <: Cmp[T]] { this: T =>
+  def < (that: T): Boolean
+  def > (that: T): Boolean = that < this
+}
+class A(val x: String) extends Cmp[A] { def < (that: A) = this.x < that.x }\n",
+            "class P {
+  def m[E <: Comparable[E]](x: E): Int = {
+    val q = new P { override def m[E2 <: Comparable[E2]](x: E2): Int = 2 }
+    1
+  }
+}\n",
+        ],
+    );
+}
+
+#[test]
+fn classes_with_self_types_implemented_and_instantiated() {
+    check(
+        &[("trait T\nclass C { self: T => }\ndef f = new C\n", "not conforming to its self type")],
+        &["trait Graph {
+  type Node <: NodeIntf
+  trait NodeIntf { def connectWith(node: Node): Int }
+}
+abstract class DirectedGraph extends Graph {
+  class NodeImpl extends NodeIntf { self: Node =>
+    def connectWith(node: Node): Int = 1
+  }
+}
+class ConcreteGraph extends DirectedGraph {
+  type Node = NodeImpl
+  def newNode: Node = new NodeImpl
+}\n"],
+    );
+}
+
+#[test]
+fn overrides_through_self_types_default_getters_and_unchecked_override() {
+    check(
+        &[(
+            "trait A { def f = 1 }\ntrait B { def f = 2 }\nclass C extends A, B\n",
+            "conflicting inherited members",
+        )],
+        &[
+            "trait TCommon { def f: String }
+class C1 extends TCommon { def f = \"in C1\" }
+trait TOverrider { this: TCommon =>
+  override def f = \"in TOverrider\"
+}
+class C2 extends C1 with TOverrider\n",
+            "abstract class FileOps { def withLock[R](start: Long = 0): Option[R] }
+trait DefaultFileOps { self: DefaultPath =>
+  override def withLock[R](start: Long = 5): Option[R] = None
+}
+class DefaultPath extends FileOps with DefaultFileOps\n",
+            "import scala.annotation.unchecked.uncheckedOverride
+trait Base[T] { def max[U <: T](x: U, y: U): U = x; def mux(x: String = \"ex\") = x }
+trait Sub[T] extends Base[T] {
+  @uncheckedOverride def max[U <: T](x: U, y: U): U = x
+  @uncheckedOverride def min[U <: T](x: U, y: U): U = x
+  @uncheckedOverride def mux(x: String = \"nox\") = x
+}\n",
+        ],
     );
 }
 
@@ -216,6 +396,25 @@ fn conversions_to_object_or_null_are_not_searched() {
     check(
         &[("class W\ngiven Conversion[Any, W] = _ => W()\ndef f[T](x: AnyRef, y: T) = x eq y\n", "")],
         &["def f[T <: AnyRef](x: T, y: T) = x eq y\n"],
+    );
+}
+
+#[test]
+fn sequence_arguments_of_unions_or_intersections_of_arrays_are_refused() {
+    let error = "unsupported sequence argument of a union or intersection of arrays";
+    check(
+        &[
+            ("def m(xs: Any*) = xs.length\ndef f(a: Array[Int] | Array[String]) = m(a*)\n", error),
+            ("def m(xs: Any*) = xs.length\ndef f(a: Array[Int] & Array[Any]) = m(a*)\n", error),
+            (
+                "def m(xs: Any*) = xs.length\ndef f(p: Boolean, a: Array[Any], b: Array[Any]) = m((if p then a else b)*)\n",
+                error,
+            ),
+        ],
+        &[
+            "def m(xs: Any*) = xs.length\ndef f(a: Array[Int] | Null) = m(a*)\n",
+            "def m(xs: Any*) = xs.length\ndef f(a: List[Int] | Vector[String]) = m(a*)\n",
+        ],
     );
 }
 
@@ -344,6 +543,29 @@ fn erasing_a_type_bounded_by_an_array_of_itself_is_refused() {
 }
 
 #[test]
+fn conversions_of_a_qualifier_do_not_convert_the_arguments() {
+    let conversions = "import scala.language.implicitConversions\nclass Q { def m(x: Boolean) = 0 }\n\
+                       class A { def m(x: BigInt) = 1 }\nclass B { def m(x: String) = 2 }\n";
+    let both = "implicit def toA(q: Q): A = A()\nimplicit def toB(q: Q): B = B()\n";
+    let ambiguous = format!("{conversions}object O {{\n{both}val r = Q().m(1) }}\n");
+    let single = format!("{conversions}object O {{\nimplicit def toA(q: Q): A = A()\nval r = Q().m(1) }}\n");
+    let no_member = format!(
+        "{conversions}class P\nobject O {{\nimplicit def pA(p: P): A = A()\nimplicit def pB(p: P): B = B()\n\
+         val r = P().m(1) }}\n"
+    );
+    let argument_scope = format!(
+        "{conversions}class W\nobject W {{ implicit def toA2(q: Q): A2 = A2() }}\n\
+         class A2 {{ def m(w: W, y: BigInt) = 1 }}\nval r = Q().m(W(), 1)\n"
+    );
+    let by_type = format!("{conversions}object O {{\n{both}val r = Q().m(\"s\") }}\n");
+    let converted = format!("{conversions}object O {{\n{both}val r = Q().m(BigInt(1)) }}\n");
+    check(
+        &[(ambiguous.as_str(), ""), (&single, ""), (&no_member, ""), (&argument_scope, "")],
+        &[by_type.as_str(), &converted],
+    );
+}
+
+#[test]
 fn checks_of_single_constructs() {
     check(
         &[
@@ -396,4 +618,84 @@ fn checks_of_single_constructs() {
              def f(): Int = try 1 catch { case a @ (b: E) => 2 }\n",
         ],
     );
+}
+
+#[test]
+fn exports_of_a_java_class_skip_its_statics() {
+    check(
+        &[("export java.util.UUID\ndef foo = println(UUID.randomUUID())\n", "")],
+        &["export java.util.UUID\ndef bar = println(new UUID(1, 2))\n"],
+    );
+}
+
+/// A value selected through an inline proxy is widened to its type only covariantly: dotty types
+/// the invariant `Set[c.v.type]` as `Set[? <: Int]`, which `Set[Int]` would not stand for.
+#[test]
+fn values_selected_through_proxies_widen_covariantly() {
+    let cell = "class Cell(val v: Int)\n";
+    check(
+        &[(
+            &format!(
+                "{cell}transparent inline def boxed(c: Cell) =
+  val a: Set[c.v.type] = Set(c.v)
+  a
+def f(s: Set[Int]): String = \"Set[Int]\"
+def f(s: Any): String = \"Any\"
+def g = f(boxed(new Cell(4)))\n"
+            ),
+            "unsupported inline expansion of a type referring to a binding",
+        )],
+        &[&format!(
+            "{cell}transparent inline def wrap(c: Cell) =
+  val r: Option[c.v.type] = Some(c.v)
+  r
+def g: Option[Int] = wrap(new Cell(3))\n"
+        )],
+    );
+}
+
+#[test]
+fn outer_type_parameters_of_a_method_with_an_inferred_result_stay_outer_in_compared_binders() {
+    check(
+        &[(
+            "class L[T](t: T) { def app[E](x: E): T = t }
+def m1[E](e: E) =
+  val f: L[E] { def app[E](x: E): E } = new L[E](e)
+  f\n",
+            "",
+        )],
+        &[],
+    );
+}
+
+#[test]
+fn exports_of_a_package_skip_its_packages() {
+    check(&[("package A { package inner { class D } }\npackage B { export A.inner }\n", "")], &[]);
+}
+
+#[test]
+fn java_class_constructor_arguments_are_refused_without_the_jdk() {
+    let java = "trait Bind[Z[_]]\nobject J { val b = new Bind[java.util.ArrayList] {} }\n";
+    check(&[(java, "unsupported Java class type constructor argument")], &[]);
+}
+
+#[test]
+fn recursive_match_type_aliases_used_from_outside_their_object() {
+    let merge = "object Ops:
+  opaque type NT[N <: Tuple, +X <: Tuple] >: X <: Any = X
+  type Merge[N <: Tuple, X <: Tuple, Y <: Tuple] = Y match
+    case y *: ys => Merge[N, y *: X, ys]
+    case EmptyTuple => NT[N, X]
+object Test:
+  import Ops.*
+  def x: Merge[Tuple1[\"a\"], EmptyTuple, Tuple1[1]] = ???
+  def y: NT[Tuple1[\"a\"], Tuple1[1]] = x
+";
+    check(&[], &[merge]);
+}
+
+#[test]
+fn applied_aliases_of_nothing_are_arguments_of_any_kind() {
+    let bind = "trait Bind[Z[_]]\ntype F[X] = Nothing\nobject O { val b: Bind[F[Int]] = null }\n";
+    check(&[], &[bind]);
 }

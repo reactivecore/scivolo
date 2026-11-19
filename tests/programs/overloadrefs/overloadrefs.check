@@ -1,0 +1,9 @@
+v: String
+f(String) a
+f(String) b
+g(Int) 1
+g()
+m(Float) 2.0
+empty[E]
+draw(Square)
+run(Int*) 6

@@ -30,6 +30,7 @@ impl Cmp<'_> {
                 Some(Meaning::Class(c)) if c == self.u.defn().nothing => self.is_value_type(b),
                 Some(Meaning::Class(c)) if c == self.u.defn().null => self.nullable(b),
                 Some(Meaning::Term(_)) => self.below_singleton(a, b),
+                Some(Meaning::Unknown) if self.is_refined_term(a) => self.below_singleton(a, b),
                 Some(Meaning::Class(c)) if self.u.is_module_class(c) => self.module_class_below(a, b, c),
                 _ => false,
             },
@@ -112,8 +113,8 @@ impl Cmp<'_> {
         nb.sym.is_some() && nb.sym == self.u.source_module(c) && self.sub_prefix(na.prefix, nb.prefix)
     }
 
-    /// `x & y <: b`: through `b` dealiased, `|` in the intersection distributed, else one of
-    /// the parts.
+    /// `x & y <: b`: through `b` dealiased, `|` in the intersection distributed, the intersection
+    /// simplified into one type (dotty's `trySimplify`), else one of the parts.
     fn and_below(&mut self, a: TypeId, b: TypeId, x: TypeId, y: TypeId) -> bool {
         let dealiased = self.u.dealias(b);
         if dealiased != b {
@@ -128,6 +129,10 @@ impl Cmp<'_> {
                 let (ap, aq) = (inter(self, p), inter(self, q));
                 return self.recur(ap, b) && self.recur(aq, b);
             }
+        }
+        let simplified = self.and_type(x, y);
+        if !matches!(self.u.ty(simplified), Type::And(..)) {
+            return self.recur(simplified, b);
         }
         self.either(|s| s.recur(x, b), |s| s.recur(y, b))
     }
@@ -165,9 +170,22 @@ impl Cmp<'_> {
             (None, Some(c)) => self.object_of(a) == Some(c),
             (None, None) => {
                 let (Some(n1), Some(n2)) = (self.named(a), self.named(b)) else { return false };
-                n1.sym.is_some() && n1.sym == n2.sym && self.sub_prefix(n1.prefix, n2.prefix)
+                let same = match (*self.u.ty(a), *self.u.ty(b)) {
+                    _ if n1.sym.is_some() => n1.sym == n2.sym,
+                    (Type::TermRef(_, x), Type::TermRef(_, y)) => {
+                        x == y && n2.sym.is_none() && self.is_refined_term(a)
+                    }
+                    _ => false,
+                };
+                same && self.sub_prefix(n1.prefix, n2.prefix)
             }
         }
+    }
+
+    /// Whether `t` is `x.a` for a term `a` only a refinement of the type of `x` declares.
+    fn is_refined_term(&mut self, t: TypeId) -> bool {
+        let Type::TermRef(p, name) = *self.u.ty(t) else { return false };
+        self.u.resolve_ref(t).is_none() && self.u.term_refinement_named(p, name).is_some()
     }
 
     /// The class of the top-level object path `t` refers to.

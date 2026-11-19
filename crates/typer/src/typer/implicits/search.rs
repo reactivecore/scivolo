@@ -12,8 +12,7 @@ use super::history::emitted;
 use super::not_given::not_given_arg;
 use super::ranking::most_specific;
 use super::unsettled::{
-    any_open_constructor, constructor_vars, determined, has_unbounded_var, is_underspecified, unsettled,
-    var_upper_bound,
+    any_open_constructor, constructor_vars, determined, has_unbounded_var, is_underspecified, var_upper_bound,
 };
 use crate::ctx::{Ctx, Mode};
 use crate::defn::CAN_EQUAL;
@@ -22,7 +21,7 @@ use syntax::ast::Span;
 use tasty::{SymbolId, TypeId};
 
 /// How deep implicit arguments of implicit arguments may nest.
-const MAX_DEPTH: u32 = 12;
+const MAX_DEPTH: u32 = 16;
 /// How many candidates one search may try, nested searches included.
 pub const MAX_TRIES: u32 = 4000;
 /// The failure of a search that finds several candidates, none ranking above the others.
@@ -119,9 +118,6 @@ impl ImplicitSearch {
         }
         self.pt = determined(&mut t.types(), self.pt);
         let (pt, ctx) = (self.pt, self.ctx);
-        if let Some(what) = unsettled(&mut t.types(), pt) {
-            return Err(what);
-        }
         if self.depth > MAX_DEPTH {
             return Err("implicit search too deep");
         }
@@ -165,8 +161,7 @@ impl ImplicitSearch {
         if coherent && existence && !t.types().is_fully_defined(pt) {
             return self.first_fitting(t, &group);
         }
-        let unpruned = coherent || has_unbounded_var(&mut t.types(), pt);
-        match self.best_first(t, &group, unpruned)? {
+        match self.best_first(t, &group, coherent)? {
             BestFirst::Found(tree) => return Ok(Some(tree)),
             BestFirst::Failed if group.len() == 1 => return Ok(None),
             _ => {}

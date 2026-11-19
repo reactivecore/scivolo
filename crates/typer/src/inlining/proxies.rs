@@ -117,7 +117,7 @@ pub fn replace_param(
     let s = i.tpd.sym(t)?;
     let &bound = binding.get(&s)?;
     if i.names.text(name.name) == nme::WILDCARD {
-        let sym = i.u.sym_of(bound);
+        let sym = i.u.sym_of(bound).or_else(|| i.u.class_symbol(bound));
         return Some(i.tpd.node(T::Ident { name }, i.tpd.span(t), Some(bound), sym));
     }
     let span = *arg_span.get(&s)?;

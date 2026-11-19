@@ -22,6 +22,15 @@ pub fn compatible(t: &mut Typer, arg: TypeId, param: TypeId, views: bool, ctx: C
         Ok(None) => {}
         Err(_) => return None,
     }
+    is_compatible(t, arg, param, views, ctx)
+}
+
+/// Checks whether a value of type `arg` conforms or widens to `param` as a number, or converts to
+/// it if `views` (dotty's `isCompatible`): `None` if undecided.
+pub fn is_compatible(t: &mut Typer, arg: TypeId, param: TypeId, views: bool, ctx: Ctx) -> Option<bool> {
+    if t.conforms(arg, param) {
+        return Some(true);
+    }
     if let (Some(a), Some(p)) = (t.value_class(arg), t.value_class(param))
         && crate::typer::widening::widens(&a, &p)
     {

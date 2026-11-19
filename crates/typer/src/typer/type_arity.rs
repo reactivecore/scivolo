@@ -56,8 +56,17 @@ impl Typer<'_> {
                 let reduced = self.u.dealias(t);
                 if reduced == t { 0 } else { self.type_arity_within(reduced, depth) }
             }
+            Type::Annotated(parent, _) => self.type_arity_within(parent, depth),
             _ => 0,
         }
+    }
+
+    /// Determines whether type argument `t` is `Nothing` or an alias of it, which takes the place
+    /// of a type parameter of any kind (dotty's `preCheckKind`).
+    pub fn is_nothing_arg(&mut self, t: TypeId) -> bool {
+        let widened = self.u.widen(t);
+        let dealiased = self.u.dealias(widened);
+        self.u.is_nothing_ref(dealiased)
     }
 
     /// Whether `t` refers to a type symbol being completed.

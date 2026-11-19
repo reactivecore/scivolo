@@ -42,9 +42,8 @@ read-only-file cases, because the CI container runs as root.
 
 With the scalalib jar `just lib-jar scalalib` builds in place of the published one
 (`just lib-jar-report scalalib`), every test passes, fails and skips as above. That jar holds
-our NIR of the files the frontend lowers (the scalalib row of the table under "Scala Native's library through the Rust frontend"), the published
-NIR of the classes Scala Native takes from Scala 2.13, and Scala Native's build's NIR of the
-files the frontend refuses. It lacks 91 NIR files of the published jar: anonymous classes and
+our NIR of all of scalalib's files lowered as one unit, as Scala Native's build compiles them, and
+the published NIR of the classes Scala Native takes from Scala 2.13. It lacks 91 NIR files of the published jar: anonymous classes and
 lambdas that Scala Native's build of Scala 3.9.0 does not emit and no other class references.
 
 A feature the VM lacks throws `java.lang.InternalError("scivolo: unsupported: …")`, a missing class
@@ -185,8 +184,8 @@ the release binaries, run from the repository root:
      cannot generate a static forwarder".
    - Scala 3's JVM backend skips forwarders whose name the companion class already has (dotty
      `tests/run/i19394.scala`).
-   - Fix: skip the forwarder instead of reporting an error. VM: its lowering refuses the program
-     and falls back to scala-cli, which reports this error. JVM: compiles it.
+   - Fix: skip the forwarder instead of reporting an error. VM and JVM: skip it, as dotty does
+     (`tests/jvm/staticforwarders`).
    - **Reproduce**: `scala-cli run --server=false --scala 3.9.0 --native --native-version 0.5.12 bug.scala`
 
      ```scala
@@ -203,9 +202,7 @@ the release binaries, run from the repository root:
    - **Expected**: `foo`, as on the JVM.
    - **Observed**: Scala Native reports at `class Foo`: `Unexpected situation: found existing public
      static method method fooBincompat in the companion class of Foo$; cannot generate a static
-     forwarder the method of the same name in the object.` `scivolo-jvm` prints `foo`. The VM
-     reports `the lowering does not support a static method beside the forwarder of the same name`,
-     then scala-cli's error above.
+     forwarder the method of the same name in the object.` The VM and `scivolo-jvm` print `foo`.
 6. **Static forwarders of inherited methods carry positions in the wrong file** (nscplugin,
    `scala-3/scala/scalanative/nscplugin/NirGenStat.scala:826`).
    - The forwarder's position is the member's span read against the current unit's source
@@ -285,8 +282,8 @@ the release binaries, run from the repository root:
      each inlined copy of the anonymous mirror class calls a `fromProduct` it does not define.
    - Scala Native: "Unknown method `…$anon$1.fromProduct(scala.Product): scala.Some`" at link
      time; JVM: `NoSuchMethodError`.
-   - Fix: give the inlined anonymous mirror classes their mirror members. Frontend: the program
-     does not run either, see **Observed**.
+   - Fix: give the inlined anonymous mirror classes their mirror members. VM and JVM: the copies
+     keep the members our PostTyper step gave the inline body (`tests/jvm/inlinemirrors`).
    - **Reproduce**: `scala-cli run --server=false --scala 3.9.0 bug.scala`, and with
      `--native --native-version 0.5.12` for Scala Native.
 
@@ -301,10 +298,8 @@ the release binaries, run from the repository root:
    - **Expected**: `Some(1)`: the mirror builds a `Some` from the product.
    - **Observed**: the JVM fails with `java.lang.NoSuchMethodError: 'scala.Some
      bug$package$$anon$1.fromProduct(scala.Product)'`; Scala Native at link time with `Unknown method
-     bug$package$$anon$1.fromProduct(scala.Product): scala.Some`. `scivolo-jvm` compiles it, and it
-     fails with `java.lang.NoClassDefFoundError: bug$package$$anon$1$fromProduct`. The VM reports
-     `the lowering does not support a selection of a value that is not a field at 3:75`, falls back
-     to scala-cli and fails with `java.lang.StackOverflowError`.
+     bug$package$$anon$1.fromProduct(scala.Product): scala.Some`. The VM and `scivolo-jvm` print
+     `Some(1)`.
 10. **A trait with an `extension` group has `NoInits` only when read from TASTy** (dotty 3.9.0,
     `compiler/src/dotty/tools/dotc/ast/TreeInfo.scala:485`, `defKind`).
     - `Namer` takes the flag from `untpd.bodyKind` of the unexpanded body, where `ExtMethods`
@@ -523,7 +518,7 @@ the release binaries, run from the repository root:
     - `object Counter { @static var a: Int = 1 }` with `Counter.a += 5` elsewhere: `AssertionError:
       an unexpected type representation reached the compiler backend … NoType`;
       `Counter.a = Counter.a + 5` compiles.
-    - JVM: refuses `+=`, compiles the assignment.
+    - VM and JVM: `{ qual; a = rhs }` for `qual.a = rhs` (`tests/jvm/staticassign`).
     - **Reproduce**: `scala-cli run --server=false --scala 3.9.0 bug.scala`
 
       ```scala
@@ -541,15 +536,13 @@ the release binaries, run from the repository root:
     - **Expected**: `6`, what the program prints with `Counter.a = Counter.a + 5`.
     - **Observed**: dotty fails with `java.lang.AssertionError: an unexpected type representation
       reached the compiler backend while compiling bug.scala: NoType.` With the assignment it
-      prints `6`. `scivolo-jvm` refuses `+=`: ``the lowering does not support an assignment of an
-      `@static` member of a value other than a path``; with the assignment its program prints `6`.
+      prints `6`. The VM and `scivolo-jvm` print `6`.
 18. **A bridge's closure of more than 22 context parameters is a `Function1`** (dotty 3.9.0,
     `compiler/src/dotty/tools/dotc/transform/Bridges.scala`, `etaExpand`).
     - `def mega: Mega[Int]` overriding an abstract one, `Mega` a context function of 23
       parameters: the bridge returns a closure of the erased `(Object[])` method, a `Function1`
       where callers expect a `FunctionXXL` (`ClassCastException`).
-    - Fix: give the closure the type `FunctionXXL`. VM: runs it. JVM: fails too, with another
-      error.
+    - Fix: give the closure the type `FunctionXXL`. VM and JVM: do so (`tests/jvm/contextxxl`).
     - **Reproduce**: `scala-cli run --server=false --scala 3.9.0 bug.scala`
 
       ```scala
@@ -570,9 +563,7 @@ the release binaries, run from the repository root:
 
     - **Expected**: `42`.
     - **Observed**: `java.lang.ClassCastException: class B$$Lambda/0x0000008801093f90 cannot be cast
-      to class scala.runtime.FunctionXXL`. `scivolo-jvm`'s program fails with
-      `java.lang.IncompatibleClassChangeError: Class B$$Lambda/0x000000d000112d98 does not implement
-      the requested interface scala.runtime.FunctionXXL`. The VM prints `42`.
+      to class scala.runtime.FunctionXXL`. The VM and `scivolo-jvm` print `42`.
 19. **Generic signatures flatten one context function result** (dotty 3.9.0,
     `compiler/src/dotty/tools/backend/jvm/GenericSignatures.scala`, `collectMethodParams`).
     - It adds the parameters of one `ContextFunctionN` result to every method's signature, whether
@@ -800,17 +791,18 @@ the release binaries, run from the repository root:
   desugaring on 5,891.
 - **Symbols from TASTy:** 99.8% of the library's signatures match Scala Native's mangled names.
 - **Typer** (`just typer-report`): each file typed by dotty's oracle and ours,
-  compared node by node; `neg` counts files whose errors match.
+  compared node by node, against the JDK; `neg` counts files whose errors match; tests/programs
+  also against Scala Native's javalib.
 
-| Outcome | tests/programs | tests/pos | tests/neg |
-|---|---:|---:|---:|
-| passed | 267 | 2521 | 1296 |
-| differ | 30 | 108 | 0 |
-| warnings differ | 0 | 9 | 0 |
-| accepted (neg) | 0 | 0 | 2 |
-| unsupported | 1 | 387 | 0 |
-| crashed | 0 | 0 | 0 |
-| skipped | 44 | 351 | 496 |
+| Outcome | tests/programs | tests/pos | tests/neg | tests/programs (Native) |
+|---|---:|---:|---:|---:|
+| passed | 287 | 2702 | 1300 | 283 |
+| differ | 24 | 85 | 0 | 28 |
+| warnings differ | 0 | 9 | 0 | 0 |
+| accepted (neg) | 0 | 0 | 2 | 0 |
+| unsupported | 1 | 242 | 0 | 1 |
+| crashed | 0 | 0 | 0 | 0 |
+| skipped | 32 | 338 | 492 | 0 |
 
 Refusals and differences of the frontend and the lowering:
 
@@ -886,8 +878,7 @@ Refusals and differences of the frontend and the lowering:
 - **`@static`.** Refused: lazy values; members of an object whose companion is a value class or in
   another unit; methods and initial values that use the object's `this` or define local methods or
   classes; values whose companion class has lazy values and constructor parameters, parents but `Object`, or
-  synthetic objects (Scala Native); a reference to a `@static` member of the library; on the JVM,
-  an assignment to one through a value other than a path.
+  synthetic objects (Scala Native); a reference to a `@static` member of the library.
 - **Erased definitions.** An erased argument or value must be pure by the inliner's
   `isElideableExpr` with `isPureExpr`'s type applications, or be an erased value of `scala.caps` or
   an inline value: some arguments dotty accepts are refused.
@@ -976,13 +967,16 @@ Results:
   pass; the typer refuses two for classes Scala Native's javalib lacks, a platform limit:
   `java.lang.SuppressWarnings` (`annot-java-tree`) and `java.text.SimpleDateFormat`
   (`f-interpolator-tests`); 8 are skipped.
-- **`-source 3.3` to `3.6`:** below 3.4 match types reduce as dotty's legacy matching does (a
-  case with captures matched by a subtype comparison); the typer refuses ranking two implicits
-  below 3.7 and an implicit defined after the search below 3.6 (dotty's old schemes). Earlier and
-  migrating versions are refused.
+- **`-source 3.0` to `3.6` and `-migration` versions:** below 3.4 match types reduce as dotty's
+  legacy matching does (a case with captures matched by a subtype comparison); below 3.6
+  implicits rank by dotty's intermediate scheme; the typer refuses an implicit defined after the
+  search below 3.6, a pair of implicits the two schemes rank differently in 3.6 and
+  3.7-migration (dotty warns), and an inferred match type bound in 3.6-migration. Legacy
+  constructs are errors, warnings or accepted by dotty's `MigrationVersion` table. `3.0-migration`
+  (Scala 2 typing rules) and `-rewrite` are refused.
 - **`-source future`:** typed as 3.9 with the parser's new-syntax rules; the typer refuses
-  alphanumeric infix calls, types and extractor patterns not declared `infix`, which it warns
-  about otherwise, and checks no other `future` rule.
+  alphanumeric infix calls, types and extractor patterns not declared `infix`, and checks no
+  other `future` rule (`future-migration` warns about them as dotty does).
 - **Capture checking:** typed as dotty's typer types it (`ImpureFunctionN`, `@retains` trees);
   the typer's types drop `@retains`, `@retainsCap` and `@retainsByName` (the annotations are not
   refining and erase away; class files as dotty's). TASTy keeps a capture set of static
@@ -1032,20 +1026,23 @@ Results:
 
 | Outcome | tests/run | tests/run-macros |
 |---|---:|---:|
-| passed | 1693 | 320 |
+| passed | 1690 | 320 |
 | wrong output | 0 | 0 |
 | verify error | 0 | 0 |
 | linkage error | 0 | 0 |
 | crashed | 1 | 0 |
 | timeout | 0 | 0 |
-| frontend crashed | 0 | 0 |
+| frontend crashed | 1 | 0 |
 | jvm refused | 0 | 0 |
 | lowering refused | 0 | 0 |
-| typer refused | 3 | 0 |
+| typer refused | 5 | 0 |
 | skipped | 14 | 1 |
 | **total** | **1711** | **321** |
 
-- **Typer refused (run):** the three of the VM's report.
+- **Typer refused (run):** `i13332shapeless` and `typeCheckErrors` of the VM's report;
+  `mapConserve` (a nullary overloaded method against an undetermined type);
+  `varargs-extend-java` and `varargs-extend-java-2` (a concrete class with an unimplemented member).
+- **Frontend crashed:** `named-tuples-strawman-2` (a stack overflow).
 - **Tests with Java sources:** all pass.
 - **Crash:** `lambda-serialization-gc` casts the application class loader to `URLClassLoader`,
   which fails for scalac's class files too, as the runner does not load tests through one.
@@ -1061,13 +1058,13 @@ Results:
 
 | Outcome | Programs |
 |---|---:|
-| passed | 297 |
-| wrong output | 6 |
-| linkage error | 13 |
+| passed | 301 |
+| wrong output | 7 |
+| linkage error | 1 |
 | crashed | 3 |
-| jvm refused | 1 |
+| jvm refused | 17 |
 | typer refused | 2 |
-| **total** | **322** |
+| **total** | **331** |
 
 - **As scalac's class files on the JVM** (platform differences): wrong output `bottomarrays`,
   `universaljoins`, `exprforms` (array class names), `classtags` (`ClassTag` of a nested array),
@@ -1090,18 +1087,17 @@ the optimizer (1883 of its 3134 classes dotty also writes differ in code from do
 
 | Outcome | Files | Classes |
 |---|---:|---:|
-| same | 612 | 3214 |
-| attributes differ | 32 | 43 |
-| code differs | 5 | 16 |
-| refused | 0 | |
+| same | 641 | 3254 |
+| attributes differ | 5 | 5 |
+| code differs | 2 | 11 |
+| refused | 1 | |
 
+- **Refused:** `scala/util/Properties.scala`, a nullary overloaded method against an undetermined
+  type.
 - **Code differs:** the pickled quotes of `scala.quoted.FromExpr` and `ToExpr` (strings of
-  TASTy) and static forwarders (`from`, `iterableFactory`, `isDefinedAt`) of `immutable.List`,
-  `immutable.Seq` and `Vector`.
-- **Attributes differ:** mostly line numbers (of extension method calls and implicit
-  conversions, of the `()` ending a secondary constructor); `InnerClasses` entries, a
-  `LocalVariableTable` entry, a `MethodParameters` entry, a `Deprecated` attribute and a method's
-  flags.
+  TASTy).
+- **Attributes differ:** `TrieMap`, `HashSet`, `Vector`, `runtime.Tuples` and
+  `ProcessBuilderImpl`.
 
 `just jvm-lib-jar scalalib` packs those class files and TASTy into a library jar laid out as the
 published one (ADR 0123): the classes scala3's build takes from Scala 2.13 and javac's come from
@@ -1172,7 +1168,19 @@ not exist yet while a class of the same run is typed. `ToExpr$ArrayOf*ToExpr$` (
 `ToExpr$BigIntToExpr$`, `ToExpr$MapToExpr` and `FromExpr$MapFromExpr` differ in quote type
 sharing (case 1, as in **Quote type sharing** above, types shared across the files of the
 whole-module build); scala-cli's builds of `ToExpr.scala` and `FromExpr.scala` alone have their
-quotes as ours, up to the source path.
+quotes as ours, up to the source path. `lib-jar scalalib` lowers all files as one unit, as Scala
+Native's build does: their quotes are as the oracle's. There, `ProcessImpl`'s `$N$` names of
+pattern definitions (`CompoundProcess`'s `$1$`, `DummyProcess`'s `$3$` in dotty, `$3$` and `$2$`
+in ours) follow the order in which the member classes of `ProcessImpl` are completed. Dotty
+completes `CompoundProcess` first when a name lookup on `ProcessImpl`'s self type
+(`ProcessImpl & Process.type`, `Process` of the same run) computes its members as seen from it
+(`Typer.findRef`, `Types.findMember`, `ClassDenotation.addInherited`,
+`SingleDenotation.computeAsSeenFrom` forcing the class's info); our lookup does not complete
+member classes. `Process.scala`, `ProcessBuilderImpl.scala` and `ProcessImpl.scala` alone: dotty
+`$3$`, ours `$2$` for `DummyProcess`; without `Process.scala` both `$2$`. Case 1: private names,
+the same meaning. `DummyProcess`'s is a local of its constructor; `CompoundProcess`'s lazy value
+is referenced only by `ProcessImpl$CompoundProcess` and its companion's `VarHandle` of the
+same unit, and `ProcessImpl.scala` has no inline methods whose TASTy could refer to it.
 
 ## Native executables
 

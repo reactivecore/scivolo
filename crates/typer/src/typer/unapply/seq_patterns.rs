@@ -25,7 +25,8 @@ impl UnapplyPattern {
         if self.args.iter().any(|&a| is_named_pattern(t, a)) {
             return Err("named pattern of a sequence extractor");
         }
-        let SeqArgs { types, leading } = UnapplyArgs { result, n: self.args.len() }.seq_arg_types(t)?;
+        let SeqArgs { types, leading } =
+            UnapplyArgs { result, n: self.args.len(), auto_tupling: false }.seq_arg_types(t)?;
 
         let mut out = Vec::new();
         let mut wildcards = 0;

@@ -5,8 +5,9 @@
 //! `Type.overrides` of `checkOverride`, with its `upwardsSelf` retry).
 
 use super::super::Typer;
+use super::clauses::{clause, clause_overrides, own_params_info};
 use crate::symbols::Completion;
-use tasty::{Binder, Kind, NameId, SymbolId, Type, TypeId, Universe};
+use tasty::{Kind, SymbolId, Type, TypeId, Universe};
 
 /// Whether the result type of member `d` conforms to that of member `m`, both seen from the
 /// class of `site`'s `this` or else from `site`, with `m`'s type and value parameters renamed to
@@ -16,24 +17,18 @@ pub fn result_conforms(t: &mut Typer<'_>, site: TypeId, d: SymbolId, m: SymbolId
     results_conform(t, (site, this), d, m) || results_conform(t, (site, site), d, m)
 }
 
-/// A parameter clause of a method type.
-struct Clause {
-    is_type: bool,
-    binder: Binder,
-    params: Vec<(NameId, TypeId)>,
-    result: TypeId,
-}
-
 /// Whether the result type of member `d` conforms to that of member `m`, both seen from `prefix`
 /// in the class of `site`, else with abstract types replaced by the aliases overriding them and a
-/// type parameter result by its bound.
+/// type parameter result by its bound; false if a clause of `d` may not override `m`'s.
 fn results_conform(t: &mut Typer<'_>, (site, prefix): (TypeId, TypeId), d: SymbolId, m: SymbolId) -> bool {
-    let (mut rd, mut rm) = (t.u.own_member_info(prefix, d), t.u.own_member_info(prefix, m));
-    let (td, tm) = (t.u.type_params(d), t.u.type_params(m));
-    let (mut offset, mut bounds, mut own_clauses) = (0, Vec::new(), Vec::new());
+    let (mut rd, mut rm) = (own_params_info(t, prefix, d), own_params_info(t, prefix, m));
+    let (mut bounds, mut own_clauses) = (Vec::new(), Vec::new());
     loop {
         match (clause(t, rd), clause(t, rm)) {
             (Some(a), Some(b)) if a.is_type == b.is_type && a.params.len() == b.params.len() => {
+                if !clause_overrides(t, &a, &b) {
+                    return false;
+                }
                 let rb = t.u.param_syms_as_refs(b.result, &b.params, b.binder);
                 rm = t.u.with_binder(rb, (b.binder, &b.params), a.binder);
                 rd = t.u.param_syms_as_refs(a.result, &a.params, a.binder);
@@ -41,13 +36,9 @@ fn results_conform(t: &mut Typer<'_>, (site, prefix): (TypeId, TypeId), d: Symbo
                     own_clauses.push((a.binder, a.params.clone()));
                 }
                 if a.is_type {
-                    let n = a.params.len();
-                    rd = type_param_refs(t, rd, td.get(offset..offset + n).unwrap_or_default(), a.binder);
-                    rm = type_param_refs(t, rm, tm.get(offset..offset + n).unwrap_or_default(), a.binder);
                     for (i, &(_, info)) in a.params.iter().enumerate() {
                         bounds.push((t.u.intern_type(Type::Param(a.binder, i as u32)), info));
                     }
-                    offset += n;
                 }
             }
             (Some(a), _) if !a.is_type && a.params.is_empty() => rd = a.result,
@@ -170,24 +161,6 @@ fn complete_named_types(t: &mut Typer<'_>, cls: SymbolId, names: &[String]) {
             }
         }
     }
-}
-
-/// The leading parameter clause of method type `info`, if it has one.
-fn clause(t: &Typer<'_>, info: TypeId) -> Option<Clause> {
-    let (is_type, binder, params, result) = match *t.u.ty(info) {
-        Type::Poly { binder, params, result } => (true, binder, params, result),
-        Type::Method { binder, params, result, .. } => (false, binder, params, result),
-        _ => return None,
-    };
-    Some(Clause { is_type, binder, params: t.u.params_of(params).to_vec(), result })
-}
-
-/// `ty` with references to type parameters `params` made references to parameters of `binder`.
-fn type_param_refs(t: &mut Typer<'_>, ty: TypeId, params: &[SymbolId], binder: Binder) -> TypeId {
-    t.u.map_type(ty, &mut |u, x| {
-        let Some((None, s)) = u.sym_ref(x) else { return None };
-        params.iter().position(|&p| p == s).map(|i| u.intern_type(Type::Param(binder, i as u32)))
-    })
 }
 
 /// `T` for `=> T`, else `ty`.

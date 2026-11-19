@@ -43,7 +43,7 @@ impl Gen<'_, '_> {
             return Ok(Some(1));
         }
         self.expr(b, array)?;
-        Ok(Some(match (name.as_str(), &args[..]) {
+        let slots = match (name.as_str(), &args[..]) {
             (nme::APPLY, &[i]) => {
                 self.operand(b, i, Kind::Int)?;
                 b.code.element(&elem, false);
@@ -60,7 +60,9 @@ impl Gen<'_, '_> {
                 1
             }
             _ => return unsupported(self.l.tpd.span(t), "array operations"),
-        }))
+        };
+        self.line(b, t);
+        Ok(Some(slots))
     }
 
     /// Array literal `t` of `elems`: the array, then each element stored.
@@ -87,6 +89,7 @@ impl Gen<'_, '_> {
 
     /// `qualifier.isInstanceOf[T]` or `qualifier.asInstanceOf[T]` of type application `t`.
     pub fn type_test(&mut self, b: &mut Body, t: TNodeId, fun: TNodeId, targs: List) -> Result<i32> {
+        let sent = b.sent_phantom.take() == Some(t);
         let span = self.l.tpd.span(t);
         let (Tree::Select { qualifier, .. }, Some(m)) = (self.l.tpd.tree(fun).clone(), self.l.tpd.sym(fun))
         else {
@@ -116,7 +119,9 @@ impl Gen<'_, '_> {
             nme::AS_INSTANCE_OF if matches!(tested, Class(_)) && self.is_written_null(qualifier, span) => {}
             nme::AS_INSTANCE_OF => {
                 b.code.checkcast(b.pool, &class_internal(&tested));
-                super::callee::adapt_phantom(b, &to);
+                if !sent {
+                    super::callee::adapt_value(b, t, &to);
+                }
             }
             _ => return unsupported(span, "type applications without a call"),
         }

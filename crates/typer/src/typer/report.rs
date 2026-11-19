@@ -4,6 +4,7 @@ use super::Typer;
 use super::implicits::{CANDIDATE_OUTSIDE, NESTED_OUTSIDE};
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{NodeId, Span, TName};
+use syntax::config::{Migration, Severity};
 use syntax::diag::{Message, rewrite_notice};
 use tasty::Type;
 
@@ -70,6 +71,16 @@ impl Typer<'_> {
         match span.exists() && !span.is_in_other_source() {
             true => self.diags.warning_at(span.start(), span.end(), span.point(), msg),
             false => self.diags.warning_unpositioned(msg),
+        }
+    }
+
+    /// Reports `msg` at `span` as an error, a warning or not at all, as the source version
+    /// reports legacy construct `m` (dotty's `report.errorOrMigrationWarning`).
+    pub fn error_or_migration_warning(&mut self, span: Span, msg: impl Into<Message>, m: Migration) {
+        match m.severity(self.source_version) {
+            Some(Severity::Error) => self.error_at(span, msg),
+            Some(Severity::Warning) => self.warning_at(span, msg),
+            None => {}
         }
     }
 

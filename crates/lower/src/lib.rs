@@ -22,6 +22,7 @@ pub use output::NirFile;
 pub use phases::adapt::erased_type;
 pub use phases::java_enums::derives_from_java_enum;
 pub use phases::sam::abstract_methods;
+pub use phases::same_run::bridges as same_run_bridges;
 use rustc_hash::{FxHashMap, FxHashSet};
 pub use symbols::{is_erased, is_jdk_object};
 use syntax::ast::Span;
@@ -47,7 +48,20 @@ pub type Result<T> = std::result::Result<T, Unsupported>;
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Backend {
     Native,
+    /// Scala Native, the TASTy of the top-level classes pickled as on the JVM; a file whose classes
+    /// are not pickled keeps its NIR. Lowers as `Native`.
+    NativeWithTasty,
     Jvm,
+}
+
+impl Backend {
+    /// Determines the backend whose phases run: `Native` for `NativeWithTasty`.
+    pub fn phases(self) -> Backend {
+        match self {
+            Backend::NativeWithTasty => Backend::Native,
+            other => other,
+        }
+    }
 }
 
 fn unsupported<T>(at: Span, what: impl Into<String>) -> Result<T> {
@@ -111,6 +125,8 @@ pub struct Lower<'a> {
     boxed_types: FxHashSet<TNodeId>,
     /// The static references `SelectStatic` made of selections (dotty's new `ref`s and blocks).
     static_selects: FxHashSet<TNodeId>,
+    /// The qualifiers `SelectStatic` kept as statements, after `PureStats`.
+    static_qualifiers: FxHashSet<TNodeId>,
     /// The local classes lifted out of blocks, each with its owner before.
     local_classes: FxHashMap<SymbolId, SymbolId>,
     /// The local classes renamed when lifted, each with its name before.
@@ -149,6 +165,8 @@ pub struct Lower<'a> {
     narrowed: FxHashMap<SymbolId, SymbolId>,
     /// The file of the unit each top-level class is defined in.
     class_files: FxHashMap<SymbolId, usize>,
+    /// The offsets the unit's files start at, but the first.
+    file_starts: Vec<syntax::source::Offset>,
     /// The term each method `LambdaLift` lifted was defined in.
     lifted_from: FxHashMap<SymbolId, SymbolId>,
     /// The method each function `LambdaLift` lifted became.
@@ -257,7 +275,7 @@ fn lower_with_rules<R>(
     l.explicit_nulls = cfg.explicit_nulls;
     l.force_forwarders = cfg.force_forwarders;
     l.compact_annotations = cfgs.iter().map(|c| c.source_version.enables_compact_annotation()).collect();
-    l.backend = backend;
+    l.backend = backend.phases();
     let starts: Vec<_> = l.sources.files().iter().skip(1).map(|&(base, _)| base).collect();
     l.record_files(root, &starts);
     let out = codegen::annotations::check_annotations(&mut l, root)
@@ -340,6 +358,7 @@ impl<'a> Lower<'a> {
             null_casts: FxHashSet::default(),
             boxed_types: FxHashSet::default(),
             static_selects: FxHashSet::default(),
+            static_qualifiers: FxHashSet::default(),
             mixed_in: FxHashSet::default(),
             mixed_from: FxHashMap::default(),
             specialized: FxHashSet::default(),
@@ -353,6 +372,7 @@ impl<'a> Lower<'a> {
             coords: FxHashMap::default(),
             narrowed: FxHashMap::default(),
             class_files: FxHashMap::default(),
+            file_starts: Vec::new(),
             lifted_from: FxHashMap::default(),
             lifted_to: FxHashMap::default(),
             super_accessors: FxHashMap::default(),

@@ -9,6 +9,9 @@ export SCIVOLO_LIBS := justfile_directory() + "/ref/libs"
 # The library image of development runs.
 export SCIVOLO_CACHE := justfile_directory() + "/tmp/cache"
 
+# The modules of Scala Native's library with a jar of their own, windowslib left out.
+NATIVE_JARS := "nativelib clib posixlib javalib auxlib scalalib test-interface-sbt-defs test-interface junit-runtime"
+
 default: gates
 
 # Compile Scala Native's shared unit tests (default: the language tests in `scala`) and run
@@ -251,20 +254,27 @@ lib-compile module filter="": fetch-libs fetch-scala-native
     cargo build -q --release -p scivolo-lower -p scivolo-nir-dump
     python3 scripts/lib-compile.py '{{ module }}' '{{ filter }}'
 
-# Build Scala Native library `module` as its published jar: our NIR, its C resources, the
-# published TASTy and a manifest, in tmp/lib/<module>/; compare it with lib-compile's oracle.
+# Lower `module` as lib-compile does, with TASTy, and compare its TASTy with lib-oracle's; results
+# under tmp/lib/<module> (tasty.tsv, tasty-groups.txt, tasty-diffs/).
+lib-tasty module filter="": fetch-libs fetch-scala-native
+    cargo build -q --release -p scivolo-lower
+    python3 scripts/lib-tasty.py '{{ module }}' '{{ filter }}'
+
+# Build Scala Native library `module` as its published jar: our NIR, its C resources, our TASTy
+# if the published jar has TASTy (javalib's into its own jar) and a manifest, in
+# tmp/lib/<module>/; compare it with lib-compile's oracle and the published jar.
 lib-jar module: fetch-libs fetch-scala-native
     cargo build -q --release -p scivolo-lower -p scivolo-nir-dump
     python3 scripts/lib-jar.py '{{ module }}'
 
-# `sn-report 1800` with lib-jar's jars of `modules` in place of the published ones (tests built by
-# `sn-build all`), their library image in tmp/cache-ours, the report in tmp/sn-report-ours;
-# compare with a plain `sn-report 1800`'s in tmp/sn-report.
-lib-jar-report +modules: fetch-libs fetch-scala-native release
+# `sn-report 1800` with lib-jar's jars of `modules` (default: all but windowslib) in place of the
+# published ones (tests built by `sn-build all`), their library image in tmp/cache-ours, the report
+# in tmp/sn-report-ours; compare with a plain `sn-report 1800`'s in tmp/sn-report.
+lib-jar-report *modules: fetch-libs fetch-scala-native release
     cargo build -q --release -p scivolo-lower -p scivolo-nir-dump
     rm -rf tmp/libs-ours && mkdir -p tmp/libs-ours
     ln -s '{{ SCIVOLO_LIBS }}'/*.jar tmp/libs-ours/
-    for m in {{ modules }}; do python3 scripts/lib-jar.py $m || exit 1; ln -sf '{{ justfile_directory() }}'/tmp/lib/$m/${m}_native0.5_3-*.jar tmp/libs-ours/; done
+    for m in {{ if modules == "" { NATIVE_JARS } else { modules } }}; do python3 scripts/lib-jar.py $m || exit 1; ln -sf '{{ justfile_directory() }}'/tmp/lib/$m/${m}_native0.5_3-*.jar tmp/libs-ours/; done
     SCIVOLO_LIBS='{{ justfile_directory() }}/tmp/libs-ours' SCIVOLO_CACHE='{{ justfile_directory() }}/tmp/cache-ours' \
         SCIVOLO_REPORT='{{ justfile_directory() }}/tmp/sn-report-ours' SCIVOLO_TIMEOUT=1800 scripts/sn-report.sh
 
@@ -348,6 +358,12 @@ programs-jvm filter="":
 dotty-native filter="":
     python3 scripts/dotty-tests.py native {{ filter }}
 
+# Link tests/programs (names containing `filter`) with Scala Native 0.5.12's toolchain against
+# `lib-jar`'s jars (`ours`) or the published ones (`published`), run them and compare with their
+# `.check`; results under tmp/lib-link/<mode>.
+lib-link mode="ours" filter="": fetch-libs
+    python3 scripts/lib-link.py '{{ mode }}' '{{ filter }}'
+
 # Check out scala/scala's test/junit and testkit at the standard library Scala 3.9 builds on (M5).
 m5-fetch:
     test -d ref/scala2 || (git clone -q --depth 1 --branch v2.13.18 --filter=blob:none --sparse https://github.com/scala/scala ref/scala2 && git -C ref/scala2 sparse-checkout set test/junit src/testkit)
@@ -388,8 +404,9 @@ desugar-checks:
 typer-oracle filter="": syntax-fetch
     python3 scripts/typer-tests.py oracle {{ filter }}
 
-# Compare the Rust typer with the recorded typed trees; report.md and results.tsv under
-# tmp/typer/3.9.0.
+# Compare the Rust typer, typing against the JDK, with the recorded typed trees; report.md and
+# results.tsv under tmp/typer/3.9.0, and tests/programs typed against Scala Native's javalib in
+# results-native.tsv.
 typer-report filter="":
     cargo build -q --release -p scivolo-typer
     python3 scripts/typer-tests.py report {{ filter }}
@@ -500,6 +517,7 @@ highlight-oracle:
 # crates/macros/tests/inlined (JVM).
 typer-checks:
     python3 scripts/typer-tests.py checks crates/typer/tests/typed
+    python3 scripts/typer-tests.py checks crates/typer/tests/typed/jvm
     python3 scripts/typer-tests.py checks crates/typer/tests/inlined
     python3 scripts/typer-tests.py checks crates/macros/tests/inlined
 
@@ -673,7 +691,8 @@ pickle-fixture:
     target/release/scivolo-nir-dump 'tmp/pickle-fixture/out/probe/Probe$.nir' > tmp/pickle-fixture/probe.dump
     python3 -I tests/pickle/quotes.py tmp/pickle-fixture/probe.dump tests/pickle
 
-# Rebuild the checked-in libs/javalib-tasty-<version>.jar (sbt, JDK) from ref/scala-native.
+# Rebuild the checked-in libs/javalib-tasty-<version>.jar (sbt, JDK) from ref/scala-native;
+# `lib-jar javalib` writes ours beside it and lists the files that differ.
 javalib-tasty:
     scripts/javalib-tasty.sh
 

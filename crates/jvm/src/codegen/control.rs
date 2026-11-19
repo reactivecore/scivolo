@@ -28,6 +28,7 @@ impl Gen<'_, '_> {
         if dest == Dest::Fall {
             return self.expr_as(b, t, slots);
         }
+        self.line(b, t);
         match *self.l.tpd.tree(t) {
             Tree::Typed { expr, .. } => return self.expr_to(b, expr, slots, dest),
             Tree::Block { stats, expr } => {
@@ -66,6 +67,10 @@ impl Gen<'_, '_> {
             Tree::Return { .. } => return self.expr(b, t).map(drop),
             Tree::Apply { fun, .. } if self.sends_phantom(b, t, dest) => {
                 b.sent_phantom = Some(fun);
+                self.expr_as(b, t, slots)?
+            }
+            Tree::TypeApply { .. } if self.sends_phantom(b, t, dest) => {
+                b.sent_phantom = Some(t);
                 self.expr_as(b, t, slots)?
             }
             _ if dest == Dest::Return => {
@@ -147,7 +152,7 @@ impl Gen<'_, '_> {
                     b.null_values.insert(fun);
                 }
             }
-            Tree::Ident { .. } => _ = b.null_values.insert(t),
+            Tree::Ident { .. } | Tree::TypeApply { .. } => _ = b.null_values.insert(t),
             _ => {}
         }
     }

@@ -10,7 +10,7 @@ use super::{AMBIGUOUS, NO_APPLICABLE, Resolution, UNDECIDED, Unchosen, applicabi
 use crate::ctx::Ctx;
 use crate::typer::type_ops::TypeOps;
 use crate::typer::{Pt, Typer};
-use tasty::{SymbolId, Type};
+use tasty::{SymbolId, Type, TypeId};
 
 impl Resolution {
     /// Chooses the alternative of `alts` that the arguments of `proto` select: of those they
@@ -98,7 +98,8 @@ impl Resolution {
     }
 
     /// Chooses among the equally specific alternatives `applicable` of `alts`: by the arguments
-    /// of the next clause, then among `alts` by the only one whose result is no method or the
+    /// of the next clause, also after type arguments as `ff(c)[Int]()` (refused for alternatives
+    /// with type parameters before that clause), then among `alts` by the only one whose result is no method or the
     /// only one without default arguments, then with the expected result type taken into
     /// account (dotty's `deepenProto`).
     fn break_tie(
@@ -110,7 +111,16 @@ impl Resolution {
     ) -> Result<SymbolId, Unchosen> {
         match t.protos[proto].pt {
             Pt::Fun(next) => return self.resolve_by_next_clause(t, &applicable, (proto, next)),
-            Pt::PolyFun(_) => return Err("ambiguous overload resolved by further arguments".into()),
+            Pt::PolyFun(poly) => {
+                let top_poly = applicable.iter().any(|&a| {
+                    let info = t.u.info(a);
+                    t.u.poly(info).is_some()
+                });
+                return match t.poly_protos[poly].pt {
+                    Pt::Fun(next) if !top_poly => self.resolve_by_next_clause(t, &applicable, (proto, next)),
+                    _ => Err("ambiguous overload resolved by further arguments".into()),
+                };
+            }
             _ => {}
         }
 
@@ -157,12 +167,27 @@ impl Resolution {
     }
 }
 
+impl Typer<'_> {
+    /// Compares members `a` and `b` of `prefix` as overloading resolution does in `ctx` (dotty's
+    /// `compare`): 1 if `a` is better, -1 if `b` is, 0 if neither; `None` if undecided.
+    pub fn compare_members(&mut self, prefix: TypeId, (a, b): (SymbolId, SymbolId), ctx: Ctx) -> Option<i32> {
+        let resolution = Resolution { prefix: Some(prefix), pt: Pt::Any, ctx, member: None };
+        resolution.compare_alts(self, (a, b), true, ctx)
+    }
+}
+
 /// Checks whether the first parameter clause of method `s` is followed by another that is not
-/// implicit (dotty's `resultIsMethod` with `stripInferrable`), as `def f(x: Int)(y: Int)`.
-fn result_is_method(types: &mut TypeOps, s: SymbolId) -> bool {
+/// implicit, past type parameters (dotty's `resultIsMethod` with `stripInferrable`), as
+/// `def f(x: Int)(y: Int)` or `def f(x: Int)[T](y: T)`.
+pub fn result_is_method(types: &mut TypeOps, s: SymbolId) -> bool {
     let info = types.u.info(s);
     let info = types.u.strip_poly(info);
-    let Some(result) = types.u.method(info).map(|m| m.result) else { return false };
-    let result = types.strip_implicit(result);
-    types.u.method(result).is_some()
+    let Some(mut result) = types.u.method(info).map(|m| m.result) else { return false };
+    loop {
+        match *types.u.ty(result) {
+            Type::Method { result: r, implicit: true, .. } | Type::Poly { result: r, .. } => result = r,
+            Type::Method { .. } => return true,
+            _ => return false,
+        }
+    }
 }

@@ -94,17 +94,38 @@ fn partial_applications_take_apply_under_scala_3_3() {
 }
 
 #[test]
+fn blocks_selecting_structural_members_of_local_selectables_run() {
+    runs_on_the_jvm("selectableblock", "Test");
+}
+
+#[test]
+fn assignments_of_static_vars_through_values_run_on_the_jvm() {
+    runs_on_the_jvm("staticassign", "Staticassign");
+}
+
+#[test]
+fn static_methods_beside_instance_methods_of_their_names_run_on_the_jvm() {
+    runs_on_the_jvm("staticforwarders", "Staticforwarders");
+}
+
+#[test]
+fn anonymous_mirrors_of_inline_bodies_run_on_the_jvm() {
+    runs_on_the_jvm("inlinemirrors", "Inlinemirrors");
+}
+
+#[test]
+fn bridges_returning_context_functions_over_22_parameters_run_on_the_jvm() {
+    runs_on_the_jvm("contextxxl", "Contextxxl");
+}
+
+#[test]
 fn several_files_run_on_the_jvm() {
     runs_on_the_jvm("units", "Units");
 }
 
 #[test]
-fn a_case_class_parameter_capturing_another_parameter_refused() {
-    let source = root().join("tests/jvm/refused/fieldcaptures.scala");
-    let (_, compiled) = compile("fieldcaptures", &source);
-    let stderr = String::from_utf8_lossy(&compiled.stderr);
-    let refusal = "does not support pickling a synthetic type tree of a capture set";
-    assert!(!compiled.status.success() && stderr.contains(refusal), "{stderr}");
+fn a_case_class_parameter_capturing_another_parameter_runs_on_the_jvm() {
+    runs_on_the_jvm("casecaptures", "casecaptures");
 }
 
 /// A super accessor through prefix `other.Views` whose capture set names the enclosing
@@ -137,6 +158,11 @@ fn a_file_of_a_unit_compiles_as_alone() {
         let bytes = |out: &Path| std::fs::read(out.join("units").join(&name)).expect("a class file");
         assert!(bytes(&unit) == bytes(&alone), "{name:?} differs");
     }
+}
+
+#[test]
+fn boxed_values_cast_to_their_expected_class_run_on_the_jvm() {
+    runs_on_the_jvm("boxedcasts", "Boxedcasts");
 }
 
 #[test]
@@ -232,6 +258,11 @@ fn javaenums_run_on_the_jvm() {
 #[test]
 fn jdkstatics_run_on_the_jvm() {
     runs_on_the_jvm("jdkstatics", "Jdkstatics");
+}
+
+#[test]
+fn jdk_nullary_overloads_against_a_type_variable_run_on_the_jvm() {
+    runs_on_the_jvm("jdkoverloads", "Jdkoverloads");
 }
 
 #[test]
@@ -765,7 +796,7 @@ fn a_refused_file_refuses_the_unit() {
         ),
         (
             "b.scala",
-            "import scala.language.`3.9-migration`\ngiven Show = new Show { def text = \"custom\" }\n",
+            "import scala.language.`3.0-migration`\ngiven Show = new Show { def text = \"custom\" }\n",
         ),
         ("c.scala", "@main def run(): Unit = println(show)\n"),
     ];
