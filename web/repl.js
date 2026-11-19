@@ -1,16 +1,22 @@
 // The page: a transcript and an input line. The session runs in a worker; a second instance of
 // the module without the library image highlights the input and decides when it is complete.
 
+import { choicesShown, hideChoices, moveChoice, selectedChoice, showChoices } from "./choices.js";
+import { download } from "./download.js";
 import { load } from "./scivolo.js";
 import { render } from "./sgr.js";
 
 const MODULE = "scivolo.wasm";
 const IMAGE = "libs.img.gz";
 const WIDTH = 80;
+// MiB of live objects before OutOfMemoryError.
+const HEAP_MIB = 512;
 const $ = (id) => document.getElementById(id);
-const [out, input, shade, choices, status, stop] = ["out", "in", "shade", "choices", "status", "stop"].map($);
+const [out, input, shade, status, stop] = ["out", "in", "shade", "status", "stop"].map($);
 
 let module = null;
+let image = null;
+let ready = false;
 let editor = null;
 let worker = null;
 let pending = null;
@@ -57,14 +63,11 @@ function busy(running) {
 }
 
 function onMessage({ data }) {
-  if (data.type === "progress") {
-    const mb = (n) => (n / 1e6).toFixed(1);
-    status.textContent = data.starting ? "Starting the session…"
-      : `Downloading the Scala libraries: ${mb(data.loaded)}${data.total ? ` of ${mb(data.total)}` : ""} MB`;
-  } else if (data.type === "ready") {
+  if (data.type === "ready") {
+    ready = true;
     status.textContent = "";
     busy(false);
-  } else if (data.type === "error") {
+  } else if (data.type === "error" || (data.type === "crashed" && !ready)) {
     status.textContent = `The REPL could not start: ${data.message}`;
   } else if (data.type === "crashed") {
     print(`The session ended (${data.message}); a new one starts.`, "note");
@@ -82,10 +85,12 @@ function restart() {
   pending = null;
   busy(true);
   stop.hidden = true;
+  ready = false;
+  status.textContent = "Starting the session…";
   worker = new Worker(new URL("worker.js", import.meta.url), { type: "module" });
   worker.onmessage = onMessage;
   worker.onerror = (e) => onMessage({ data: { type: "crashed", message: e.message } });
-  worker.postMessage({ type: "start", module, image: new URL(IMAGE, location.href).href, width: WIDTH });
+  worker.postMessage({ type: "start", module, image, width: WIDTH, heapMib: HEAP_MIB });
 }
 
 async function run(text) {
@@ -104,7 +109,7 @@ async function run(text) {
   } else busy(false);
 }
 
-// The start of the identifier before byte `cursor` of `text`.
+// The start of the identifier that ends at `cursor` of `text`.
 function wordStart(text, cursor) {
   let i = cursor;
   while (i > 0 && /[\p{L}\p{N}_$]/u.test(text[i - 1])) i--;
@@ -120,32 +125,6 @@ function insert(label) {
   redraw();
 }
 
-function hideChoices() {
-  choices.hidden = true;
-  choices.replaceChildren();
-}
-
-function showChoices(groups) {
-  hideChoices();
-  for (const { header, labels } of groups) {
-    if (header) choices.append(Object.assign(document.createElement("li"), { className: "header", textContent: header }));
-    for (const label of labels) {
-      const li = Object.assign(document.createElement("li"), { role: "option", textContent: label });
-      li.onmousedown = (e) => (e.preventDefault(), insert(label));
-      choices.append(li);
-    }
-  }
-  choices.hidden = choices.children.length === 0;
-}
-
-function moveChoice(by) {
-  const options = [...choices.querySelectorAll("[role=option]")];
-  const at = options.findIndex((o) => o.ariaSelected === "true");
-  options.forEach((o) => (o.ariaSelected = "false"));
-  const next = options[(at + by + options.length) % options.length];
-  if (next) next.ariaSelected = "true";
-}
-
 async function complete() {
   const [text, cursor] = [input.value, input.selectionStart];
   const reply = await ask({ type: "complete", text, cursor });
@@ -153,7 +132,7 @@ async function complete() {
   if (labels.length === 0) return;
   const common = labels.reduce((a, b) => { let i = 0; while (i < a.length && a[i] === b[i]) i++; return a.slice(0, i); });
   if (labels.length === 1 || common.length > cursor - wordStart(text, cursor)) insert(common);
-  if (labels.length > 1) showChoices(reply.groups);
+  if (labels.length > 1) showChoices(reply.groups, insert);
 }
 
 function recall(by) {
@@ -166,14 +145,14 @@ function recall(by) {
 
 input.addEventListener("input", () => (hideChoices(), redraw()));
 input.addEventListener("keydown", (e) => {
-  const selected = choices.querySelector("[aria-selected=true]");
-  if (!choices.hidden && ["ArrowDown", "ArrowUp"].includes(e.key)) {
+  const selected = selectedChoice();
+  if (choicesShown() && ["ArrowDown", "ArrowUp"].includes(e.key)) {
     e.preventDefault();
     moveChoice(e.key === "ArrowDown" ? 1 : -1);
   } else if (e.key === "Escape") hideChoices();
-  else if (e.key === "Enter" && selected) {
+  else if (e.key === "Enter" && selected !== null) {
     e.preventDefault();
-    insert(selected.textContent);
+    insert(selected);
   } else if (e.key === "Enter" && !e.shiftKey) {
     const text = input.value;
     if (light((r) => r.isIncomplete(text), false)) return;
@@ -195,6 +174,14 @@ stop.onclick = () => {
   restart();
 };
 
-module = await WebAssembly.compile(await (await fetch(MODULE)).arrayBuffer());
-editor = await load(module);
-restart();
+try {
+  module = await WebAssembly.compile(await (await fetch(MODULE)).arrayBuffer());
+  editor = await load(module);
+  const mb = (n) => (n / 1e6).toFixed(1);
+  image = await download(IMAGE, (loaded, total) => {
+    status.textContent = `Downloading the Scala libraries: ${mb(loaded)}${total ? ` of ${mb(total)}` : ""} MB`;
+  });
+  restart();
+} catch (e) {
+  status.textContent = `The REPL could not load: ${e}`;
+}

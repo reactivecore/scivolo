@@ -9,9 +9,6 @@ use std::cell::RefCell;
 use std::time::Duration;
 use vm::{Classpath, Vm};
 
-/// Bytes of live objects a session may hold before `OutOfMemoryError`.
-const HEAP_CAP: usize = 512 << 20;
-
 /// How long an input may run before it is stopped, unless the page sets another limit.
 const TIME_LIMIT: Duration = Duration::from_secs(10);
 
@@ -41,12 +38,13 @@ pub extern "C" fn buffer(len: usize) -> *mut u8 {
     })
 }
 
-/// Starts the session on the library image in the buffer, printing values in `width` columns;
-/// replies with nothing, or with why it could not start.
+/// Starts the session on the library image in the buffer, printing values in `width` columns,
+/// with at most `heap_mib` MiB of live objects before `OutOfMemoryError`; replies with nothing,
+/// or with why it could not start.
 #[unsafe(no_mangle)]
-pub extern "C" fn start(width: i32) -> *const u8 {
+pub extern "C" fn start(width: i32, heap_mib: u32) -> *const u8 {
     let bytes = STATE.with_borrow_mut(|s| std::mem::take(&mut s.buffer));
-    let reply = match open(bytes.leak(), width) {
+    let reply = match open(bytes.leak(), width, (heap_mib as usize) << 20) {
         Ok(session) => {
             STATE.with_borrow_mut(|s| s.session = Some(session));
             String::new()
@@ -56,12 +54,12 @@ pub extern "C" fn start(width: i32) -> *const u8 {
     reply_with(&reply)
 }
 
-/// Opens a session over the image `bytes`.
-fn open(bytes: &'static [u8], width: i32) -> Result<Session, String> {
+/// Opens a session over the image `bytes` with a heap cap of `cap` bytes.
+fn open(bytes: &'static [u8], width: i32, cap: usize) -> Result<Session, String> {
     let image: &'static Image = Box::leak(Box::new(Image::from_bytes(bytes).map_err(|e| e.to_string())?));
     let classpath = Classpath::with_image(&[], image).map_err(|e| e.to_string())?;
     let mut vm = Vm::new(classpath).map_err(|e| e.to_string())?;
-    vm.set_heap_cap(HEAP_CAP);
+    vm.set_heap_cap(cap);
     let mut session = Session::new(vm, image, width).map_err(|e| e.to_string())?;
     session.watch_interrupts().map_err(|e| e.to_string())?;
     session.limit_runs(Some(TIME_LIMIT));

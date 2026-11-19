@@ -734,7 +734,7 @@ dist-check:
     python3 scripts/dist.py check
 
 # Everything a pipeline job runs; the cache it leaves holds only the entries it used.
-ci: cache-mark fetch-libs native-stale gates test-portable check cache-prune
+ci: cache-mark fetch-libs native-stale gates test-portable web-test check cache-prune
 
 # Mark the time from which `cache-prune` counts cache entries as used.
 cache-mark:
@@ -805,7 +805,7 @@ web-test: web-build
 # Build the browser REPL into `dir`; `python3 -m http.server -d tmp/web-dist 8000` serves it
 # at http://localhost:8000.
 web-dist dir="tmp/web-dist": web-build (web-image dir)
-    cp web/index.html web/style.css web/repl.js web/sgr.js web/worker.js web/scivolo.js {{ dir }}/
+    cp web/index.html web/style.css web/*.js {{ dir }}/
     cp {{ web_wasm }} {{ dir }}/scivolo.wasm
 
 # Open a merge request of the current branch into `target`, described by tmp/mr.md.

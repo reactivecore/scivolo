@@ -5,9 +5,10 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN printf 'path-exclude /usr/share/doc/*\npath-exclude /usr/share/man/*\npath-exclude /usr/share/info/*\npath-exclude /usr/share/locale/*\n' \
       > /etc/dpkg/dpkg.cfg.d/01-nodoc
 
-# clang and zlib build crates/snrt; bc runs `just check`; python3 runs the scripts.
+# clang and zlib build crates/snrt; bc runs `just check`; python3 runs the scripts; nodejs runs
+# `just web-test`.
 RUN apt-get update -yqq && apt-get install -yqq --no-install-recommends \
-        build-essential clang zlib1g-dev curl ca-certificates git bc python3 \
+        build-essential clang zlib1g-dev curl ca-certificates git bc python3 nodejs \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 ARG JUST_VERSION=1.58.0
@@ -47,6 +48,7 @@ ENV PATH="/root/.cargo/bin:$PATH"
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | \
         sh -s -- -y --profile minimal --default-toolchain ${RUST_VERSION} && \
     rustup component add rustfmt clippy && \
+    rustup target add wasm32-unknown-unknown && \
     rm -rf /root/.cargo/registry /root/.cargo/git
 
 # The builder plus what compiles Scala Native's unit tests (`just ci-suite`), and the `ping`

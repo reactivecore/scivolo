@@ -36,8 +36,9 @@ export class Repl {
     return decoder.decode(new Uint8Array(this.x.memory.buffer, at + 4, len));
   }
 
-  start(image, width) {
-    return this.call(image, () => this.x.start(width));
+  // Starts the session on the library image's bytes; "" or why it could not start.
+  start(image, width, heapMib) {
+    return this.call(image, () => this.x.start(width, heapMib));
   }
 
   eval(text) {

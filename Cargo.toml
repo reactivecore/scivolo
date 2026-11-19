@@ -60,3 +60,6 @@ debug = "line-tables-only"
 inherits = "release"
 debug = false
 strip = true
+
+[profile.web.build-override]
+strip = false
