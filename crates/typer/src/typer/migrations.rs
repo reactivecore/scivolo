@@ -5,7 +5,7 @@
 
 use super::Typer;
 use syntax::ast::{Attrs, NodeId, Tree};
-use syntax::config::SourceVersion;
+use syntax::config::Migration;
 use tasty::{Kind, NameId, TypeId};
 
 impl Typer<'_> {
@@ -19,7 +19,8 @@ impl Typer<'_> {
         let owner = self.syms.by_tree.get(&id).and_then(|&s| self.u.symbol(s).owner);
         let in_param = owner.is_some_and(|o| self.u.symbol(o).kind == Kind::TypeParam);
         let addendum = if in_param { ", use `_` to denote a higher-kinded type parameter" } else { "" };
-        self.error_at(self.ast.span(id), format!("`?` is not a valid type name{addendum}"));
+        let msg = format!("`?` is not a valid type name{addendum}");
+        self.error_or_migration_warning(self.ast.span(id), msg, Migration::Scala2to3);
     }
 
     /// Checks arguments `args` of application `id` to a clause of `params`, implicit if
@@ -45,9 +46,6 @@ impl Typer<'_> {
         let Some(span) = args.first().map(|&a| self.ast.span(a)).filter(|s| s.exists()) else {
             return Ok(());
         };
-        if !self.source_version.is_at_least(SourceVersion::V3_7) {
-            return Ok(());
-        }
         let parens = self.ast.attrs(id).contains(Attrs::PAREN_ARGS);
         let rewrite = if parens { self.rewrite_notice("This code", "3.7-migration") } else { String::new() };
         let msg = format!(
@@ -55,7 +53,7 @@ impl Typer<'_> {
              please use the following option:\n  \"-Wconf:msg=Implicit parameters should be provided with a \
              `using` clause:s\"\n"
         );
-        self.diags.warning_at(span.start(), span.end(), span.point(), msg);
+        self.error_or_migration_warning(span, msg, Migration::ImplicitParamsWithoutUsing);
         Ok(())
     }
 }

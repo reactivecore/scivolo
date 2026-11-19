@@ -30,6 +30,7 @@ impl Cmp<'_> {
                 Some(Meaning::Class(c)) if c == self.u.defn().nothing => self.is_value_type(b),
                 Some(Meaning::Class(c)) if c == self.u.defn().null => self.nullable(b),
                 Some(Meaning::Term(_)) => self.below_singleton(a, b),
+                Some(Meaning::Unknown) if self.is_refined_term(a) => self.below_singleton(a, b),
                 Some(Meaning::Class(c)) if self.u.is_module_class(c) => self.module_class_below(a, b, c),
                 _ => false,
             },
@@ -165,9 +166,22 @@ impl Cmp<'_> {
             (None, Some(c)) => self.object_of(a) == Some(c),
             (None, None) => {
                 let (Some(n1), Some(n2)) = (self.named(a), self.named(b)) else { return false };
-                n1.sym.is_some() && n1.sym == n2.sym && self.sub_prefix(n1.prefix, n2.prefix)
+                let same = match (*self.u.ty(a), *self.u.ty(b)) {
+                    _ if n1.sym.is_some() => n1.sym == n2.sym,
+                    (Type::TermRef(_, x), Type::TermRef(_, y)) => {
+                        x == y && n2.sym.is_none() && self.is_refined_term(a)
+                    }
+                    _ => false,
+                };
+                same && self.sub_prefix(n1.prefix, n2.prefix)
             }
         }
+    }
+
+    /// Whether `t` is `x.a` for a term `a` only a refinement of the type of `x` declares.
+    fn is_refined_term(&mut self, t: TypeId) -> bool {
+        let Type::TermRef(p, name) = *self.u.ty(t) else { return false };
+        self.u.resolve_ref(t).is_none() && self.u.term_refinement_named(p, name).is_some()
     }
 
     /// The class of the top-level object path `t` refers to.

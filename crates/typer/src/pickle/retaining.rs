@@ -101,7 +101,9 @@ impl TreePickler<'_> {
     /// capture-set annotations: `label: Label[T]^{}` of `class Break[T](val label: Label[T]^{})`.
     /// A field's capture sets name the class's fields for its constructor's parameters, as
     /// `b: B^{C.this.a}` of `class C(val a: A^, val b: B^{a})`. Refuses such an info with a capture
-    /// set that refers to other than static definitions and members and `this` of `sym`'s class.
+    /// set that refers to other than static definitions, members and `this` of `sym`'s class, and
+    /// parameters and locals of the method owning `sym`: `b: B^{a}` of the `copy(a: A^, b: B^{a})`
+    /// of `case class C(a: A^, b: B^{a})`.
     pub fn keep_captures(&mut self, sym: SymbolId, tpt: TNodeId) -> Result<(), Refusal> {
         let (Tree::TypeTree { inferred: false }, Some(tpe)) = (self.tpd.tree(tpt), self.tpd.get(tpt).tpe)
         else {
@@ -130,9 +132,10 @@ impl TreePickler<'_> {
             None
         });
         let enclosing: Vec<SymbolId> = std::iter::successors(class, |&c| self.u.symbol(c).owner).collect();
+        let method = self.u.symbol(sym).owner.filter(|&o| !self.u.is_class(o));
         let scope = CaptureScope {
             own: class,
-            def: None,
+            def: method,
             seen: None,
             methods: &self.method_binders,
             binders: &self.open,

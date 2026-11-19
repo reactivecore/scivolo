@@ -30,21 +30,43 @@ pub fn most_specific(t: &mut Typer<'_>, found: &[Candidate], ctx: Ctx) -> Option
         .find(|&c| alts.iter().filter(|&&d| d != c).all(|&d| compare(t, c, d, ctx) == Some(1)))
 }
 
-/// 1 if `a` ranks above `b`, -1 if below, 0 if neither; `None` if undecided. Refuses the
-/// ranking of a file below Scala 3.7 (dotty's `CompareScheme.Old`).
+/// How candidates' types are compared (dotty's `CompareScheme` with `preferGeneral`).
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum Scheme {
+    /// Up to Scala 3.5, and between two old-style implicits: the more specific type wins, with
+    /// arguments of contravariant parameters compared as covariant ones; a candidate whose owner
+    /// derives from the other's but whose type loses ranks neither above nor below.
+    Intermediate,
+    /// From Scala 3.7: the more general type wins, a given beats an old-style implicit; a
+    /// deriving owner wins over the type.
+    New,
+}
+
+/// 1 if `a` ranks above `b`, -1 if below, 0 if neither; `None` if undecided. In Scala 3.6 and
+/// 3.7-migration, where dotty warns where the two schemes differ, refuses such a difference.
 pub fn compare(t: &mut Typer<'_>, a: Candidate, b: Candidate, ctx: Ctx) -> Option<i32> {
-    if !t.source_version.is_at_least(SourceVersion::V3_7) {
-        t.unsupported_at(Span::NONE, "ranking implicits below Scala 3.7");
+    let v = t.source_version;
+    if !v.is_at_least(SourceVersion::V3_6) {
+        return compare_in(t, (a, b), (Scheme::Intermediate, ctx));
+    }
+    let new = compare_in(t, (a, b), (Scheme::New, ctx));
+    let warns = !v.is_at_least(SourceVersion::V3_7) || v == SourceVersion::V3_7.migrating_variant();
+    if warns && new != compare_in(t, (a, b), (Scheme::Intermediate, ctx)) {
+        t.unsupported_at(Span::NONE, "implicit priority change between Scala 3.6 and 3.7");
         return None;
     }
+    new
+}
+
+fn compare_in(t: &mut Typer<'_>, (a, b): (Candidate, Candidate), scheme: (Scheme, Ctx)) -> Option<i32> {
     let (full_a, full_b) = (alt_type(t, a), alt_type(t, b));
     let (sa, sb) = (without_implicits(t.u, full_a)?, without_implicits(t.u, full_b)?);
-    let result = compare_with_types(t, (a, sa), (b, sb), ctx)?;
+    let result = compare_with_types(t, (a, sa), (b, sb), scheme)?;
     Some(match (result, sa == full_a, sb == full_b) {
         (0, true, true) => 0,
         (0, true, false) => 1,
         (0, false, true) => -1,
-        (0, false, false) => compare_with_types(t, (a, full_a), (b, full_b), ctx)?,
+        (0, false, false) => compare_with_types(t, (a, full_a), (b, full_b), scheme)?,
         _ => result,
     })
 }
@@ -53,11 +75,11 @@ fn compare_with_types(
     t: &mut Typer<'_>,
     (a, ta): (Candidate, TypeId),
     (b, tb): (Candidate, TypeId),
-    ctx: Ctx,
+    (scheme, ctx): (Scheme, Ctx),
 ) -> Option<i32> {
     let owner = compare_owner(t, t.u.symbol(a.sym).owner, t.u.symbol(b.sym).owner);
-    let wins_a = is_as_good(t, (a, ta), (b, tb), ctx)?;
-    let wins_b = is_as_good(t, (b, tb), (a, ta), ctx)?;
+    let wins_a = is_as_good(t, (a, ta), (b, tb), (scheme, ctx))?;
+    let wins_b = is_as_good(t, (b, tb), (a, ta), (scheme, ctx))?;
     let mut ty = t.types();
     let same = |ty: &mut TypeOps<'_>| {
         let (ra, rb) = (ty.ref_type(a.prefix, a.sym), ty.ref_type(b.prefix, b.sym));
@@ -68,7 +90,7 @@ fn compare_with_types(
         return None;
     }
     let implicit = |c: Candidate| ty.u.symbol(c.sym).is_old_implicit();
-    let new_scheme = !(implicit(a) && implicit(b));
+    let new_scheme = scheme == Scheme::New && !(implicit(a) && implicit(b));
     Some(match owner {
         1 if wins_a || !wins_b || new_scheme => 1,
         -1 if wins_b || !wins_a || new_scheme => -1,

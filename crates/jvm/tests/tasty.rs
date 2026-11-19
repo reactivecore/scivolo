@@ -127,6 +127,8 @@ const DOTTY_TASTY: &[(&str, &[&str])] = &[
     ),
     ("closurecaptures", &["Closures"]),
     ("fieldcaptures", &["C", "D", "E", "F", "H"]),
+    ("casecaptures", &["C", "G", "H", "W", "O"]),
+    ("dependentcases", &["S", "O"]),
     ("wildcardmembers", &["WildcardMembers"]),
     ("newarrays", &["NewArrays"]),
     ("anymembers", &["AnyMembers"]),
@@ -154,7 +156,9 @@ const DOTTY_TASTY: &[(&str, &[&str])] = &[
 /// function type's parent, and is dependent if its result's sets name them
 /// (closurecaptures.scala), a by-name argument to a result whose set names the parameter keeps
 /// the argument's set in the type argument (`ByNameArgs` of typercaptures.scala), a field's
-/// written set names the fields for the constructor's parameters (fieldcaptures.scala);
+/// written set names the fields for the constructor's parameters (fieldcaptures.scala), and a
+/// case class's `copy`, `apply` and `fromProduct` their own parameters and values for them
+/// (casecaptures.scala), also in path-dependent types (dependentcases.scala);
 /// annotated types take the annotation tree of their own
 /// origin in match selectors and patterns, inferred types, super accessors and inline accessors,
 /// in super accessors with their class's type parameters seen from the accessor's class; secondary constructors have their own type parameters and parameters passed on to the
@@ -328,19 +332,18 @@ fn exported_match_aliases_reduce_from_tasty() {
     assert_eq!(String::from_utf8_lossy(&run.stdout), "1\n");
 }
 
-/// The synthetic type trees of a case class parameter whose capture set names another parameter
-/// are refused.
+/// A case class whose repeated parameter's capture set names another parameter is refused: its
+/// `apply` passes on a dependent repeated argument.
 #[test]
 fn untold_capture_sets_are_refused() {
     let out = root().join("tmp/jvm-test/untoldcaptures");
     let _ = std::fs::remove_dir_all(&out);
     std::fs::create_dir_all(&out).expect("tmp/jvm-test/untoldcaptures");
-    let header = "import language.experimental.captureChecking\nclass Label[T]\nclass A\nclass B\n\
-                  trait Coll:\n  def label: Label[Int]^{this}\n";
+    let header = "import language.experimental.captureChecking\nclass Label[T]\nclass A\n";
     let cases = [(
-        "caseclassparam",
-        "case class C(a: A^, b: Label[Int]^{a})\n",
-        "a capture set that refers to other than static definitions",
+        "caserepeated",
+        "case class V(a: A^, cs: Label[Int]^{a}*)\n",
+        "does not support dependent parameter",
     )];
     for (name, body, refusal) in cases {
         let source = out.join(format!("{name}.scala"));

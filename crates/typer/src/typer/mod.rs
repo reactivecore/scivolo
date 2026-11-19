@@ -299,8 +299,6 @@ pub struct Typer<'a> {
     pub experimental: Option<&'static str>,
     /// The `-W` lints the options enable.
     pub lints: Lints,
-    /// Whether the source version is `future`.
-    pub source_future: bool,
     /// Whether `$` in a definition's name is warned about (source 3.9 and later).
     pub dollar_names_warned: bool,
     /// Whether the unit behaves as the Scala 2 library (`language.\`2.13\``).
@@ -439,11 +437,13 @@ pub fn match_type_rules(v: SourceVersion) -> tasty::MatchTypeRules {
     }
 }
 
-/// Refuses source versions before 3.3 and migrating ones.
-pub fn check_source_version(v: SourceVersion) -> Result<(), String> {
-    match v.is_at_least(SourceVersion::V3_3) && !v.migrating {
-        true => Ok(()),
-        false => Err("source versions other than 3.3 to 3.9".into()),
+/// Refuses source version `3.0-migration`, which types as Scala 2 does (dotty's `migrateTo3`),
+/// and `-rewrite`, which patches the source where a migrating version warns.
+pub fn check_source_version(cfg: &Config) -> Result<(), String> {
+    match (cfg.source_version.migrate_to_3(), cfg.rewrite) {
+        (true, _) => Err("source version 3.0-migration".into()),
+        (_, true) => Err("-rewrite".into()),
+        _ => Ok(()),
     }
 }
 
@@ -456,7 +456,7 @@ impl<'a> Typer<'a> {
         syms: &mut Syms,
     ) -> Result<Self, String> {
         let v = cfg.source_version;
-        check_source_version(v)?;
+        check_source_version(&cfg)?;
         let defn = u.enter_library_defn()?;
         u.reductions_exhausted = false;
         u.erasure_exhausted = false;
@@ -485,7 +485,6 @@ impl<'a> Typer<'a> {
             nullables: Default::default(),
             experimental: cfg.experimental,
             lints: cfg.warnings.lints,
-            source_future: v.requires_new_syntax(),
             dollar_names_warned: v.is_at_least(SourceVersion::V3_9),
             scala2: v.is_scala2(),
             source_version: v,
