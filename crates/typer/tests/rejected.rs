@@ -145,6 +145,10 @@ fn implementations_with_other_clauses_access_or_java_parameters() {
                 "class C extends Comparable[Any] { def compareTo(o: Object): Int = 7 }\n",
                 "concrete class with an unimplemented member",
             ),
+            (
+                "trait TB { def f[A <: AnyRef](x: A): A }\nclass C extends TB { def f[A <: String](x: A): A = x }\n",
+                "concrete class with an unimplemented member",
+            ),
         ],
         &[
             "trait A { def f(using x: Int): Int }\nclass B extends A { def f(using x: Int): Int = x }\n",

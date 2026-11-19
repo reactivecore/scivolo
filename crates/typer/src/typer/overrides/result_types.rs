@@ -89,8 +89,8 @@ impl OverrideChecks {
         false
     }
 
-    /// Whether member `d` overrides member `m`, which it may match, with an incompatible result
-    /// type; members of two Java classes, not interfaces, are not compared.
+    /// Whether member `d` overrides member `m`, which it may match with the same signature, with
+    /// an incompatible type; members of two Java classes, not interfaces, are not compared.
     pub fn incompatible_pair(&self, t: &mut Typer<'_>, d: SymbolId, m: SymbolId) -> bool {
         let java_class = |t: &mut Typer<'_>, s: SymbolId| {
             let owner = t.u.symbol(s).owner.is_some_and(|o| !t.u.symbol(o).flags.has(TRAIT));
@@ -100,6 +100,7 @@ impl OverrideChecks {
         !java
             && t.u.symbol(d).run_name() == t.u.symbol(m).run_name()
             && t.u.info_matches(self.site, d, m)
+            && t.u.parameters_agree(self.site, d, m)
             && !result_conforms(t, self.site, d, m)
     }
 }
