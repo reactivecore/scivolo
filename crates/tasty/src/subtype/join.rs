@@ -21,7 +21,8 @@ impl Universe {
                 return Some(merged);
             }
         }
-        let (a, b) = (da, db);
+        let not_match = |u: &Self, t, d| if matches!(u.ty(d), Type::Match { .. }) { t } else { d };
+        let (a, b) = (not_match(self, a, da), not_match(self, b, db));
         let (aw, bw) = (self.super_type(a), self.super_type(b));
         if aw != a || bw != b {
             let (sa, sb) = (self.is_singleton_type(a), self.is_singleton_type(b));
