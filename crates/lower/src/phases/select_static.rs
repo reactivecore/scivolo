@@ -49,6 +49,7 @@ pub fn transform(l: &mut Lower, td: TNodeId) {
             let new = if owner_ref {
                 r
             } else {
+                l.static_qualifiers.insert(qualifier);
                 let block = l.block(&[qualifier], r, Span::NONE);
                 l.positioned(block)
             };
@@ -125,6 +126,14 @@ fn super_ref_span(l: &mut Lower, call: TNodeId) {
     let span = l.tpd.span(call);
     if matches!(l.tpd.tree(qualifier), Tree::New { .. }) && span.exists() {
         l.tpd.get_mut(fun).span = span;
+    }
+}
+
+impl Lower<'_> {
+    /// Whether statement `t` is the qualifier `SelectStatic` kept of a static selection, which
+    /// `PureStats` does not drop.
+    pub fn is_static_qualifier(&self, t: TNodeId) -> bool {
+        self.static_qualifiers.contains(&t)
     }
 }
 

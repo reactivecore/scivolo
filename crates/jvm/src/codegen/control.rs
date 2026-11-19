@@ -69,6 +69,10 @@ impl Gen<'_, '_> {
                 b.sent_phantom = Some(fun);
                 self.expr_as(b, t, slots)?
             }
+            Tree::TypeApply { .. } if self.sends_phantom(b, t, dest) => {
+                b.sent_phantom = Some(t);
+                self.expr_as(b, t, slots)?
+            }
             _ if dest == Dest::Return => {
                 let result = b.result.clone();
                 self.expr_expect(b, t, &result)?
@@ -148,7 +152,7 @@ impl Gen<'_, '_> {
                     b.null_values.insert(fun);
                 }
             }
-            Tree::Ident { .. } => _ = b.null_values.insert(t),
+            Tree::Ident { .. } | Tree::TypeApply { .. } => _ = b.null_values.insert(t),
             _ => {}
         }
     }

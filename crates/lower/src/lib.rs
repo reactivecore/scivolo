@@ -22,6 +22,7 @@ pub use output::NirFile;
 pub use phases::adapt::erased_type;
 pub use phases::java_enums::derives_from_java_enum;
 pub use phases::sam::abstract_methods;
+pub use phases::same_run::bridges as same_run_bridges;
 use rustc_hash::{FxHashMap, FxHashSet};
 pub use symbols::{is_erased, is_jdk_object};
 use syntax::ast::Span;
@@ -124,6 +125,8 @@ pub struct Lower<'a> {
     boxed_types: FxHashSet<TNodeId>,
     /// The static references `SelectStatic` made of selections (dotty's new `ref`s and blocks).
     static_selects: FxHashSet<TNodeId>,
+    /// The qualifiers `SelectStatic` kept as statements, after `PureStats`.
+    static_qualifiers: FxHashSet<TNodeId>,
     /// The local classes lifted out of blocks, each with its owner before.
     local_classes: FxHashMap<SymbolId, SymbolId>,
     /// The local classes renamed when lifted, each with its name before.
@@ -355,6 +358,7 @@ impl<'a> Lower<'a> {
             null_casts: FxHashSet::default(),
             boxed_types: FxHashSet::default(),
             static_selects: FxHashSet::default(),
+            static_qualifiers: FxHashSet::default(),
             mixed_in: FxHashSet::default(),
             mixed_from: FxHashMap::default(),
             specialized: FxHashSet::default(),
