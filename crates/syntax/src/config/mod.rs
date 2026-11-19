@@ -4,12 +4,14 @@
 //   compiler/src/dotty/tools/dotc/parsing/Scanners.scala
 //! What the compiler settings and language imports decide about syntax.
 
+mod migration;
 mod options;
 mod version;
 mod warnings;
 
 use names::nme;
 
+pub use migration::{Migration, Severity};
 pub use version::SourceVersion;
 pub use warnings::{Lints, Warnings};
 
@@ -119,6 +121,8 @@ pub struct Config {
     /// Not `-Xmixin-force-forwarders:false`: a class gets a forwarder to each concrete trait
     /// method it inherits, not only where dotty's `needsMixinForwarder` requires one.
     pub force_forwarders: bool,
+    /// `-rewrite`.
+    pub rewrite: bool,
 }
 
 impl Default for Config {
@@ -137,6 +141,7 @@ impl Default for Config {
             explicit_nulls: false,
             interactive: false,
             force_forwarders: true,
+            rewrite: false,
         }
     }
 }

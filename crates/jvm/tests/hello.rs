@@ -765,7 +765,7 @@ fn a_refused_file_refuses_the_unit() {
         ),
         (
             "b.scala",
-            "import scala.language.`3.9-migration`\ngiven Show = new Show { def text = \"custom\" }\n",
+            "import scala.language.`3.0-migration`\ngiven Show = new Show { def text = \"custom\" }\n",
         ),
         ("c.scala", "@main def run(): Unit = println(show)\n"),
     ];
