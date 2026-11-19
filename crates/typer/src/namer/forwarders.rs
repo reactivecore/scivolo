@@ -157,10 +157,8 @@ impl Typer<'_> {
         }
         let src = self.u.symbol(from).flags;
         let flags = self.syms.flags.get(&copy).copied().unwrap_or(f::TERM_PARAM);
-        let flags = RETAINED_PARAM
-            .iter()
-            .filter(|&&(tag, _)| src.has(tag))
-            .fold(flags, |acc, &(_, fl)| acc.or(fl));
+        let flags =
+            RETAINED_PARAM.iter().filter(|&&(tag, _)| src.has(tag)).fold(flags, |acc, &(_, fl)| acc.or(fl));
         self.syms.set_flags(self.u, copy, flags);
     }
 

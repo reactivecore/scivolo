@@ -11,7 +11,7 @@ use crate::tpd::{TNodeId, Tree as T};
 use names::{name_kinds, nme};
 use syntax::ast::flags as f;
 use syntax::ast::modifiers::Modifiers;
-use syntax::ast::{NodeId, Span, TName, Tree};
+use syntax::ast::{Attrs, NodeId, Span, TName, Tree};
 use tasty::{SymbolId, Type, TypeId};
 
 impl Typer<'_> {
@@ -165,20 +165,27 @@ impl Typer<'_> {
             self.ast.with_span(id, at);
             ids.push(id);
         }
-        let target = self.ast.node(Tree::TypeTree);
-        self.ast.with_span(target, at);
-        self.splices.insert(target, rhs);
-        self.splice_owners.insert(target, ctx.owner);
-        let apply = TName { name: self.name(nme::APPLY), is_type: false };
-        let fun = self.ast.node(Tree::Select { qualifier: target, name: apply });
+        let Some(&apply) = self.type_members(tpe, nme::APPLY).first() else { return rhs };
+        let selected = self.build().select(rhs, apply, at);
+        let fun = self.ast.node(Tree::TypeTree);
         self.ast.with_span(fun, at);
+        self.splices.insert(fun, selected);
+        self.splice_owners.insert(fun, ctx.owner);
         let args = self.ast.list(&ids);
         let body = self.ast.node(Tree::Apply { fun, args });
         self.ast.with_span(body, at);
+        self.ast.add_attrs(body, Attrs::USING_APPLY);
         let args = self.ast.list(&params);
         let function = self.ast.node(Tree::Function { args, body, mods: None, wildcard: false });
         self.ast.with_span(function, at);
-        self.typed_function(function, args, body, Pt::Type(tpe), ctx)
+        let closure = self.typed_function(function, args, body, Pt::Type(tpe), ctx);
+        if let T::Block { stats, .. } = *self.tpd.tree(closure)
+            && let Some(anon) = self.tpd.items(stats).first().and_then(|&d| self.tpd.sym(d))
+            && let Some(&flags) = self.syms.flags.get(&anon)
+        {
+            self.syms.set_flags(self.u, anon, flags.and_not(f::ARTIFACT));
+        }
+        closure
     }
 
     /// The type of path method reference `fun` applied to parameters `refs`.
