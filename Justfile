@@ -354,6 +354,12 @@ programs-jvm filter="":
 dotty-native filter="":
     python3 scripts/dotty-tests.py native {{ filter }}
 
+# Link tests/programs (names containing `filter`) with Scala Native 0.5.12's toolchain against
+# `lib-jar`'s jars (`ours`) or the published ones (`published`), run them and compare with their
+# `.check`; results under tmp/lib-link/<mode>.
+lib-link mode="ours" filter="": fetch-libs
+    python3 scripts/lib-link.py '{{ mode }}' '{{ filter }}'
+
 # Check out scala/scala's test/junit and testkit at the standard library Scala 3.9 builds on (M5).
 m5-fetch:
     test -d ref/scala2 || (git clone -q --depth 1 --branch v2.13.18 --filter=blob:none --sparse https://github.com/scala/scala ref/scala2 && git -C ref/scala2 sparse-checkout set test/junit src/testkit)
