@@ -42,7 +42,7 @@ impl Typer<'_> {
         let path = self.typed(expr, Pt::Any, ctx.with_mode(Mode::QUALIFIER));
         self.typed_ahead(expr, path, ctx);
         let package = self.tpd.sym(path).is_some_and(|s| self.u.symbol(s).kind == Kind::Package);
-        if package || !self.is_stable_path(path) {
+        if !package && !self.is_stable_path(path) {
             self.unsupported(expr, "export prefix that is not a stable path to a value");
             return None;
         }

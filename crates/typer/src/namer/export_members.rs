@@ -112,8 +112,8 @@ impl Typer<'_> {
         if !self.is_accessible(m, e.ctx) {
             return Some(false);
         }
-        if name == nme::CONSTRUCTOR || kind == Kind::Class && flags.has(t::OBJECT) || flags.has(t::INVISIBLE)
-        {
+        let module_class = kind == Kind::Class && flags.has(t::OBJECT);
+        if name == nme::CONSTRUCTOR || module_class || kind == Kind::Package || flags.has(t::INVISIBLE) {
             return None;
         }
         let owner = owner?;
