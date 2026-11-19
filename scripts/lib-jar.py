@@ -6,11 +6,15 @@ Usage: scripts/lib-jar.py MODULE (one of lib-compile.py's MODULES but those of i
 Lowers each of the module's Scala 3 source directories, with those of the modules of PART_OF it
 holds, as one unit (all of a JOINT module's together),
 as lib-compile.py does each file, and writes tmp/lib/MODULE/<the published jar's name>: that NIR, the resources under
-src/main/resources/scala-native verbatim, the published jar's TASTy and a manifest as sbt writes
-it. scalalib's files of scalalib_sources.py are lowered as one unit; its jar takes the NIR of the
+src/main/resources/scala-native verbatim, the TASTy scivolo-lower pickles if the published jar has
+TASTy, and a manifest as sbt writes it. javalib's TASTy, which its published jar lacks, goes into
+tmp/lib/javalib/JAVALIB_TASTY instead, as `just javalib-tasty` checks it in. scalalib's files of
+scalalib_sources.py are lowered as one unit; its jar takes the NIR of the
 classes Scala Native's build takes from Scala 2.13 from the published jar (listed in
 tmp/lib/scalalib/jar-taken.txt). Compares the jar's own NIR with lib-compile's oracle (diffs under
-tmp/lib/MODULE/jar-diffs) and its other entries with the published jar's, and prints one summary line.
+tmp/lib/MODULE/jar-diffs), its TASTy names with the published jar's (those missing and why a file
+has none in tmp/lib/MODULE/jar-tasty.txt) and its other entries with the published jar's, and
+prints one summary line.
 """
 import importlib
 import shutil
@@ -36,6 +40,8 @@ Implementation-URL: http://www.scala-native.org
 MAIN_CLASSES = {"scalalib": "scala.util.Properties", "test-interface": "scala.scalanative.testinterface.TestMain"}
 # The modules whose source directories are lowered as one unit, as Scala Native's build does.
 JOINT = {"nativelib", "test-interface-sbt-defs", "test-interface", "junit-runtime", "scalalib"}
+JAVALIB_TASTY = f"javalib-tasty-{lib.VERSION}.jar"
+NO_TASTY = "no TASTy: "
 
 
 def source_units(module):
@@ -57,23 +63,28 @@ def source_units(module):
     return units
 
 
-def lower(module, stage):
-    """Lowers the units of `source_units` into `stage`, scalalib's but the classes of SPECIALIZED;
-    exits with the frontend's error."""
-    env = lib.ENV
+def lower(module, stage, pickle):
+    """Lowers the units of `source_units` into `stage`, with TASTy if `pickle`, scalalib's but the
+    classes of SPECIALIZED; returns why files have no TASTy, exits with the frontend's error."""
+    units, env = source_units(module), lib.ENV
     if module == "scalalib":
         env = lib.ENV | {"SCIVOLO_LIBS": str(scalalib_sources.libs(lib.ORACLE_JARS))}
-    for name, unit in source_units(module):
+    unpickled = []
+    for name, unit in units:
         out = stage.parent / f"nir-{name}"
-        r = subprocess.run(lib.lower_cmd(module, unit, out), capture_output=True, text=True, errors="replace",
-                           env=env)
+        cmd = lib.lower_cmd(module, unit, out)
+        if pickle:
+            cmd.insert(1, "--pickle")
+        r = subprocess.run(cmd, capture_output=True, text=True, errors="replace", env=env)
         if r.returncode != 0:
             sys.exit(f"{module}/{name}: {r.stderr.strip()[:2000]}")
+        unpickled += [l.removeprefix(NO_TASTY) for l in r.stderr.splitlines() if l.startswith(NO_TASTY)]
         shutil.copytree(out, stage, dirs_exist_ok=True)
     if module == "scalalib":
         for p in stage.rglob("*.nir"):
             if scalalib_sources.specialized(str(p.relative_to(stage))):
                 p.unlink()
+    return unpickled
 
 
 def entries(module, stage, published):
@@ -84,10 +95,11 @@ def entries(module, stage, published):
     manifest = MANIFEST.format(m=module, v=version, main=main).replace("\n", "\r\n").encode()
     found = {"META-INF/MANIFEST.MF": manifest}
     resources = lib.SN / module / "src/main/resources"
+    tasty = has_tasty(published)
     for root in (stage, resources):
         if root.is_dir():
-            found |= {str(p.relative_to(root)): p.read_bytes() for p in sorted(root.rglob("*")) if p.is_file()}
-    found |= {n: published.read(n) for n in published.namelist() if n.endswith(".tasty")}
+            found |= {str(p.relative_to(root)): p.read_bytes() for p in sorted(root.rglob("*"))
+                      if p.is_file() and (tasty or p.suffix != ".tasty")}
     taken = {}
     if module == "scalalib":
         taken = {n: published.read(n) for n in published.namelist() if scalalib_sources.specialized(n)}
@@ -95,11 +107,31 @@ def entries(module, stage, published):
     return sorted(found.items(), key=lambda e: (e[0] != "META-INF/MANIFEST.MF", e[0])), taken
 
 
-def write_jar(path, items):
-    dirs = sorted({"/".join(n.split("/")[:i]) + "/" for n, _ in items for i in range(1, n.count("/") + 1)})
+def has_tasty(jar):
+    return any(n.endswith(".tasty") for n in jar.namelist())
+
+
+def write_jar(path, items, dirs=True):
+    """Writes `items`, (name, bytes), into jar `path` with fixed times, after their directories
+    if `dirs`."""
+    names = sorted({"/".join(n.split("/")[:i]) + "/" for n, _ in items for i in range(1, n.count("/") + 1)})
     with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as jar:
-        for name, data in [(d, b"") for d in dirs if d != "META-INF/"] + items:
+        for name, data in [(d, b"") for d in names if dirs and d != "META-INF/"] + items:
             jar.writestr(zipfile.ZipInfo(name, (2010, 1, 1, 0, 0, 0)), data, zipfile.ZIP_DEFLATED)
+
+
+def tasty_summary(module, stage, published, unpickled):
+    """The summary of the TASTy pickled into `stage` against the published jar's, for javalib
+    against the checked-in JAVALIB_TASTY; writes jar-tasty.txt."""
+    if module == "javalib":
+        published = zipfile.ZipFile(lib.ROOT / "libs" / JAVALIB_TASTY)
+    theirs = {n for n in published.namelist() if n.endswith(".tasty")}
+    ours = {str(p.relative_to(stage)) for p in stage.rglob("*.tasty")}
+    lines = [f"published only {n}\n" for n in sorted(theirs - ours)]
+    lines += [f"ours only {n}\n" for n in sorted(ours - theirs)] + [f"unpickled {u}\n" for u in unpickled]
+    (lib.WORK / module / "jar-tasty.txt").write_text("".join(lines))
+    return (f"tasty {len(ours & theirs)} of {len(theirs)} published, {len(theirs - ours)} published only, "
+            f"{len(ours - theirs)} ours only, {len(unpickled)} unpickled")
 
 
 def main(module):
@@ -108,10 +140,14 @@ def main(module):
     jar.unlink(missing_ok=True)
     stage = work / "nir"
     stage.mkdir(parents=True)
-    lower(module, stage)
     published = zipfile.ZipFile(lib.LIBS / lib.jar_name(module))
+    pickle = has_tasty(published) or module == "javalib"
+    unpickled = lower(module, stage, pickle)
     items, taken = entries(module, stage, published)
     write_jar(jar, items)
+    if module == "javalib":
+        tasty = [(str(p.relative_to(stage)), p.read_bytes()) for p in sorted(stage.rglob("*.tasty"))]
+        write_jar(lib.WORK / module / JAVALIB_TASTY, sorted(tasty), dirs=False)
     theirs, ours = lib.oracle(module), set()
     counts = {"same": 0, "differ": 0, "var-order": 0, "quote-pos": 0, "missing": 0}
     diffs = lib.WORK / module / "jar-diffs"
@@ -127,10 +163,11 @@ def main(module):
     same = sum(1 for n in upstream if other.get(n) == published.read(n))
     names = {n for n, _ in items}
     dropped = sum(1 for n in published.namelist() if n.endswith(".nir") and n not in names)
+    tasty = tasty_summary(module, stage, published, unpickled) if pickle else "no tasty, as published"
     print(f"{jar.relative_to(lib.ROOT)}: nir {counts['same']} same, {counts['differ']} differ, "
           f"{counts['var-order']} var-order, {counts['quote-pos']} quote-pos, "
           f"{counts['missing']} missing from the oracle, {only} only in the oracle ({theirs.relative_to(lib.ROOT)}), "
-          f"{dropped} only in the published jar; other entries {same} of {len(upstream)} as published")
+          f"{dropped} only in the published jar; {tasty}; other entries {same} of {len(upstream)} as published")
     if module == "scalalib":
         (lib.WORK / module / "jar-taken.txt").write_text("".join(f"taken {n}\n" for n in taken))
         print(f"  taken: {len(taken)} NIR files of Scala 2.13's classes from the published jar")
