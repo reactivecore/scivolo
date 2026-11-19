@@ -89,7 +89,7 @@ impl Typer<'_> {
         {
             return sel;
         }
-        let sym = match self.choose(&found.syms, found.prefix, pt, ctx) {
+        let sym = match self.choose_reference(id, (&found.syms, found.prefix), pt, ctx) {
             Ok(sym) => sym,
             Err(Unchosen { what: what @ (NO_APPLICABLE | NO_SIZE | AMBIGUOUS), ambiguous })
                 if !self.unusable_for_inference(pt) =>

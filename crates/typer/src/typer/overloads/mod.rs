@@ -19,6 +19,7 @@ mod poly_instances;
 mod pretyped;
 mod resolve;
 mod result_applies;
+mod selection;
 mod shapes;
 mod specific;
 mod values;
@@ -27,6 +28,7 @@ use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
 use crate::typer::{Pt, Typer};
 use syntax::ast::{NodeId, Tree};
+use syntax::names::Name;
 use tasty::{SymbolId, Type, TypeId};
 
 /// Why alternatives are compared undecided: an implicit conversion outside the subset.
@@ -61,6 +63,8 @@ pub struct Resolution {
     pt: Pt,
     /// The context the reference is typed in.
     ctx: Ctx,
+    /// The term member selected of the reference, if it is a qualifier.
+    member: Option<Name>,
 }
 
 /// Why an overloaded name denotes no alternative: the construct outside the subset or the error
@@ -90,7 +94,21 @@ impl Typer<'_> {
         ctx: Ctx,
     ) -> Result<SymbolId, Unchosen> {
         let syms = self.without_clashing(syms.to_vec());
-        Resolution { prefix, pt, ctx }.choose(self, &syms)
+        Resolution { prefix, pt, ctx, member: None }.choose(self, &syms)
+    }
+
+    /// Chooses as `choose` does the alternative of `syms` that reference `id` denotes, by the
+    /// member selected of it if it is a qualifier.
+    pub fn choose_reference(
+        &mut self,
+        id: NodeId,
+        (syms, prefix): (&[SymbolId], Option<TypeId>),
+        pt: Pt,
+        ctx: Ctx,
+    ) -> Result<SymbolId, Unchosen> {
+        let syms = self.without_clashing(syms.to_vec());
+        let member = self.selected_members.get(&id).copied();
+        Resolution { prefix, pt, ctx, member }.choose(self, &syms)
     }
 
     /// Checks whether an argument of type `arg` fits a parameter of type `param` in `ctx`,
@@ -169,7 +187,7 @@ impl Typer<'_> {
         (pt, ctx): (Pt, Ctx),
         ambiguous: Option<Vec<SymbolId>>,
     ) -> Option<TNodeId> {
-        Resolution { prefix, pt, ctx }.overload_error(self, id, alts, ambiguous)
+        Resolution { prefix, pt, ctx, member: None }.overload_error(self, id, alts, ambiguous)
     }
 
     /// Gives the tree for reference `id` when no alternative is chosen for `what`: an error tree

@@ -166,23 +166,10 @@ impl Resolution {
             *args.last_mut().expect("a parameter") = e;
         }
         let info_b = t.u.info(b);
-        if t.u.method(t.u.strip_poly(info_b)).is_none() || !views && self.widens_numbers(t, &args, b) {
+        if t.u.method(t.u.strip_poly(info_b)).is_none() {
             return Ok(false);
         }
         applicability::applicable(t, b, self.prefix, &args, views, self.ctx).ok_or(UNDECIDED)
-    }
-
-    /// Checks whether arguments of types `args` reach a parameter of `b` of another primitive
-    /// value class only by numeric widening, an implicit conversion in dotty.
-    fn widens_numbers(self, t: &mut Typer, args: &[TypeId], b: SymbolId) -> bool {
-        let before = t.constraint.attempt();
-        let params = applicability::param_types(t, b, self.prefix, true).map_or(Vec::new(), |(ps, _)| ps);
-        let widens = args.iter().zip(&params).any(|(&a, &p)| {
-            let (ca, cp) = (t.value_class(a), t.value_class(p));
-            ca.is_some() && cp.is_some() && ca != cp
-        });
-        t.constraint.abandon(before);
-        widens
     }
 }
 

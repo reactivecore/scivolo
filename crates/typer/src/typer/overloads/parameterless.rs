@@ -7,8 +7,9 @@ use super::Resolution;
 use super::normalized::{is_method_ignoring_pt, normalized_compatible};
 use super::poly_instances::mapped_info;
 use super::resolve::result_is_method;
+use super::selection::takes_params;
 use crate::typer::{Pt, Typer};
-use tasty::{SymbolId, TypeId, Universe};
+use tasty::{SymbolId, TypeId};
 
 /// Why no alternative or several are chosen for a reference that is not applied.
 const OVERLOADED_REFERENCE: &str = "overloaded reference";
@@ -83,9 +84,10 @@ impl Resolution {
         Ok(candidates)
     }
 
-    /// Finds the alternatives of `alts` that fit the expected type normalized, without an
-    /// expected type those that take no parameters if some do, as a member of their results may
-    /// be selected (dotty's `SelectionProto`); if none, of a single abstract method type those
+    /// Finds the alternatives of `alts` that fit the expected type normalized; without an
+    /// expected type those that have the member selected of the reference, if it is a qualifier
+    /// (dotty's `SelectionProto`), and of them those that take no parameters if some do, as
+    /// `narrowMostSpecific` prefers them; if none, of a single abstract method type those
     /// that take its parameters, else the only one that is no method if there is one.
     fn candidates(
         self,
@@ -100,13 +102,16 @@ impl Resolution {
                 compatible.push(s);
             }
         }
+        if let (Pt::Any, Some(name)) = (self.pt, self.member) {
+            compatible = self.having_member(t, &compatible, name)?;
+        }
         if matches!(self.pt, Pt::Any) {
             let values: Vec<SymbolId> = compatible
                 .iter()
                 .copied()
                 .filter(|&s| {
                     let tp = self.alt_type(t, s);
-                    !takes_params(t.u, tp)
+                    !takes_params(t, tp)
                 })
                 .collect();
             if !values.is_empty() {
@@ -130,11 +135,6 @@ impl Resolution {
             .collect();
         Ok(if values.len() == 1 { values } else { Vec::new() })
     }
-}
-
-/// Checks whether alternative type `tp` is a method whose first clause takes explicit parameters.
-fn takes_params(u: &Universe, tp: TypeId) -> bool {
-    u.method(u.strip_poly(tp)).is_some_and(|m| !m.implicit && !m.params.is_empty())
 }
 
 /// Finds the only alternative of `alts` that takes no parameters, else the first whose only
