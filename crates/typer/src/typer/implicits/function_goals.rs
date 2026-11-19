@@ -95,8 +95,11 @@ impl ImplicitSearch {
         if matches!(t.u.ty(info), Type::Method { .. } | Type::Poly { .. }) {
             return Err("not an implicit value");
         }
-        let fits = t.types().conforms(tpe, pt);
-        fits.then(|| t.gadt_adapted(tree, pt)).ok_or("implicit of another type")
+        let lifts = t.u.opaque_lifts();
+        if !t.types().conforms(tpe, pt) {
+            return Err("implicit of another type");
+        }
+        Ok(t.opaque_ascribed(tree, pt, lifts).unwrap_or_else(|| t.gadt_adapted(tree, pt)))
     }
 
     /// Method reference `tree` eta-expanded to function type `pt`; a misfit if it refers to an

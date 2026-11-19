@@ -4,7 +4,6 @@
 
 use super::gadt_cast::GADT_HEALED_VIEW;
 use super::implicits::{Goal, QualifierView, Viewed};
-use super::opaque_paths::OPAQUE_THROUGH_OBJECT;
 use super::source_splices::STAGING_REFERENCE;
 use super::{Pt, Typer};
 use crate::ctx::{Ctx, Mode};
@@ -46,8 +45,8 @@ impl Typer<'_> {
                 return self.unsupported(id, what);
             }
         }
-        let (mut converted, mut widened, mut tupled, mut defined, mut healed) =
-            (false, false, false, false, false);
+        let (mut converted, mut widened, mut tupled, mut defined, mut healed, mut lifted) =
+            (false, false, false, false, false, false);
         let before = self.u.refused_lookups();
         let (qual_tpe, syms) = loop {
             let qual_tpe = self.tpd.tpe(qual);
@@ -97,8 +96,9 @@ impl Typer<'_> {
                 qual = cast;
                 continue;
             }
-            if self.opaque_member_through_object(qual_tpe, &text, ctx) {
-                return self.unsupported(id, OPAQUE_THROUGH_OBJECT);
+            if !lifted && let Some(q) = self.lifted_to_this(qual, &text, ctx) {
+                (qual, lifted) = (q, true);
+                continue;
             }
             if let Some(apply) = self.poly_function_select(id, qual, qual_tpe, name) {
                 return apply;
@@ -220,9 +220,6 @@ impl Typer<'_> {
             self.complete(sym);
         }
         let tpe = self.ref_type(Some(qual_tpe), sym);
-        if name.is_type && self.is_opaque_through_object(tpe) {
-            return self.unsupported(id, OPAQUE_THROUGH_OBJECT);
-        }
         let span = self.ast.span(id);
         let select = self.tpd.node(T::Select { qualifier: qual, name }, span, Some(tpe), Some(sym));
         self.fold_select(select, &text);
