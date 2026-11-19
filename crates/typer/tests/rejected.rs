@@ -132,6 +132,36 @@ fn overriding_results_of_parameter_singleton_types() {
 }
 
 #[test]
+fn methods_with_stable_results_through_a_variable_are_not_stable() {
+    check(
+        &[(
+            "class C { def me: this.type = this }
+var v: C = new C
+def f = { val a: v.me.type = v.me; a }\n",
+            "unsupported singleton type of an unstable reference",
+        )],
+        &["class C { def me: this.type = this }
+val v: C = new C
+def f = { val a: v.me.type = v.me; a }\n"],
+    );
+}
+
+#[test]
+fn exports_through_methods_with_stable_results() {
+    check(
+        &[(
+            "object N { val k = 3 }
+object A { def M = N }
+object B { export A.M.k }\n",
+            "import prefix is not a pure expression",
+        )],
+        &["object N { val k = 3 }
+object A { val M = N }
+object B { export A.M.k }\n"],
+    );
+}
+
+#[test]
 fn f_bounded_wildcard_parameters_stay_abstract() {
     check(
         &[(
@@ -156,6 +186,120 @@ fn java_methods_implemented_with_object_for_any() {
   def size = 0
   def iterator: java.util.Iterator[A] = ???
 }\n"],
+    );
+}
+
+#[test]
+fn implementations_with_other_clauses_access_or_java_parameters() {
+    let incompatible = "override with an incompatible type";
+    check(
+        &[
+            (
+                "trait A { def f(using x: Int): Int }\nclass B extends A { def f(x: Int): Int = x }\n",
+                incompatible,
+            ),
+            (
+                "trait A { def f(implicit x: Int): Int }\nclass B extends A { def f(x: Int): Int = x }\n",
+                incompatible,
+            ),
+            ("trait A { def f[D[X]]: Int }\nclass B extends A { def f[D[+X]]: Int = 1 }\n", incompatible),
+            (
+                "class Q[T](t: T) {
+  def m[E](x: E): T = {
+    val q: Q[E] = new Q[E](x) { override def m[E2](y: E2): E2 = y }
+    t
+  }
+}\n",
+                incompatible,
+            ),
+            (
+                "trait A { def f: Int }\nclass P { protected def f: Int = 1 }\nclass B extends P with A\n",
+                "override with weaker access",
+            ),
+            (
+                "class C extends Comparable[Any] { def compareTo(o: Object): Int = 7 }\n",
+                "concrete class with an unimplemented member",
+            ),
+            (
+                "trait TB { def f[A <: AnyRef](x: A): A }\nclass C extends TB { def f[A <: String](x: A): A = x }\n",
+                "concrete class with an unimplemented member",
+            ),
+        ],
+        &[
+            "trait A { def f(using x: Int): Int }\nclass B extends A { def f(using x: Int): Int = x }\n",
+            "trait A { def f(x: Int): Int }\nclass B extends A { def f(using x: Int): Int = x }\n",
+            "trait A { def f[D[+X]]: Int }\nclass B extends A { def f[D[X]]: Int = 3 }\n",
+            "trait A { def f: Int }\nclass P { def f: Int = 4 }\nclass B extends P with A\n",
+            "trait A { protected def f: Int }\nclass P { protected def f: Int = 5 }\nclass B extends P with A { def g = f }\n",
+            "trait A { def f(x: Int*): Int }\nclass B extends A { def f(x: Seq[Int]): Int = x.sum }\n",
+            "class C extends Comparable[String] { def compareTo(o: String): Int = 7 }\n",
+            "abstract class L[+T] { def append[E >: T](that: => L[E]): L[E] }
+class Push[+T] extends L[T] {
+  override def append[E >: T](that: => L[E]): L[E] =
+    new Push[E] { override def append[E2 >: E](that2: => L[E2]): L[E2] = that2 }
+}\n",
+            "trait Cmp[T <: Cmp[T]] { this: T =>
+  def < (that: T): Boolean
+  def > (that: T): Boolean = that < this
+}
+class A(val x: String) extends Cmp[A] { def < (that: A) = this.x < that.x }\n",
+            "class P {
+  def m[E <: Comparable[E]](x: E): Int = {
+    val q = new P { override def m[E2 <: Comparable[E2]](x: E2): Int = 2 }
+    1
+  }
+}\n",
+        ],
+    );
+}
+
+#[test]
+fn classes_with_self_types_implemented_and_instantiated() {
+    check(
+        &[("trait T\nclass C { self: T => }\ndef f = new C\n", "not conforming to its self type")],
+        &["trait Graph {
+  type Node <: NodeIntf
+  trait NodeIntf { def connectWith(node: Node): Int }
+}
+abstract class DirectedGraph extends Graph {
+  class NodeImpl extends NodeIntf { self: Node =>
+    def connectWith(node: Node): Int = 1
+  }
+}
+class ConcreteGraph extends DirectedGraph {
+  type Node = NodeImpl
+  def newNode: Node = new NodeImpl
+}\n"],
+    );
+}
+
+#[test]
+fn overrides_through_self_types_default_getters_and_unchecked_override() {
+    check(
+        &[(
+            "trait A { def f = 1 }\ntrait B { def f = 2 }\nclass C extends A, B\n",
+            "conflicting inherited members",
+        )],
+        &[
+            "trait TCommon { def f: String }
+class C1 extends TCommon { def f = \"in C1\" }
+trait TOverrider { this: TCommon =>
+  override def f = \"in TOverrider\"
+}
+class C2 extends C1 with TOverrider\n",
+            "abstract class FileOps { def withLock[R](start: Long = 0): Option[R] }
+trait DefaultFileOps { self: DefaultPath =>
+  override def withLock[R](start: Long = 5): Option[R] = None
+}
+class DefaultPath extends FileOps with DefaultFileOps\n",
+            "import scala.annotation.unchecked.uncheckedOverride
+trait Base[T] { def max[U <: T](x: U, y: U): U = x; def mux(x: String = \"ex\") = x }
+trait Sub[T] extends Base[T] {
+  @uncheckedOverride def max[U <: T](x: U, y: U): U = x
+  @uncheckedOverride def min[U <: T](x: U, y: U): U = x
+  @uncheckedOverride def mux(x: String = \"nox\") = x
+}\n",
+        ],
     );
 }
 
@@ -454,5 +598,13 @@ fn checks_of_single_constructs() {
             "import language.experimental.saferExceptions\nclass E extends Exception\n\
              def f(): Int = try 1 catch { case a @ (b: E) => 2 }\n",
         ],
+    );
+}
+
+#[test]
+fn exports_of_a_java_class_skip_its_statics() {
+    check(
+        &[("export java.util.UUID\ndef foo = println(UUID.randomUUID())\n", "")],
+        &["export java.util.UUID\ndef bar = println(new UUID(1, 2))\n"],
     );
 }

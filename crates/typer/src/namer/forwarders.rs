@@ -4,9 +4,18 @@
 //! The infos and parameters of export forwarders.
 
 use crate::typer::Typer;
-use syntax::ast::flags as f;
+use syntax::ast::flags::{self as f, FlagSet};
 use tasty::tags as t;
 use tasty::{Kind, NameId, SymbolId, Type, TypeId};
+
+/// The flags of a parameter its forwarder's parameter at the same place keeps.
+const RETAINED_PARAM: [(u8, FlagSet); 5] = [
+    (t::GIVEN, f::GIVEN),
+    (t::IMPLICIT, f::IMPLICIT),
+    (t::ERASED, f::ERASED),
+    (t::HASDEFAULT, f::HAS_DEFAULT),
+    (t::INLINE, f::INLINE),
+];
 
 impl Typer<'_> {
     /// Gives forwarder `fwd` to term member `m` of `path` the info of `m` seen from `path`, with
@@ -40,6 +49,7 @@ impl Typer<'_> {
             for (original, &copy) in originals.iter().zip(copies) {
                 let Some(&(from, _)) = pairs.iter().find(|p| p.1 == *original) else { continue };
                 self.forward_param_annotations(from, copy);
+                self.forward_param_flags(from, copy);
             }
         }
         let renamed: Vec<SymbolId> = clauses.iter().flatten().copied().collect();
@@ -118,10 +128,6 @@ impl Typer<'_> {
             for i in 0..self.u.params_of(params).len() {
                 let (n, p) = self.u.params_of(params)[i];
                 let original = if poly { types.pop() } else { terms.pop() };
-                let default = original.is_some_and(|o| self.u.symbol(o).flags.has(t::HASDEFAULT));
-                let flags = if default { flags.or(f::HAS_DEFAULT) } else { flags };
-                let inline = original.is_some_and(|o| self.u.symbol(o).flags.has(t::INLINE));
-                let flags = if inline { flags.or(f::INLINE) } else { flags };
                 let kind = if poly { Kind::TypeParam } else { Kind::Param };
                 let name = fresh(self.u.name(n));
                 let s = self.syms.define(self.u, &name, kind, fwd, flags);
@@ -141,6 +147,19 @@ impl Typer<'_> {
             info = self.u.subst(result, binder, &names, &args);
             clauses.push(syms.into_iter().map(|(s, _)| s).collect());
         }
+    }
+
+    /// Adds to forwarder term parameter `copy` the flags of parameter `from` a forwarder keeps
+    /// (dotty's `RetainedExportTermParamFlags`).
+    fn forward_param_flags(&mut self, from: SymbolId, copy: SymbolId) {
+        if self.u.is_type_symbol(copy) {
+            return;
+        }
+        let src = self.u.symbol(from).flags;
+        let flags = self.syms.flags.get(&copy).copied().unwrap_or(f::TERM_PARAM);
+        let flags =
+            RETAINED_PARAM.iter().filter(|&&(tag, _)| src.has(tag)).fold(flags, |acc, &(_, fl)| acc.or(fl));
+        self.syms.set_flags(self.u, copy, flags);
     }
 
     /// Sets the info of forwarder parameter `s` of type `p` in its method's type: `Seq[T]` for a

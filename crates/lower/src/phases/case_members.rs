@@ -69,7 +69,7 @@ fn body(
     let own_name = own_name(l, class);
     match sym {
         _ if sym == cc.hash_code => match l.u.underlying(class) {
-            Some(value) => value_hash_code_body(l, class, value, cc),
+            Some(value) => value_hash_code_body(l, value, cc),
             None => l.hash_code_body(class, &accessors, &own_name, locals, cc),
         },
         _ if sym == cc.any_equals => l.equals_body(class, &accessors, args[0], can_equal, locals, cc),

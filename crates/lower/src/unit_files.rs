@@ -13,6 +13,7 @@ impl Lower<'_> {
         if starts.is_empty() {
             return;
         }
+        self.file_starts = starts.to_vec();
         for td in class_defs(self.tpd, root) {
             let Some(class) = self.tpd.sym(td) else { continue };
             let Some(owner) = self.u.symbol(class).owner else { continue };
@@ -21,6 +22,12 @@ impl Lower<'_> {
                 self.class_files.insert(class, starts.partition_point(|&s| s <= at));
             }
         }
+    }
+
+    /// Converts offset `at` of the unit to its offset in its own file.
+    pub fn offset_in_file(&self, at: Offset) -> Offset {
+        let file = self.file_starts.partition_point(|&s| s <= at);
+        at - file.checked_sub(1).map_or(0, |i| self.file_starts[i])
     }
 
     /// Determines the index of the file of the unit `s` is defined in, by its top-level class

@@ -251,6 +251,12 @@ lib-compile module filter="": fetch-libs fetch-scala-native
     cargo build -q --release -p scivolo-lower -p scivolo-nir-dump
     python3 scripts/lib-compile.py '{{ module }}' '{{ filter }}'
 
+# Lower `module` as lib-compile does, with TASTy, and compare its TASTy with lib-oracle's; results
+# under tmp/lib/<module> (tasty.tsv, tasty-groups.txt, tasty-diffs/).
+lib-tasty module filter="": fetch-libs fetch-scala-native
+    cargo build -q --release -p scivolo-lower
+    python3 scripts/lib-tasty.py '{{ module }}' '{{ filter }}'
+
 # Build Scala Native library `module` as its published jar: our NIR, its C resources, the
 # published TASTy and a manifest, in tmp/lib/<module>/; compare it with lib-compile's oracle.
 lib-jar module: fetch-libs fetch-scala-native

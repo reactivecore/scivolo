@@ -4,7 +4,7 @@
 
 use super::{List, TNodeId, Tpd, Tree as T};
 use crate::defn::type_ref;
-use names::nme;
+use names::{name_kinds, nme};
 use syntax::ast::constant::Constant;
 use syntax::ast::{Span, TName};
 use syntax::names::Names;
@@ -61,9 +61,16 @@ impl<'a> Build<'a> {
         Build { tpd, u, names, unit }
     }
 
-    /// The term name of `s`.
+    /// The term name of `s`, `<init>` in a default getter's name spelled `$lessinit$greater`.
     pub fn term_name(&mut self, s: SymbolId) -> TName {
-        TName { name: self.names.intern(&self.u.symbol(s).name), is_type: false }
+        let name = &self.u.symbol(s).name;
+        let name = match name.strip_prefix(nme::CONSTRUCTOR) {
+            Some(rest) if rest.starts_with(name_kinds::DEFAULT_GETTER) => {
+                &[name_kinds::DEFAULT_GETTER_INIT, rest].concat()
+            }
+            _ => name,
+        };
+        TName { name: self.names.intern(name), is_type: false }
     }
 
     /// The type of literal `c`: `Unit` and `Null` for `()` and `null`, else a constant type.
