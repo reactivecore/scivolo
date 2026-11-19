@@ -177,11 +177,17 @@ impl Typer<'_> {
 }
 
 /// Checks whether the first parameter clause of method `s` is followed by another that is not
-/// implicit (dotty's `resultIsMethod` with `stripInferrable`), as `def f(x: Int)(y: Int)`.
+/// implicit, past type parameters (dotty's `resultIsMethod` with `stripInferrable`), as
+/// `def f(x: Int)(y: Int)` or `def f(x: Int)[T](y: T)`.
 pub fn result_is_method(types: &mut TypeOps, s: SymbolId) -> bool {
     let info = types.u.info(s);
     let info = types.u.strip_poly(info);
-    let Some(result) = types.u.method(info).map(|m| m.result) else { return false };
-    let result = types.strip_implicit(result);
-    types.u.method(result).is_some()
+    let Some(mut result) = types.u.method(info).map(|m| m.result) else { return false };
+    loop {
+        match *types.u.ty(result) {
+            Type::Method { result: r, implicit: true, .. } | Type::Poly { result: r, .. } => result = r,
+            Type::Method { .. } => return true,
+            _ => return false,
+        }
+    }
 }
