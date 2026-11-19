@@ -124,6 +124,61 @@ fn java_methods_implemented_with_object_for_any() {
 }
 
 #[test]
+fn implementations_with_other_clauses_access_or_java_parameters() {
+    let incompatible = "override with an incompatible type";
+    check(
+        &[
+            (
+                "trait A { def f(using x: Int): Int }\nclass B extends A { def f(x: Int): Int = x }\n",
+                incompatible,
+            ),
+            (
+                "trait A { def f(implicit x: Int): Int }\nclass B extends A { def f(x: Int): Int = x }\n",
+                incompatible,
+            ),
+            ("trait A { def f[D[X]]: Int }\nclass B extends A { def f[D[+X]]: Int = 1 }\n", incompatible),
+            (
+                "trait A { def f: Int }\nclass P { protected def f: Int = 1 }\nclass B extends P with A\n",
+                "override with weaker access",
+            ),
+            (
+                "class C extends Comparable[Any] { def compareTo(o: Object): Int = 7 }\n",
+                "concrete class with an unimplemented member",
+            ),
+        ],
+        &[
+            "trait A { def f(using x: Int): Int }\nclass B extends A { def f(using x: Int): Int = x }\n",
+            "trait A { def f(x: Int): Int }\nclass B extends A { def f(using x: Int): Int = x }\n",
+            "trait A { def f[D[+X]]: Int }\nclass B extends A { def f[D[X]]: Int = 3 }\n",
+            "trait A { def f: Int }\nclass P { def f: Int = 4 }\nclass B extends P with A\n",
+            "trait A { protected def f: Int }\nclass P { protected def f: Int = 5 }\nclass B extends P with A { def g = f }\n",
+            "trait A { def f(x: Int*): Int }\nclass B extends A { def f(x: Seq[Int]): Int = x.sum }\n",
+            "class C extends Comparable[String] { def compareTo(o: String): Int = 7 }\n",
+        ],
+    );
+}
+
+#[test]
+fn classes_with_self_types_implemented_and_instantiated() {
+    check(
+        &[("trait T\nclass C { self: T => }\ndef f = new C\n", "not conforming to its self type")],
+        &["trait Graph {
+  type Node <: NodeIntf
+  trait NodeIntf { def connectWith(node: Node): Int }
+}
+abstract class DirectedGraph extends Graph {
+  class NodeImpl extends NodeIntf { self: Node =>
+    def connectWith(node: Node): Int = 1
+  }
+}
+class ConcreteGraph extends DirectedGraph {
+  type Node = NodeImpl
+  def newNode: Node = new NodeImpl
+}\n"],
+    );
+}
+
+#[test]
 fn private_definitions_leaking_through_signatures() {
     check(
         &[

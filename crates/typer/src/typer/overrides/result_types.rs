@@ -5,6 +5,7 @@
 //! conform to the overridden one's (`isOverridingPair`).
 
 use super::super::Typer;
+use super::clauses::split_bounds;
 use super::result_conformance::{conforms_overridden, result_conforms};
 use super::{OverrideChecks, overridable};
 use names::{name_kinds, nme};
@@ -55,19 +56,7 @@ impl OverrideChecks {
         [this, self.site].into_iter().any(|prefix| {
             let bounds = |t: &mut Typer<'_>, s: SymbolId| {
                 let info = t.u.own_member_info(prefix, s);
-                let node = *t.u.ty(info);
-                match node {
-                    Type::Alias(a) => Some((a, a)),
-                    Type::Bounds(lo, hi) => Some((lo, hi)),
-                    Type::Lambda { binder, params, result } => Some(match t.u.bounds(result) {
-                        Some((lo, hi)) => {
-                            let mut lambda = |x| t.u.intern_type(Type::Lambda { binder, params, result: x });
-                            (lambda(lo), lambda(hi))
-                        }
-                        None => (info, info),
-                    }),
-                    _ => None,
-                }
+                split_bounds(t, info)
             };
             let (Some((lo1, hi1)), Some((lo2, hi2))) = (bounds(t, d), bounds(t, m)) else { return true };
             conforms_overridden(t, self.site, lo2, lo1) && conforms_overridden(t, self.site, hi1, hi2)
