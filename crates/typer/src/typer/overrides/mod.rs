@@ -22,6 +22,9 @@ use syntax::ast::flags as f;
 use tasty::tags::{ABSTRACT, TRAIT};
 use tasty::{Kind, SymbolId, TypeId, Universe};
 
+/// The annotation that marks a member as overriding as `override` does.
+const UNCHECKED_OVERRIDE: &str = "scala.annotation.unchecked.uncheckedOverride";
+
 /// The override checks of one class (dotty's `RefChecks.checkAllOverrides` with
 /// `checkNoAbstractMembers` and `ElimErasedValueType.checkNoClashes`): refuses the class at its
 /// span when two of its methods clash, a member overrides another it may not or without

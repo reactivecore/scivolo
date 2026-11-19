@@ -179,6 +179,36 @@ class ConcreteGraph extends DirectedGraph {
 }
 
 #[test]
+fn overrides_through_self_types_default_getters_and_unchecked_override() {
+    check(
+        &[(
+            "trait A { def f = 1 }\ntrait B { def f = 2 }\nclass C extends A, B\n",
+            "conflicting inherited members",
+        )],
+        &[
+            "trait TCommon { def f: String }
+class C1 extends TCommon { def f = \"in C1\" }
+trait TOverrider { this: TCommon =>
+  override def f = \"in TOverrider\"
+}
+class C2 extends C1 with TOverrider\n",
+            "abstract class FileOps { def withLock[R](start: Long = 0): Option[R] }
+trait DefaultFileOps { self: DefaultPath =>
+  override def withLock[R](start: Long = 5): Option[R] = None
+}
+class DefaultPath extends FileOps with DefaultFileOps\n",
+            "import scala.annotation.unchecked.uncheckedOverride
+trait Base[T] { def max[U <: T](x: U, y: U): U = x; def mux(x: String = \"ex\") = x }
+trait Sub[T] extends Base[T] {
+  @uncheckedOverride def max[U <: T](x: U, y: U): U = x
+  @uncheckedOverride def min[U <: T](x: U, y: U): U = x
+  @uncheckedOverride def mux(x: String = \"nox\") = x
+}\n",
+        ],
+    );
+}
+
+#[test]
 fn private_definitions_leaking_through_signatures() {
     check(
         &[

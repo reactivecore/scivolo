@@ -5,7 +5,7 @@
 use super::super::Typer;
 use super::override_kinds::kind_refusal;
 use super::result_conformance::result_conforms;
-use super::{OverrideChecks, overridable};
+use super::{OverrideChecks, UNCHECKED_OVERRIDE, overridable};
 use names::{name_kinds, nme};
 use syntax::ast::flags as f;
 use tasty::tags::{EXTENSION, FINAL, INLINE};
@@ -72,7 +72,10 @@ impl OverrideChecks {
                         }
                         continue;
                     }
-                    if !flags.is(f::OVERRIDE) && !flags.is(f::ABS_OVERRIDE) {
+                    if !flags.is(f::OVERRIDE)
+                        && !flags.is(f::ABS_OVERRIDE)
+                        && !t.u.is_annotated(d, UNCHECKED_OVERRIDE)
+                    {
                         return Some("override without override modifier");
                     }
                 }
