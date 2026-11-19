@@ -527,6 +527,15 @@ fn wildcards_are_captured_by_a_type_box_of_the_unit() {
 }
 
 #[test]
+fn parents_of_library_classes_see_the_units_aliases() {
+    let Some(jars) = jars() else { return };
+    let a = "package scala\nobject E { def g: java.lang.RuntimeException = new java.util.NoSuchElementException(\"x\") }\n";
+    let b = "package object scala {\n  type Throwable = java.lang.Throwable\n  type Exception = java.lang.Exception\n  \
+             type RuntimeException = java.lang.RuntimeException\n}\n";
+    dump(&jars, &[SourceFile::new("a.scala", a), SourceFile::new("b.scala", b)], "scala.E$");
+}
+
+#[test]
 fn methods_returning_an_object_are_stable_paths() {
     let Some(jars) = jars() else { return };
     let a = "package p\nobject A { object N { class Q }; @inline def M = N }\n";
