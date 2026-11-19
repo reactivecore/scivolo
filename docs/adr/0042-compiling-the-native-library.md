@@ -23,7 +23,8 @@ program is linked. scivolo compiles a curated copy (`native/`) with clang in `cr
   1 or 3 of `CLAUDE.md`. `.class` files are not produced for now; `scivolo-jvm` could produce them
   if JVM-side tooling on these jars becomes a goal. TASTy comes from our pickler
   (`scivolo-lower --pickle`) in the jars whose published ones carry TASTy; javalib's, which its
-  published jar lacks, goes into a TASTy-only jar as `libs/javalib-tasty-0.5.12.jar`.
+  published jar lacks, goes into a TASTy-only jar like `libs/javalib-tasty-0.5.12.jar`. The
+  checked-in jar stays sbt's until ours equals it.
 - **Stages.** Per-file compilation against the module's own published TASTy first (the measuring
   tool), then a module as one unit against its dependencies' jars, then scalalib from the patched
   3.9.0 sources, then TASTy.

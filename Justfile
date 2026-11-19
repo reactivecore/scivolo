@@ -685,9 +685,10 @@ pickle-fixture:
     target/release/scivolo-nir-dump 'tmp/pickle-fixture/out/probe/Probe$.nir' > tmp/pickle-fixture/probe.dump
     python3 -I tests/pickle/quotes.py tmp/pickle-fixture/probe.dump tests/pickle
 
-# Rebuild the checked-in libs/javalib-tasty-<version>.jar, the TASTy `lib-jar javalib` pickles.
-javalib-tasty: (lib-jar "javalib")
-    cp tmp/lib/javalib/javalib-tasty-0.5.12.jar libs/
+# Rebuild the checked-in libs/javalib-tasty-<version>.jar (sbt, JDK) from ref/scala-native;
+# `lib-jar javalib` writes ours beside it and lists the files that differ.
+javalib-tasty:
+    scripts/javalib-tasty.sh
 
 # Rebuild the checked-in libs/jdk-stubs.jar, the TASTy of libs/jdk-stubs as dotty's pickler writes
 # it (scala-cli) but that of JdkMemberDeclarations.scala and JdkConstants.scala, and

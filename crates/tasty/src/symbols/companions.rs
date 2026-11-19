@@ -61,7 +61,8 @@ impl Universe {
     }
 
     /// Whether `a` and `b` may be companions: not owned by a package, or both from the library
-    /// or both from the sources (dotty's `isCoDefinedWith`).
+    /// or both from the sources (dotty's `isCoDefinedWith`, with the library and the sources in
+    /// place of its files).
     fn is_co_defined(&self, a: SymbolId, b: SymbolId) -> bool {
         let in_package = self.symbol(a).owner.is_some_and(|o| self.symbol(o).kind == Kind::Package);
         let from_library = |s: SymbolId| {

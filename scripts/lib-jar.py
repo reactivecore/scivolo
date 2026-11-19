@@ -1,30 +1,30 @@
 #!/usr/bin/env python3
 """A module of Scala Native's library built as the jar Scala Native ships (research 41 §4).
 
-Usage: scripts/lib-jar.py MODULE (one of lib-compile.py's MODULES but those of its PART_OF)
+Usage: scripts/lib-jar.py MODULE (one of native_modules.py's MODULES but those of its PART_OF)
 
 Lowers each of the module's Scala 3 source directories, with those of the modules of PART_OF it
 holds, as one unit (all of a JOINT module's together),
 as lib-compile.py does each file, and writes tmp/lib/MODULE/<the published jar's name>: that NIR, the resources under
 src/main/resources/scala-native verbatim, the TASTy scivolo-lower pickles if the published jar has
 TASTy, and a manifest as sbt writes it. javalib's TASTy, which its published jar lacks, goes into
-tmp/lib/javalib/JAVALIB_TASTY instead, as `just javalib-tasty` checks it in. scalalib's files of
+tmp/lib/javalib/JAVALIB_TASTY instead, beside the checked-in one, which `just javalib-tasty`
+builds with sbt. scalalib's files of
 scalalib_sources.py are lowered as one unit; its jar takes the NIR of the
 classes Scala Native's build takes from Scala 2.13 from the published jar (listed in
 tmp/lib/scalalib/jar-taken.txt). Compares the jar's own NIR with lib-compile's oracle (diffs under
-tmp/lib/MODULE/jar-diffs), its TASTy names with the published jar's (those missing and why a file
-has none in tmp/lib/MODULE/jar-tasty.txt) and its other entries with the published jar's, and
+tmp/lib/MODULE/jar-diffs), its TASTy with the published jar's, javalib's with the checked-in
+one (those missing or not byte-equal and why a file has none in tmp/lib/MODULE/jar-tasty.txt) and its other entries with the published jar's, and
 prints one summary line.
 """
-import importlib
 import shutil
 import subprocess
 import sys
 import zipfile
 
+import native_modules as lib
 import scalalib_sources
-
-lib = importlib.import_module("lib-compile")
+from nir_compare import compare
 
 MANIFEST = """Manifest-Version: 1.0
 Specification-Title: {m}
@@ -122,16 +122,18 @@ def write_jar(path, items, dirs=True):
 
 def tasty_summary(module, stage, published, unpickled):
     """The summary of the TASTy pickled into `stage` against the published jar's, for javalib
-    against the checked-in JAVALIB_TASTY; writes jar-tasty.txt."""
+    against the checked-in JAVALIB_TASTY: files in both, of them byte-equal, in one only; writes
+    jar-tasty.txt with the differing files."""
     if module == "javalib":
         published = zipfile.ZipFile(lib.ROOT / "libs" / JAVALIB_TASTY)
     theirs = {n for n in published.namelist() if n.endswith(".tasty")}
     ours = {str(p.relative_to(stage)) for p in stage.rglob("*.tasty")}
-    lines = [f"published only {n}\n" for n in sorted(theirs - ours)]
+    differ = sorted(n for n in ours & theirs if (stage / n).read_bytes() != published.read(n))
+    lines = [f"published only {n}\n" for n in sorted(theirs - ours)] + [f"differ {n}\n" for n in differ]
     lines += [f"ours only {n}\n" for n in sorted(ours - theirs)] + [f"unpickled {u}\n" for u in unpickled]
     (lib.WORK / module / "jar-tasty.txt").write_text("".join(lines))
-    return (f"tasty {len(ours & theirs)} of {len(theirs)} published, {len(theirs - ours)} published only, "
-            f"{len(ours - theirs)} ours only, {len(unpickled)} unpickled")
+    return (f"tasty {len(ours & theirs)} of {len(theirs)} published ({len(differ)} of them differ), "
+            f"{len(theirs - ours)} published only, {len(ours - theirs)} ours only, {len(unpickled)} unpickled")
 
 
 def main(module):
@@ -155,7 +157,7 @@ def main(module):
     for p in sorted(stage.rglob("*.nir")):
         rel = str(p.relative_to(stage))
         ours.add(rel)
-        counts[lib.compare(p, theirs / rel, diffs / f"{rel}.diff")[0]] += 1
+        counts[compare(p, theirs / rel, diffs / f"{rel}.diff")[0]] += 1
     only = sum(1 for p in theirs.rglob("*.nir") if (rel := str(p.relative_to(theirs))) not in ours
                and not (module == "scalalib" and scalalib_sources.specialized(rel)))
     other = {n: d for n, d in items if not n.endswith((".nir", ".tasty"))}
