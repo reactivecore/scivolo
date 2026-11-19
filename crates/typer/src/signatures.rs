@@ -49,8 +49,8 @@ pub fn constructor_results_in_class(u: &mut Universe, c: SymbolId) -> bool {
 
 /// The result part of the signature of method `s`, a constructor's its class (`Product` for
 /// `*:`, dotty's `erasePair`; `Object` for `Array`, whose element is generic, dotty's
-/// `eraseArray`, and for `AnyVal`, dotty's `specialErasure`) or a value class's underlying type, `None` if `s` is not a method (dotty's
-/// `Signature.NotAMethod`).
+/// `eraseArray`, and for `AnyVal`, dotty's `specialErasure`) or a value class's underlying type,
+/// `None` if `s` is not a method (dotty's `Signature.NotAMethod`).
 pub fn result_sig(u: &mut Universe, s: SymbolId) -> Option<String> {
     let mut t = u.info(s);
     let mut method = false;

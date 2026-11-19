@@ -98,9 +98,7 @@ pub fn compile_attributed<R>(
         let copies = sources.files().iter().map(|&(base, f)| (copy(f), base));
         typer.tasty_sources = Some(copies.collect());
     }
-    if backend == crate::Backend::NativeWithTasty {
-        typer.unpickled = Some(Vec::new());
-    }
+    typer.unpickled = (backend == crate::Backend::NativeWithTasty).then(Vec::new);
     let typed = typer.type_units(u, &mut ast, (&mut names, &mut fresh), &units, macros);
     let mut typed = match typed {
         Ok(typed) => typed,

@@ -11,10 +11,11 @@ only inside the typer, between the synthetic members and inlining.
 
 ## Decision
 - `Units::tasty_sources` asks the typer to pickle; `compile_units` sets it for `Backend::Jvm`
-  only. The typer pickles each top-level class (`typer::pickle::pickle_file`) after the
+  and `Backend::NativeWithTasty` (`scivolo-lower --pickle`). The typer pickles each top-level class (`typer::pickle::pickle_file`) after the
   synthetic members and before inlining, with the quote pickler extended to files.
 - A tree the pickler lacks refuses the whole unit (`pickling … into TASTy`): no class file is
-  written without its TASTy.
+  written without its TASTy. On `NativeWithTasty` the refusal goes to `Units::unpickled`: the
+  file keeps its NIR, has no TASTy, and the refusal is reported (`no TASTy: …` on stderr).
 - The pickler adds what dotty's trees have by then and ours get later or never: every super
   accessor `SuperAccessors` makes (of calls `C.super[M].m`, and of `C.this.m` of a protected `m`
   that a class nested in a trait reaches), the accessor of a member with a target name carrying
@@ -28,7 +29,8 @@ only inside the typer, between the synthetic members and inlining.
   beside it.
 
 ## Consequences
-- The NIR path pickles nothing and is unchanged.
+- `Backend::Native` pickles nothing; `NativeWithTasty` lowers as `Native` and leaves the NIR as
+  it is (`just lib-tasty` checks it).
 - The TASTy is not byte-identical, an open difference: dotty shares a type by identity
   (`pickledTypes`, an `EqHashMap`), we by its bytes, so the `SHAREDtype` choices differ where our
   synthetic trees build an equal type anew or dotty's are distinct instances.

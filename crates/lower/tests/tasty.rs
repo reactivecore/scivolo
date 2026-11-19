@@ -65,7 +65,8 @@ fn a_file_whose_classes_are_not_pickled_keeps_its_nir() {
     assert_eq!(paths, ["D.tasty"]);
     let [why] = &out.unpickled[..] else { panic!("{:?}", out.unpickled) };
     assert!(
-        why.starts_with("pickling a synthetic type tree of a capture set") && why.ends_with("at a.scala:4:1"),
+        why.starts_with("pickling a synthetic type tree of a capture set")
+            && why.ends_with("at a.scala:4:12"),
         "{why}"
     );
 }
