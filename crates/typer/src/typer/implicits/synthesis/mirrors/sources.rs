@@ -151,13 +151,13 @@ fn upper_type(ops: &mut TypeOps<'_>, t: TypeId) -> Option<TypeId> {
 }
 
 /// The elements of `t` if it is an application of `*:` (`tycon`); refused for one that is no
-/// generic tuple of at most 22 elements.
+/// generic tuple.
 fn pair_elements(t: &mut Typer<'_>, tpe: TypeId, tycon: TypeId) -> Result<Option<Vec<TypeId>>, &'static str> {
     let pair = t.resolve_full_name("scala.*:", true);
     if pair.is_none() || t.u.class_symbol(tycon) != pair {
         return Ok(None);
     }
-    match t.tuple_elements(tpe).filter(|e| !e.is_empty()) {
+    match t.tuple_elements_within(tpe, usize::MAX).filter(|e| !e.is_empty()) {
         Some(elems) => Ok(Some(elems)),
         None => Err("Mirror of a generic tuple outside the subset"),
     }

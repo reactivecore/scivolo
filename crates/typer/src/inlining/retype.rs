@@ -10,7 +10,7 @@ use super::{Inlining, Unsupported};
 use crate::tpd::{MatchKind, TNodeId, Tree as T, map_children};
 use rustc_hash::FxHashMap;
 use syntax::ast::constant::Constant as C;
-use tasty::{SymbolId, Type};
+use tasty::SymbolId;
 
 impl Inlining<'_> {
     /// `t`, owned by `owner`, retyped, the proxies of inline arguments in `args` replaced by copies
@@ -114,13 +114,7 @@ impl Inlining<'_> {
                     *q = qualifier;
                 }
                 self.reselect(t, qualifier, self.names.text(name.name).to_owned())?;
-                if let Some(prefix) = before.and_then(|b| self.local_prefix(b))
-                    && let Some(tpe) = self.tpd.get(t).tpe
-                    && let Some((Some(_), s)) = self.u.sym_ref(tpe)
-                {
-                    let prefix = self.u.revealed_opaque(prefix).unwrap_or(prefix);
-                    self.tpd.get_mut(t).tpe = Some(self.u.intern_type(Type::Sym(Some(prefix), s)));
-                }
+                self.reprefix(t, before);
                 self.retyped(t, owner)
             }
             T::Apply { .. }

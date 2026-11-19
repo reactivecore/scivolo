@@ -62,12 +62,17 @@ impl Cmp<'_> {
         Some(self.u.intern_applied(nt, &[labels, fields]))
     }
 
-    /// The element types of tuple type `t`: a `TupleN` or a `*:` chain ending in `EmptyTuple`.
+    /// The element types of tuple type `t`: a `TupleN` or a `*:` chain ending in `EmptyTuple`,
+    /// normalized at each step.
     fn tuple_elems(&mut self, t: TypeId) -> Option<Vec<TypeId>> {
         let (mut out, mut t) = (Vec::new(), t);
         for _ in 0..MAX_ELEMENTS {
-            let d = self.u.dealias(t);
+            let normal = self.normal(t);
+            let d = self.u.dealias(normal);
             let Some((tycon, args)) = self.u.applied(d) else {
+                if self.u.sym_of(d).is_some_and(|s| self.u.full_name(s) == crate::defn::EMPTY_TUPLE) {
+                    return Some(out);
+                }
                 let class = self.u.class_symbol(d)?;
                 return (self.u.full_name(class) == crate::defn::EMPTY_TUPLE_CLASS).then_some(out);
             };
@@ -87,13 +92,16 @@ impl Cmp<'_> {
         None
     }
 
-    /// `elems` as `A *: B *: … *: EmptyTuple`.
+    /// `elems` as `A *: B *: … *: EmptyTuple`, ending in the value `EmptyTuple`'s type (dotty's
+    /// `TypeOps.nestedPairs`).
     fn pairs(&mut self, elems: &[TypeId]) -> Option<TypeId> {
         let scala = self.u.package("scala")?;
-        let found = |s: &mut Self, name: &str, kind: Kind| {
-            s.u.decl(scala, name).ok()?.into_iter().find(|&d| s.u.symbol(d).kind == kind)
+        let found = |s: &mut Self, name: &str, kind: Kind, full: &str| {
+            let decls = s.u.decl(scala, name).ok()?.into_iter();
+            decls.into_iter().find(|&d| s.u.symbol(d).kind == kind && s.u.full_name(d) == full)
         };
-        let (pair, empty) = (found(self, "*:", Kind::Class)?, found(self, "EmptyTuple", Kind::Type)?);
+        let pair = found(self, "*:", Kind::Class, "scala.*:")?;
+        let empty = found(self, "EmptyTuple", Kind::Val, crate::defn::EMPTY_TUPLE)?;
         let pair = self.u.intern_type(Type::Sym(None, pair));
         let mut t = self.u.intern_type(Type::Sym(None, empty));
         for &e in elems.iter().rev() {

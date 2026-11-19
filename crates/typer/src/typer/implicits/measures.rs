@@ -4,12 +4,11 @@
 //! (dotty's `typeSize`, `coveringSet`, their `TypeSizeAccumulator` and `CoveringSetAccumulator`).
 
 use super::super::type_ops::TypeOps;
-use tasty::{SymbolId, Type, TypeId, TypeVars, Universe, VarId};
+use super::covering::cover;
+use tasty::{Binder, ParamList, SymbolId, Type, TypeId, TypeVars, Universe, VarId};
 
-const OUTSIDE: &str = "divergence check of a type outside the subset";
-
-/// The parts a covering set folds over, and the symbol it adds.
-type Fold = (Vec<TypeId>, Option<SymbolId>);
+/// The refusal of a divergence check of a type the measures do not cover.
+pub const OUTSIDE: &str = "divergence check of a type outside the subset";
 
 /// dotty's `typeSize` and `coveringSet`.
 #[derive(Clone, PartialEq)]
@@ -21,17 +20,50 @@ pub struct Measure {
 impl Measure {
     pub fn of(ty: &mut TypeOps<'_>, tpe: TypeId) -> Result<Measure, &'static str> {
         let tpe = ty.zonk(tpe);
-        let size = type_size(ty, 0, tpe, &mut Vec::new())?;
+        let size = type_size(ty, 0, tpe, &mut Walk::default())?;
         let mut covering = Vec::new();
-        cover(ty, &mut covering, tpe, &mut Vec::new())?;
+        cover(ty, &mut covering, tpe, &mut Walk::default())?;
         covering.sort_unstable_by_key(|s| s.0);
         covering.dedup();
         Ok(Measure { size, covering })
     }
 }
 
-/// The parts of `t` a size or covering set folds over: its prefix, arguments and operands.
-fn parts(u: &mut Universe, t: TypeId) -> Result<Vec<TypeId>, &'static str> {
+/// The type lambdas around the part a walk visits, and the variables, parameters and types it
+/// has passed.
+#[derive(Default)]
+pub struct Walk {
+    lambdas: Vec<(Binder, ParamList)>,
+    vars: Vec<VarId>,
+    params: Vec<(Binder, u32)>,
+    pub types: Vec<TypeId>,
+}
+
+impl Walk {
+    /// Determines the bounds of parameter `i` of the type lambda `binder` around the walked part.
+    pub fn param_bounds(&self, u: &Universe, binder: Binder, i: u32) -> Option<TypeId> {
+        let &(_, params) = self.lambdas.iter().rev().find(|(b, _)| *b == binder)?;
+        u.params_of(params).get(i as usize).map(|&(_, b)| b)
+    }
+
+    /// Enters the type lambda `t`, if it is one; `leave` with the result leaves it.
+    pub fn enter(&mut self, u: &Universe, t: TypeId) -> bool {
+        let Type::Lambda { binder, params, .. } = *u.ty(t) else { return false };
+        self.lambdas.push((binder, params));
+        true
+    }
+
+    /// Leaves the type lambda `enter` entered.
+    pub fn leave(&mut self, entered: bool) {
+        if entered {
+            self.lambdas.pop();
+        }
+    }
+}
+
+/// The parts of `t` a size or covering set folds over: its prefix, arguments and operands, the
+/// bounds of a type lambda's parameters and its result.
+pub fn parts(u: &mut Universe, t: TypeId) -> Result<Vec<TypeId>, &'static str> {
     Ok(match *u.ty(t) {
         Type::Sym(p, _) => p.into_iter().collect(),
         Type::TypeRef(p, _) | Type::TermRef(p, _) | Type::This(p) => vec![p],
@@ -39,13 +71,6 @@ fn parts(u: &mut Universe, t: TypeId) -> Result<Vec<TypeId>, &'static str> {
         Type::Refined(p, _, i) | Type::Bounds(p, i) | Type::And(p, i) | Type::Or(p, i, _) => vec![p, i],
         Type::ByName(r) | Type::Annotated(r, _) | Type::Alias(r) => vec![r],
         Type::Lambda { params, result, .. } => {
-            let all_unbounded = (0..u.params_of(params).len()).all(|i| {
-                let b = u.params_of(params)[i].1;
-                unbounded(u, b)
-            });
-            if !all_unbounded {
-                return Err(OUTSIDE);
-            }
             u.params_of(params).iter().map(|&(_, b)| b).chain([result]).collect()
         }
         Type::Param(..)
@@ -59,16 +84,9 @@ fn parts(u: &mut Universe, t: TypeId) -> Result<Vec<TypeId>, &'static str> {
     })
 }
 
-/// Whether `b` is the bounds `>: Nothing <: Any`.
-fn unbounded(u: &mut Universe, b: TypeId) -> bool {
-    let Some((lo, hi)) = u.bounds(b) else { return false };
-    let builtins = u.defn();
-    u.class_symbol(lo) == Some(builtins.nothing) && u.class_symbol(hi) == Some(builtins.any)
-}
-
 /// `t` dealiased if it is a reference to an alias other than a match type alias (dotty's
 /// `isTypeAlias`), `None` if not.
-fn alias_of(u: &mut Universe, t: TypeId) -> Option<TypeId> {
+pub fn alias_of(u: &mut Universe, t: TypeId) -> Option<TypeId> {
     if !matches!(u.ty(t), Type::Sym(..) | Type::TypeRef(..)) {
         return None;
     }
@@ -78,7 +96,7 @@ fn alias_of(u: &mut Universe, t: TypeId) -> Option<TypeId> {
 }
 
 /// The bounds of type variable `v`, match types in them reduced.
-fn reduced_bounds(ty: &mut TypeOps<'_>, v: VarId) -> [TypeId; 2] {
+pub fn reduced_bounds(ty: &mut TypeOps<'_>, v: VarId) -> [TypeId; 2] {
     let (lo, hi) = ty.constraint.bounds(v);
     [lo, hi].map(|b| {
         let b = ty.zonk(b);
@@ -86,34 +104,44 @@ fn reduced_bounds(ty: &mut TypeOps<'_>, v: VarId) -> [TypeId; 2] {
     })
 }
 
-fn type_size(ty: &mut TypeOps<'_>, n: u32, tpe: TypeId, seen: &mut Vec<VarId>) -> Result<u32, &'static str> {
+fn type_size(ty: &mut TypeOps<'_>, n: u32, tpe: TypeId, walk: &mut Walk) -> Result<u32, &'static str> {
     if let Some(d) = alias_of(ty.u, tpe) {
-        return type_size(ty, n, d, seen);
+        return type_size(ty, n, d, walk);
     }
     let node = *ty.u.ty(tpe);
     match node {
-        Type::Var(v) if seen.contains(&v) => Ok(n),
+        Type::Var(v) if walk.vars.contains(&v) => Ok(n),
         Type::Var(v) => {
-            seen.push(v);
+            walk.vars.push(v);
             let [lo, hi] = reduced_bounds(ty, v);
-            Ok(type_size(ty, n, lo, seen)?.max(type_size(ty, n, hi, seen)?))
+            Ok(type_size(ty, n, lo, walk)?.max(type_size(ty, n, hi, walk)?))
+        }
+        Type::Param(b, i)
+            if !walk.params.contains(&(b, i))
+                && let Some(bounds) = walk.param_bounds(ty.u, b, i) =>
+        {
+            walk.params.push((b, i));
+            let (lo, hi) = ty.u.bounds(bounds).ok_or(OUTSIDE)?;
+            Ok(type_size(ty, n, lo, walk)?.max(type_size(ty, n, hi, walk)?))
         }
         Type::Applied(..) if let Some(reduced) = ty.u.try_normalize(tpe).filter(|&r| r != tpe) => {
-            type_size(ty, n, reduced, seen)
+            type_size(ty, n, reduced, walk)
         }
         Type::Applied(c, args) if tuple_arity(ty.u, c) == Some(ty.u.types_of(args).len()) => {
             let mut n = n + ty.u.types_of(args).len() as u32;
             for i in 0..ty.u.types_of(args).len() {
                 let a = ty.u.types_of(args)[i];
-                n = type_size(ty, n, a, seen)?;
+                n = type_size(ty, n, a, walk)?;
             }
             Ok(n)
         }
         other => {
             let mut n = n + matches!(other, Type::Applied(..) | Type::Refined(..)) as u32;
+            let entered = walk.enter(ty.u, tpe);
             for p in parts(ty.u, tpe)? {
-                n = type_size(ty, n, p, seen)?;
+                n = type_size(ty, n, p, walk)?;
             }
+            walk.leave(entered);
             Ok(n)
         }
     }
@@ -125,72 +153,4 @@ fn tuple_arity(u: &mut Universe, c: TypeId) -> Option<usize> {
     let name = u.full_name(class);
     let max = crate::typer::small_tuples::MAX_TUPLE_ARITY;
     name.strip_prefix(crate::defn::TUPLE)?.parse().ok().filter(|&n| (2..=max).contains(&n))
-}
-
-/// Adds the symbols `tpe` is built from to `cs`, those of the prefixes of references to symbols
-/// that are not static included (dotty's `StopAt.Static`).
-fn cover(
-    ty: &mut TypeOps<'_>,
-    cs: &mut Vec<SymbolId>,
-    tpe: TypeId,
-    seen: &mut Vec<TypeId>,
-) -> Result<(), &'static str> {
-    if seen.contains(&tpe) {
-        return Ok(());
-    }
-    seen.push(tpe);
-    if let Some(d) = alias_of(ty.u, tpe) {
-        return cover(ty, cs, d, seen);
-    }
-    let (fold, own) = match ty.u.var(tpe) {
-        Some(v) => (reduced_bounds(ty, v).to_vec(), None),
-        None => match folded(ty.u, tpe)? {
-            Some(folded) => folded,
-            None => return Ok(()),
-        },
-    };
-    if let Some(s) = own {
-        if ty.u.symbol(s).kind == tasty::Kind::Param {
-            return Err(OUTSIDE);
-        }
-        cs.push(s);
-    }
-    for p in fold {
-        cover(ty, cs, p, seen)?;
-    }
-    Ok(())
-}
-
-/// The parts `cover` folds over for `t`, not a type variable, and the symbol it adds; `None` for
-/// `Any` and `Nothing`.
-fn folded(u: &mut Universe, t: TypeId) -> Result<Option<Fold>, &'static str> {
-    let b = u.defn();
-    Ok(Some(match *u.ty(t) {
-        Type::Applied(c, args) => ([&[c][..], u.types_of(args)].concat(), type_symbol(u, c)),
-        Type::Refined(p, _, i) => (vec![p, i], type_symbol(u, p)),
-        Type::Sym(..) | Type::TypeRef(..) | Type::TermRef(..) => {
-            let (p, s) = match *u.ty(t) {
-                Type::Sym(p, s) => (p, s),
-                Type::TypeRef(p, _) | Type::TermRef(p, _) => (Some(p), u.resolve_ref(t).ok_or(OUTSIDE)?),
-                _ => return Err(OUTSIDE),
-            };
-            if s == b.any || s == b.nothing {
-                return Ok(None);
-            }
-            let own = (u.symbol(s).is_class() || !u.is_type_symbol(s)).then_some(s);
-            (p.filter(|_| !u.is_static_symbol(s)).into_iter().collect(), own)
-        }
-        Type::This(c) => (Vec::new(), type_symbol(u, c)),
-        Type::Package(p) => (Vec::new(), Some(p)),
-        _ => (parts(u, t)?, None),
-    }))
-}
-
-/// The symbol a reference or applied type refers to.
-fn type_symbol(u: &mut Universe, t: TypeId) -> Option<SymbolId> {
-    match *u.ty(t) {
-        Type::Sym(_, s) => Some(s),
-        Type::Applied(c, _) => type_symbol(u, c),
-        _ => u.class_symbol(t),
-    }
 }

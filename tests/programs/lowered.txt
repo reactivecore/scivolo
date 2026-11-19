@@ -240,3 +240,4 @@ localclassmirrors
 reflectiveinstantiation
 refinedendpoints
 overloadrefs
+implicitchoice

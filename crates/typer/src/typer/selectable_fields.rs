@@ -24,16 +24,26 @@ impl Typer<'_> {
             return None;
         }
         let selectable = self.resolve_full_name(crate::defn::SELECTABLE, true)?;
-        let widened = self.u.widen(pre);
+        let mut widened = self.u.widen(pre);
+        while let Type::Refined(parent, ..) | Type::Rec(_, parent) = *self.u.ty(widened) {
+            widened = parent;
+        }
         let class = self.u.class_symbol(widened)?;
         if !self.u.derives_from(class, selectable) {
             return None;
         }
         let fields = self.type_members(pre, "Fields").into_iter().find(|&s| self.u.is_type_symbol(s))?;
+        let pre = match super::stability::is_stable_path(self.u, pre) {
+            true => pre,
+            false => {
+                let qual_tpe = self.tpd.tpe(qual);
+                self.u.fresh_skolem(qual_tpe)
+            }
+        };
         let fields = self.u.intern_type(Type::Sym(Some(pre), fields));
-        let fields = self.u.dealias(fields);
+        let fields = self.types().widen_dealias(fields);
         let fields = self.with_case_fields(fields);
-        let fields = self.u.normalized(fields);
+        let fields = super::simplify::fully_simplified(self.u, fields);
         let (names, values) = self.derived_named_tuple_parts(fields)?;
         let text = self.text(name.name).to_owned();
         let field = values[names.iter().position(|n| *n == text)?];

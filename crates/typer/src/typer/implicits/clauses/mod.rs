@@ -138,10 +138,7 @@ impl ImplicitClause {
         }
         let args: Vec<TNodeId> = found.into_iter().flatten().collect();
         let arg_types: Vec<TypeId> = args.iter().map(|&a| t.tpd.tpe(a)).collect();
-        let result = self.result;
-        if t.types().without_false_deps_in(result, (self.binder, &self.params), self.meth) != result {
-            return Err("implicit method type with a false dependency");
-        }
+        let result = t.types().without_false_deps_in(self.result, (self.binder, &self.params), self.meth);
         let result = self.substituted(t, result, &arg_types);
         Ok(t.build().apply(self.tree, &args, result, self.span))
     }

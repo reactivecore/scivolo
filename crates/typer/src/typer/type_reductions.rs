@@ -16,7 +16,8 @@ impl Typer<'_> {
     }
 
     /// Whether `t` is a match type that refers to no type parameter, parameter or abstract type,
-    /// takes no `this` of a class that may be extended, and does not reduce.
+    /// takes no `this` of a class that may be extended, and does not reduce, though not for
+    /// certain as dotty keeps it.
     pub fn is_ground_match(&mut self, t: TypeId) -> bool {
         let dealiased = self.u.dealias(t);
         if !matches!(self.u.ty(dealiased), Type::Match { .. }) || self.u.try_normalize(t).is_some() {
@@ -30,7 +31,7 @@ impl Typer<'_> {
             }),
             None => false,
         });
-        !open_this && !self.refers_to_abstract(t, false)
+        !open_this && !self.refers_to_abstract(t, false) && !self.u.certainly_stuck(t)
     }
 
     /// Whether `t` refers to a type parameter, a parameter or an abstract type, or a value if

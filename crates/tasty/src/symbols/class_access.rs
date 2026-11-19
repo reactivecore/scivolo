@@ -15,7 +15,7 @@ impl Universe {
     pub fn is_class_accessible_from(&mut self, c: SymbolId, site: SymbolId) -> bool {
         let flags = self.symbol(c).flags;
         let modifiers = [PRIVATE, PRIVATEqualified, PROTECTED, PROTECTEDqualified];
-        if !modifiers.iter().any(|&f| flags.has(f)) {
+        if !modifiers.iter().any(|&f| flags.has(f)) && !self.access_qualifiers.contains_key(&c) {
             return true;
         }
         let Some(owner) = self.symbol(c).owner else { return true };

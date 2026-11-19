@@ -58,13 +58,7 @@ impl Cmp<'_> {
             let a = self.widen_term_refs(a);
             let a = self.u.dealias(a);
             let a = self.normal(a);
-            values.push(match *self.u.ty(a) {
-                Type::Constant(INTconst, n) => C::Int(n as i32),
-                Type::Constant(LONGconst, n) => C::Long(n),
-                Type::Constant(TRUEconst, _) => C::Bool(true),
-                Type::Constant(FALSEconst, _) => C::Bool(false),
-                _ => return None,
-            });
+            values.push(self.const_value(a)?);
         }
         let folded = fold(&module, &name, &values)?;
         Some(self.u.intern_type(match folded {
@@ -73,6 +67,27 @@ impl Cmp<'_> {
             C::Bool(true) => Type::Constant(TRUEconst, 0),
             C::Bool(false) => Type::Constant(FALSEconst, 0),
         }))
+    }
+
+    /// The constant `t` conforms to: a constant type, or one part of an intersection (dotty's
+    /// `constValue`).
+    fn const_value(&self, t: TypeId) -> Option<C> {
+        Some(match *self.u.ty(t) {
+            Type::Constant(INTconst, n) => C::Int(n as i32),
+            Type::Constant(LONGconst, n) => C::Long(n),
+            Type::Constant(TRUEconst, _) => C::Bool(true),
+            Type::Constant(FALSEconst, _) => C::Bool(false),
+            Type::And(a, b) => return self.const_value(a).or_else(|| self.const_value(b)),
+            _ => return None,
+        })
+    }
+
+    /// The `Int` constant `t` conforms to, as `const_value`.
+    pub fn int_constant(&self, t: TypeId) -> Option<i32> {
+        match self.const_value(t)? {
+            C::Int(n) => Some(n),
+            _ => None,
+        }
     }
 
     /// `t` with term references replaced by their underlying types, repeatedly.
@@ -129,11 +144,13 @@ fn fold(module: &str, name: &str, args: &[C]) -> Option<C> {
         ("long", "Abs", [Long(n)]) => Long(n.wrapping_abs()),
         ("long", "Negate", [Long(n)]) => Long(n.wrapping_neg()),
         ("long", "ToInt", [Long(n)]) => Int(*n as i32),
-        ("int", _, [Int(a), Int(b)]) => match int_op(name, *a as i64, *b as i64)? {
+        ("int", "NumberOfLeadingZeros", [Int(n)]) => Int(n.leading_zeros() as i32),
+        ("long", "NumberOfLeadingZeros", [Long(n)]) => Int(n.leading_zeros() as i32),
+        ("int", _, [Int(a), Int(b)]) => match int_op(name, *a as i64, *b as i64, i32::BITS)? {
             Long(n) => Int(n as i32),
             c => c,
         },
-        ("long", _, [Long(a), Long(b)]) => int_op(name, *a, *b)?,
+        ("long", _, [Long(a), Long(b)]) => int_op(name, *a, *b, i64::BITS)?,
         ("boolean", nme::NOT, [Bool(a)]) => Bool(!a),
         ("boolean", nme::ZAND, [Bool(a), Bool(b)]) => Bool(*a && *b),
         ("boolean", nme::ZOR, [Bool(a), Bool(b)]) => Bool(*a || *b),
@@ -155,11 +172,19 @@ fn equal(a: &C, b: &C) -> bool {
     }
 }
 
-/// Binary operation `name` on integers, wrapping as the JVM does for the width the caller
-/// narrows to.
-fn int_op(name: &str, a: i64, b: i64) -> Option<C> {
+/// Binary operation `name` on integers of `width` bits, wrapping and masking shift distances as
+/// the JVM does for the width the caller narrows to.
+fn int_op(name: &str, a: i64, b: i64, width: u32) -> Option<C> {
     use C::*;
+    let shift = (b as u32) & (width - 1);
+    let unsigned = if width == i32::BITS { a as u32 as u64 } else { a as u64 };
     Some(match name {
+        nme::XOR => Long(a ^ b),
+        "BitwiseAnd" => Long(a & b),
+        "BitwiseOr" => Long(a | b),
+        nme::ASR => Long(a >> shift),
+        nme::LSL => Long(a << shift),
+        nme::LSR => Long((unsigned >> shift) as i64),
         nme::ADD => Long(a.wrapping_add(b)),
         nme::MINUS => Long(a.wrapping_sub(b)),
         nme::MUL => Long(a.wrapping_mul(b)),
