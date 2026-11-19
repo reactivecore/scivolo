@@ -50,7 +50,7 @@ impl Gen<'_, '_> {
             code.local_var(&name, d, (start, end), slot);
         }
         let static_desc = with_receiver(&trait_name, desc);
-        let flags = (flags & !(classfile::ACC_ABSTRACT | classfile::ACC_VARARGS)) | ACC_STATIC;
+        let flags = classfile::ACC_PUBLIC | ACC_STATIC;
         let static_name = name_kinds::trait_super_accessor(&name);
         cf.method(flags, &static_name, &static_desc, Some(code));
         self.method_attributes(cf, (m, false), &static_desc, params, (true, true));

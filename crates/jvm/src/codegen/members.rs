@@ -9,12 +9,24 @@ use classfile::{ACC_FINAL, ACC_SYNTHETIC, ClassFile, Last};
 use lower::Result;
 use names::nme;
 use syntax::ast::Span;
-use tasty::SymbolId;
-use tasty::tags::ARTIFACT;
+use tasty::defn::META_TARGETS;
+use tasty::tags::{ARTIFACT, GIVEN, IMPLICIT, SYNTHETIC};
+use tasty::{Kind, SymbolId};
 use typer::tpd::{TNodeId, Tree};
 
 /// The full name of the annotation the `Deprecated` attribute stands for.
 const DEPRECATED: &str = "scala.deprecated";
+
+/// The meta-annotation target of the conversions of implicit classes, `meta.companionMethod`.
+const COMPANION_METHOD: &str = "companionMethod";
+
+/// The meta-annotation target of implicit classes, `meta.companionClass`.
+const COMPANION_CLASS: &str = "companionClass";
+
+/// Whether `s` is `implicit` or a `given`.
+fn is_implicit(s: &tasty::Symbol) -> bool {
+    s.flags.has(IMPLICIT) || s.flags.has(GIVEN)
+}
 
 impl Gen<'_, '_> {
     /// Adds to the method of `cf` added last, `sym` of descriptor `desc`, its generic signature
@@ -80,10 +92,37 @@ impl Gen<'_, '_> {
     }
 
     /// Determines whether `sym` is `@deprecated` (dotty's `isDeprecated`): a field also if its
-    /// getter is, a mixin forwarder or an extension method if the member it copies is.
+    /// getter is, a mixin forwarder or an extension method if the member it copies is, the
+    /// conversion of an `implicit class` if the class is for companion methods; an implicit class
+    /// only if for companion classes or for no target (`PostTyper`'s `transform`).
     pub fn is_deprecated(&mut self, sym: SymbolId) -> bool {
+        if self.l.u.symbol(sym).kind == Kind::Class && is_implicit(self.l.u.symbol(sym)) {
+            return self.carries_deprecated(sym, &[COMPANION_CLASS], META_TARGETS);
+        }
         let holders = [Some(sym), Some(self.l.annotations_holder(sym)), self.l.field_getter(sym)];
         holders.into_iter().flatten().any(|s| self.l.u.is_annotated(s, DEPRECATED))
+            || self
+                .implicit_class_of(sym)
+                .is_some_and(|c| self.carries_deprecated(c, &[COMPANION_METHOD], &[]))
+    }
+
+    /// Whether `sym` is `@deprecated` meant for one of `targets` or, if `none_of` is not empty,
+    /// for none of `none_of`.
+    fn carries_deprecated(&mut self, sym: SymbolId, targets: &[&str], none_of: &[&str]) -> bool {
+        let carried = self.l.u.annotations_carrying(sym, targets, none_of);
+        carried.iter().any(|&a| self.l.u.full_name(a) == DEPRECATED)
+    }
+
+    /// The implicit class implicit method `sym` converts to, whose annotations meant for companion
+    /// methods `sym` has (`PostTyper`'s `processValOrDefDef`).
+    fn implicit_class_of(&mut self, sym: SymbolId) -> Option<SymbolId> {
+        let s = self.l.u.symbol(sym);
+        if s.kind != Kind::Def || !is_implicit(s) || s.flags.has(SYNTHETIC) {
+            return None;
+        }
+        let info = self.l.u.info(sym);
+        let result = self.l.u.result_type(info);
+        self.l.u.class_symbol(result).filter(|&c| is_implicit(self.l.u.symbol(c)))
     }
 
     /// `ACC_TRANSIENT` and `ACC_VOLATILE` of field `field` annotated `@transient` and `@volatile`,

@@ -44,9 +44,12 @@ impl Universe {
         self.annotation_strings.get(&(sym, class)).map_or(&[], Vec::as_slice)
     }
 
-    /// Records meta-annotation class `meta` on the annotation of class `class` on `sym`.
+    /// Records meta-annotation class `meta` on an annotation of class `class` on `sym`.
     pub fn annotate_meta(&mut self, sym: SymbolId, class: SymbolId, meta: SymbolId) {
-        self.annotation_metas.entry((sym, class)).or_default().push(meta);
+        let metas = self.annotation_metas.entry((sym, class)).or_default();
+        if !metas.contains(&meta) {
+            metas.push(meta);
+        }
     }
 
     /// The annotation classes of `sym` meta-annotated `scala.annotation.meta.<target>` for one

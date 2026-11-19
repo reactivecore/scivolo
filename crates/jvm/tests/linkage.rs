@@ -111,6 +111,46 @@ fn null_values_are_adapted_after_their_joins() {
     assert_eq!(String::from_utf8_lossy(&run.stdout), "null\nnull\nnull\nread\n");
 }
 
+/// The `javap -v -p -l` text of `class` under `out`; none without a `javap` on the PATH.
+fn javap_verbose(out: &Path, class: &str) -> Option<String> {
+    let run = Command::new("javap").args(["-v", "-p", "-l", "-cp"]).arg(out).arg(class).output().ok()?;
+    assert!(run.status.success(), "{}", String::from_utf8_lossy(&run.stderr));
+    Some(String::from_utf8_lossy(&run.stdout).into_owned())
+}
+
+/// The line marks and the `Deprecated` attribute of the member of `javap_verbose` text `text`
+/// declared by `header`.
+fn member_lines<'a>(text: &'a str, header: &str) -> Vec<&'a str> {
+    let start = text.find(header).unwrap_or_else(|| panic!("{header} in\n{text}"));
+    let member = &text[start..];
+    let member = &member[..member.find("\n\n").unwrap_or(member.len())];
+    member.lines().map(str::trim).filter(|l| l.starts_with("line ") || l.starts_with("Deprecated")).collect()
+}
+
+/// Line marks and `Deprecated` as dotty writes them: a value class extension method's object of
+/// the receiver's line, an array update after its operands, a field initializer's `this` of its
+/// value's line, no line for the `()` ending a secondary constructor, and the conversion of an
+/// implicit class deprecated for companion methods, the class only if for companion classes.
+#[test]
+fn line_marks_and_deprecations_follow_dotty() {
+    let out = compile("lines");
+    let Some(calls) = javap_verbose(&out, "lines.Calls$") else { return };
+    let extension = member_lines(&calls, "java.lang.String[] extension(");
+    assert_eq!(extension, ["line 5: 0", "line 5: 6", "line 6: 22", "line 7: 30"], "{calls}");
+    assert_eq!(member_lines(&calls, "void update(").last(), Some(&"line 12: 42"), "{calls}");
+    for conversion in ["A Wrapped(A)", "A Both(A)"] {
+        assert!(member_lines(&calls, conversion).contains(&"Deprecated: true"), "{calls}");
+    }
+    let Some(fields) = javap_verbose(&out, "lines.Fields") else { return };
+    let primary = member_lines(&fields, "public lines.Fields(int, int)");
+    assert_eq!(primary, ["line 25: 0", "line 27: 4", "line 26: 12"], "{fields}");
+    assert_eq!(member_lines(&fields, "public lines.Fields(int);"), ["line 31: 0", "line 32: 2"], "{fields}");
+    for (class, deprecated) in [("lines.Calls$Wrapped", false), ("lines.Calls$Both", true)] {
+        let Some(text) = javap_verbose(&out, class) else { return };
+        assert_eq!(text.lines().any(|l| l == "Deprecated: true"), deprecated, "{text}");
+    }
+}
+
 /// Without Scala Native's library on the class path its API does not exist, as for dotty.
 #[test]
 fn scala_native_api_without_its_jar_is_refused() {
