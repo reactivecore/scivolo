@@ -41,7 +41,7 @@ impl Universe {
                 };
                 let seen = u.base_type(prefix, c)?;
                 let param = u.type_params(c)[i];
-                let Some(arg) = u.base_arg(seen, i) else {
+                let Some(arg) = u.union_base_arg(seen, i, u.symbol(param).variance(), Self::base_arg) else {
                     return matches!(u.ty(seen), Type::Or(..)).then_some(x);
                 };
                 if u.bounds(arg).is_none() {
@@ -125,7 +125,7 @@ impl Universe {
         let index = self.type_params(class).iter().position(|&q| q == p)?;
         let widened = self.widen(prefix);
         let base = self.base_type(widened, class)?;
-        self.base_arg(base, index)
+        self.union_base_arg(base, index, self.symbol(p).variance(), Self::base_arg)
     }
 
     /// Determines the alias that only `prefix` gives `s`: for a class type parameter its

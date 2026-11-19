@@ -66,9 +66,7 @@ impl Typer<'_> {
             return false;
         }
         self.complete(s);
-        let info = self.u.info(s);
-        let info = self.u.by_name(info).unwrap_or(info);
-        !matches!(self.u.ty(info), Type::Method { .. } | Type::Poly { .. }) && is_stable_path(self.u, info)
+        has_stable_result(self.u, s)
     }
 
     /// Whether `tree` in a capture set of `ctx` is a reference to a term other than a variable, a
@@ -129,7 +127,7 @@ pub fn is_stable_path(u: &mut Universe, t: TypeId) -> bool {
         | Type::Package(_)
         | Type::Skolem(..) => true,
         Type::Sym(p, s) if u.symbol(s).kind.is_term() => {
-            is_stable_member(u, s)
+            (is_stable_member(u, s) || has_stable_result(u, s))
                 && p.is_none_or(|p| {
                     matches!(u.ty(p), Type::NoPrefix | Type::Sym(..) if !is_term_ref(u, p))
                         || is_stable_path(u, p)
@@ -144,6 +142,18 @@ pub fn is_stable_path(u: &mut Universe, t: TypeId) -> bool {
         }
         _ => false,
     }
+}
+
+/// Whether term `s` is not a method with parameters and its type, or its by-name result, is a
+/// stable path, as `def Nil = Nil`, `var y: x.type` or `y: => x.type` (dotty's `tp.info.isStable`).
+fn has_stable_result(u: &mut Universe, s: SymbolId) -> bool {
+    let info = u.info(s);
+    let result = match *u.ty(info) {
+        Type::ByName(r) => r,
+        Type::Method { .. } | Type::Poly { .. } => return false,
+        _ => info,
+    };
+    is_stable_path(u, result)
 }
 
 /// Whether `t` is a class type whose arguments and abstract type members have good bounds

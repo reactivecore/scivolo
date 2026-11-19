@@ -97,4 +97,9 @@ impl Universe {
     pub fn is_library_java_stub(&self, s: SymbolId) -> bool {
         self.java_stubs.contains(&s)
     }
+
+    /// Records `c`, a class defined outside TASTy, as a Java class of the Scala library.
+    pub fn mark_library_java_stub(&mut self, c: SymbolId) {
+        self.java_stubs.insert(c);
+    }
 }

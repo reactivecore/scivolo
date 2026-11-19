@@ -636,10 +636,6 @@ fn synthetic_symbols_are_shared() {
 fn constructs_diverging_from_dotty_are_refused() {
     let Some(mut u) = universe() else { return };
     let cases = [
-        (
-            "object A { type T[X] = X | Any; def p2[X](using T[X]): X = ???; def p1[X](using Int): X = p2 }",
-            "implicit search for a union with type variables",
-        ),
         ("object W { val f: ? => Int = x => 1 }", "parameter type inferred from the target of a wildcard"),
         ("object U { val f: (? >: (Int, Int)) => Int = (a, b) => a }", "untupled parameters of a wildcard formal"),
         (

@@ -6,10 +6,38 @@ use super::literals::constant_structure;
 use super::printed::Printed;
 use crate::host::Host;
 use names::nme;
+use std::ops::{Deref, DerefMut};
 use syntax::ast::constant::Constant as C;
-use tasty::{Const, Kind, NameId, SymbolId, Type, TypeId, constant};
+use tasty::{Binder, Const, Kind, NameId, SymbolId, Type, TypeId, constant};
 
 const STRUCTURE: &str = "Printer.TypeReprStructure of a type the frontend does not print";
+
+/// The text printed so far and the recursive types entered with their numbers, from 1 in order,
+/// equal ones sharing one.
+#[derive(Default)]
+struct Structure {
+    text: Printed,
+    recs: Vec<(Binder, TypeId, usize)>,
+}
+
+impl Deref for Structure {
+    type Target = Printed;
+
+    fn deref(&self) -> &Printed {
+        &self.text
+    }
+}
+
+impl DerefMut for Structure {
+    fn deref_mut(&mut self) -> &mut Printed {
+        &mut self.text
+    }
+}
+
+/// The number of the recursive type `binder` among those `out` entered.
+fn rec_id(out: &Structure, binder: Binder) -> Option<usize> {
+    out.recs.iter().find(|r| r.0 == binder).map(|r| r.2)
+}
 
 /// The `ThisType` of the package class named `name`.
 fn package_this(name: &str) -> String {
@@ -19,12 +47,12 @@ fn package_this(name: &str) -> String {
 impl Host {
     /// Type `t` as `Printer.TypeReprStructure` shows it.
     pub fn type_structure(&mut self, t: TypeId) -> Result<Printed, &'static str> {
-        let mut out = Printed::default();
+        let mut out = Structure::default();
         self.visit_type(t, &mut out)?;
-        Ok(out)
+        Ok(out.text)
     }
 
-    fn visit_type(&mut self, t: TypeId, out: &mut Printed) -> Result<(), &'static str> {
+    fn visit_type(&mut self, t: TypeId, out: &mut Structure) -> Result<(), &'static str> {
         let ty = *self.u.ty(t);
         match ty {
             Type::Constant(tag, bits) => {
@@ -89,6 +117,25 @@ impl Host {
             Type::Bounds(lo, hi) => self.node(out, "TypeBounds", &[lo, hi], None)?,
             Type::Alias(a) => self.node(out, "TypeBounds", &[a, a], None)?,
             Type::ByName(u) => self.node(out, "ByNameType", &[u], None)?,
+            Type::Rec(binder, underlying) => {
+                let id = match rec_id(out, binder) {
+                    Some(id) => id,
+                    None => {
+                        let equal = out.recs.iter().find(|r| self.u.same_but_rec_binders(r.1, t));
+                        let id = equal
+                            .map_or_else(|| out.recs.iter().map(|r| r.2).max().unwrap_or(0) + 1, |r| r.2);
+                        out.recs.push((binder, t, id));
+                        id
+                    }
+                };
+                out.push_str(&format!("RecursiveType(rec{id} => "));
+                self.visit_type(underlying, out)?;
+                out.push(')');
+            }
+            Type::RecThis(binder) => {
+                let id = rec_id(out, binder).ok_or(STRUCTURE)?;
+                out.push_str(&format!("RecursiveThis(<rec{id}>)"));
+            }
             Type::Super(this, sup) => self.node(out, "SuperType", &[this, sup], None)?,
             Type::MatchCase(pat, rhs) => self.node(out, "MatchCase", &[pat, rhs], None)?,
             Type::Match { bound, scrutinee, cases } => {
@@ -134,7 +181,7 @@ impl Host {
 
     /// The `TermRef` of package `p` (dotty's `p.termRef`, whose prefix is the owner's `this`); the
     /// root's as the empty package's `this`.
-    fn package_ref(&mut self, p: SymbolId, out: &mut Printed) -> Result<(), &'static str> {
+    fn package_ref(&mut self, p: SymbolId, out: &mut Structure) -> Result<(), &'static str> {
         if p == self.u.root() {
             out.push_str(&package_this(nme::EMPTY_PACKAGE));
             return Ok(());
@@ -173,7 +220,7 @@ impl Host {
         term: bool,
         prefix: TypeId,
         name: &str,
-        out: &mut Printed,
+        out: &mut Structure,
     ) -> Result<(), &'static str> {
         out.push_str(if term { "TermRef(" } else { "TypeRef(" });
         self.visit_type(prefix, out)?;
@@ -184,7 +231,7 @@ impl Host {
     /// `what(` the types `types`, then the list `list`, `)`.
     fn node(
         &mut self,
-        out: &mut Printed,
+        out: &mut Structure,
         what: &str,
         types: &[TypeId],
         list: Option<&[TypeId]>,
@@ -205,7 +252,7 @@ impl Host {
 
     fn lambda(
         &mut self,
-        out: &mut Printed,
+        out: &mut Structure,
         what: &str,
         params: &[(NameId, TypeId)],
         result: TypeId,
@@ -223,7 +270,7 @@ impl Host {
         Ok(())
     }
 
-    fn type_list(&mut self, types: &[TypeId], out: &mut Printed) -> Result<(), &'static str> {
+    fn type_list(&mut self, types: &[TypeId], out: &mut Structure) -> Result<(), &'static str> {
         if types.is_empty() {
             out.push_str("Nil");
             return Ok(());

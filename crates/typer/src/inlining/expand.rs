@@ -85,6 +85,7 @@ impl<'i, 'a> Expansion<'i, 'a> {
             old_owner: Some(meth),
             new_owner: Some(self.owner),
             this: this_tpe,
+            stop_at_static: self.stops_at_static(&this),
             ..TreeTypeMap::default()
         };
         for (&p, &b) in &self.binding {
@@ -97,9 +98,10 @@ impl<'i, 'a> Expansion<'i, 'a> {
         }
         let (binding, arg_span) = (self.binding.clone(), self.arg_span.clone());
         let call_span = self.i.tpd.span(self.call);
-        let expansion = self.i.copy(&mut m, rhs, &mut |i, _, t| {
-            replace_param(i, &binding, &arg_span, t)
-                .or_else(|| this.iter().find_map(|&(cls, proxy)| replace_this(i, cls, proxy, call_span, t)))
+        let expansion = self.i.copy(&mut m, rhs, &mut |i, m, t| {
+            replace_param(i, &binding, &arg_span, t).or_else(|| {
+                this.iter().find_map(|&(cls, proxy)| replace_this(i, m, (cls, proxy), call_span, t))
+            })
         })?;
         let inline_args: FxHashMap<SymbolId, TNodeId> = self
             .bindings

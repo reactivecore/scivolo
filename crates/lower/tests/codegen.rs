@@ -347,3 +347,10 @@ fn jdk_overrides_javalib_lacks_are_called_on_their_class() {
         assert!(dump.contains(&format!("call[(@java.util.concurrent.ThreadLocalRandom, {sig}]")), "{dump}");
     }
 }
+
+#[test]
+fn an_object_named_as_a_java_class_of_the_library_gets_a_mirror_class() {
+    let source = "package scala.runtime\nobject Statics { def f: Int = 1 }";
+    let Some(dump) = lowered(source, "scala.runtime.Statics") else { return };
+    assert!(dump.contains("def @scala.runtime.Statics::static f(): int"), "{dump}");
+}
