@@ -107,6 +107,32 @@ impl Typer<'_> {
         }
     }
 
+    /// Completes the unit's package objects, then the type members entered in its static objects,
+    /// when the unit is Scala's library: the library's classes read from TASTy refer to them
+    /// (`scala.RuntimeException`), as dotty completes them on such a reference.
+    pub fn complete_library_aliases(&mut self) {
+        if !self.u.compiles_scala_library() {
+            return;
+        }
+        for s in self.pending(|u, s| u.is_package_object(s)) {
+            self.complete(s);
+        }
+        let aliases = self.pending(|u, s| {
+            u.symbol(s).kind == Kind::Type && u.symbol(s).owner.is_some_and(|o| u.is_static_module(o))
+        });
+        for s in aliases {
+            self.complete(s);
+        }
+    }
+
+    /// The symbols not completed yet that satisfy `p`, in the order they were entered.
+    fn pending(&self, p: impl Fn(&tasty::Universe, SymbolId) -> bool) -> Vec<SymbolId> {
+        let pending = self.syms.completions.iter().filter(|(_, c)| matches!(c, Completion::Pending { .. }));
+        let mut found: Vec<SymbolId> = pending.map(|(&s, _)| s).filter(|&s| p(self.u, s)).collect();
+        found.sort_unstable_by_key(|s| s.0);
+        found
+    }
+
     /// The type of value type tree `tpt`, typed ahead in `ctx`.
     pub fn value_type_ahead(&mut self, tpt: NodeId, ctx: Ctx) -> TypeId {
         let typed = self.typed_type(tpt, ctx);

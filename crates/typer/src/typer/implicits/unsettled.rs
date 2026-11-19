@@ -1,8 +1,8 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/typer/Implicits.scala
 //   compiler/src/dotty/tools/dotc/typer/ProtoTypes.scala
-//! Expected types of implicit searches with type variables outside the subset (unbounded ones,
-//! ones in unions), or too unspecific to search; variables settled by their bounds.
+//! Expected types of implicit searches with type variables: what a search looks for in their
+//! place, ones too unspecific to search; variables settled by their bounds.
 
 use super::super::type_ops::TypeOps;
 use crate::constraint::Constraint;
@@ -12,20 +12,6 @@ use tasty::{Type, TypeId, TypeVars, Universe};
 pub fn has_unbounded_var(ty: &mut TypeOps<'_>, tpe: TypeId) -> bool {
     let vars = ty.open_vars(tpe);
     vars.into_iter().any(|v| ty.constraint.bounds(v) == (tasty::NOTHING, tasty::ANY))
-}
-
-/// What about the type variables of expected type `tpe` is outside the subset: a union with
-/// one, or one without bounds applied as a type constructor.
-pub fn unsettled(ty: &mut TypeOps<'_>, tpe: TypeId) -> Option<&'static str> {
-    if open_union_within(ty, tpe, 16) {
-        return Some("implicit search for a union with type variables");
-    }
-    let unbounded = constructor_vars(ty.u, tpe).into_iter().any(|v| {
-        let (lo, hi) = ty.constraint.bounds(v);
-        let hi = ty.u.lambda(hi).map_or(hi, |l| l.result);
-        lo == tasty::NOTHING && ty.is_exactly_any(hi)
-    });
-    unbounded.then_some("implicit search for a type with an unbounded higher-kinded type variable")
 }
 
 /// The uninstantiated type variables of `t` applied as type constructors.
@@ -133,23 +119,6 @@ pub fn is_underspecified(ty: &mut TypeOps<'_>, tpe: TypeId) -> bool {
             };
             class.is_some_and(|c| c == b.any || c == b.object)
         }
-        _ => false,
-    }
-}
-
-/// Whether `tpe`, its aliases expanded, has a union with an uninstantiated type variable in it.
-fn open_union_within(ty: &mut TypeOps<'_>, tpe: TypeId, depth: u32) -> bool {
-    let Some(depth) = depth.checked_sub(1) else { return false };
-    let tpe = ty.u.dealias(tpe);
-    match *ty.u.ty(tpe) {
-        Type::Or(..) => !ty.open_vars(tpe).is_empty(),
-        Type::And(a, b) => open_union_within(ty, a, depth) || open_union_within(ty, b, depth),
-        Type::Applied(_, args) => (0..ty.u.types_of(args).len()).any(|i| {
-            let a = ty.u.types_of(args)[i];
-            open_union_within(ty, a, depth)
-        }),
-        Type::Annotated(a, _) | Type::ByName(a) => open_union_within(ty, a, depth),
-        Type::Bounds(lo, hi) => open_union_within(ty, lo, depth) || open_union_within(ty, hi, depth),
         _ => false,
     }
 }

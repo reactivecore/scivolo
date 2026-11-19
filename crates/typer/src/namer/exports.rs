@@ -89,7 +89,7 @@ impl Typer<'_> {
             }
             seen.push(sel.name.clone());
         }
-        self.check_clashes(&e.out);
+        self.avoid_clashes(&mut e);
         e.out
     }
 
@@ -140,14 +140,17 @@ impl Typer<'_> {
             return self.add_type_forwarder(e, alias, m, span);
         }
         let flags = self.u.symbol(m).flags;
-        if [t::ERASED, t::MACRO].iter().any(|&fl| flags.has(fl)) {
-            self.unsupported_at(span, "export of an erased member or a macro");
+        if flags.has(t::MACRO) {
+            self.unsupported_at(span, "export of a macro");
             return;
         }
         let mut fl = RETAINED
             .iter()
             .filter(|&&(tag, _)| flags.has(tag))
             .fold(f::EXPORTED.or(f::METHOD).or(f::FINAL), |acc, &(_, fl)| acc.or(fl));
+        if flags.has(t::ERASED) {
+            fl = fl.or(f::INLINE);
+        }
         let public = ![t::PRIVATE, t::PROTECTED, t::PRIVATEqualified, t::PROTECTEDqualified]
             .iter()
             .any(|&fl| flags.has(fl));
@@ -177,10 +180,6 @@ impl Typer<'_> {
             }
             if self.has_by_name_repeated_param(info) {
                 self.unsupported_at(span, "export of a method with a by-name repeated parameter");
-            }
-            let result = self.u.result_type(info);
-            if self.is_context_function_type(result) {
-                self.unsupported_at(span, "export forwarder of a context function result");
             }
         }
         self.avoid_private_leaks(sym, span);
@@ -227,22 +226,5 @@ impl Typer<'_> {
             None
         });
         found
-    }
-
-    /// Fails on two forwarders of the same name that erase alike (dotty's `avoidClashes`).
-    fn check_clashes(&mut self, out: &[Forwarder]) {
-        for (i, a) in out.iter().enumerate() {
-            for b in &out[i + 1..] {
-                let same_name = self.u.symbol(a.sym).name == self.u.symbol(b.sym).name;
-                if same_name
-                    && self.u.symbol(a.sym).kind == Kind::Def
-                    && self.u.symbol(b.sym).kind == Kind::Def
-                    && self.u.erased_method(a.sym) == self.u.erased_method(b.sym)
-                {
-                    self.unsupported_at(b.span, "export forwarders that erase alike");
-                    return;
-                }
-            }
-        }
     }
 }

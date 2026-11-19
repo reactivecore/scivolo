@@ -48,9 +48,7 @@ impl Typer<'_> {
                 "scala.annotation.unroll" => self.check_unroll(sym, annot),
                 _ => {}
             }
-            if !self.u.annotations(sym).contains(&class) {
-                metas.into_iter().for_each(|m| self.u.annotate_meta(sym, class, m));
-            }
+            metas.into_iter().for_each(|m| self.u.annotate_meta(sym, class, m));
             self.u.annotate(sym, class);
             if self.defn.main_annot(self.u) == Ok(class) {
                 self.syms.main_annotations.insert(sym, self.ast.span(annot));

@@ -94,7 +94,8 @@ impl Translator<'_, '_> {
         true
     }
 
-    /// `scrutinee match { case lit | ... => ...; case _ => ... }` on an `Int` or `String`.
+    /// `scrutinee match { case lit | ... => ...; case _ => ... }` on an `Int` or `String`, of the
+    /// least upper bound of its cases' types.
     fn emit_switch(&mut self, scrutinee: TNodeId, erased: &Erased, cases: Vec<Case>) -> TNodeId {
         let selector = match erased {
             Erased::Prim(c) if *c != 'i' => self.int_of(scrutinee),
@@ -102,6 +103,7 @@ impl Translator<'_, '_> {
         };
         let scrutinee_tpe = self.l.tpd.tpe(selector);
         let mut defs = Vec::new();
+        let mut lub = self.nothing_type();
         for (alts, plan) in cases {
             let pat = match alts.as_slice() {
                 [] => self.l.wildcard(scrutinee_tpe),
@@ -114,11 +116,11 @@ impl Translator<'_, '_> {
             };
             let body = self.emit(plan);
             let tpe = self.l.tpd.tpe(body);
+            lub = self.l.u.lub(lub, tpe);
             defs.push(self.node(Tree::CaseDef { pat, guard: None, body }, tpe, None));
         }
         let cases = self.l.tpd.list(&defs);
-        let nothing = self.nothing_type();
-        self.node(Tree::Match { selector: Some(selector), cases, kind: MatchKind::Plain }, nothing, None)
+        self.node(Tree::Match { selector: Some(selector), cases, kind: MatchKind::Plain }, lub, None)
     }
 
     /// `t.toInt`, of a `Char`, `Byte` or `Short`.

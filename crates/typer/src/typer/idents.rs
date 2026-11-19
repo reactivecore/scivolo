@@ -89,12 +89,12 @@ impl Typer<'_> {
         {
             return sel;
         }
-        let sym = match self.choose(&found.syms, found.prefix, pt) {
+        let sym = match self.choose_reference(id, (&found.syms, found.prefix), pt, ctx) {
             Ok(sym) => sym,
             Err(Unchosen { what: what @ (NO_APPLICABLE | NO_SIZE | AMBIGUOUS), ambiguous })
                 if !self.unusable_for_inference(pt) =>
             {
-                return match self.overload_error(id, (&found.syms, found.prefix), pt, ambiguous) {
+                return match self.overload_error(id, (&found.syms, found.prefix), (pt, ctx), ambiguous) {
                     Some(error) => error,
                     None => self.unsupported(id, what),
                 };

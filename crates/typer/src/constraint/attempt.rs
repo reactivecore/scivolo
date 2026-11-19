@@ -11,6 +11,7 @@ use tasty::{Mark, TypeVars, VarId};
 pub struct Attempt {
     mark: Mark,
     vars: usize,
+    escaped: bool,
 }
 
 /// Whether a variable is discarded with an abandoned attempt, kept from that, or neither yet.
@@ -23,12 +24,14 @@ pub enum Fate {
 
 impl Constraint {
     pub fn attempt(&self) -> Attempt {
-        Attempt { mark: self.mark(), vars: self.vars.len() }
+        Attempt { mark: self.mark(), vars: self.vars.len(), escaped: self.escaped }
     }
 
-    /// Undoes the changes since `a` and discards the variables made since, but kept ones.
+    /// Undoes the changes since `a`, a local symbol escaping included, and discards the variables
+    /// made since, but kept ones.
     pub fn abandon(&mut self, a: Attempt) {
         self.rollback(a.mark);
+        self.escaped = a.escaped;
         self.settle_from(a.vars, Fate::Discarded);
     }
 

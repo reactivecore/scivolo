@@ -125,6 +125,26 @@ class Sexp(bytes: Array[Int], b: StringBuilder)(using Context):
     case t: Type => b ++= tpe(t, 0)
     case other => b ++= s"<${other.getClass.getSimpleName}>"
 
+  /** Orders the forwarders of an export's wildcard selector by the name they forward, each with
+   *  the default getters following it, in place of the order of `Namer.addWildcardForwarders`. */
+  def exportOrder(body: List[Tree]): List[Tree] =
+    import dotty.tools.dotc.core.NameKinds.DefaultGetterName
+    def exported(t: Tree) = t.isInstanceOf[MemberDef] && t.symbol.is(Exported)
+    def groups(run: List[Tree]): List[List[Tree]] = run match
+      case t :: rest =>
+        val (getters, more) = rest.span(_.symbol.name.is(DefaultGetterName))
+        (t :: getters) :: groups(more)
+      case Nil => Nil
+    body match
+      case (e: Export) :: rest =>
+        val wild = e.selectors.filter(_.isWildcard).map(_.span)
+        val (named, rest1) = rest.span(t => exported(t) && !wild.contains(t.span))
+        val (run, more) = rest1.span(t => exported(t) && wild.contains(t.span))
+        val sorted = groups(run).sortBy(_.head.symbol.name.toTermName.toString).flatten
+        e :: named ++ sorted ++ exportOrder(more)
+      case t :: rest => t :: exportOrder(rest)
+      case Nil => Nil
+
   def tree(t: Tree): Unit =
     if t eq EmptyTree then { b ++= "_"; return }
     if t eq EmptyValDef then { b ++= "_self"; return }
@@ -140,7 +160,7 @@ class Sexp(bytes: Array[Int], b: StringBuilder)(using Context):
     t match
       case t: DefDef => b += ' '; value(t.name); b += ' '; value(t.paramss); b += ' '; tree(t.tpt); b += ' '; tree(t.rhs)
       case t: ValDef => b += ' '; value(t.name); b += ' '; tree(t.tpt); b += ' '; tree(t.rhs)
-      case t: Template => b += ' '; tree(t.constr); b += ' '; value(t.parents); b += ' '; tree(t.self); b += ' '; value(t.body)
+      case t: Template => b += ' '; tree(t.constr); b += ' '; value(t.parents); b += ' '; tree(t.self); b += ' '; value(exportOrder(t.body))
       case _: TypeTree => ()
       case t: Product => t.productIterator.foreach { f => b += ' '; value(f) }
     b += ')'

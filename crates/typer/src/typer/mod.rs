@@ -77,6 +77,7 @@ mod erased_function_types;
 mod errors;
 mod escaping;
 mod eta;
+mod export_closures;
 mod export_trees;
 mod extension_calls;
 mod extension_setters;
@@ -319,6 +320,8 @@ pub struct Typer<'a> {
     pub splice_owners: FxHashMap<NodeId, SymbolId>,
     /// The spliced receivers of extension method calls (`TypedSplice.isExtensionReceiver`).
     pub extension_receivers: rustc_hash::FxHashSet<NodeId>,
+    /// The term member each qualifier being typed is selected for (dotty's `SelectionProto`).
+    pub selected_members: FxHashMap<NodeId, syntax::names::Name>,
     /// The `new`s of parent calls (dotty's `noCheckNews`).
     pub parent_news: rustc_hash::FxHashSet<NodeId>,
     /// The `new`s of annotations, which may create a Java annotation, each with its annotation.
@@ -496,6 +499,7 @@ impl<'a> Typer<'a> {
             splices: FxHashMap::default(),
             splice_owners: FxHashMap::default(),
             extension_receivers: Default::default(),
+            selected_members: FxHashMap::default(),
             parent_news: Default::default(),
             annotation_news: Default::default(),
             java_annotation_news: Default::default(),

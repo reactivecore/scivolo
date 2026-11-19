@@ -24,7 +24,11 @@ impl Typer<'_> {
         let mode = if apply { mode.with(Mode::APPLY_QUALIFIER) } else { mode };
         let redundant = apply && matches!(pt, Pt::Fun(_));
         let mode = if redundant { mode.with(Mode::REDUNDANT_APPLY) } else { mode };
+        if !name.is_type {
+            self.selected_members.insert(qualifier, name.name);
+        }
         let mut qual = self.typed_qualifier(qualifier, name, ctx.with_mode(mode));
+        self.selected_members.remove(&qualifier);
         if self.is_probe_target(id) {
             return self.probe_selection(id, qual, ctx);
         }
@@ -165,7 +169,7 @@ impl Typer<'_> {
             true => syms,
             false => self.accessible_or_inherited(syms, qual_tpe, &text, ctx),
         };
-        let sym = match self.choose(&syms, Some(qual_tpe), pt) {
+        let sym = match self.choose_reference(id, (&syms, Some(qual_tpe)), pt, ctx) {
             Ok(sym) => self.jdk_inherited(sym),
             Err(e) => return self.unchosen(id, e.what, pt),
         };
