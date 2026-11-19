@@ -658,3 +658,9 @@ def g: Option[Int] = wrap(new Cell(3))\n"
 fn exports_of_a_package_skip_its_packages() {
     check(&[("package A { package inner { class D } }\npackage B { export A.inner }\n", "")], &[]);
 }
+
+#[test]
+fn java_class_constructor_arguments_are_refused_without_the_jdk() {
+    let java = "trait Bind[Z[_]]\nobject J { val b = new Bind[java.util.ArrayList] {} }\n";
+    check(&[(java, "unsupported Java class type constructor argument")], &[]);
+}

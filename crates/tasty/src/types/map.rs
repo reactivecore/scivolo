@@ -63,6 +63,12 @@ impl Universe {
         self.resolve(q, name, false).filter(|&m| self.symbol(m).kind == Kind::Val).unwrap_or(s)
     }
 
+    /// Determines whether `t` is `Nothing` or an alias of it (dotty's `isRef(defn.NothingClass)`).
+    pub fn is_nothing_ref(&mut self, t: TypeId) -> bool {
+        let dealiased = self.dealias(t);
+        self.sym_of(dealiased) == Some(self.defn().nothing)
+    }
+
     /// `t` with every part for which `f` gives a replacement replaced, outermost parts first;
     /// the other parts are rebuilt from their mapped children, an application whose constructor
     /// became a type lambda beta-reduced, one whose constructor became `Nothing` `Nothing`, a union
@@ -95,8 +101,8 @@ impl Universe {
             }
             Type::Applied(c, list) => {
                 let mapped = m(self, c);
-                if mapped != c && mapped == crate::NOTHING {
-                    return mapped;
+                if mapped != c && self.is_nothing_ref(mapped) {
+                    return crate::NOTHING;
                 }
                 let mut changed: Option<Vec<_>> = None;
                 for i in 0..self.types_of(list).len() {

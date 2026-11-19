@@ -62,15 +62,10 @@ impl Typer<'_> {
     }
 
     /// Determines whether type argument `t` is `Nothing` or an alias of it, which takes the place
-    /// of a type parameter of any kind (dotty's `preCheckKind`); never under a source version
-    /// where `&` keeps applications apart.
-    pub fn is_nothing_ref(&mut self, t: TypeId) -> bool {
-        if !self.source_version.enables_distribute_and() {
-            return false;
-        }
+    /// of a type parameter of any kind (dotty's `preCheckKind`).
+    pub fn is_nothing_arg(&mut self, t: TypeId) -> bool {
         let widened = self.u.widen(t);
-        let dealiased = self.u.dealias(widened);
-        self.u.sym_of(dealiased) == Some(self.u.defn().nothing)
+        self.u.is_nothing_ref(widened)
     }
 
     /// Whether `t` refers to a type symbol being completed.

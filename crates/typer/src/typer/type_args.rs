@@ -11,8 +11,9 @@ use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
     /// What about type arguments `args` of type constructor `tycon` taking `arity` is outside
-    /// the subset: their number, an annotated `tycon`, `AnyKind` for a type other than a class, a constructor where a
-    /// parameter of another kind is, or a class constructor where the parameters are unknown.
+    /// the subset: their number, an annotated `tycon`, `AnyKind` for a type other than a class, a
+    /// constructor where a parameter of another kind is, or a class constructor where the
+    /// parameters are unknown.
     pub fn type_args_problem(
         &mut self,
         tycon: TypeId,
@@ -36,7 +37,7 @@ impl Typer<'_> {
             let class = self.u.sym_of(a).is_some_and(|s| self.u.symbol(s).kind == Kind::Class);
             let param_arity = self.param_arity(tycon, i);
             match param_arity {
-                _ if self.is_nothing_ref(a) => {}
+                _ if self.is_nothing_arg(a) => {}
                 Some(m) if m > 0 && wildcard => {
                     return Some("wildcard argument of a higher-kinded type parameter");
                 }

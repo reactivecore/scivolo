@@ -58,9 +58,9 @@ impl Typer<'_> {
         self.u.symbol(c).owner.map_or_else(Vec::new, |o| self.u.type_params(o))
     }
 
-    /// Eta-expansion `lambda` of Java class `c` of the library, its parameters bounded by
-    /// `<FromJavaObject>` as the JDK class file's `Object` bounds read (dotty's `etaExpand` of a
-    /// Java class); refused if a parameter has other bounds in either.
+    /// Bounds the parameters of eta-expansion `lambda` of Java class `c` of the library by
+    /// `<FromJavaObject>`, as the JDK class file's `Object` bounds read (dotty's `etaExpand` of a
+    /// Java class); refused without that class file or if a parameter has other bounds in either.
     pub fn java_eta_expanded(&mut self, c: SymbolId, lambda: TypeId) -> Result<TypeId, &'static str> {
         const REFUSED: &str = "Java class type constructor argument";
         let object_bounded = self.u.jdk_object_bounded_params(c).ok_or(REFUSED)?;

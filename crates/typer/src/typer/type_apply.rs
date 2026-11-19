@@ -134,7 +134,7 @@ impl Typer<'_> {
                 self.constraint.declare(self.u, arg, lo.unwrap_or(tasty::NOTHING), hi);
             }
             let any_kind = self.u.class_symbol(hi) == Some(self.u.defn().any_kind);
-            if var.is_none() && !any_kind && !self.is_nothing_ref(arg) && self.type_arity(arg) != arity {
+            if var.is_none() && !any_kind && !self.is_nothing_arg(arg) && self.type_arity(arg) != arity {
                 return Err("type argument of another kind");
             }
             let within = |t: &mut Self, a: TypeId, b: TypeId| {

@@ -80,6 +80,24 @@ fn legacy_constructs_are_errors_under_future_and_warnings_under_future_migration
     }
 }
 
+const NOTHING_ARGUMENT: &str = "final class Bar[+F[_]]; object B { val b: Bar[Nothing] = new Bar[Nothing] }";
+
+const PULL: &str = "abstract class Pull[+F[_], +O, +R]
+object Pull:
+  abstract class Terminal[+R] extends Pull[Nothing, Nothing, R]
+  class StreamPullOps[F[_], O](self: Pull[F, O, Unit]):
+    def flatMapOutput[F2[x] >: F[x], O2](): Pull[F2, O2, Unit] =
+      self match
+        case r: Terminal[?] => r
+        case _              => ???
+";
+
+#[test]
+fn nothing_arguments_of_any_kind_and_intersections_kept_apart_under_future() {
+    assert_eq!(typed(NOTHING_ARGUMENT, "future"), Ok(()));
+    assert!(typed(PULL, "future").is_err());
+}
+
 #[test]
 fn source_versions_but_3_0_migration() {
     for v in ["3.0", "3.1", "3.2", "3.2-migration", "3.9-migration", "future-migration", "future"] {
