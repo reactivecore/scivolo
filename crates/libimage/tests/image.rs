@@ -29,6 +29,12 @@ fn a_truncated_image_is_rebuilt() {
         .find(|p| p.extension().is_some_and(|e| e == "img"))
         .unwrap();
     let full = std::fs::read(&path).unwrap();
+    let mapped = Image::open(&spec, &dir).unwrap();
+    let read = Image::from_bytes(Vec::leak(full.clone())).unwrap();
+    assert!(read.names().eq(mapped.names()));
+    assert_eq!(read.find(string), mapped.find(string));
+    assert!(Image::from_bytes(Vec::leak(full[..full.len() / 2].to_vec())).is_err());
+    drop(mapped);
     std::fs::write(&path, &full[..full.len() / 2]).unwrap();
     let image = Image::open(&spec, &dir).unwrap();
     assert_eq!(image.find(string).expect("String's TASTy").0.len(), size);
