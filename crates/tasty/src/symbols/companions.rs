@@ -3,7 +3,7 @@
 //! Objects, their classes and companions: the class of object `C` is `C$`, declared beside it
 //! (dotty's `moduleClass`, `sourceModule`, `companionClass`, `companionModule`).
 
-use super::{SymbolId, Universe};
+use super::{Kind, SymbolId, Universe};
 
 /// The name of the class of object `module`: `C$` for `C`.
 pub fn module_class_name(module: &str) -> String {
@@ -52,11 +52,22 @@ impl Universe {
         }
     }
 
-    /// The class whose companion object has module class `c`.
+    /// The class whose companion object has module class `c`, defined beside it.
     pub fn companion_class(&mut self, c: SymbolId) -> Option<SymbolId> {
         let owner = self.symbol(c).owner?;
         let name = module_name(&self.symbol(c).name)?.to_owned();
-        self.decl(owner, &name).ok()?.into_iter().find(|&s| self.is_class(s) && !self.is_module_class(s))
+        let found = self.decl(owner, &name).ok()?;
+        found.into_iter().find(|&s| self.is_class(s) && !self.is_module_class(s) && self.is_co_defined(s, c))
+    }
+
+    /// Whether `a` and `b` may be companions: not owned by a package, or both from the library
+    /// or both from the sources (dotty's `isCoDefinedWith`).
+    fn is_co_defined(&self, a: SymbolId, b: SymbolId) -> bool {
+        let in_package = self.symbol(a).owner.is_some_and(|o| self.symbol(o).kind == Kind::Package);
+        let from_library = |s: SymbolId| {
+            self.symbol(s).tree.is_some() || self.is_from_classfile(s) || self.is_library_java_stub(s)
+        };
+        !in_package || from_library(a) == from_library(b)
     }
 
     /// The companion object of class `c`, also one renamed while its class keeps `c`'s name.
