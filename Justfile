@@ -789,12 +789,12 @@ test-portable:
 web_wasm := "target/wasm32-unknown-unknown/web/web.wasm"
 
 # Build the browser's module (crates/web) into `web_wasm`, with rustup's toolchain of the
-# `rustc` version on the PATH, else rustup's stable one.
+# `rustc` version on the PATH, installed with the wasm32 target if missing.
 web-build:
     #!/usr/bin/env bash
     set -euo pipefail
     tc="$(rustc --version | cut -d' ' -f2)"
-    rustup which --toolchain "$tc" rustc >/dev/null 2>&1 || tc=stable
+    rustup toolchain install "$tc" --profile minimal --target wasm32-unknown-unknown >/dev/null
     RUSTC="$(rustup which --toolchain "$tc" rustc)" "$(rustup which --toolchain "$tc" cargo)" \
         build -p scivolo-web --lib --profile web --target wasm32-unknown-unknown {{ locked }}
 
