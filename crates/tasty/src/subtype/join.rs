@@ -218,8 +218,9 @@ impl Universe {
         c.is_some_and(|c| c == d.nothing || c == d.null)
     }
 
-    /// Applications `x` and `y` of the same class merged, their arguments joined by variance
-    /// (dotty's `mergeRefinedOrApplied` with `lubArgs`).
+    /// Applications `x` and `y` of the same constructor merged, their arguments joined by
+    /// variance, references to the same class selected on the union of their prefixes (dotty's
+    /// `mergeRefinedOrApplied` with `lubArgs`).
     fn merged(&mut self, x: TypeId, y: TypeId) -> Option<TypeId> {
         if x == y {
             return Some(x);
