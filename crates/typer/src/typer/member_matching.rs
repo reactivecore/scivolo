@@ -20,7 +20,8 @@ impl Typer<'_> {
 
     /// Whether member `m` of `site` implements member `d`: as `same_member`, methods with
     /// parameters having the same parameter types and the same signature, a repeated parameter
-    /// `T*` matching `Seq[T]` and a Java method's `Object` parameter `Any` (dotty's
+    /// `T*` matching `Seq[T]` and a Java method's `Object` parameter `Any`; a Scala method with
+    /// `T*` implements Java varargs `T...` through the forwarder `ElimRepeated` adds (dotty's
     /// `matchesLoosely` with `alwaysCompareTypes` in `isImplemented`).
     pub fn implements(&mut self, site: TypeId, m: SymbolId, d: SymbolId) -> bool {
         if !self.same_member(site, m, d) {
@@ -31,7 +32,18 @@ impl Typer<'_> {
             return true;
         }
         let java = (self.is_java_method(m), self.is_java_method(d));
-        self.u.info_matches_in_refchecks(site, m, d, java) && self.u.parameters_agree(site, m, d)
+        if !self.u.info_matches_in_refchecks(site, m, d, java) {
+            return false;
+        }
+        let varargs_forwarder = !java.0 && java.1 && self.has_repeated_param(m);
+        varargs_forwarder || self.u.parameters_agree(site, m, d)
+    }
+
+    /// Whether method `s` has a repeated parameter `T*`.
+    fn has_repeated_param(&mut self, s: SymbolId) -> bool {
+        let info = self.u.info(s);
+        let params: Vec<TypeId> = self.u.param_clauses(info).into_iter().flat_map(|(_, ps)| ps).collect();
+        params.into_iter().any(|p| self.u.repeated_elem(p).is_some())
     }
 
     /// Whether `s` is a Java member or a member of a JDK class.

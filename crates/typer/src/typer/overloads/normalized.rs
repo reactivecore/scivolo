@@ -11,9 +11,6 @@ use crate::ctx::Ctx;
 use crate::typer::{Pt, Typer};
 use tasty::{Binder, Kind, SymbolId, Type, TypeId, Universe};
 
-/// Why a nullary method is not compared with an expected type that has type variables in it.
-const NULLARY_AGAINST_VARS: &str = "nullary overloaded method against an undetermined type";
-
 /// Checks whether alternative `alt` of type `tp`, normalized, fits `pt`: it conforms to it, or
 /// converts to it if `views`, or `pt` is `Unit` (dotty's `normalizedCompatible` without keeping
 /// the constraint); `Pt::Any` and `Pt::AnyFunction` take every alternative.
@@ -61,7 +58,7 @@ pub fn normalized(t: &mut Typer, tp: TypeId, alt: SymbolId, pt: Pt) -> Result<Ty
             let nullary = parts.is_empty();
             parts.push(rt);
             let ft = t.function_of(parts)?;
-            Ok(if !nullary || nullary_fits(t, ft, pt)? { ft } else { rt })
+            Ok(if !nullary || nullary_fits(t, ft, pt) { ft } else { rt })
         }
         Type::ByName(r) => normalized(t, r, alt, pt),
         _ => match t.context_function_parts(tp) {
@@ -87,17 +84,11 @@ pub fn is_method_ignoring_pt(u: &Universe, mut tp: TypeId) -> bool {
     }
 }
 
-/// Checks whether function type `ft` of a nullary method conforms to `pt` without constraining
-/// it (dotty's `frozen_<:<`); refuses a `pt` it conforms to by constraining type variables.
-fn nullary_fits(t: &mut Typer, ft: TypeId, pt: Pt) -> Result<bool, &'static str> {
-    let Pt::Type(p) = pt else { return Ok(true) };
-    let before = t.constraint.attempt();
-    let fits = t.conforms(ft, p);
-    t.constraint.abandon(before);
-    match fits {
-        true if !t.is_fully_defined(p) => Err(NULLARY_AGAINST_VARS),
-        _ => Ok(fits),
-    }
+/// Checks whether function type `ft` of a nullary method conforms to `pt` under the constraint
+/// as it is (dotty's `frozen_<:<`).
+fn nullary_fits(t: &mut Typer, ft: TypeId, pt: Pt) -> bool {
+    let Pt::Type(p) = pt else { return true };
+    t.u.is_subtype_frozen_in(ft, p, &mut t.constraint)
 }
 
 /// Checks whether `result` refers to a parameter of method type `binder` of `alt`.

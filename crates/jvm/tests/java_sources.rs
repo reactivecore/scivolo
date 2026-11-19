@@ -173,6 +173,15 @@ fn a_private_constructor_is_refused_as_inaccessible() {
     assert!(!refused.status.success() && stderr.contains("inaccessible member"), "{stderr}");
 }
 
+/// A Scala `String*` method does not implement an abstract Java method taking `String[]`.
+#[test]
+fn a_scala_repeated_parameter_does_not_implement_a_java_array_parameter() {
+    let Some((mut scivolo, _)) = scivolo("arrayimpl") else { return };
+    let refused = output(&mut scivolo);
+    let stderr = String::from_utf8_lossy(&refused.stderr);
+    assert!(!refused.status.success() && stderr.contains("unimplemented member"), "{stderr}");
+}
+
 /// A Java abstract class whose only constructor is private is no SAM type: a lambda is not
 /// converted to it.
 #[test]
