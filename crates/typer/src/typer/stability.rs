@@ -43,13 +43,13 @@ impl TypeOps<'_> {
 }
 
 impl Typer<'_> {
-    /// Whether `tree` is a literal, `this`, or a path of stable members and of parameterless
-    /// methods whose result types are stable paths (dotty's `isStable` of a `TermRef`).
+    /// Whether `tree` is a literal, `this`, `super`, or a path of stable members and of terms
+    /// whose types are stable paths (dotty's `isStable` of a `TermRef`).
     pub fn is_stable_path(&mut self, tree: TNodeId) -> bool {
         let stable = |t: &mut Self, r| t.tpd.sym(r).is_some_and(|s| t.is_stable_member(s));
         let stable_result = |t: &mut Self, r| t.tpd.sym(r).is_some_and(|s| t.has_stable_result(s));
         match *self.tpd.tree(tree) {
-            T::Literal { .. } | T::This { .. } => true,
+            T::Literal { .. } | T::This { .. } | T::Super { .. } => true,
             T::Ident { .. } => stable(self, tree) || stable_result(self, tree),
             T::Select { qualifier, .. } => {
                 (stable(self, tree) || stable_result(self, tree)) && self.is_stable_path(qualifier)
@@ -58,12 +58,14 @@ impl Typer<'_> {
         }
     }
 
-    /// Whether `s` is a parameterless method whose result type is a stable path, as
-    /// `def Nil = scala.collection.immutable.Nil` (dotty's `ExprType` case of `isStable`).
+    /// Whether term `s` is not a method with parameters and its type is a stable path, as
+    /// `def Nil = scala.collection.immutable.Nil` or `var y: x.type` (dotty's `tp.info.isStable`
+    /// with its `ExprType` case).
     fn has_stable_result(&mut self, s: SymbolId) -> bool {
-        if self.u.symbol(s).kind == Kind::Def {
-            self.complete(s);
+        if !self.u.symbol(s).kind.is_term() {
+            return false;
         }
+        self.complete(s);
         has_stable_result(self.u, s)
     }
 
@@ -142,15 +144,14 @@ pub fn is_stable_path(u: &mut Universe, t: TypeId) -> bool {
     }
 }
 
-/// Whether term `s` is a parameterless method or a by-name parameter whose result is a stable
-/// path (dotty's `info.isStable` of an `ExprType`).
+/// Whether term `s` is not a method with parameters and its type, or its by-name result, is a
+/// stable path, as `def Nil = Nil`, `var y: x.type` or `y: => x.type` (dotty's `tp.info.isStable`).
 fn has_stable_result(u: &mut Universe, s: SymbolId) -> bool {
     let info = u.info(s);
     let result = match *u.ty(info) {
         Type::ByName(r) => r,
         Type::Method { .. } | Type::Poly { .. } => return false,
-        _ if u.symbol(s).kind == Kind::Def => info,
-        _ => return false,
+        _ => info,
     };
     is_stable_path(u, result)
 }

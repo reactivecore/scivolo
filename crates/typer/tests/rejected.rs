@@ -400,6 +400,25 @@ fn conversions_to_object_or_null_are_not_searched() {
 }
 
 #[test]
+fn sequence_arguments_of_unions_or_intersections_of_arrays_are_refused() {
+    let error = "unsupported sequence argument of a union or intersection of arrays";
+    check(
+        &[
+            ("def m(xs: Any*) = xs.length\ndef f(a: Array[Int] | Array[String]) = m(a*)\n", error),
+            ("def m(xs: Any*) = xs.length\ndef f(a: Array[Int] & Array[Any]) = m(a*)\n", error),
+            (
+                "def m(xs: Any*) = xs.length\ndef f(p: Boolean, a: Array[Any], b: Array[Any]) = m((if p then a else b)*)\n",
+                error,
+            ),
+        ],
+        &[
+            "def m(xs: Any*) = xs.length\ndef f(a: Array[Int] | Null) = m(a*)\n",
+            "def m(xs: Any*) = xs.length\ndef f(a: List[Int] | Vector[String]) = m(a*)\n",
+        ],
+    );
+}
+
+#[test]
 fn comparisons_with_null_of_a_value_type_argument() {
     check(
         &[
@@ -606,6 +625,32 @@ fn exports_of_a_java_class_skip_its_statics() {
     check(
         &[("export java.util.UUID\ndef foo = println(UUID.randomUUID())\n", "")],
         &["export java.util.UUID\ndef bar = println(new UUID(1, 2))\n"],
+    );
+}
+
+/// A value selected through an inline proxy is widened to its type only covariantly: dotty types
+/// the invariant `Set[c.v.type]` as `Set[? <: Int]`, which `Set[Int]` would not stand for.
+#[test]
+fn values_selected_through_proxies_widen_covariantly() {
+    let cell = "class Cell(val v: Int)\n";
+    check(
+        &[(
+            &format!(
+                "{cell}transparent inline def boxed(c: Cell) =
+  val a: Set[c.v.type] = Set(c.v)
+  a
+def f(s: Set[Int]): String = \"Set[Int]\"
+def f(s: Any): String = \"Any\"
+def g = f(boxed(new Cell(4)))\n"
+            ),
+            "unsupported inline expansion of a type referring to a binding",
+        )],
+        &[&format!(
+            "{cell}transparent inline def wrap(c: Cell) =
+  val r: Option[c.v.type] = Some(c.v)
+  r
+def g: Option[Int] = wrap(new Cell(3))\n"
+        )],
     );
 }
 

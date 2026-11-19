@@ -46,9 +46,9 @@ impl Typer<'_> {
         while let Some((binder, ps, result)) =
             self.u.method(method).map(|m| (m.binder, m.params.to_vec(), m.result))
         {
-            for (_, p) in ps {
+            for &(_, p) in &ps {
                 let owner = self.param_owner(p);
-                let p = self.without_false_deps(p, binder, owner);
+                let p = self.without_false_deps(p, (binder, &ps), owner);
                 if self.mentions_params(p, binder, owner) || self.repeated_elem(p).is_some() {
                     return self
                         .unsupported_tree(span, "structural method of dependent or repeated parameters");

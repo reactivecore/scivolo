@@ -114,7 +114,7 @@ impl Inlining<'_> {
         (self.call_span, self.local_implicits, self.in_macro_result) =
             (outer_call, outer_implicits, outer_macro);
         self.depth -= 1;
-        let (bindings, expansion) = expanded?;
+        let expand::Expanded { bindings, expansion, this_proxied } = expanded?;
         if op.as_deref() == Some(names::nme::ERROR_METHOD) {
             self.issue_error(call)?;
         }
@@ -131,7 +131,7 @@ impl Inlining<'_> {
             .or(declared)
             .ok_or((span, "inline expansion of a type referring to a binding"))?;
         let tpe = super::prefix_seen::class_params_seen(self.u, tpe);
-        let expanded = self.tpd.tpe(expansion);
+        let expanded = if this_proxied { self.tpd.tpe(expansion) } else { tpe };
         let expansion = self.sealed(&locals, expansion, tpe)?;
         let bindings = self.tpd.list(&bindings);
         let inlined =
