@@ -7,6 +7,8 @@ ROOT = Path(__file__).resolve().parent.parent
 TESTS = ROOT / "ref/dotty/tests"
 WORK = ROOT / "tmp/typer/3.9.0"
 DUMP = ROOT / "target/release/scivolo-typer-dump"
+# The dump typing against the JDK, as the oracle and the JVM backend do.
+DUMP_JVM = [str(DUMP), "--jvm"]
 CORPORA = ("programs", "pos", "neg")
 USING = re.compile(r"^//> using options (.*)$", re.M)
 

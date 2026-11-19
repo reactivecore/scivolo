@@ -380,6 +380,29 @@ fn erasing_a_type_bounded_by_an_array_of_itself_is_refused() {
 }
 
 #[test]
+fn conversions_of_a_qualifier_do_not_convert_the_arguments() {
+    let conversions = "import scala.language.implicitConversions\nclass Q { def m(x: Boolean) = 0 }\n\
+                       class A { def m(x: BigInt) = 1 }\nclass B { def m(x: String) = 2 }\n";
+    let both = "implicit def toA(q: Q): A = A()\nimplicit def toB(q: Q): B = B()\n";
+    let ambiguous = format!("{conversions}object O {{\n{both}val r = Q().m(1) }}\n");
+    let single = format!("{conversions}object O {{\nimplicit def toA(q: Q): A = A()\nval r = Q().m(1) }}\n");
+    let no_member = format!(
+        "{conversions}class P\nobject O {{\nimplicit def pA(p: P): A = A()\nimplicit def pB(p: P): B = B()\n\
+         val r = P().m(1) }}\n"
+    );
+    let argument_scope = format!(
+        "{conversions}class W\nobject W {{ implicit def toA2(q: Q): A2 = A2() }}\n\
+         class A2 {{ def m(w: W, y: BigInt) = 1 }}\nval r = Q().m(W(), 1)\n"
+    );
+    let by_type = format!("{conversions}object O {{\n{both}val r = Q().m(\"s\") }}\n");
+    let converted = format!("{conversions}object O {{\n{both}val r = Q().m(BigInt(1)) }}\n");
+    check(
+        &[(ambiguous.as_str(), ""), (&single, ""), (&no_member, ""), (&argument_scope, "")],
+        &[by_type.as_str(), &converted],
+    );
+}
+
+#[test]
 fn checks_of_single_constructs() {
     check(
         &[

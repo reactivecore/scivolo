@@ -5,7 +5,7 @@ import os
 import subprocess
 import sys
 
-from typer_corpus import CORPORA, DUMP, ROOT, WORK, corpus, errors, load_expected, selected, split
+from typer_corpus import CORPORA, DUMP_JVM, ROOT, WORK, corpus, errors, load_expected, selected, split
 
 STRESS_TIMEOUT = 60
 
@@ -15,7 +15,7 @@ def dump_one(rel, opts):
     lst = WORK / "stress" / (rel.replace("/", "_") + ".tsv")
     lst.write_text(f"{ROOT / rel}\t{opts}\n")
     try:
-        out = subprocess.run([str(DUMP), "--errors-first", "--list", str(lst)], capture_output=True, text=True,
+        out = subprocess.run([*DUMP_JVM, "--errors-first", "--list", str(lst)], capture_output=True, text=True,
                              encoding="utf-8", errors="replace", timeout=STRESS_TIMEOUT)
     except subprocess.TimeoutExpired:
         return f"== crash timeout after {STRESS_TIMEOUT} s\n"
