@@ -507,3 +507,22 @@ fn overloads_see_the_type_members_their_prefix_overrides() {
         assert!(bb.contains("put$extension(p.Buf, int, p.Buf)"), "{bb}");
     }
 }
+
+#[test]
+fn quotes_under_capture_checking_see_only_their_own_files_function_types() {
+    let Some(jars) = jars() else { return };
+    let a = "import language.experimental.captureChecking\nimport scala.quoted.*\n\
+             object A { def one(using Quotes): Expr[Int] = '{ 1 } }\n";
+    let b = "object B { val f: Int => Int = x => x }\n";
+    dump(&jars, &[SourceFile::new("a.scala", a), SourceFile::new("b.scala", b)], "A$");
+}
+
+#[test]
+fn methods_returning_an_object_are_stable_paths() {
+    let Some(jars) = jars() else { return };
+    let a = "package p\nobject A { object N { class Q }; @inline def M = N }\n";
+    let b = "package p\nimport A.M\nobject B {\n  val x: Option[M.type] = None\n  \
+             def f(a: Any) = a match { case M => 1; case _ => 2 }\n  def g = new M.Q\n}\n";
+    let b = dump(&jars, &[SourceFile::new("a.scala", a), SourceFile::new("b.scala", b)], "p.B$");
+    assert!(b.contains("@p.A$N$Q"), "{b}");
+}

@@ -43,15 +43,30 @@ impl TypeOps<'_> {
 }
 
 impl Typer<'_> {
-    /// Whether `tree` is a literal, `this`, or a path of stable members.
+    /// Whether `tree` is a literal, `this`, a path of stable members, or a reference to a
+    /// parameterless method whose result type is a stable path (dotty's `isStable` of a `TermRef`).
     pub fn is_stable_path(&mut self, tree: TNodeId) -> bool {
         let stable = |t: &mut Self, r| t.tpd.sym(r).is_some_and(|s| t.is_stable_member(s));
+        let stable_result = |t: &mut Self, r| t.tpd.sym(r).is_some_and(|s| t.has_stable_result(s));
         match *self.tpd.tree(tree) {
             T::Literal { .. } | T::This { .. } => true,
-            T::Ident { .. } => stable(self, tree),
-            T::Select { qualifier, .. } => stable(self, tree) && self.is_stable_path(qualifier),
+            T::Ident { .. } => stable(self, tree) || stable_result(self, tree),
+            T::Select { qualifier, .. } => {
+                stable(self, tree) && self.is_stable_path(qualifier) || stable_result(self, tree)
+            }
             _ => false,
         }
+    }
+
+    /// Whether `s` is a parameterless method whose result type is a stable path, as
+    /// `def Nil = scala.collection.immutable.Nil` (dotty's `ExprType` case of `isStable`).
+    fn has_stable_result(&mut self, s: SymbolId) -> bool {
+        if self.u.symbol(s).kind != Kind::Def {
+            return false;
+        }
+        self.complete(s);
+        let info = self.u.info(s);
+        !matches!(self.u.ty(info), Type::Method { .. } | Type::Poly { .. }) && is_stable_path(self.u, info)
     }
 
     /// Whether `tree` in a capture set of `ctx` is a reference to a term other than a variable, a
