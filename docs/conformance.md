@@ -185,8 +185,8 @@ the release binaries, run from the repository root:
      cannot generate a static forwarder".
    - Scala 3's JVM backend skips forwarders whose name the companion class already has (dotty
      `tests/run/i19394.scala`).
-   - Fix: skip the forwarder instead of reporting an error. VM: its lowering refuses the program
-     and falls back to scala-cli, which reports this error. JVM: compiles it.
+   - Fix: skip the forwarder instead of reporting an error. VM and JVM: skip it, as dotty does
+     (`tests/jvm/staticforwarders`).
    - **Reproduce**: `scala-cli run --server=false --scala 3.9.0 --native --native-version 0.5.12 bug.scala`
 
      ```scala
@@ -203,9 +203,7 @@ the release binaries, run from the repository root:
    - **Expected**: `foo`, as on the JVM.
    - **Observed**: Scala Native reports at `class Foo`: `Unexpected situation: found existing public
      static method method fooBincompat in the companion class of Foo$; cannot generate a static
-     forwarder the method of the same name in the object.` `scivolo-jvm` prints `foo`. The VM
-     reports `the lowering does not support a static method beside the forwarder of the same name`,
-     then scala-cli's error above.
+     forwarder the method of the same name in the object.` The VM and `scivolo-jvm` print `foo`.
 6. **Static forwarders of inherited methods carry positions in the wrong file** (nscplugin,
    `scala-3/scala/scalanative/nscplugin/NirGenStat.scala:826`).
    - The forwarder's position is the member's span read against the current unit's source
@@ -285,8 +283,8 @@ the release binaries, run from the repository root:
      each inlined copy of the anonymous mirror class calls a `fromProduct` it does not define.
    - Scala Native: "Unknown method `…$anon$1.fromProduct(scala.Product): scala.Some`" at link
      time; JVM: `NoSuchMethodError`.
-   - Fix: give the inlined anonymous mirror classes their mirror members. Frontend: the program
-     does not run either, see **Observed**.
+   - Fix: give the inlined anonymous mirror classes their mirror members. VM and JVM: the copies
+     keep the members our PostTyper step gave the inline body (`tests/jvm/inlinemirrors`).
    - **Reproduce**: `scala-cli run --server=false --scala 3.9.0 bug.scala`, and with
      `--native --native-version 0.5.12` for Scala Native.
 
@@ -301,10 +299,8 @@ the release binaries, run from the repository root:
    - **Expected**: `Some(1)`: the mirror builds a `Some` from the product.
    - **Observed**: the JVM fails with `java.lang.NoSuchMethodError: 'scala.Some
      bug$package$$anon$1.fromProduct(scala.Product)'`; Scala Native at link time with `Unknown method
-     bug$package$$anon$1.fromProduct(scala.Product): scala.Some`. `scivolo-jvm` compiles it, and it
-     fails with `java.lang.NoClassDefFoundError: bug$package$$anon$1$fromProduct`. The VM reports
-     `the lowering does not support a selection of a value that is not a field at 3:75`, falls back
-     to scala-cli and fails with `java.lang.StackOverflowError`.
+     bug$package$$anon$1.fromProduct(scala.Product): scala.Some`. The VM and `scivolo-jvm` print
+     `Some(1)`.
 10. **A trait with an `extension` group has `NoInits` only when read from TASTy** (dotty 3.9.0,
     `compiler/src/dotty/tools/dotc/ast/TreeInfo.scala:485`, `defKind`).
     - `Namer` takes the flag from `untpd.bodyKind` of the unexpanded body, where `ExtMethods`
@@ -523,7 +519,7 @@ the release binaries, run from the repository root:
     - `object Counter { @static var a: Int = 1 }` with `Counter.a += 5` elsewhere: `AssertionError:
       an unexpected type representation reached the compiler backend … NoType`;
       `Counter.a = Counter.a + 5` compiles.
-    - JVM: refuses `+=`, compiles the assignment.
+    - VM and JVM: `{ qual; a = rhs }` for `qual.a = rhs` (`tests/jvm/staticassign`).
     - **Reproduce**: `scala-cli run --server=false --scala 3.9.0 bug.scala`
 
       ```scala
@@ -541,15 +537,13 @@ the release binaries, run from the repository root:
     - **Expected**: `6`, what the program prints with `Counter.a = Counter.a + 5`.
     - **Observed**: dotty fails with `java.lang.AssertionError: an unexpected type representation
       reached the compiler backend while compiling bug.scala: NoType.` With the assignment it
-      prints `6`. `scivolo-jvm` refuses `+=`: ``the lowering does not support an assignment of an
-      `@static` member of a value other than a path``; with the assignment its program prints `6`.
+      prints `6`. The VM and `scivolo-jvm` print `6`.
 18. **A bridge's closure of more than 22 context parameters is a `Function1`** (dotty 3.9.0,
     `compiler/src/dotty/tools/dotc/transform/Bridges.scala`, `etaExpand`).
     - `def mega: Mega[Int]` overriding an abstract one, `Mega` a context function of 23
       parameters: the bridge returns a closure of the erased `(Object[])` method, a `Function1`
       where callers expect a `FunctionXXL` (`ClassCastException`).
-    - Fix: give the closure the type `FunctionXXL`. VM: runs it. JVM: fails too, with another
-      error.
+    - Fix: give the closure the type `FunctionXXL`. VM and JVM: do so (`tests/jvm/contextxxl`).
     - **Reproduce**: `scala-cli run --server=false --scala 3.9.0 bug.scala`
 
       ```scala
@@ -570,9 +564,7 @@ the release binaries, run from the repository root:
 
     - **Expected**: `42`.
     - **Observed**: `java.lang.ClassCastException: class B$$Lambda/0x0000008801093f90 cannot be cast
-      to class scala.runtime.FunctionXXL`. `scivolo-jvm`'s program fails with
-      `java.lang.IncompatibleClassChangeError: Class B$$Lambda/0x000000d000112d98 does not implement
-      the requested interface scala.runtime.FunctionXXL`. The VM prints `42`.
+      to class scala.runtime.FunctionXXL`. The VM and `scivolo-jvm` print `42`.
 19. **Generic signatures flatten one context function result** (dotty 3.9.0,
     `compiler/src/dotty/tools/backend/jvm/GenericSignatures.scala`, `collectMethodParams`).
     - It adds the parameters of one `ContextFunctionN` result to every method's signature, whether
@@ -886,8 +878,7 @@ Refusals and differences of the frontend and the lowering:
 - **`@static`.** Refused: lazy values; members of an object whose companion is a value class or in
   another unit; methods and initial values that use the object's `this` or define local methods or
   classes; values whose companion class has lazy values and constructor parameters, parents but `Object`, or
-  synthetic objects (Scala Native); a reference to a `@static` member of the library; on the JVM,
-  an assignment to one through a value other than a path.
+  synthetic objects (Scala Native); a reference to a `@static` member of the library.
 - **Erased definitions.** An erased argument or value must be pure by the inliner's
   `isElideableExpr` with `isPureExpr`'s type applications, or be an erased value of `scala.caps` or
   an inline value: some arguments dotty accepts are refused.
