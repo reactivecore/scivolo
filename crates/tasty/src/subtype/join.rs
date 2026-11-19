@@ -231,9 +231,10 @@ impl Universe {
                 Some(self.glb(m1, m2))
             }
             (Type::Applied(t1, xs), Type::Applied(t2, ys))
-                if self.types_of(xs).len() == self.types_of(ys).len()
-                    && (t1 == t2 || self.same_static_class(t1, t2).is_some()) =>
+                if self.types_of(xs).len() == self.types_of(ys).len() =>
             {
+                let one_class = t1 == t2 || self.same_static_class(t1, t2).is_some();
+                let tycon = if one_class { t1 } else { self.merged(t1, t2)? };
                 self.class_symbol(t1).or_else(|| self.referenced(t1))?;
                 let variances = self.constructor_variances(t1);
                 let mut args = Vec::new();
@@ -252,7 +253,7 @@ impl Universe {
                         }
                     });
                 }
-                Some(self.intern_applied(t1, &args))
+                Some(self.intern_applied(tycon, &args))
             }
             (Type::Sym(p1, s1), Type::Sym(p2, s2)) if s1 == s2 && p1 == p2 => Some(x),
             (Type::Sym(Some(p1), s1), Type::Sym(Some(p2), s2)) if s1 == s2 && !self.is_static_symbol(s1) => {
