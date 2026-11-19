@@ -52,11 +52,16 @@ impl Universe {
         })
     }
 
-    /// `t`, a type member a refinement of its prefix aliases replaced by the alias, repeatedly.
+    /// `t`, a type member a refinement of its prefix aliases replaced by the alias, repeatedly;
+    /// a member only a refinement declares too.
     pub fn refinement_dealiased(&mut self, mut t: TypeId) -> TypeId {
         for _ in 0..MAX_STEPS {
-            let Type::Sym(Some(pre), s) = *self.ty(t) else { break };
-            let Some(info) = self.refinement_info(pre, s) else { break };
+            let info = match *self.ty(t) {
+                Type::Sym(Some(pre), s) => self.refinement_info(pre, s),
+                Type::TypeRef(pre, name) => self.refinement_named(pre, name),
+                _ => break,
+            };
+            let Some(info) = info else { break };
             match *self.ty(info) {
                 Type::Alias(alias) if alias != t => t = alias,
                 _ => break,

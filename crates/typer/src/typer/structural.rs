@@ -56,11 +56,12 @@ impl Typer<'_> {
         Some(self.structural_cast(span, (qual, call), tpe, ctx))
     }
 
-    /// `qual`, converted to a `Selectable` if it is none.
+    /// `qual`, converted to a `Selectable` if it is neither a `Selectable` nor a `Dynamic`.
     pub fn selectable_qual(&mut self, qual: TNodeId, ctx: Ctx) -> Result<TNodeId, &'static str> {
         let selectable = self.u.class_ref(crate::defn::SELECTABLE);
+        let dynamic = self.u.class_ref(crate::defn::DYNAMIC);
         let qual_tpe = self.zonk(self.tpd.tpe(qual));
-        if self.u.is_subtype(qual_tpe, selectable) {
+        if self.u.is_subtype(qual_tpe, selectable) || self.u.is_subtype(qual_tpe, dynamic) {
             return Ok(qual);
         }
         let converted = self.converted(qual, Goal::Conform(selectable), ctx)?;

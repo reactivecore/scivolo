@@ -117,4 +117,46 @@ impl Typer<'_> {
             self.warning_at(span, format!("{what} reference in refinement is deprecated"));
         }
     }
+
+    /// `Ok` if `refined`, `parent` refined by term member `name`, adds that member, or refines
+    /// the member of `parent` it names, one without a target name, with a type it already has or
+    /// one narrowing it, as seen from `parent` or from the `this` of refinement class `class`.
+    pub fn refines_member(
+        &mut self,
+        class: SymbolId,
+        parent: TypeId,
+        refined: TypeId,
+        name: &str,
+    ) -> Result<(), &'static str> {
+        let members = self.type_members(parent, name);
+        let terms: Vec<_> = members.into_iter().filter(|&m| self.u.symbol(m).kind.is_term()).collect();
+        for &m in &terms {
+            if matches!(self.syms.completions.get(&m), Some(crate::symbols::Completion::Pending { .. })) {
+                self.complete(m);
+            }
+        }
+        if terms.iter().any(|&m| self.u.symbol(m).target.is_some()) {
+            return Err("structural refinement of a member with a target name");
+        }
+        let poly = matches!(self.u.ty(refined), Type::Refined(_, _, i) if self.u.poly(*i).is_some());
+        let poly_function =
+            name == names::nme::APPLY && self.u.is_class_named(parent, crate::defn::POLY_FUNCTION);
+        if terms.is_empty() && poly && !poly_function {
+            return Err("polymorphic refinement without a parent member");
+        }
+        if terms.is_empty() || self.u.is_subtype(parent, refined) {
+            return Ok(());
+        }
+
+        let name = self.u.intern_name(name);
+        let this = crate::defn::owner_prefix(self.u, class);
+        let narrows = terms.into_iter().any(|m| {
+            [parent, this].into_iter().any(|from| {
+                let seen = self.u.member_info(from, m);
+                self.u.term_refinement_named(refined, name) == Some(seen)
+                    || self.u.narrowing_refinement(refined, m, seen).is_some()
+            })
+        });
+        narrows.then_some(()).ok_or("structural refinement unlike its existing member")
+    }
 }
