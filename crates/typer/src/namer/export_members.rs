@@ -32,7 +32,7 @@ impl Typer<'_> {
                 let flags = self.u.symbol(m).flags;
                 if flags.has(t::PRIVATE)
                     || flags.has(t::SYNTHETIC)
-                    || unexpanded(&name).starts_with(name_kinds::SUPER_PREFIX)
+                    || flags.has(t::ARTIFACT) && is_super_accessor_name(&name)
                     || name.starts_with("<local ")
                     || name.contains(name_kinds::DEFAULT_GETTER)
                     || case_path && self.is_case_synthesized(m)
@@ -157,7 +157,22 @@ impl Typer<'_> {
     }
 }
 
-/// The name `x` of expanded name `p$C$$x`, else `name`.
-fn unexpanded(name: &str) -> &str {
-    name.rsplit_once(name_kinds::EXPAND_SEPARATOR).map_or(name, |(_, x)| x)
+/// Whether `name`, expanded as `p$C$$x` or not, is a super accessor's: `super$m` or `m$super$Q`
+/// (dotty's `isSuperAccessor`).
+fn is_super_accessor_name(name: &str) -> bool {
+    let unexpanded = name.rsplit_once(name_kinds::EXPAND_SEPARATOR).map_or(name, |(_, x)| x);
+    name_kinds::decompose_super(unexpanded).is_some()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_super_accessor_name;
+
+    #[test]
+    fn super_accessor_names_plain_mixed_and_expanded() {
+        for name in ["super$m", "m$super$Q", "p$T$$super$m", "p$T$$m$super$Q"] {
+            assert!(is_super_accessor_name(name), "{name}");
+        }
+        assert!(!is_super_accessor_name("m"));
+    }
 }

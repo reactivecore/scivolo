@@ -15,7 +15,7 @@ impl Typer<'_> {
         if let Some(c) = self.path_class(t) {
             let mut order = Vec::new();
             self.members_named_order(c, name, &mut order, &mut Vec::new());
-            let keys: Vec<usize> = members.iter().map(|&m| self.first_matching(&order, m)).collect();
+            let keys: Vec<usize> = members.iter().map(|&m| self.first_matching(t, &order, m)).collect();
             let mut keyed: Vec<(usize, SymbolId)> = keys.into_iter().zip(members).collect();
             keyed.sort_by_key(|&(k, _)| k);
             members = keyed.into_iter().map(|(_, m)| m).collect();
@@ -24,14 +24,12 @@ impl Typer<'_> {
         members
     }
 
-    /// The index of the first of `order` that is `m` or a term whose parameters erase as `m`'s,
+    /// The index of the first of `order` that is `m` or a term matching `m` as a member of `t`,
     /// the place dotty's `meet` gives to the denotation merging them.
-    fn first_matching(&mut self, order: &[SymbolId], m: SymbolId) -> usize {
+    fn first_matching(&mut self, t: TypeId, order: &[SymbolId], m: SymbolId) -> usize {
         let term = |t: &Self, s: SymbolId| !t.u.is_type_symbol(s);
-        let params = term(self, m).then(|| self.u.erased_method(m).0);
-        let found = order.iter().position(|&o| {
-            o == m || params.is_some() && term(self, o) && Some(self.u.erased_method(o).0) == params
-        });
+        let found =
+            order.iter().position(|&o| o == m || term(self, m) && term(self, o) && self.same_member(t, o, m));
         found.unwrap_or(order.len())
     }
 
