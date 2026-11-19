@@ -55,6 +55,7 @@ impl Session {
             self.earlier.push(earlier);
             warnings.extend(self.rendered(&module, defs));
         }
+        self.vm.end_time_limit();
         warnings.sort_by_key(|(p, _)| *p);
         out.extend(warnings.into_iter().flat_map(|(_, w)| w));
         out

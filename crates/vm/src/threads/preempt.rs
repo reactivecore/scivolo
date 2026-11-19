@@ -146,4 +146,9 @@ impl Vm {
         i.stop = false;
         i.deadline = i.limit.map(|l| clock::monotonic() + l);
     }
+
+    /// Ends the time limit `clear_interrupts` started, so that it stops no later VM code.
+    pub fn end_time_limit(&mut self) {
+        self.threads.interrupts.deadline = None;
+    }
 }
