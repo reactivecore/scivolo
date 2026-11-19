@@ -47,7 +47,20 @@ pub type Result<T> = std::result::Result<T, Unsupported>;
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Backend {
     Native,
+    /// Scala Native, the TASTy of the top-level classes pickled as on the JVM; a file whose classes
+    /// are not pickled keeps its NIR. Lowers as `Native`.
+    NativeWithTasty,
     Jvm,
+}
+
+impl Backend {
+    /// Determines the backend whose phases run: `Native` for `NativeWithTasty`.
+    pub fn phases(self) -> Backend {
+        match self {
+            Backend::NativeWithTasty => Backend::Native,
+            other => other,
+        }
+    }
 }
 
 fn unsupported<T>(at: Span, what: impl Into<String>) -> Result<T> {
@@ -259,7 +272,7 @@ fn lower_with_rules<R>(
     l.explicit_nulls = cfg.explicit_nulls;
     l.force_forwarders = cfg.force_forwarders;
     l.compact_annotations = cfgs.iter().map(|c| c.source_version.enables_compact_annotation()).collect();
-    l.backend = backend;
+    l.backend = backend.phases();
     let starts: Vec<_> = l.sources.files().iter().skip(1).map(|&(base, _)| base).collect();
     l.record_files(root, &starts);
     let out = codegen::annotations::check_annotations(&mut l, root)

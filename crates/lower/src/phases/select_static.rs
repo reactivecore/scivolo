@@ -4,8 +4,8 @@
 //! dotty's `SelectStatic` for enum cases and objects nested in static objects but of a Java
 //! class: `qual.f` becomes `f` if `qual` is a path of static objects, else `{ qual; f }`, without
 //! a span; the enclosing tree is copied as dotty's tree copiers do, which gives it one. The same
-//! for `@static` members but those of a path, which stay selections. Also the span `Mixin` gives a
-//! superclass constructor call.
+//! for `@static` members but those of a path, which stay selections; `qual.f = v` becomes
+//! `{ qual; f = v }`. Also the span `Mixin` gives a superclass constructor call.
 
 use super::walk::{children, subtrees};
 use crate::Lower;
@@ -37,6 +37,12 @@ pub fn transform(l: &mut Lower, td: TNodeId) {
             if owner_ref && is_scala_static(l, f) {
                 continue;
             }
+            if !owner_ref && matches!(*l.tpd.tree(parent), Tree::Assign { lhs, .. } if lhs == c) {
+                let r = l.ident(f, Span::NONE);
+                l.tpd.get_mut(r).tpe = Some(tpe);
+                assign_after_qualifier(l, parent, qualifier, r);
+                continue;
+            }
             let at = if owner_ref { moved_init_span(l, parent, c) } else { None };
             let r = l.ident(f, at.unwrap_or(Span::NONE));
             l.tpd.get_mut(r).tpe = Some(tpe);
@@ -58,6 +64,16 @@ pub fn transform(l: &mut Lower, td: TNodeId) {
     for t in subtrees(l.tpd, td).into_iter().rev() {
         normalize(l, t, &mut lifted);
     }
+}
+
+/// Makes assignment `qual.f = rhs` `{ qual; f = rhs }`, `f` being `target`.
+pub fn assign_after_qualifier(l: &mut Lower, assign: TNodeId, qualifier: TNodeId, target: TNodeId) {
+    let Tree::Assign { rhs, .. } = *l.tpd.tree(assign) else { unreachable!("an assignment") };
+    let (span, tpe) = (l.tpd.span(assign), l.tpd.get(assign).tpe);
+    let stored = l.tpd.node(Tree::Assign { lhs: target, rhs }, span, tpe, None);
+    let block = l.block(&[qualifier], stored, span);
+    l.tpd.get_mut(block).tpe = tpe;
+    l.copy_node(assign, block);
 }
 
 /// Makes `{ qual; g }(args)` `{ qual; g(args) }` for a block `transform` made, or one in

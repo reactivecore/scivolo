@@ -158,11 +158,15 @@ impl<'a> ViewSearch<'a> {
                 })?;
                 widened.retain(|c| !found.contains(c));
             }
-            if let Goal::Call(name, proto) = goal
+            if matches!(goal, Goal::Call(..) | Goal::Applied(..))
                 && found.len() > 1
                 && most_specific(t, &found, ctx).is_none()
             {
-                found = self.applying(t, found, name, proto);
+                found = match goal {
+                    Goal::Call(name, proto) => self.applying(t, found, name, proto),
+                    Goal::Applied(name, proto) => self.applying_to(t, found, name, proto),
+                    _ => found,
+                };
             }
             if goal.member().is_some() {
                 let extra: Vec<Candidate> = containers.into_iter().filter(|c| !group.contains(c)).collect();

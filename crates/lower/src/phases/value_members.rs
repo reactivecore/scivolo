@@ -31,7 +31,7 @@ pub fn value_members(l: &mut Lower, class: SymbolId, span: Span) -> Result<Vec<T
         let mut locals = Vec::new();
         let (method, def) =
             l.method_like(class, sym, flags, info, focus, |l, args, _| match sym == cc.hash_code {
-                true => hash_code_body(l, class, value, cc),
+                true => hash_code_body(l, value, cc),
                 false => l.equals_body(class, &[value], args[0], can_equal, &mut locals, cc),
             })?;
         for local in locals {
@@ -43,11 +43,10 @@ pub fn value_members(l: &mut Lower, class: SymbolId, span: Span) -> Result<Vec<T
     Ok(out)
 }
 
-/// `value.hashCode()` for a primitive `value` of `class` other than a raw pointer or size, else
-/// `java.util.Objects.hashCode(value)`.
-pub fn hash_code_body(l: &mut Lower, class: SymbolId, value: SymbolId, cc: CaseClasses) -> TNodeId {
-    let this = l.this(class, Span::NONE);
-    let value_ref = l.select(this, value, Span::NONE);
+/// `value.hashCode()` for a primitive `value` of a value class other than a raw pointer or size,
+/// else `java.util.Objects.hashCode(value)`, `value` referred to by its name.
+pub fn hash_code_body(l: &mut Lower, value: SymbolId, cc: CaseClasses) -> TNodeId {
+    let value_ref = l.ident(value, Span::NONE);
     let value_ref = l.positioned(value_ref);
     let info = l.u.info(value);
     if matches!(l.u.erase(info), Erased::Prim(c) if !matches!(c, 'R' | 'w')) {

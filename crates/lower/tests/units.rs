@@ -31,8 +31,8 @@ fn sources_refer_to_each_other_and_errors_name_their_file() {
     );
     let error = compile("class C", "object C").expect_err("split companions");
     assert!(error.contains("companion object in different source files"), "{error}");
-    let error = compile("import scala.language.`3.9-migration`\nobject A", "object B");
-    assert!(error.expect_err("a migrating source version").contains("source versions"));
+    let error = compile("import scala.language.`3.0-migration`\nobject A", "object B");
+    assert!(error.expect_err("source version 3.0-migration").contains("source version 3.0-migration"));
     let a = "import scala.language.`3.7`\nobject A { def f = B.g }";
     compile(a, "import scala.language.implicitConversions\nobject B { def g = 1 }")
         .expect("per-file imports");
@@ -84,8 +84,8 @@ fn a_refused_file_leaves_out_itself_and_the_files_needing_it() {
         SourceFile::new("a.scala", "object A { def f: Int = 1 }"),
         SourceFile::new("b.scala", "object B { def g: Int = \"s\" }"),
         SourceFile::new("c.scala", "object C { def h: Int = B.g + A.f }"),
-        SourceFile::new("d.scala", "import scala.language.`3.9-migration`\nobject D"),
-        SourceFile::new("e.scala", "import scala.language.`3.9-migration`\nobject E"),
+        SourceFile::new("d.scala", "import scala.language.`3.0-migration`\nobject D"),
+        SourceFile::new("e.scala", "import scala.language.`3.0-migration`\nobject E"),
         SourceFile::new("f.scala", "object F { def f = { var i = 0; i += 1; i } }"),
     ];
     let mut open = || Universe::open(&jars).unwrap();
