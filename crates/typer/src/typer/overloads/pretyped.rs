@@ -8,6 +8,7 @@
 use super::poly_instances::typed_unmapped;
 use super::shapes::{formal_at, unblocked_all, unknown_param_function};
 use super::{MODIFIED_FUNCTION, Resolution};
+use crate::ctx::Ctx;
 use crate::tpd::TNodeId;
 use crate::typer::{Pt, Typer};
 use syntax::ast::{NodeId, Tree};
@@ -31,7 +32,7 @@ impl Resolution {
                     let tpe = t.tpd.tpe(a);
                     t.zonk(tpe)
                 }
-                None => untyped_arg_type(t, id)?,
+                None => untyped_arg_type(t, id, t.protos[proto].ctx)?,
             });
         }
         Ok(arg_types)
@@ -62,6 +63,9 @@ impl Resolution {
                     self.common_formal(t, f, i, alts)?.map(|p| typed_unmapped(t, a, Pt::Type(p), ctx))
                 }
                 (None, inner) if t.is_sequence_arg(a) => Some(t.sequence_arg(inner.unwrap_or(a), None, ctx)),
+                (None, None) if let Some(pt) = self.tupled_function_pt(t, (a, i), alts, ctx)? => {
+                    Some(typed_unmapped(t, unblocked_all(t.ast, a), Pt::Type(pt), ctx))
+                }
                 (None, inner) => {
                     let arg = inner.unwrap_or_else(|| unblocked_all(t.ast, a));
                     Some(typed_unmapped(t, arg, Pt::Any, ctx))
@@ -120,17 +124,23 @@ impl Resolution {
 }
 
 /// Gives the type of argument `arg` of no type yet while alternatives are compared: a function
-/// of as many parameters of unknown types, of an unknown result; a case lambda of an unknown type
+/// of its parameters' declared types, the others unknown, of an unknown result, as
+/// `Function2[Char, ?, ?]` for `(x: Char, y) => x + y`; a case lambda of an unknown type
 /// (dotty's `typedArgs` without forcing).
-fn untyped_arg_type(t: &mut Typer, arg: NodeId) -> Result<TypeId, &'static str> {
+fn untyped_arg_type(t: &mut Typer, arg: NodeId, ctx: Ctx) -> Result<TypeId, &'static str> {
     let f = unknown_param_function(t, arg).ok_or("argument of an overload")?;
     match *t.ast.tree(f) {
         Tree::Function { args, .. } => {
-            let params = t.ast.items(args).to_vec();
-            if params.iter().any(|&p| !t.is_untyped_param(p)) {
-                return Err("function argument of an overload with some parameter types");
+            let mut parts = Vec::new();
+            for p in t.ast.items(args).to_vec() {
+                parts.push(match *t.ast.tree(p) {
+                    Tree::ValDef { tpt, .. } if !t.is_untyped_param(p) => {
+                        let typed = t.typed_type(tpt, ctx);
+                        t.tpd.tpe(typed)
+                    }
+                    _ => ANY,
+                });
             }
-            let mut parts = vec![ANY; params.len()];
             parts.push(NOTHING);
             t.function_of(parts)
         }

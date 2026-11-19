@@ -104,6 +104,7 @@ impl Universe {
             reductions_left: 0,
             reductions_exhausted: false,
             match_type_rules: crate::MatchTypeRules::Spec,
+            distributes_and: true,
             keeps_captures: false,
             scala2_erasure: false,
         };

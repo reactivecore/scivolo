@@ -8,7 +8,7 @@ use super::super::type_ops::TypeOps;
 use super::candidates::{Candidate, implicit_members};
 use super::parts::is_excluded;
 use super::scope::ImplicitScope;
-use tasty::{SymbolId, Type, TypeId, Universe};
+use tasty::{SymbolId, Type, TypeId, TypeVars, Universe};
 
 /// How many bounds and intersections finding the classes of a path's type passes at most.
 const MAX_BOUND_STEPS: u32 = 16;
@@ -91,9 +91,10 @@ fn static_form(u: &mut Universe, t: TypeId) -> TypeId {
     }
 }
 
-/// The classes of `tpe`, through the upper bounds of abstract types and intersections; `None`
-/// if a part of `tpe` has none.
+/// The classes of `tpe`, through the upper bounds of abstract types, type variables and
+/// intersections; `None` if a part of `tpe` has none.
 fn bound_classes(ty: &mut TypeOps<'_>, tpe: TypeId, steps: u32) -> Option<Vec<SymbolId>> {
+    let tpe = ty.zonk(tpe);
     if let Some(c) = ty.u.class_symbol(tpe) {
         return Some(vec![c]);
     }
@@ -108,6 +109,10 @@ fn bound_classes(ty: &mut TypeOps<'_>, tpe: TypeId, steps: u32) -> Option<Vec<Sy
             _ => None,
         },
         Type::Refined(parent, ..) => bound_classes(ty, parent, steps),
+        Type::Var(v) => {
+            let (_, hi) = ty.constraint.bounds(v);
+            bound_classes(ty, hi, steps)
+        }
         Type::And(a, b) => {
             let mut classes = bound_classes(ty, a, steps)?;
             classes.extend(bound_classes(ty, b, steps)?);

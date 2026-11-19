@@ -10,3 +10,4 @@ case class H(a: A^)(val b: Label[Int]^{a})
 case class W(a: A^, b: Label[Int]^{a}, c: Label[Int]^{a, b})
 class O(val x: A^):
   case class I(a: A^, b: Label[Int]^{a, x})
+case class V(a: A^, cs: Label[Int]^{a}*)

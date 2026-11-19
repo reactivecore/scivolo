@@ -6,13 +6,14 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-/// The programs of `tests/jvm` that Scala Native fails to compile or link, each its name and
-/// main class.
-const JVM_PROGRAMS: [(&str, &str); 4] = [
+/// The programs of `tests/jvm` that also run through the VM, those Scala Native fails to compile
+/// or link among them, each its name and main class.
+const JVM_PROGRAMS: [(&str, &str); 5] = [
     ("staticassign", "Staticassign"),
     ("staticforwarders", "Staticforwarders"),
     ("inlinemirrors", "Inlinemirrors"),
     ("contextxxl", "Contextxxl"),
+    ("boxedcasts", "Boxedcasts"),
 ];
 
 #[test]

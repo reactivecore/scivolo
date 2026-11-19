@@ -16,7 +16,8 @@ use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
     /// Checks comparison `fun(arg)` at `at` of type `arg_tpe` in `ctx`, if `fun` selects `Any.==`
-    /// or `Any.!=`; an error reported there if no `CanEqual` instance exists.
+    /// or `Any.!=` of a qualifier (not `!=(x)` of `this`); an error reported there if no
+    /// `CanEqual` instance exists.
     pub fn check_can_equal(
         &mut self,
         fun: TNodeId,
@@ -29,7 +30,7 @@ impl Typer<'_> {
         if s.owner != Some(self.u.defn().any) || !matches!(s.name.as_str(), nme::EQ | nme::NE) {
             return Ok(());
         }
-        let T::Select { qualifier, .. } = *self.tpd.tree(fun) else { return Err("comparison with this") };
+        let T::Select { qualifier, .. } = *self.tpd.tree(fun) else { return Ok(()) };
         let view = self.tpd.sym(self.tpd.meth_part(qualifier)).is_some_and(|s| {
             let flags = self.u.symbol(s).flags;
             flags.has(tasty::tags::IMPLICIT) || flags.has(tasty::tags::GIVEN)

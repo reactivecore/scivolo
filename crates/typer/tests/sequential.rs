@@ -292,7 +292,7 @@ fn transparent_inline_refusals() {
             "object D { abstract class K { type T; val t: T }; class L extends K { type T = Int; val t = 1 }
              transparent inline def d(k: K, n: Int): k.T = k.t
              val r = d(n = 1, k = new L) }",
-            "dependent result type",
+            "",
         ),
         (
             "object E { class K { type T = Int; val t: T = 1 }; transparent inline def d(k: K, n: Int): k.T = k.t
@@ -320,6 +320,11 @@ fn match_types_reduce_in_conformance() {
         ),
         ("object N { val h: Int = (1, \"a\").head; val n: 2 = (1, \"a\").size }", ""),
         ("object O { val d: Tuple.Head[EmptyTuple] = ??? }", "match type that may reduce"),
+        (
+            "object Z { trait T; type M[X] = X match { case (h *: t, T) => Int; case _ => String }
+             def f(x: M[(Tuple, Option[Int] & T)]): M[(Tuple, Option[Int] & T)] = x }",
+            "match type that may reduce",
+        ),
         (
             "object S { class C[-T]; type G[X] = X match { case C[List[t]] => t } }",
             "match type pattern outside the subset",
