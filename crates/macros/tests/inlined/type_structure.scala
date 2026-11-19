@@ -15,4 +15,5 @@ object TypeStructure:
     val h = quotedStructures
     val i = typeStructure[List[Int]]
     val j = typeStructure[Map[String, Int]]
+    val k = typeStructure[{ type T; def make: T }]
   def g[T](): String = typeStructure[T]
