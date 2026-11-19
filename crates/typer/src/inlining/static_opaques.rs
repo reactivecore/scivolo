@@ -52,22 +52,22 @@ impl Expansion<'_, '_> {
 
     /// The proxy of the `this` of static object class `cls` with opaque types, whose member
     /// `meth` the call reaches through prefix `prefix` and whose `this` body `body` refers to,
-    /// bound to the `$proxyN` of the prefix; none if the call is inside `cls`; refused for an
-    /// `impure` prefix.
+    /// bound to the `$proxyN` of the prefix; none if the call is inside `cls` or `cls` sees no
+    /// opaque types, dropping the prefix as dotty does; refused for an `impure` prefix otherwise.
     pub fn bind_static_opaque_this(
         &mut self,
         (cls, meth): (SymbolId, SymbolId),
         body: TNodeId,
         (prefix, impure): (Option<TNodeId>, bool),
     ) -> Result<Vec<(SymbolId, SymbolId)>, Unsupported> {
-        if impure {
-            return Err(self.err("inline call of an impure prefix"));
-        }
         let Some(q) = prefix else { return Ok(Vec::new()) };
         let qt = self.i.tpd.tpe(q);
         let this_prefix = self.i.u.this_of(qt).is_some();
         if this_prefix || !self.sees_tasty_opaques(cls) || !encloses(self, cls, meth) {
             return Ok(Vec::new());
+        }
+        if impure {
+            return Err(self.err("inline call of an impure prefix"));
         }
         let (mut uses, mut outers) = (false, Vec::new());
         self.i.this_refs(body, cls, &mut uses, &mut outers);

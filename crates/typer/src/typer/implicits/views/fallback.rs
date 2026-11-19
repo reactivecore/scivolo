@@ -25,6 +25,10 @@ impl Typer<'_> {
             }
             self.complete(s);
             let info = self.u.info(s);
+            let info = match (found.prefix, self.u.symbol(s).owner) {
+                (Some(p), Some(owner)) => self.u.as_seen_from(info, p, owner),
+                _ => info,
+            };
             let (accepted, clean, _) = self.speculatively(|t| {
                 let Some(receiver) = receiver_type(t, s, info) else { return true };
                 t.conforms(qual_tpe, receiver)

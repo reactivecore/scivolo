@@ -161,6 +161,11 @@ fn a_file_of_a_unit_compiles_as_alone() {
 }
 
 #[test]
+fn boxed_values_cast_to_their_expected_class_run_on_the_jvm() {
+    runs_on_the_jvm("boxedcasts", "Boxedcasts");
+}
+
+#[test]
 fn objects_run_on_the_jvm() {
     runs_on_the_jvm("objects", "Objects");
 }

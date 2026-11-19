@@ -81,6 +81,9 @@ impl Resolution {
         t.untuple_unless_unary(proto, &methods)?;
         let n = t.protos[proto].args.len();
         let (fitting, applies) = by_size(t, &methods, n)?;
+        if !applies.is_empty() && values.is_empty() && self.shapes_exclude(t, &fitting, proto)? {
+            return self.result_apply_alternative(t, &methods, proto);
+        }
         let chosen = match fitting.as_slice() {
             [s] => *s,
             [] if applies.is_empty() => return Err(NO_SIZE.into()),

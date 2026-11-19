@@ -118,6 +118,7 @@ impl Typer<'_> {
             self.scala2 = v.is_scala2();
             self.source_version = v;
             self.u.match_type_rules = super::match_type_rules(v);
+            self.u.distributes_and = v.enables_distribute_and();
             self.u.keeps_captures = cfg.features.capture_checking();
             self.file = file;
         }
