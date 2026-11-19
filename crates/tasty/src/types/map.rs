@@ -63,10 +63,23 @@ impl Universe {
         self.resolve(q, name, false).filter(|&m| self.symbol(m).kind == Kind::Val).unwrap_or(s)
     }
 
-    /// Determines whether `t` is `Nothing` or an alias of it (dotty's `isRef(defn.NothingClass)`).
-    pub fn is_nothing_ref(&mut self, t: TypeId) -> bool {
-        let dealiased = self.dealias(t);
-        self.sym_of(dealiased) == Some(self.defn().nothing)
+    /// Determines whether `t` is `Nothing` or an alias of it (dotty's `isRef(defn.NothingClass)`),
+    /// following declared alias right-hand sides without seeing them from a prefix.
+    pub fn is_nothing_ref(&mut self, mut t: TypeId) -> bool {
+        let nothing = self.defn().nothing;
+        for _ in 0..super::MAX_STEPS {
+            if let Type::Annotated(u, _) = *self.ty(t) {
+                t = u;
+                continue;
+            }
+            let Some(s) = self.sym_of(t) else { return false };
+            if s == nothing {
+                return true;
+            }
+            let Some(a) = self.alias_of(s) else { return false };
+            t = a;
+        }
+        false
     }
 
     /// `t` with every part for which `f` gives a replacement replaced, outermost parts first;
