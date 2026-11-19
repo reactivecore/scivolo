@@ -23,7 +23,10 @@ impl Typer<'_> {
                         None => continue,
                     },
                 };
-                let Some(path) = self.export_path_type(expr, path_method, ctx) else { continue };
+                let wildcard = self.ast.items(selectors).iter().any(|&s| self.is_wildcard_selector(s));
+                let Some(path) = self.export_path_type((expr, wildcard), path_method, ctx) else {
+                    continue;
+                };
                 let forwarders = self.export_forwarders(cls, (path, selectors), path_method, ctx);
                 self.exports.insert(stat, Exported { path_method, forwarders });
             }
@@ -31,9 +34,15 @@ impl Typer<'_> {
         }
     }
 
-    /// The type of export path `expr` typed ahead in `ctx`, a stable path to a value; the result
+    /// The type of export path `expr` typed ahead in `ctx`, a stable path to a value, or a
+    /// package unless a selector is a `wildcard` (dotty's `checkLegalExportPath`); the result
     /// type of `path_method` in an extension.
-    fn export_path_type(&mut self, expr: NodeId, path_method: Option<SymbolId>, ctx: Ctx) -> Option<TypeId> {
+    fn export_path_type(
+        &mut self,
+        (expr, wildcard): (NodeId, bool),
+        path_method: Option<SymbolId>,
+        ctx: Ctx,
+    ) -> Option<TypeId> {
         if let Some(m) = path_method {
             self.complete(m);
             let info = self.u.info(m);
@@ -42,11 +51,17 @@ impl Typer<'_> {
         let path = self.typed(expr, Pt::Any, ctx.with_mode(Mode::QUALIFIER));
         self.typed_ahead(expr, path, ctx);
         let package = self.tpd.sym(path).is_some_and(|s| self.u.symbol(s).kind == Kind::Package);
-        if package || !self.is_stable_path(path) {
+        if package && wildcard || !package && !self.is_stable_path(path) {
             self.unsupported(expr, "export prefix that is not a stable path to a value");
             return None;
         }
         Some(self.tpd.tpe(path))
+    }
+
+    /// Whether import selector `s` is `*`, `_` or `given`.
+    fn is_wildcard_selector(&self, s: NodeId) -> bool {
+        let Tree::ImportSelector { imported, .. } = *self.ast.tree(s) else { return false };
+        matches!(*self.ast.tree(imported), Tree::Ident { name } if matches!(self.text(name.name), "" | "_"))
     }
 
     /// The extension method of class `cls` that path `expr` of an export in extension `ext`

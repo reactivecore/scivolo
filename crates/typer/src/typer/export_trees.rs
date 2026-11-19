@@ -8,6 +8,9 @@ use super::{Pt, Typer};
 use crate::ctx::{Ctx, Mode};
 use crate::namer::exports::Forwarder;
 use crate::tpd::{TNodeId, Tree as T};
+use names::{name_kinds, nme};
+use syntax::ast::flags as f;
+use syntax::ast::modifiers::Modifiers;
 use syntax::ast::{NodeId, Span, TName, Tree};
 use tasty::{SymbolId, Type, TypeId};
 
@@ -89,6 +92,7 @@ impl Typer<'_> {
             }
             path_clauses = path_clauses.saturating_sub(1);
         }
+        let fun = self.eta_expand_cft(fun, at, ctx.with_owner(f.sym));
         let tpt = self.type_tree(tpe, at, false);
         let clauses: Vec<&[TNodeId]> = clauses.iter().map(Vec::as_slice).collect();
         let def = self.build().def_def(f.sym, &clauses, tpt, Some(fun), f.span);
@@ -139,11 +143,54 @@ impl Typer<'_> {
         (defs, args)
     }
 
+    /// Forwarder body `rhs` of a context function type as `(x$0: A, …) ?=> rhs.apply(x$0, …)`
+    /// typed in `ctx` (dotty's `etaExpandCFT`).
+    fn eta_expand_cft(&mut self, rhs: TNodeId, at: Span, ctx: Ctx) -> TNodeId {
+        let tpe = self.tpd.tpe(rhs);
+        let tpe = self.u.widen(tpe);
+        let Some((formals, _)) = self.context_function_parts(tpe) else { return rhs };
+        let mut params = Vec::new();
+        let mut ids = Vec::new();
+        for (i, formal) in formals.into_iter().enumerate() {
+            let tpt = self.ast.node(Tree::TypeTree);
+            self.ast.with_span(tpt, at);
+            let typed = self.type_tree(formal, at, false);
+            self.splices.insert(tpt, typed);
+            let name = TName { name: self.name(&name_kinds::synthetic_param(i)), is_type: false };
+            let mods = self.ast.mods(Modifiers::with_flags(f::GIVEN));
+            let param = self.ast.node(Tree::ValDef { name, tpt, rhs: None, mods });
+            self.ast.with_span(param, at);
+            params.push(param);
+            let id = self.ast.node(Tree::Ident { name });
+            self.ast.with_span(id, at);
+            ids.push(id);
+        }
+        let target = self.ast.node(Tree::TypeTree);
+        self.ast.with_span(target, at);
+        self.splices.insert(target, rhs);
+        self.splice_owners.insert(target, ctx.owner);
+        let apply = TName { name: self.name(nme::APPLY), is_type: false };
+        let fun = self.ast.node(Tree::Select { qualifier: target, name: apply });
+        self.ast.with_span(fun, at);
+        let args = self.ast.list(&ids);
+        let body = self.ast.node(Tree::Apply { fun, args });
+        self.ast.with_span(body, at);
+        let args = self.ast.list(&params);
+        let function = self.ast.node(Tree::Function { args, body, mods: None, wildcard: false });
+        self.ast.with_span(function, at);
+        self.typed_function(function, args, body, Pt::Type(tpe), ctx)
+    }
+
     /// The type of path method reference `fun` applied to parameters `refs`.
     fn applied_path_type(&mut self, fun: TNodeId, refs: &[TypeId]) -> TypeId {
         let fun_tpe = self.tpd.tpe(fun);
         let info = self.method_info(fun_tpe).unwrap_or(fun_tpe);
-        let Some(m) = self.u.poly(info).or_else(|| self.u.method(info)) else { return info };
+        if let Some(p) = self.u.poly(info) {
+            let (binder, result, names) = (p.binder, p.result, p.names());
+            let method = self.tpd.sym(self.tpd.meth_part(fun));
+            return self.instantiate_poly(result, binder, &names, refs, method);
+        }
+        let Some(m) = self.u.method(info) else { return info };
         let (binder, result, names) = (m.binder, m.result, m.names());
         self.u.subst(result, binder, &names, refs)
     }

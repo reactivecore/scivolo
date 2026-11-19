@@ -9,7 +9,7 @@ use crate::typer::Typer;
 use names::{name_kinds, nme};
 use syntax::ast::Span;
 use tasty::tags as t;
-use tasty::{Kind, SymbolId, Type, TypeId};
+use tasty::{Kind, SymbolId};
 
 impl Typer<'_> {
     /// Adds the forwarders of a wildcard selector at `span` of `e`, of givens if `given`, of the
@@ -32,7 +32,7 @@ impl Typer<'_> {
                 let flags = self.u.symbol(m).flags;
                 if flags.has(t::PRIVATE)
                     || flags.has(t::SYNTHETIC)
-                    || name.starts_with(name_kinds::SUPER_PREFIX)
+                    || unexpanded(&name).starts_with(name_kinds::SUPER_PREFIX)
                     || name.starts_with("<local ")
                     || name.contains(name_kinds::DEFAULT_GETTER)
                     || case_path && self.is_case_synthesized(m)
@@ -54,47 +54,6 @@ impl Typer<'_> {
                 }
             }
         }
-    }
-
-    /// The members named `name` of path type `t`, the terms first.
-    pub fn terms_then_types(&mut self, t: TypeId, name: &str) -> Vec<SymbolId> {
-        let mut members = self.type_members(t, name);
-        members.sort_by_key(|&m| self.u.is_type_symbol(m));
-        members
-    }
-
-    /// The class whose members a path of type `t` has.
-    fn path_class(&mut self, t: TypeId) -> Option<SymbolId> {
-        if let Some(s) = self.u.sym_of(t)
-            && self.u.symbol(s).flags.has(t::OBJECT)
-        {
-            return self.u.module_class(s);
-        }
-        let widened = self.u.widen(t);
-        let widened = self.u.dealias(widened);
-        let tycon = self.u.applied(widened).map_or(widened, |(tycon, _)| tycon);
-        let c = match *self.u.ty(tycon) {
-            Type::Sym(_, c) => c,
-            Type::TypeRef(..) => self.u.resolve_ref(tycon)?,
-            _ => return None,
-        };
-        (self.u.symbol(c).kind == Kind::Class).then_some(c)
-    }
-
-    /// The names of the members of class `c`, its own first, then those of its base classes.
-    fn member_names_of(&mut self, c: SymbolId) -> Vec<String> {
-        self.complete(c);
-        let mut names: Vec<String> = Vec::new();
-        for base in self.u.linearization(c) {
-            self.complete(base);
-            for d in self.u.decls(base).unwrap_or_default() {
-                let name = &self.u.symbol(d).name;
-                if !names.contains(name) {
-                    names.push(name.clone());
-                }
-            }
-        }
-        names
     }
 
     fn is_case_synthesized(&self, m: SymbolId) -> bool {
@@ -164,10 +123,11 @@ impl Typer<'_> {
         if defaults.is_empty() {
             return;
         }
-        let name = self.u.symbol(m).name.clone();
-        if name == nme::APPLY && self.u.symbol(m).flags.has(t::SYNTHETIC) {
-            self.unsupported_at(span, "export of a synthesized apply with default arguments");
-            return;
+        let mut name = self.u.symbol(m).name.clone();
+        let mut alias = alias;
+        if self.is_case_apply(m) {
+            name = nme::CONSTRUCTOR.to_owned();
+            alias = nme::CONSTRUCTOR;
         }
         for n in defaults {
             let getter_name = name_kinds::default_getter(&name, n);
@@ -180,4 +140,20 @@ impl Typer<'_> {
             self.add_forwarder(e, &name_kinds::default_getter(alias, n), getter, span);
         }
     }
+
+    /// Whether `m` is the synthesized `apply` of a case class's companion, which takes the
+    /// constructor's default arguments.
+    fn is_case_apply(&mut self, m: SymbolId) -> bool {
+        let s = self.u.symbol(m);
+        if s.name != nme::APPLY || !s.flags.has(t::SYNTHETIC) {
+            return false;
+        }
+        let Some(owner) = s.owner else { return false };
+        self.u.companion_class(owner).is_some_and(|c| self.u.symbol(c).flags.has(t::CASE))
+    }
+}
+
+/// The name `x` of expanded name `p$C$$x`, else `name`.
+fn unexpanded(name: &str) -> &str {
+    name.rsplit_once(name_kinds::EXPAND_SEPARATOR).map_or(name, |(_, x)| x)
 }
