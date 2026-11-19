@@ -693,3 +693,9 @@ object Test:
 ";
     check(&[], &[merge]);
 }
+
+#[test]
+fn applied_aliases_of_nothing_are_arguments_of_any_kind() {
+    let bind = "trait Bind[Z[_]]\ntype F[X] = Nothing\nobject O { val b: Bind[F[Int]] = null }\n";
+    check(&[], &[bind]);
+}
