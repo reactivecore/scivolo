@@ -19,6 +19,8 @@ pub struct UnapplyArgs {
     pub result: TypeId,
     /// The number of patterns.
     pub n: usize,
+    /// Whether several patterns may match one tuple type, unless `noAutoTupling` is enabled.
+    pub auto_tupling: bool,
 }
 
 /// The types of the patterns of a sequence extractor.
@@ -55,7 +57,7 @@ impl UnapplyArgs {
                 return Err("extractor result type");
             };
 
-        if types.len() != n {
+        if types.len() != n && !(self.auto_tupling && auto_tupled(t, &types, n)) {
             return Err("wrong number of patterns");
         }
         Ok(types)
@@ -70,4 +72,18 @@ impl UnapplyArgs {
         let get = get_match(t, self.result)?.ok_or("sequence extractor result type")?;
         self.seq_match(t, get)?.ok_or("sequence extractor result type")
     }
+}
+
+/// Whether `n` patterns, more than one, match `types` as one tuple pattern: `types` is a single
+/// `TupleN` or a `*:` chain of at most 22 elements, as `E(x, y)` against an extractor of
+/// `Some[Int *: Int *: EmptyTuple]` (dotty's auto-tupling in `UnapplyArgs.typedPatterns`).
+pub fn auto_tupled(t: &mut Typer<'_>, types: &[TypeId], n: usize) -> bool {
+    let &[single] = types else { return false };
+    let normal = t.u.normalized(single);
+    let tuple = t.normalized_tuple_type(normal);
+    let tuple = t.u.dealias(tuple);
+    n > 1
+        && t.u.applied(tuple).map(|(c, args)| (c, args.len())).is_some_and(|(c, arity)| {
+            t.u.class_symbol(c).is_some_and(|c| t.u.full_name(c) == format!("{}{arity}", crate::defn::TUPLE))
+        })
 }

@@ -5,13 +5,16 @@
 
 use super::super::extractor_members::{SEQ, get_match, product_selectors};
 use super::super::named_tuple_patterns::adapt_pattern_args;
+use super::super::small_tuples::MAX_TUPLE_ARITY;
 use super::super::unapply_args::UnapplyArgs;
 use super::super::{Pt, Typer};
 use super::{UnapplyPattern, is_named_pattern};
 use crate::ctx::Ctx;
 use crate::defn::PRODUCT;
 use crate::tpd::{TNodeId, Tree as T};
+use names::nme;
 use syntax::ast::{NodeId, Tree};
+use syntax::config::Features;
 use tasty::{Kind, TypeId};
 
 /// The element names named patterns select, with the element types of a named tuple.
@@ -36,8 +39,15 @@ impl UnapplyPattern {
 
         let arg_types = match values {
             Some(values) => values,
-            None => UnapplyArgs { result, n: self.args.len() }.arg_types(t)?,
+            None => {
+                let auto_tupling =
+                    !t.feature_enabled(Features::NO_AUTO_TUPLING, nme::NO_AUTO_TUPLING, self.ctx);
+                UnapplyArgs { result, n: self.args.len(), auto_tupling }.arg_types(t)?
+            }
         };
+        if arg_types.len() < self.args.len() {
+            self.args = vec![auto_tupled_patterns(t, &self.args)];
+        }
         Ok((self.args.iter().zip(arg_types))
             .map(|(&a, tpe)| typed_pattern_arg(t, a, tpe, self.ctx))
             .collect())
@@ -86,6 +96,18 @@ fn named_pattern_elements(t: &mut Typer<'_>, args: &[NodeId], result: TypeId) ->
         return Err("named pattern of a `get` with one selector");
     }
     Ok((pattern_element_names(t, get)?, None))
+}
+
+/// The tuple pattern `(args…)` of patterns that match one tuple type.
+fn auto_tupled_patterns(t: &mut Typer<'_>, args: &[NodeId]) -> NodeId {
+    let span = t.ast.span(args[0]).union(t.ast.span(args[args.len() - 1])).to_synthetic();
+    if args.len() <= MAX_TUPLE_ARITY {
+        return t.tuple_apply(args, span.start_pos(), span);
+    }
+    let trees = t.ast.list(args);
+    let tuple = t.ast.node(Tree::Tuple { trees });
+    t.ast.with_span(tuple, span);
+    tuple
 }
 
 /// Types pattern `a`, possibly named, against expected type `tpe`.
