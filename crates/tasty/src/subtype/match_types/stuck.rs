@@ -6,6 +6,7 @@ use super::MAX_TOTAL_REDUCTIONS;
 use super::reduce::Outcome;
 use super::rules::MatchTypeRules;
 use super::spec::{Pattern, Spec};
+use crate::tags::SEALED;
 use crate::types::{Type, TypeId};
 use crate::{SymbolId, Universe};
 
@@ -69,7 +70,9 @@ impl Cmp<'_> {
     /// Whether `scrut` neither matches `pattern`, of type `pat` with its captures bounded, nor is
     /// disjoint from it: `pattern` tests for a class strictly deriving from `scrut`'s class
     /// without type parameters, or for `scrut`'s class with covariant parameters, each argument
-    /// such a test, a capture or a pattern it conforms to, one such a test.
+    /// such a test, a capture or a pattern it conforms to, one such a test. An argument other
+    /// than such a test refers to no sealed class on either side, as `(Tuple, Option[Int] & T)`
+    /// at `case (h *: t, T)`, which dotty finds disjoint by `Option`'s children.
     fn stuck_at(&mut self, scrut: TypeId, pattern: &Pattern, pat: TypeId, depth: u32) -> bool {
         let Some(depth) = depth.checked_sub(1) else { return false };
         let Pattern::BaseTypeTest { class, args, .. } = pattern else { return false };
@@ -87,11 +90,17 @@ impl Cmp<'_> {
 
         let mut tested = false;
         for ((&a, p), &pt) in scrut_args.iter().zip(args).zip(&pat_args) {
-            match p {
-                Pattern::Capture(..) => {}
-                Pattern::BaseTypeTest { .. } if self.stuck_at(a, p, pt, depth) => tested = true,
-                Pattern::BaseTypeTest { .. } | Pattern::TypeTest if self.recur(a, pt) => {}
-                _ => return false,
+            if matches!(p, Pattern::BaseTypeTest { .. }) && self.stuck_at(a, p, pt, depth) {
+                tested = true;
+                continue;
+            }
+            let overlaps = match p {
+                Pattern::Capture(..) => true,
+                Pattern::BaseTypeTest { .. } | Pattern::TypeTest => self.recur(a, pt),
+                _ => false,
+            };
+            if !overlaps || refers_to_sealed(self.u, a) || refers_to_sealed(self.u, pt) {
+                return false;
             }
         }
         tested
@@ -114,4 +123,14 @@ impl Cmp<'_> {
         }
         Some((c, args))
     }
+}
+
+/// Whether `t` refers to a sealed class, directly or through an alias.
+fn refers_to_sealed(u: &mut Universe, t: TypeId) -> bool {
+    let mut sealed = false;
+    u.map_type(t, &mut |u, part| {
+        sealed |= u.class_symbol(part).is_some_and(|c| u.symbol(c).flags.has(SEALED));
+        None
+    });
+    sealed
 }

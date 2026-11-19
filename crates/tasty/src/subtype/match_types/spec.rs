@@ -52,8 +52,7 @@ pub enum Spec {
     Specced(Specced),
     /// A case with captures below Scala 3.4, matched by a subtype comparison.
     Legacy(Legacy),
-    /// A case outside the patterns reduced here: abstract type constructors, type member
-    /// extractors, illegal patterns, missing captures.
+    /// A case outside the patterns reduced here: an illegal pattern or missing captures.
     Unsupported,
 }
 
