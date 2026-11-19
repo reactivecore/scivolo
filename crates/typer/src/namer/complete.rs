@@ -107,8 +107,9 @@ impl Typer<'_> {
         }
     }
 
-    /// Completes the type aliases of the unit's static objects when the unit is Scala's library,
-    /// whose classes read from TASTy refer to them (`scala.RuntimeException`, `Predef.String`).
+    /// Completes the unit's package objects, then the type members entered in its static objects,
+    /// when the unit is Scala's library: the library's classes read from TASTy refer to them
+    /// (`scala.RuntimeException`), as dotty completes them on such a reference.
     pub fn complete_library_aliases(&mut self) {
         if !self.u.compiles_scala_library() {
             return;
