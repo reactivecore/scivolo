@@ -158,6 +158,16 @@ fn implementations_with_other_clauses_access_or_java_parameters() {
             "trait A { protected def f: Int }\nclass P { protected def f: Int = 5 }\nclass B extends P with A { def g = f }\n",
             "trait A { def f(x: Int*): Int }\nclass B extends A { def f(x: Seq[Int]): Int = x.sum }\n",
             "class C extends Comparable[String] { def compareTo(o: String): Int = 7 }\n",
+            "abstract class L[+T] { def append[E >: T](that: => L[E]): L[E] }
+class Push[+T] extends L[T] {
+  override def append[E >: T](that: => L[E]): L[E] =
+    new Push[E] { override def append[E2 >: E](that2: => L[E2]): L[E2] = that2 }
+}\n",
+            "trait Cmp[T <: Cmp[T]] { this: T =>
+  def < (that: T): Boolean
+  def > (that: T): Boolean = that < this
+}
+class A(val x: String) extends Cmp[A] { def < (that: A) = this.x < that.x }\n",
         ],
     );
 }

@@ -39,12 +39,17 @@ pub fn clause_overrides(t: &mut Typer<'_>, a: &Clause, b: &Clause, own: (&[Symbo
         a.params.iter().zip(&b.params).map(|(&(_, x), &(_, y))| (x, y)).collect();
     pairs.into_iter().all(|(ia, ib)| {
         let ib = t.u.with_binder(ib, (b.binder, &b.params), a.binder);
-        let (ia, ib) = (type_param_refs(t, ia, own.0, a.binder), type_param_refs(t, ib, own.1, a.binder));
-        let (Some((lo_a, hi_a)), Some((lo_b, hi_b))) = (split_bounds(t, ia), split_bounds(t, ib)) else {
-            return true;
-        };
-        t.conforms(lo_a, lo_b) && t.conforms(hi_b, hi_a)
+        let renamed = (type_param_refs(t, ia, own.0, a.binder), type_param_refs(t, ib, own.1, a.binder));
+        bounds_contain(t, renamed) || bounds_contain(t, (ia, ib))
     })
+}
+
+/// Whether bounds `infos.0` contain bounds `infos.1`.
+fn bounds_contain(t: &mut Typer<'_>, (ia, ib): (TypeId, TypeId)) -> bool {
+    let (Some((lo_a, hi_a)), Some((lo_b, hi_b))) = (split_bounds(t, ia), split_bounds(t, ib)) else {
+        return true;
+    };
+    t.conforms(lo_a, lo_b) && t.conforms(hi_b, hi_a)
 }
 
 /// The lower and upper bound of type member or parameter info `info`, those of a higher-kinded
