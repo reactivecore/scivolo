@@ -5,7 +5,7 @@
 use super::descriptors::method_descriptor;
 use super::{Gen, method_name};
 use names::name_kinds;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use tasty::tags::{
     FIELDaccessor, INLINE, MACRO, PRIVATE, PRIVATEqualified, PROTECTED, PROTECTEDqualified, STATIC,
 };
@@ -26,39 +26,53 @@ pub struct Forwarded {
 impl Gen<'_, '_> {
     /// Collects the methods of `module` forwarded to, sorted by source name and descriptor: the members
     /// dotty's `addForwarders` takes, but those of names a term member of the erased companion
-    /// class `companion` has (a primitive class's has no parents).
+    /// class `companion` has (a primitive class's has no parents). The library classes compiled
+    /// in the same run get their bridges and mixin forwarders first.
     pub fn forwarded(&mut self, module: SymbolId, companion: Option<SymbolId>) -> Vec<Forwarded> {
         let conflicting = companion.map(|c| self.conflicting_names(c)).unwrap_or_default();
         let plain = ["java.lang.Object", "scala.Any", "scala.AnyRef", "scala.Matchable"];
-        let mut seen = HashSet::new();
-        let mut out = Vec::new();
-        for c in self.l.u.linearization(module) {
+        let mut bases = self.l.u.linearization(module);
+        bases.retain(|&c| {
             let full = self.l.u.full_name(c);
-            if plain.contains(&full.as_str()) || full.starts_with("scala.scalanative.") {
+            !plain.contains(&full.as_str()) && !full.starts_with("scala.scalanative.")
+        });
+        for &c in &bases {
+            self.l.enter_specialized_applies(c);
+            lower::same_run_bridges(self.l, c);
+        }
+        let mut keys = HashMap::new();
+        let mut candidates: Vec<((String, String), Vec<SymbolId>)> = Vec::new();
+        for c in bases {
+            for m in self.l.u.decls(c).unwrap_or_default() {
+                if self.is_method_member(m) {
+                    let key = (method_name(self.l.u, m), method_descriptor(self.l.u, m));
+                    let i = *keys.entry(key.clone()).or_insert_with(|| {
+                        candidates.push((key, Vec::new()));
+                        candidates.len() - 1
+                    });
+                    candidates[i].1.push(m);
+                }
+            }
+        }
+        let mut out = Vec::new();
+        for ((name, desc), members) in candidates {
+            let m = self.selected(module, &members);
+            if !self.has_forwarder(m) {
                 continue;
             }
-            self.l.enter_specialized_applies(c);
-            for m in self.l.u.decls(c).unwrap_or_default() {
-                if !self.is_method_member(m) {
-                    continue;
+            let bridge = self.l.is_bridge(m);
+            let owner = self.l.u.symbol(m).owner.expect("a member's owner");
+            let target = match bridge || self.is_library_made(m) {
+                true => self.bridged(owner, m, &desc),
+                false => {
+                    let mixed = self.l.mixed_in_from(m).or_else(|| self.l.jdk_forwarded_from(m));
+                    Some(mixed.unwrap_or(m))
                 }
-                let (name, desc) = (method_name(self.l.u, m), method_descriptor(self.l.u, m));
-                if !seen.insert((name.clone(), desc.clone())) || !self.has_forwarder(m) {
-                    continue;
-                }
-                let bridge = self.l.is_bridge(m);
-                let target = match bridge {
-                    true => self.bridged(c, &name, &desc),
-                    false => {
-                        let mixed = self.l.mixed_in_from(m).or_else(|| self.l.jdk_forwarded_from(m));
-                        Some(mixed.unwrap_or(m))
-                    }
-                };
-                let Some(target) = target else { continue };
-                if !conflicting.contains(&name) {
-                    let synthetic = bridge || name.contains(name_kinds::TRAIT_SETTER_SEPARATOR);
-                    out.push(Forwarded { name, desc, synthetic, method: m, target });
-                }
+            };
+            let Some(target) = target else { continue };
+            if !conflicting.contains(&name) {
+                let synthetic = bridge || name.contains(name_kinds::TRAIT_SETTER_SEPARATOR);
+                out.push(Forwarded { name, desc, synthetic, method: m, target });
             }
         }
         let source_name = |g: &Self, f: &Forwarded| g.l.u.symbol(f.method).name.clone();
@@ -107,20 +121,61 @@ impl Gen<'_, '_> {
         })
     }
 
-    /// The method a bridge of class `c` named `name` with descriptor `desc` overrides, if it is
-    /// not deferred (dotty's `nextOverriddenSymbol` of a bridge).
-    fn bridged(&mut self, c: SymbolId, name: &str, desc: &str) -> Option<SymbolId> {
+    /// Selects the member of `module` that dotty's member lookup gives among `members`, of one
+    /// name and descriptor, in linearization order: of the members whose classes a path of
+    /// parents from `module` reaches without passing a class declaring another of them, a
+    /// non-bridge before a bridge, then a concrete one before a deferred one, then the first
+    /// (dotty's `computeMembersNamed` and the `symScore` of `Denotation.meet`).
+    fn selected(&mut self, module: SymbolId, members: &[SymbolId]) -> SymbolId {
+        let owner = |g: &Self, m: SymbolId| g.l.u.symbol(m).owner;
+        let owners: HashSet<SymbolId> = members.iter().filter_map(|&m| owner(self, m)).collect();
+        let (mut reached, mut work) = (HashSet::new(), vec![module]);
+        while let Some(c) = work.pop() {
+            if !reached.insert(c) || owners.contains(&c) {
+                continue;
+            }
+            for p in self.l.u.parents(c) {
+                work.extend(self.l.u.class_symbol(p));
+            }
+        }
+        let mut best: Option<(SymbolId, (bool, bool))> = None;
+        for &m in members {
+            if !owner(self, m).is_some_and(|o| reached.contains(&o)) {
+                continue;
+            }
+            let rank = (self.l.is_bridge(m), self.is_deferred_member(m));
+            if best.is_none_or(|(_, r)| rank < r) {
+                best = Some((m, rank));
+            }
+        }
+        best.map_or(members[0], |(m, _)| m)
+    }
+
+    /// The method that `m` of class `c` with descriptor `desc`, a bridge or a mixin forwarder of a
+    /// library class, overrides, if it is not deferred (dotty's `nextOverriddenSymbol`); the bases
+    /// of `c` declare the bridges and mixin forwarders of the library classes compiled in the
+    /// same run.
+    fn bridged(&mut self, c: SymbolId, m: SymbolId, desc: &str) -> Option<SymbolId> {
+        let name = method_name(self.l.u, m);
         for b in self.l.u.linearization(c).into_iter().skip(1) {
-            for m in self.l.u.decls(b).unwrap_or_default() {
-                if self.is_method_member(m)
-                    && method_name(self.l.u, m) == name
-                    && method_descriptor(self.l.u, m) == desc
+            for o in self.l.u.decls(b).unwrap_or_default() {
+                if self.is_method_member(o)
+                    && method_name(self.l.u, o) == name
+                    && method_descriptor(self.l.u, o) == desc
                 {
-                    return self.has_forwarder(m).then_some(m);
+                    return self.has_forwarder(o).then_some(o);
                 }
             }
         }
         None
+    }
+
+    /// Whether `m` is a bridge or mixin forwarder of a library class compiled in the same run,
+    /// made after erasure; a trait gets neither.
+    pub fn is_library_made(&self, m: SymbolId) -> bool {
+        let s = self.l.u.symbol(m);
+        let made_in = |o| self.l.u.is_same_run(o) && !self.l.u.is_trait(o);
+        s.tree.is_none() && s.owner.is_some_and(made_in)
     }
 
     /// Whether `m` is a method or a getter, defined in this unit or in a library.

@@ -123,10 +123,11 @@ impl Typer<'_> {
             decls.into_iter().filter(|&d| self.u.symbol(d).kind == Kind::TypeParam).collect();
         let their_values: Vec<SymbolId> =
             self.clauses(m).into_iter().filter(|c| !c.0).flat_map(|c| c.1).collect();
-        let (mut targs, mut refs) = (Vec::new(), Vec::new());
+        let (mut targs, mut refs, mut binders) = (Vec::new(), Vec::new(), Vec::new());
         for (types, clause) in clauses {
             if *types {
                 let (binder, ps, result) = self.u.poly(t).map(|b| (b.binder, b.params.to_vec(), b.result))?;
+                binders.push(binder);
                 if ps.len() != clause.len() {
                     return None;
                 }
@@ -140,6 +141,7 @@ impl Typer<'_> {
                 continue;
             }
             let (binder, ps, result) = self.u.method(t).map(|b| (b.binder, b.params.to_vec(), b.result))?;
+            binders.push(binder);
             if ps.len() != clause.len() {
                 return None;
             }
@@ -170,7 +172,7 @@ impl Typer<'_> {
             _ => {
                 let mut depends = false;
                 self.u.map_type(t, &mut |u, x| {
-                    depends |= u.param_ref(x).is_some();
+                    depends |= u.param_ref(x).is_some_and(|(b, _)| binders.contains(&b));
                     None
                 });
                 (!depends).then_some(t)

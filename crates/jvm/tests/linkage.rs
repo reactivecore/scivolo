@@ -165,6 +165,86 @@ fn line_marks_and_deprecations_follow_dotty() {
     }
 }
 
+/// The opcodes of the member of `javap` text `text` declared by `header`.
+fn member_ops<'a>(text: &'a str, header: &str) -> Vec<&'a str> {
+    let start = text.find(header).unwrap_or_else(|| panic!("{header} in\n{text}"));
+    let member = &text[start..];
+    let member = &member[..member.find("\n\n").unwrap_or(member.len())];
+    let ops =
+        member.lines().filter_map(|l| l.trim().split_once(": ").filter(|(at, _)| at.parse::<u32>().is_ok()));
+    ops.filter_map(|(_, op)| op.split_whitespace().next()).collect()
+}
+
+/// Whether `ops` has the run `run`.
+fn has_run(ops: &[&str], run: &[&str]) -> bool {
+    ops.windows(run.len()).any(|w| w == run)
+}
+
+/// As dotty compiling the library with the source: the forwarder of a bridge overriding a library
+/// class's bridge, without a signature; a library class's bridge not forwarded where a member it
+/// overrides is, mixed in or not; the `@throws` of a library method a bridge overrides.
+#[test]
+fn forwarders_see_the_bridges_and_mixin_forwarders_of_the_library() {
+    let out = root().join("tmp/jvm-test/linkage-libforwarders");
+    let _ = std::fs::remove_dir_all(&out);
+    let source = root().join("tests/jvm/linkage/libforwarders.scala");
+    let mut command = Command::new(env!("CARGO_BIN_EXE_scivolo-jvm"));
+    let run = command.args(["--scalalib", "-d"]).arg(&out).arg(source).output().expect("running scivolo-jvm");
+    assert!(run.status.success(), "{}", String::from_utf8_lossy(&run.stderr));
+    let Some(text) = javap_verbose(&out, "libforwarders.Nl") else { return };
+    let flags = |header: &str| {
+        let start = text.find(header).unwrap_or_else(|| panic!("{header} in\n{text}"));
+        let flags = text[start..].lines().find(|l| l.trim().starts_with("flags:")).unwrap_or_default();
+        flags.contains("ACC_SYNTHETIC")
+    };
+    assert!(flags("public static boolean isDefinedAt(java.lang.Object);"), "{text}");
+    assert!(text.contains("public static scala.collection.IterableFactory iterableFactory();"), "{text}");
+    assert!(text.contains("public static scala.collection.View<scala.runtime.Nothing$> view();"), "{text}");
+    let and_then = "scala.Function1<java.lang.Object, A> andThen(";
+    assert!(!flags(and_then), "{text}");
+    let thrown = "public static java.lang.Object apply(int) throws java.lang.IndexOutOfBoundsException;";
+    assert!(text.contains(thrown), "{text}");
+}
+
+/// As dotty's member lookup: a concrete member of a superclass forwarded over a deferred one of a
+/// trait mixed in later; a trait member reached by a path past a class's bridge forwarded over
+/// that bridge, so the forwarder is not synthetic.
+#[test]
+fn forwarders_take_the_member_dotty_selects() {
+    let out = compile("forwardermerge");
+    let Some(m) = javap_verbose(&out, "forwardermerge.M") else { return };
+    assert!(m.contains("public static int m();"), "{m}");
+    let Some(w) = javap_verbose(&out, "forwardermerge.W") else { return };
+    let start = w.find("public static java.lang.Object view();").unwrap_or_else(|| panic!("{w}"));
+    let flags = w[start..].lines().find(|l| l.trim().starts_with("flags:")).unwrap_or_default();
+    assert!(!flags.contains("ACC_SYNTHETIC"), "{w}");
+}
+
+/// As dotty: the `this` qualifier of an enum case kept as a statement, a `Null$` or `Nothing$`
+/// cast returned as it is, and, in a method with a protected range, a dead block after each store.
+#[test]
+fn phantom_values_and_static_qualifiers_follow_dotty() {
+    let out = compile("phantoms");
+    let Some(color) = javap(&out, "phantoms.Color$") else { return };
+    let value_of = member_ops(&color, "phantoms.Color valueOf(");
+    assert!(has_run(&value_of, &["aload_0", "pop", "getstatic", "areturn"]), "{color}");
+    let init = member_ops(&color, "static {}");
+    assert!(has_run(&init, &["iconst_0", "getstatic", "pop", "getstatic", "aastore"]), "{color}");
+    let Some(prim) = javap(&out, "phantoms.Prim") else { return };
+    let nul = member_ops(&prim, "scala.runtime.Null$ nul()");
+    assert!(!nul.contains(&"pop") && has_run(&nul, &["checkcast", "areturn"]), "{prim}");
+    let nothing = member_ops(&prim, "scala.runtime.Nothing$ nothing()");
+    assert!(!nothing.contains(&"athrow") && has_run(&nothing, &["checkcast", "areturn"]), "{prim}");
+    let init = member_ops(&prim, "java.lang.Object nothing$lzyINIT1()");
+    assert!(has_run(&init, &["athrow", "athrow", "nop"]), "{prim}");
+    let library = root().join("ref/libs/scala-library-3.9.0.jar");
+    let classpath = format!("{}:{}", out.display(), library.display());
+    let run = Command::new("java").args(["-Xverify:all", "-cp", &classpath, "phantoms.Main"]).output();
+    let run = run.expect("running java");
+    assert!(run.status.success(), "{}", String::from_utf8_lossy(&run.stderr));
+    assert_eq!(String::from_utf8_lossy(&run.stdout), "Red\nList(Red, Green)\nnull\nno value\n");
+}
+
 /// The static forwarder of a synthetic trait method, the body of a lambda an anonymous class
 /// calls, is public and static only, as dotty's `makeStatifiedDefSymbol` makes it.
 #[test]

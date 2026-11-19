@@ -17,6 +17,14 @@ pub fn length(code: &[u8], at: usize) -> usize {
     }
 }
 
+/// Whether the instruction at `at` stores a local, also through `wide`.
+pub fn is_store(code: &[u8], at: usize) -> bool {
+    match code[at] {
+        0xc4 => (0x36..=0x3a).contains(&code[at + 1]),
+        op => (0x36..=0x4e).contains(&op),
+    }
+}
+
 /// The targets of the jump or switch at `at`, none for another instruction.
 pub fn targets(code: &[u8], at: usize) -> Vec<usize> {
     let to = |offset: i64| (at as i64 + offset) as usize;

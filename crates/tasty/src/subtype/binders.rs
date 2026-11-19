@@ -72,15 +72,18 @@ impl Cmp<'_> {
     }
 
     /// `t` with the parameters of binding `binding` replaced by `refs`: its parameter
-    /// references, and the symbols of a method's type parameters of the same names.
+    /// references, and the symbols of the same names of type parameters of a method whose type
+    /// has that binder.
     fn renamed(&mut self, binding: Binding, t: TypeId, refs: &[TypeId]) -> TypeId {
         let names: Vec<NameId> = binding.1.iter().map(|&(n, _)| n).collect();
         let t = self.u.subst(t, binding.0, &names, refs);
         self.u.map_type(t, &mut |u, x| match *u.ty(x) {
             Type::Sym(_, s) if u.symbol(s).kind == Kind::TypeParam => {
-                let method = u.symbol(s).owner.is_some_and(|o| u.symbol(o).kind == Kind::Def);
+                let owner = u.symbol(s).owner.filter(|&o| u.symbol(o).kind == Kind::Def)?;
                 let i = names.iter().position(|&n| u.name(n) == u.symbol(s).name)?;
-                method.then(|| refs[i])
+                let info = u.info(owner);
+                let binders = u.poly_binders(info);
+                binders.iter().any(|&(b, _)| b == binding.0).then(|| refs[i])
             }
             _ => None,
         })

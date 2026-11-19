@@ -48,8 +48,13 @@ impl Universe {
         narrows.then_some(refined)
     }
 
-    /// Whether method type `a` has the parameter types of `b` and a result conforming to its.
+    /// Whether method type `a` has the parameter types of `b` and a result conforming to its, or
+    /// value type `a` (a polymorphic method's result without value parameters) conforms to `b`.
     fn method_narrows(&mut self, a: TypeId, b: TypeId) -> bool {
+        let method = |u: &Self, t| matches!(u.ty(t), Type::Method { .. });
+        if !method(self, a) && !method(self, b) {
+            return self.is_subtype(a, b);
+        }
         let (Type::Method { params: p, result: r, .. }, Type::Method { params: q, result: s, .. }) =
             (*self.ty(a), *self.ty(b))
         else {

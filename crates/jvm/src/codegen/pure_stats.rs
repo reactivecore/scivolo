@@ -12,9 +12,10 @@ use tasty::{Kind, SymbolId};
 use typer::tpd::{TNodeId, Tree};
 
 impl Gen<'_, '_> {
-    /// Generates statement `t` of a block and drops its value; generates nothing for a pure `t`.
+    /// Generates statement `t` of a block and drops its value; generates nothing for a pure `t`
+    /// but the qualifier of a static selection.
     pub fn block_stat(&mut self, b: &mut Body, t: TNodeId) -> Result<()> {
-        match self.is_pure_stat(t) {
+        match self.is_pure_stat(t) && !self.l.is_static_qualifier(t) {
             true => Ok(()),
             false => self.stat(b, t),
         }

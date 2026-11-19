@@ -6,7 +6,6 @@
 use super::Typer;
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
-use names::nme;
 use syntax::ast::{List, NodeId, TName, Tree};
 use tasty::{Type, TypeId};
 
@@ -49,7 +48,7 @@ impl Typer<'_> {
                     Ok((name, info, tree)) => {
                         let n = self.u.intern_name(&name);
                         let refined = self.u.intern_type(Type::Refined(tpe, n, info));
-                        if let Err(what) = self.refines_member(tpe, refined, &name) {
+                        if let Err(what) = self.refines_member(class, tpe, refined, &name) {
                             return self.unsupported(r, what);
                         }
                         tpe = refined;
@@ -157,37 +156,6 @@ impl Typer<'_> {
                 .mods_of(p)
                 .is_some_and(|m| self.ast.modifiers(m).flags.is_one_of(COVARIANT.or(CONTRAVARIANT)))
         })
-    }
-
-    /// `Ok` if `refined`, `parent` refined by term member `name`, adds that member, or refines
-    /// the member of `parent` it names, one without a target name, with a type it already has or
-    /// one narrowing it.
-    fn refines_member(&mut self, parent: TypeId, refined: TypeId, name: &str) -> Result<(), &'static str> {
-        let members = self.type_members(parent, name);
-        let terms: Vec<_> = members.into_iter().filter(|&m| self.u.symbol(m).kind.is_term()).collect();
-        for &m in &terms {
-            if matches!(self.syms.completions.get(&m), Some(crate::symbols::Completion::Pending { .. })) {
-                self.complete(m);
-            }
-        }
-        if terms.iter().any(|&m| self.u.symbol(m).target.is_some()) {
-            return Err("structural refinement of a member with a target name");
-        }
-        let poly = matches!(self.u.ty(refined), Type::Refined(_, _, i) if self.u.poly(*i).is_some());
-        let poly_function = name == nme::APPLY && self.u.is_class_named(parent, crate::defn::POLY_FUNCTION);
-        if terms.is_empty() && poly && !poly_function {
-            return Err("polymorphic refinement without a parent member");
-        }
-        if terms.is_empty() || self.u.is_subtype(parent, refined) {
-            return Ok(());
-        }
-        let name = self.u.intern_name(name);
-        let narrows = terms.into_iter().any(|m| {
-            let seen = self.u.member_info(parent, m);
-            self.u.term_refinement_named(refined, name) == Some(seen)
-                || self.u.narrowing_refinement(refined, m, seen).is_some()
-        });
-        narrows.then_some(()).ok_or("structural refinement unlike its existing member")
     }
 
     /// Whether `t` has a member class named `name`.
