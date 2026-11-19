@@ -8,10 +8,8 @@ use super::forwarded_members;
 use super::method::Method;
 use crate::phases::getters::is_setter;
 use crate::symbols::{has, is_extern, is_java_field, is_static, jdk_api_owner};
-use crate::{Result, unsupported};
 use nir::{Attr, Body, Defn, DefnKind, GlobalId, LexicalScope, Op, Param, PosId, Type, Val};
 use rustc_hash::FxHashSet;
-use syntax::ast::Span;
 use tasty::tags::{
     FIELDaccessor, INLINE, MACRO, PRIVATE, PRIVATEqualified, PROTECTED, PROTECTEDqualified, STATIC,
 };
@@ -29,23 +27,23 @@ impl Gen<'_, '_> {
     }
 
     /// The forwarders of the current class to the methods of its companion object.
-    pub fn static_method_forwarders(&mut self, existing: &[GlobalId]) -> Result<Vec<Defn>> {
+    pub fn static_method_forwarders(&mut self, existing: &[GlobalId]) -> Vec<Defn> {
         let c = self.class.expect("a class");
         if !self.is_candidate_for_forwarders(c) || self.l.u.is_static_module(c) {
-            return Ok(Vec::new());
+            return Vec::new();
         }
-        let Some(module) = self.l.u.companion_module(c) else { return Ok(Vec::new()) };
-        let Some(module_class) = self.l.u.module_class(module) else { return Ok(Vec::new()) };
+        let Some(module) = self.l.u.companion_module(c) else { return Vec::new() };
+        let Some(module_class) = self.l.u.module_class(module) else { return Vec::new() };
         self.forwarders_from_module_class(existing, module_class)
     }
 
     /// A class `C` of forwarders for a top-level object `C` without a companion class.
-    pub fn gen_mirror_class(&mut self, c: SymbolId, pos: PosId) -> Result<()> {
+    pub fn gen_mirror_class(&mut self, c: SymbolId, pos: PosId) {
         if !self.l.u.is_module_class(c) || !self.is_top_level(c) || !is_static(self.l.u, c) {
-            return Ok(());
+            return;
         }
         if self.l.u.companion_class(c).is_some() {
-            return Ok(());
+            return;
         }
         let module_name = self.type_name(c);
         let id = self.pool.top_name(module_name).to_owned();
@@ -58,16 +56,12 @@ impl Gen<'_, '_> {
             kind: DefnKind::Class { parent: Some(parent), traits: Vec::new() },
         };
         let mut defns = vec![class];
-        defns.extend(self.forwarders_from_module_class(&[], c)?);
+        defns.extend(self.forwarders_from_module_class(&[], c));
         self.mirrors.push(defns);
-        Ok(())
     }
 
-    fn forwarders_from_module_class(
-        &mut self,
-        existing: &[GlobalId],
-        module_class: SymbolId,
-    ) -> Result<Vec<Defn>> {
+    /// The forwarders to the members of `module_class`, but those whose names are `existing`.
+    fn forwarders_from_module_class(&mut self, existing: &[GlobalId], module_class: SymbolId) -> Vec<Defn> {
         let d = self.l.u.defn();
         let plain = [d.object, d.any, d.any_ref];
         let bases = self.l.u.linearization(module_class);
@@ -117,7 +111,7 @@ impl Gen<'_, '_> {
             }
             let name = self.static_member_name(m, Some(module_class));
             if existing.contains(&name) {
-                return unsupported(Span::NONE, "a static method beside the forwarder of the same name");
+                continue;
             }
             let at = bridged.iter().find(|b| b.0 == m).map_or(m, |b| b.1);
             let pos = match self.l.coords.get(&at) {
@@ -131,7 +125,7 @@ impl Gen<'_, '_> {
             };
             out.push(self.forwarder(m, module_class, name, pos));
         }
-        Ok(out)
+        out
     }
 
     /// Whether `m` is a Java field or the setter `x_=` of one.
