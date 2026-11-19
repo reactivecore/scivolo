@@ -158,15 +158,21 @@ impl Inlining<'_> {
 
 /// The tree replacing `t` in the copied body if it refers to the `this` of class `cls` proxied by
 /// `proxy`: the proxy as an argument inlined from outside for `this`, a selection from the proxy
-/// for an identifier of a member.
+/// for an identifier of a member unless `m` keeps it as a static reference.
 pub fn replace_this(
     i: &mut Inlining<'_>,
-    cls: SymbolId,
-    proxy: SymbolId,
+    m: &super::copy::TreeTypeMap,
+    (cls, proxy): (SymbolId, SymbolId),
     call: Span,
     t: TNodeId,
 ) -> Option<TNodeId> {
     let tpe = i.tpd.get(t).tpe?;
+    if m.stop_at_static
+        && matches!(i.tpd.tree(t), T::Ident { .. })
+        && super::prefix_seen::is_static_ref(i.u, tpe)
+    {
+        return None;
+    }
     let proxy_tpe = i.u.intern_type(Type::Sym(None, proxy));
     let is_cls = |i: &mut Inlining<'_>, c| i.u.class_symbol(c) == Some(cls);
     let prefix_this = i.u.sym_ref(tpe).and_then(|(p, _)| p).and_then(|p| i.u.this_of(p));

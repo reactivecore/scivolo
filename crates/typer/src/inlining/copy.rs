@@ -21,6 +21,8 @@ pub struct TreeTypeMap {
     pub new_owner: Option<SymbolId>,
     /// The classes whose `this` is replaced, with the types replacing them.
     pub this: Vec<(SymbolId, TypeId)>,
+    /// Whether references to static members through static prefixes are kept.
+    pub stop_at_static: bool,
     /// Whether classes are among the local definitions copied.
     pub classes: bool,
 }
@@ -32,6 +34,9 @@ impl<'a> Inlining<'a> {
     /// `t` with the references of `m` replaced and its local definitions renamed.
     pub fn map_type(&mut self, m: &TreeTypeMap, t: TypeId) -> TypeId {
         let mapped = self.u.map_type(t, &mut |u, part| {
+            if m.stop_at_static && super::prefix_seen::is_static_ref(u, part) {
+                return Some(part);
+            }
             if !m.this.is_empty()
                 && u.sym_ref(part).is_some()
                 && let Some(seen) = super::prefix_seen::class_param_seen(u, &m.this, part)
