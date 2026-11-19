@@ -32,7 +32,7 @@ impl Typer<'_> {
     /// `xs` typed as a `Seq[elem] | Array[? <: elem]` (a `Seq[elem]` in a quote pattern), without
     /// an expected type if no `elem`, ascribed `<repeated>[T]` with `T` its element type, as
     /// `<repeated>[Int | String]` for `xs` of `List[Int] | List[String]`; `null*` ascribed its own
-    /// type `Null`.
+    /// type `Null`; refuses a union or intersection of arrays, as `Array[Int] | Array[String]`.
     pub fn sequence_arg(&mut self, a: NodeId, elem: Option<TypeId>, ctx: Ctx) -> TNodeId {
         let (Some(seq_class), Some(array_class), &Tree::Typed { expr, tpt }) = (
             self.resolve_full_name(IMMUTABLE_SEQ, true),
@@ -61,12 +61,29 @@ impl Typer<'_> {
             return self.tpd.node(T::Typed { expr, tpt }, self.ast.span(a), Some(widened), None);
         }
         let from = if self.u.base_type(widened, array_class).is_some() { array_class } else { seq_class };
+        if from == array_class && self.is_compound_sequence(widened) {
+            return self.unsupported(a, "sequence argument of a union or intersection of arrays");
+        }
         let Some(arg) = self.sequence_elem(widened, from) else {
             return self.unsupported(a, "sequence argument");
         };
         let repeated = self.repeated_type(arg);
         let tpt = self.type_tree(repeated, self.ast.span(tpt), false);
         self.tpd.node(T::Typed { expr, tpt }, self.ast.span(a), Some(repeated), None)
+    }
+
+    /// Checks whether `tpe`, its sides of a bottom type dropped, is a union or intersection, as
+    /// `Array[Int] | Array[String]`.
+    fn is_compound_sequence(&mut self, tpe: TypeId) -> bool {
+        let tpe = self.u.widen(tpe);
+        let tpe = self.u.dealias(tpe);
+        let ty = *self.u.ty(tpe);
+        match ty {
+            Type::Or(a, b, _) if self.is_bottom_type(a) => self.is_compound_sequence(b),
+            Type::Or(a, b, _) if self.is_bottom_type(b) => self.is_compound_sequence(a),
+            Type::Or(..) | Type::And(..) => true,
+            _ => false,
+        }
     }
 
     /// Finds the element type of sequence `tpe`, an instance of class `from`: that of each side
