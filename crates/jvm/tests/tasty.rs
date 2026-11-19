@@ -135,6 +135,7 @@ const DOTTY_TASTY: &[(&str, &[&str])] = &[
     ("inheritedresults", &["InheritedResults"]),
     ("wildcardselections", &["WildcardSelections"]),
     ("valueclasses", &["Count", "Name"]),
+    ("metatargets", &["MetaTargets"]),
 ];
 
 /// The trees, positions and flag attributes of the classes of `DOTTY_TASTY` are dotty's: the
@@ -173,7 +174,8 @@ const DOTTY_TASTY: &[(&str, &[&str])] = &[
 /// from the parents' base types intersected in order (inheritedresults.scala), and a selection on
 /// a prefix with a wildcard argument is approximated (wildcardselections.scala), and a value class
 /// calls `AnyVal`'s constructor signed with result `Object` and its `hashCode` refers to its value
-/// by name (valueclasses.scala). Needs a JDK (java on the PATH), as dotty's did.
+/// by name (valueclasses.scala), and of two annotations of one class a parameter or value keeps
+/// those meant for it (metatargets.scala). Needs a JDK (java on the PATH), as dotty's did.
 #[test]
 fn probes_pickle_as_dotty_s() {
     if Command::new("java").arg("-version").output().is_err() {

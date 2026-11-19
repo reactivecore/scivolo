@@ -1,6 +1,7 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/backend/jvm/BCodeSkelBuilder.scala
 //   compiler/src/dotty/tools/backend/jvm/BCodeHelpers.scala
+//   compiler/src/dotty/tools/dotc/transform/PostTyper.scala
 //! The attributes of a method besides its code (dotty's `initJMethod`, `emitParamNames`).
 
 use super::body::Body;
