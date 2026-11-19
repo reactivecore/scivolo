@@ -165,6 +165,46 @@ fn line_marks_and_deprecations_follow_dotty() {
     }
 }
 
+/// The opcodes of the member of `javap` text `text` declared by `header`.
+fn member_ops<'a>(text: &'a str, header: &str) -> Vec<&'a str> {
+    let start = text.find(header).unwrap_or_else(|| panic!("{header} in\n{text}"));
+    let member = &text[start..];
+    let member = &member[..member.find("\n\n").unwrap_or(member.len())];
+    let ops =
+        member.lines().filter_map(|l| l.trim().split_once(": ").filter(|(at, _)| at.parse::<u32>().is_ok()));
+    ops.filter_map(|(_, op)| op.split_whitespace().next()).collect()
+}
+
+/// Whether `ops` has the run `run`.
+fn has_run(ops: &[&str], run: &[&str]) -> bool {
+    ops.windows(run.len()).any(|w| w == run)
+}
+
+/// As dotty: the `this` qualifier of an enum case kept as a statement, a `Null$` or `Nothing$`
+/// cast returned as it is, and, in a method with a protected range, a dead block after each store.
+#[test]
+fn phantom_values_and_static_qualifiers_follow_dotty() {
+    let out = compile("phantoms");
+    let Some(color) = javap(&out, "phantoms.Color$") else { return };
+    let value_of = member_ops(&color, "phantoms.Color valueOf(");
+    assert!(has_run(&value_of, &["aload_0", "pop", "getstatic", "areturn"]), "{color}");
+    let init = member_ops(&color, "static {}");
+    assert!(has_run(&init, &["iconst_0", "getstatic", "pop", "getstatic", "aastore"]), "{color}");
+    let Some(prim) = javap(&out, "phantoms.Prim") else { return };
+    let nul = member_ops(&prim, "scala.runtime.Null$ nul()");
+    assert!(!nul.contains(&"pop") && has_run(&nul, &["checkcast", "areturn"]), "{prim}");
+    let nothing = member_ops(&prim, "scala.runtime.Nothing$ nothing()");
+    assert!(!nothing.contains(&"athrow") && has_run(&nothing, &["checkcast", "areturn"]), "{prim}");
+    let init = member_ops(&prim, "java.lang.Object nothing$lzyINIT1()");
+    assert!(has_run(&init, &["athrow", "athrow", "nop"]), "{prim}");
+    let library = root().join("ref/libs/scala-library-3.9.0.jar");
+    let classpath = format!("{}:{}", out.display(), library.display());
+    let run = Command::new("java").args(["-Xverify:all", "-cp", &classpath, "phantoms.Main"]).output();
+    let run = run.expect("running java");
+    assert!(run.status.success(), "{}", String::from_utf8_lossy(&run.stderr));
+    assert_eq!(String::from_utf8_lossy(&run.stdout), "Red\nList(Red, Green)\nnull\nno value\n");
+}
+
 /// Without Scala Native's library on the class path its API does not exist, as for dotty.
 #[test]
 fn scala_native_api_without_its_jar_is_refused() {

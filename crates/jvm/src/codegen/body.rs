@@ -49,9 +49,10 @@ pub struct Body<'p> {
     /// The values known on the stack, bottom first: the depth each starts at, its slots and what
     /// it is (dotty's `stack`).
     pub operands: Vec<(i32, i32, Operand)>,
-    /// The function of the call whose `Nothing$` value is thrown or returned as it is.
+    /// The function of the call, or the cast, whose `Nothing$` value is thrown or returned as it is.
     pub sent_phantom: Option<TNodeId>,
-    /// The calls (by function), local values and `if`s whose `Null$` value is expected as it is.
+    /// The calls (by function), casts, local values and `if`s whose `Null$` value is expected as it
+    /// is.
     pub null_values: HashSet<TNodeId>,
     /// The labeled blocks being generated whose `Null$` value is adapted after their end.
     pub null_labels: Vec<SymbolId>,

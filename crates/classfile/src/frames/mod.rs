@@ -10,7 +10,7 @@ pub use lattice::Lub;
 use crate::{Code, Pool};
 use execute::execute;
 pub use flow::length;
-use flow::{live_ranges, targets};
+use flow::{is_store, live_ranges, targets};
 use lattice::{Frame, VType};
 
 /// A method's class, internal name, and its static flag, name and descriptor.
@@ -48,7 +48,8 @@ impl Flow<'_> {
 }
 
 /// The body of the `StackMapTable` of `code`, none if it needs no frames; sets its exception
-/// table. Unreachable code becomes `nop`s ending in `athrow`, outside the protected ranges.
+/// table. Unreachable code becomes `nop`s ending in `athrow` per block, outside the protected
+/// ranges; with a protected range, each store of a local ends a block (ASM's `visitVarInsn`).
 pub fn stack_map(
     code: &mut Code,
     pool: &mut Pool,
@@ -81,10 +82,11 @@ pub fn stack_map(
         in_block |= labels.binary_search(&at).is_ok();
         let next = at + length(bytes, at);
         let ends = matches!(bytes[at], 0xa7 | 0xaa | 0xab | 0xac..=0xb1 | 0xbf | 0xc8);
-        if in_block && (ends || !targets(bytes, at).is_empty()) {
+        let store = !handlers.is_empty() && is_store(bytes, at);
+        if in_block && (ends || !targets(bytes, at).is_empty()) || store {
             starts.push(next);
         }
-        in_block &= !ends;
+        in_block = in_block && !ends || store;
         at = next;
     }
     sorted_set(&mut starts);
@@ -220,6 +222,27 @@ mod tests {
         assert_eq!(code.bytes, [0x01, 0xbf, 0, 0xbf, 0xbf, 0x57, 0xb1]);
         assert_eq!(table, Ok(Some(vec![0, 3, 66, 7, t0, t1, 65, 7, t0, t1, 64, 7, t0, t1])));
         assert_eq!(code.exceptions, [[0, 2, 5, 0]]);
+    }
+
+    #[test]
+    fn stores_end_dead_blocks_in_methods_with_protected_ranges() {
+        let (mut code, mut pool) = (Code::new(0), Pool::default());
+        let start = code.here();
+        code.aconst_null();
+        code.insn(ATHROW);
+        let end = code.here();
+        code.aconst_null();
+        code.store("L", 0);
+        code.aconst_null();
+        code.store("L", 0);
+        code.ret("V");
+        let handler = code.here();
+        code.set_stack(1);
+        code.insn(ATHROW);
+        code.protect(start, end, handler, 0);
+        let (table, _) = table(&mut code, &mut pool);
+        assert!(table.is_ok(), "{table:?}");
+        assert_eq!(code.bytes, [0x01, 0xbf, 0, 0xbf, 0, 0xbf, 0xbf, 0xbf]);
     }
 
     #[test]

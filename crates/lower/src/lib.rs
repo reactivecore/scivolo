@@ -111,6 +111,8 @@ pub struct Lower<'a> {
     boxed_types: FxHashSet<TNodeId>,
     /// The static references `SelectStatic` made of selections (dotty's new `ref`s and blocks).
     static_selects: FxHashSet<TNodeId>,
+    /// The qualifiers `SelectStatic` kept as statements, after `PureStats`.
+    static_qualifiers: FxHashSet<TNodeId>,
     /// The local classes lifted out of blocks, each with its owner before.
     local_classes: FxHashMap<SymbolId, SymbolId>,
     /// The local classes renamed when lifted, each with its name before.
@@ -340,6 +342,7 @@ impl<'a> Lower<'a> {
             null_casts: FxHashSet::default(),
             boxed_types: FxHashSet::default(),
             static_selects: FxHashSet::default(),
+            static_qualifiers: FxHashSet::default(),
             mixed_in: FxHashSet::default(),
             mixed_from: FxHashMap::default(),
             specialized: FxHashSet::default(),
