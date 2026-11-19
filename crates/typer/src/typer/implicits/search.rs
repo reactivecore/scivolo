@@ -12,8 +12,7 @@ use super::history::emitted;
 use super::not_given::not_given_arg;
 use super::ranking::most_specific;
 use super::unsettled::{
-    any_open_constructor, constructor_vars, determined, has_unbounded_var, is_underspecified, unsettled,
-    var_upper_bound,
+    any_open_constructor, constructor_vars, determined, has_unbounded_var, is_underspecified, var_upper_bound,
 };
 use crate::ctx::{Ctx, Mode};
 use crate::defn::CAN_EQUAL;
@@ -119,9 +118,6 @@ impl ImplicitSearch {
         }
         self.pt = determined(&mut t.types(), self.pt);
         let (pt, ctx) = (self.pt, self.ctx);
-        if let Some(what) = unsettled(&mut t.types(), pt) {
-            return Err(what);
-        }
         if self.depth > MAX_DEPTH {
             return Err("implicit search too deep");
         }

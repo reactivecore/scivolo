@@ -162,6 +162,8 @@ pub struct Lower<'a> {
     narrowed: FxHashMap<SymbolId, SymbolId>,
     /// The file of the unit each top-level class is defined in.
     class_files: FxHashMap<SymbolId, usize>,
+    /// The offsets the unit's files start at, but the first.
+    file_starts: Vec<syntax::source::Offset>,
     /// The term each method `LambdaLift` lifted was defined in.
     lifted_from: FxHashMap<SymbolId, SymbolId>,
     /// The method each function `LambdaLift` lifted became.
@@ -366,6 +368,7 @@ impl<'a> Lower<'a> {
             coords: FxHashMap::default(),
             narrowed: FxHashMap::default(),
             class_files: FxHashMap::default(),
+            file_starts: Vec::new(),
             lifted_from: FxHashMap::default(),
             lifted_to: FxHashMap::default(),
             super_accessors: FxHashMap::default(),
