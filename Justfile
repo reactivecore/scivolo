@@ -251,6 +251,12 @@ lib-compile module filter="": fetch-libs fetch-scala-native
     cargo build -q --release -p scivolo-lower -p scivolo-nir-dump
     python3 scripts/lib-compile.py '{{ module }}' '{{ filter }}'
 
+# Lower `module` as lib-compile does, with TASTy, and compare its TASTy with lib-oracle's; results
+# under tmp/lib/<module> (tasty.tsv, tasty-groups.txt, tasty-diffs/).
+lib-tasty module filter="": fetch-libs fetch-scala-native
+    cargo build -q --release -p scivolo-lower
+    python3 scripts/lib-tasty.py '{{ module }}' '{{ filter }}'
+
 # Build Scala Native library `module` as its published jar: our NIR, its C resources, the
 # published TASTy and a manifest, in tmp/lib/<module>/; compare it with lib-compile's oracle.
 lib-jar module: fetch-libs fetch-scala-native
@@ -388,8 +394,9 @@ desugar-checks:
 typer-oracle filter="": syntax-fetch
     python3 scripts/typer-tests.py oracle {{ filter }}
 
-# Compare the Rust typer with the recorded typed trees; report.md and results.tsv under
-# tmp/typer/3.9.0.
+# Compare the Rust typer, typing against the JDK, with the recorded typed trees; report.md and
+# results.tsv under tmp/typer/3.9.0, and tests/programs typed against Scala Native's javalib in
+# results-native.tsv.
 typer-report filter="":
     cargo build -q --release -p scivolo-typer
     python3 scripts/typer-tests.py report {{ filter }}
@@ -500,6 +507,7 @@ highlight-oracle:
 # crates/macros/tests/inlined (JVM).
 typer-checks:
     python3 scripts/typer-tests.py checks crates/typer/tests/typed
+    python3 scripts/typer-tests.py checks crates/typer/tests/typed/jvm
     python3 scripts/typer-tests.py checks crates/typer/tests/inlined
     python3 scripts/typer-tests.py checks crates/macros/tests/inlined
 
