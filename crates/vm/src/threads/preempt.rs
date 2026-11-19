@@ -132,22 +132,28 @@ impl Vm {
         Ok(())
     }
 
-    /// Makes every later run that `clear_interrupts` starts stop after `limit`, as on a SIGINT;
+    /// Makes every later run that `start_time_limit` starts stop after `limit`, as on a SIGINT;
     /// takes effect once interrupts are watched.
     pub fn limit_runs(&mut self, limit: Option<Duration>) {
         self.threads.interrupts.limit = limit;
     }
 
-    /// Forgets the SIGINTs received so far and starts the time limit of the next run.
+    /// Forgets the SIGINTs received so far.
     pub fn clear_interrupts(&mut self) {
         natives::take_sigint();
         let i = &mut self.threads.interrupts;
         i.signals = 0;
         i.stop = false;
+    }
+
+    /// Starts the time limit of the next run; keeps the SIGINTs received since
+    /// `clear_interrupts`, so that the run stops at its first safepoint after one.
+    pub fn start_time_limit(&mut self) {
+        let i = &mut self.threads.interrupts;
         i.deadline = i.limit.map(|l| clock::monotonic() + l);
     }
 
-    /// Ends the time limit `clear_interrupts` started, so that it stops no later VM code.
+    /// Ends the time limit `start_time_limit` started, so that it stops no later VM code.
     pub fn end_time_limit(&mut self) {
         self.threads.interrupts.deadline = None;
     }

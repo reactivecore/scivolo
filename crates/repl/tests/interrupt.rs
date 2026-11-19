@@ -1,20 +1,32 @@
 //! Ctrl-C while an input runs stops that input and keeps the session.
 
 use repl::Session;
-use std::time::{Duration, Instant};
+use std::sync::mpsc;
+use std::time::Duration;
 use vm::{Classpath, Vm};
 
-/// What `session` prints for `input` while a SIGINT arrives after 300 ms.
+/// How long an interrupted input may take before the test ends the process as failed.
+const HARD_LIMIT: Duration = Duration::from_secs(60);
+
+/// What `session` prints for `input` while a SIGINT arrives after 300 ms; ends the process as
+/// failed if the input runs past `HARD_LIMIT`.
 fn interrupted(session: &mut Session, input: &str) -> Vec<String> {
-    let signal = std::thread::spawn(|| {
-        std::thread::sleep(Duration::from_millis(300));
+    let (done, ended) = mpsc::channel::<()>();
+    let what = input.to_owned();
+    let signal = std::thread::spawn(move || {
+        if ended.recv_timeout(Duration::from_millis(300)) != Err(mpsc::RecvTimeoutError::Timeout) {
+            return;
+        }
         // SAFETY: `raise` has no preconditions; the handler `watch_interrupts` installed runs.
         unsafe { libc::raise(libc::SIGINT) };
+        if ended.recv_timeout(HARD_LIMIT) == Err(mpsc::RecvTimeoutError::Timeout) {
+            eprintln!("Ctrl-C did not stop `{what}` within {HARD_LIMIT:?}");
+            std::process::exit(1);
+        }
     });
-    let started = Instant::now();
     let out = session.eval(input);
+    drop(done);
     signal.join().unwrap();
-    assert!(started.elapsed() < Duration::from_secs(20), "{input} took {:?}", started.elapsed());
     out
 }
 

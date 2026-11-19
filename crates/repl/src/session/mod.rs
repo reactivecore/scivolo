@@ -112,8 +112,9 @@ impl Session {
     /// Evaluates input `text`; the lines it prints, after what the program wrote to stdout and
     /// stderr where the VM keeps that (portable mode). A panic while compiling the input is
     /// reported as an internal error and resets the session; a panic while running it is passed
-    /// on.
+    /// on. A SIGINT from the start of the call on, also while compiling, stops the input.
     pub fn eval(&mut self, text: &str) -> Vec<String> {
+        self.vm.clear_interrupts();
         let out = self.answer(text);
         let written: Vec<u8> = self.vm.take_output().into_iter().flat_map(|w| w.bytes).collect();
         let written = String::from_utf8_lossy(&written).lines().map(str::to_owned).collect::<Vec<_>>();
