@@ -164,6 +164,12 @@ impl<'a> ViewSearch<'a> {
             {
                 found = self.applying(t, found, name, proto);
             }
+            if let Goal::Applied(name, proto) = goal
+                && found.len() > 1
+                && most_specific(t, &found, ctx).is_none()
+            {
+                found = self.applying_to(t, found, name, &proto.parts[..proto.args]);
+            }
             if goal.member().is_some() {
                 let extra: Vec<Candidate> = containers.into_iter().filter(|c| !group.contains(c)).collect();
                 group.extend(extra);

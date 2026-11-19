@@ -20,13 +20,24 @@ fn typed(u: &mut Universe, path: &Path) -> String {
 
 #[test]
 fn typed_trees_and_diagnostics_match_dotty() {
+    check_all("tests/typed", false);
+}
+
+#[test]
+fn typed_trees_against_the_jdk_match_dotty() {
+    check_all("tests/typed/jvm", true);
+}
+
+/// Checks each input of `dir` against its `.check` file; with `jvm`, typed against the JDK as the
+/// JVM backend types.
+fn check_all(dir: &str, jvm: bool) {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
     let jars = library_jars(&root.join("../../ref/libs"));
     if let Some(missing) = jars.iter().find(|j| !j.exists()) {
         assert!(std::env::var_os("CI").is_none(), "{} missing: run `just fetch-libs`", missing.display());
         return;
     }
-    let mut inputs: Vec<_> = std::fs::read_dir(root.join("tests/typed"))
+    let mut inputs: Vec<_> = std::fs::read_dir(root.join(dir))
         .expect("tests/typed")
         .map(|e| e.expect("an entry").path())
         .filter(|p| p.extension().is_some_and(|e| e == "scala"))
@@ -35,6 +46,11 @@ fn typed_trees_and_diagnostics_match_dotty() {
     assert!(!inputs.is_empty());
     in_parallel(&inputs, |input| {
         let mut u = Universe::open(&jars).expect("the library");
+        if jvm {
+            u.set_jdk(classfile::Jdk::default());
+            u.set_jvm_target();
+            u.use_java_classfiles(&[0]).expect("the library's class files");
+        }
         let expected = std::fs::read_to_string(input.with_extension("check")).expect("a .check file");
         let actual = typed(&mut u, input);
         if expected.contains("\n== E ") {

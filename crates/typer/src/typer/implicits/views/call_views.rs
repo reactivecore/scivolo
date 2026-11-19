@@ -49,6 +49,35 @@ impl ViewSearch<'_> {
         applying
     }
 
+    /// Narrows ambiguous conversions `found` to those whose result's member `name` applies to
+    /// arguments of types `args`, as for `n % total` with `n: Long` and `total: BigInt`, where
+    /// `long2float` and `long2double` both give a `%` that takes no `BigInt`; keeps `found` when
+    /// that is unknown for a conversion.
+    pub fn applying_to(
+        &self,
+        t: &mut Typer<'_>,
+        found: Vec<Candidate>,
+        name: &str,
+        args: &[TypeId],
+    ) -> Vec<Candidate> {
+        let reported = t.diags.items.len();
+        let mut applying = Vec::new();
+        for &c in &found {
+            let (fits, clean, _) = t.speculatively(|t| {
+                let q = self.try_conversion(t, c, false);
+                q.is_ok_and(|q| member_applies(t, q, name, args, self.ctx))
+            });
+            t.retract_diags(reported);
+            if !clean {
+                return found;
+            }
+            if fits {
+                applying.push(c);
+            }
+        }
+        applying
+    }
+
     /// Converts the tree to have a member `name` by the only conversion of the implicit scopes
     /// of argument types `args` that gives it one (the scope of dotty's `SelectionProto` of a
     /// `FunProto`).

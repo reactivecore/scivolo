@@ -15,6 +15,8 @@ use tasty::{Type, TypeId};
 pub struct ViewProto {
     /// The types of the arguments and of the expected result of the applied member.
     pub parts: Vec<TypeId>,
+    /// How many of `parts`, first, are argument types.
+    pub args: usize,
     /// Whether `parts` holds all of them.
     pub complete: bool,
 }
@@ -24,7 +26,7 @@ impl Typer<'_> {
     /// applicable alternative counts nothing: its expected type is ignored (dotty's `IgnoredProto`).
     pub fn viewing<T>(&mut self, c: Candidate, goal: Goal, f: impl FnOnce(&mut Self) -> T) -> T {
         let wildcard = self.u.intern_type(Type::Wildcard(None));
-        let ignored = || Some(ViewProto { parts: Vec::new(), complete: true });
+        let ignored = || Some(ViewProto { parts: Vec::new(), args: 0, complete: true });
         let (pt, proto) = match goal {
             Goal::Conform(pt) => (pt, None),
             Goal::Member(_) | Goal::Typed(..) | Goal::Call(..) => (wildcard, ignored()),
@@ -40,11 +42,12 @@ impl Typer<'_> {
     /// they are all of its arguments (dotty's `FunProto.fold`).
     pub fn applied_view_proto(&self, proto: usize, args: Vec<TypeId>, all_args: bool) -> ViewProto {
         let (mut parts, mut complete) = (args, all_args);
+        let args = parts.len();
         match self.protos[proto].pt {
             Pt::Any => {}
             Pt::Type(r) => parts.push(r),
             _ => complete = false,
         }
-        ViewProto { parts, complete }
+        ViewProto { parts, args, complete }
     }
 }
