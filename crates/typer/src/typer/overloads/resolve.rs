@@ -159,7 +159,7 @@ impl Resolution {
 
 /// Checks whether the first parameter clause of method `s` is followed by another that is not
 /// implicit (dotty's `resultIsMethod` with `stripInferrable`), as `def f(x: Int)(y: Int)`.
-fn result_is_method(types: &mut TypeOps, s: SymbolId) -> bool {
+pub fn result_is_method(types: &mut TypeOps, s: SymbolId) -> bool {
     let info = types.u.info(s);
     let info = types.u.strip_poly(info);
     let Some(result) = types.u.method(info).map(|m| m.result) else { return false };

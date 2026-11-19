@@ -7,16 +7,19 @@ mod alternatives;
 mod applicability;
 mod applies;
 mod by_result;
+mod by_types;
 mod compatible;
 mod errors;
 mod mapped;
 mod named;
+mod normalized;
 mod parameterless;
 mod poly;
 mod poly_instances;
 mod pretyped;
 mod resolve;
 mod shapes;
+mod specific;
 mod values;
 
 use crate::ctx::Ctx;
@@ -55,6 +58,8 @@ pub struct Resolution {
     prefix: Option<TypeId>,
     /// What the context expects of the reference.
     pt: Pt,
+    /// The context the reference is typed in.
+    ctx: Ctx,
 }
 
 /// Why an overloaded name denotes no alternative: the construct outside the subset or the error
@@ -73,17 +78,18 @@ impl From<&'static str> for Unchosen {
 }
 
 impl Typer<'_> {
-    /// Chooses the alternative of `syms`, members of `prefix`, that `pt` selects: the only one,
-    /// the only method taking as many arguments as `pt` supplies, or the one overload resolution
-    /// picks.
+    /// Chooses the alternative of `syms`, members of `prefix`, that `pt` selects in `ctx`: the
+    /// only one, the only method taking as many arguments as `pt` supplies, or the one overload
+    /// resolution picks.
     pub fn choose(
         &mut self,
         syms: &[SymbolId],
         prefix: Option<TypeId>,
         pt: Pt,
+        ctx: Ctx,
     ) -> Result<SymbolId, Unchosen> {
         let syms = self.without_clashing(syms.to_vec());
-        Resolution { prefix, pt }.choose(self, &syms)
+        Resolution { prefix, pt, ctx }.choose(self, &syms)
     }
 
     /// Checks whether an argument of type `arg` fits a parameter of type `param` in `ctx`,
@@ -153,16 +159,16 @@ impl Typer<'_> {
     }
 
     /// Reports `NoMatchingOverload` for identifier `id` of methods `alts`, members of `prefix`,
-    /// applied to the arguments of `pt`, or `AmbiguousOverload` if `ambiguous` of them match;
-    /// `None` where dotty may word or decide it otherwise.
+    /// applied to the arguments of `pt` in `ctx`, or `AmbiguousOverload` if `ambiguous` of them
+    /// match; `None` where dotty may word or decide it otherwise.
     pub fn overload_error(
         &mut self,
         id: NodeId,
         (alts, prefix): (&[SymbolId], Option<TypeId>),
-        pt: Pt,
+        (pt, ctx): (Pt, Ctx),
         ambiguous: Option<Vec<SymbolId>>,
     ) -> Option<TNodeId> {
-        Resolution { prefix, pt }.overload_error(self, id, alts, ambiguous)
+        Resolution { prefix, pt, ctx }.overload_error(self, id, alts, ambiguous)
     }
 
     /// Gives the tree for reference `id` when no alternative is chosen for `what`: an error tree

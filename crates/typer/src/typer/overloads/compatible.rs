@@ -33,6 +33,18 @@ pub fn compatible(t: &mut Typer, arg: TypeId, param: TypeId, views: bool, ctx: C
     view_exists(t, arg, param, ctx)
 }
 
+/// Checks whether a value of type `arg` conforms to `param`, or converts to it if `views`
+/// (dotty's `isCompatible`): `None` if undecided.
+pub fn is_compatible(t: &mut Typer, arg: TypeId, param: TypeId, views: bool, ctx: Ctx) -> Option<bool> {
+    if t.conforms(arg, param) {
+        return Some(true);
+    }
+    if !views {
+        return Some(false);
+    }
+    view_exists(t, arg, param, ctx)
+}
+
 /// Checks whether an implicit conversion takes a value of type `arg` to `param`, or `arg` is a
 /// named tuple whose values conform to `param`, a `Tuple` (dotty's `viewExists`): `None` if the
 /// search is outside the subset.

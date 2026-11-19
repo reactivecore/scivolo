@@ -33,9 +33,8 @@ impl Resolution {
         }
         match self.pt {
             Pt::PolyFun(poly) => self.choose_poly(t, syms, poly),
-            Pt::Any | Pt::Type(_) => Ok(self.parameterless_alternative(t, syms)?),
+            Pt::Any | Pt::Type(_) | Pt::AnyFunction => Ok(self.parameterless_alternative(t, syms)?),
             Pt::Fun(proto) => self.choose_applied(t, syms, proto),
-            Pt::AnyFunction => Err("overloaded reference".into()),
         }
     }
 

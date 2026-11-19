@@ -165,7 +165,7 @@ impl Typer<'_> {
             true => syms,
             false => self.accessible_or_inherited(syms, qual_tpe, &text, ctx),
         };
-        let sym = match self.choose(&syms, Some(qual_tpe), pt) {
+        let sym = match self.choose(&syms, Some(qual_tpe), pt, ctx) {
             Ok(sym) => self.jdk_inherited(sym),
             Err(e) => return self.unchosen(id, e.what, pt),
         };
