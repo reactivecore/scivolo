@@ -41,6 +41,9 @@ pub fn from_product(
     let ctor = l.u.decls_named(case_class, nme::CONSTRUCTOR);
     let ctor = ctor.into_iter().next().expect("a case class constructor");
     let (created_type, param_types) = instantiated_constructor(l, case_class, ctor);
+    if param_types.iter().any(|&p| repeated_elem(l, p).is_none() && l.u.repeated_elem(p).is_some()) {
+        return unsupported(focus, "fromProduct of a repeated parameter of an annotated type");
+    }
     let flags = Flags::default().with(SYNTHETIC);
     let accessors = case_accessors(l, case_class);
     let (module, getters) = unrolled_getters(l, case_class, &accessors)?;
