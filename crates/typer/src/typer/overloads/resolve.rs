@@ -161,7 +161,12 @@ impl Typer<'_> {
     /// Compares members `a` and `b` of `prefix` as overloading resolution does in `ctx` (dotty's
     /// `compare`): 1 if `a` is better, -1 if `b` is, 0 if neither; `None` if undecided.
     pub fn compare_members(&mut self, prefix: TypeId, (a, b): (SymbolId, SymbolId), ctx: Ctx) -> Option<i32> {
-        Resolution { prefix: Some(prefix), pt: Pt::Any }.compare_alts(self, (a, b), true, ctx)
+        Resolution { prefix: Some(prefix), pt: Pt::Any, ctx, member: None }.compare_alts(
+            self,
+            (a, b),
+            true,
+            ctx,
+        )
     }
 }
 
