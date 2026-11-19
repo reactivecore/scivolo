@@ -7,6 +7,7 @@ use crate::render::{self, Definition};
 use crate::report::Place;
 use crate::trace;
 use lower::NirFile;
+use std::time::Duration;
 use vm::VmError;
 
 /// The place of the wrapper module, whose span starts the input.
@@ -27,6 +28,12 @@ pub struct Unit {
 }
 
 impl Session {
+    /// Makes each input stop after running for `limit`, as on Ctrl-C, once interrupts are
+    /// watched.
+    pub fn limit_runs(&mut self, limit: Option<Duration>) {
+        self.vm.limit_runs(limit);
+    }
+
     /// Loads and runs `unit`; the lines it prints.
     pub fn run(&mut self, unit: Unit) -> Vec<String> {
         let Unit { module, files, defs, earlier, unit_res, count: mut out, mut warnings } = unit;
@@ -37,7 +44,7 @@ impl Session {
                 return out;
             }
         }
-        self.vm.clear_interrupts();
+        self.vm.start_time_limit();
         if let Err(e) = self.vm.eval_module(&module) {
             let init = defs.iter().position(|(_, d)| d.initializes()).unwrap_or(defs.len());
             let lazies = defs[..init].iter().filter(|(_, d)| d.before_init() && !self.quiet);
@@ -48,6 +55,7 @@ impl Session {
             self.earlier.push(earlier);
             warnings.extend(self.rendered(&module, defs));
         }
+        self.vm.end_time_limit();
         warnings.sort_by_key(|(p, _)| *p);
         out.extend(warnings.into_iter().flat_map(|(_, w)| w));
         out
@@ -79,6 +87,58 @@ impl Session {
                 Vec::new()
             }
             e => vec![e.to_string()],
+        }
+    }
+}
+
+#[cfg(all(test, not(feature = "portable")))]
+mod tests {
+    use super::super::{Compiled, Session};
+    use std::sync::mpsc;
+    use std::time::Duration;
+    use vm::{Classpath, Vm};
+
+    /// How long the run may take before the test ends the process as failed.
+    const HARD_LIMIT: Duration = Duration::from_secs(60);
+
+    fn run() -> Result<(), String> {
+        let jars = libs::jars()?;
+        let image = libs::image(&jars).map_err(|e| e.to_string())?;
+        let classpath = Classpath::with_image(&[], image).map_err(|e| e.to_string())?;
+        let vm = Vm::new(classpath).map_err(|e| e.to_string())?;
+        let mut s = Session::new(vm, image, 80).map_err(|e| e.to_string())?;
+        s.watch_interrupts().map_err(|e| e.to_string())?;
+
+        s.vm.clear_interrupts();
+        let Compiled::Unit(unit) = s.compile("while true do ()") else {
+            return Err("the input is not compiled to a unit".into());
+        };
+        // SAFETY: `raise` has no preconditions; the handler `watch_interrupts` installed runs
+        // before it returns.
+        unsafe { libc::raise(libc::SIGINT) };
+        let (done, ended) = mpsc::channel::<()>();
+        std::thread::spawn(move || {
+            if ended.recv_timeout(HARD_LIMIT) == Err(mpsc::RecvTimeoutError::Timeout) {
+                eprintln!("a SIGINT before the run did not stop it within {HARD_LIMIT:?}");
+                std::process::exit(1);
+            }
+        });
+        let out = s.run(unit);
+        drop(done);
+        match out.first() {
+            Some(l) if l.starts_with("java.lang.ThreadDeath") => Ok(()),
+            _ => Err(format!("{out:?}")),
+        }
+    }
+
+    #[test]
+    fn sigint_before_the_run_stops_it() {
+        let run = std::thread::Builder::new().stack_size(1 << 30).spawn(run).unwrap().join().unwrap();
+        match run {
+            Err(e) if e.contains("or the Coursier cache") && std::env::var_os("CI").is_none() => {
+                eprintln!("skipped: Scala Native libraries are not in the Coursier cache");
+            }
+            run => run.unwrap(),
         }
     }
 }

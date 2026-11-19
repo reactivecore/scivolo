@@ -149,6 +149,14 @@ Welcome to Scivolo 0.2.3 (target Scala 3.9.0). Type in expressions for evaluatio
 val res0: P = P(1)
 ```
 
+In the browser (WebAssembly, without threads, files or extra jars; needs the
+`wasm32-unknown-unknown` target of rustup):
+
+```sh
+just web-dist                                # builds tmp/web-dist/
+python3 -m http.server -d tmp/web-dist 8000  # then open http://localhost:8000
+```
+
 ### Native executables
 
 ```sh
@@ -211,6 +219,7 @@ The package in `crates/<dir>` is `scivolo-<dir>` (`crates/scivolo` is `scivolo`)
 | `lower` | Lowering to NIR. |
 | `macros` | Runs macros in the VM. |
 | `repl` | The REPL. |
+| `web` | The REPL as a WebAssembly module for the page in `web/`. |
 | `vm` | The NIR interpreter. |
 | `nir` | Reads and writes NIR. |
 | `jvm` | `scivolo-jvm`: the JVM backend. |

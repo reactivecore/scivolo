@@ -8,14 +8,23 @@
 //! The collector finds live objects from the native stack, the frame stack and the permanent
 //! heap, all scanned conservatively; see ADR 0004.
 
+#[cfg(not(portable))]
 mod collector;
+#[cfg(portable)]
+mod portable;
 mod region;
+mod roots;
 
-pub use collector::{GcIds, ThreadRoots};
+#[cfg(not(portable))]
+use collector::Collector;
+#[cfg(portable)]
+use portable::Collector;
+#[cfg(portable)]
+pub use portable::HEAP_CAP;
 pub use region::{Blob, Trained};
+pub use roots::{GcIds, ThreadRoots};
 
 use crate::layout::{ARRAY_HEADER, ARRAY_LENGTH, ARRAY_STRIDE};
-use collector::Collector;
 use region::Region;
 use std::alloc::{Layout, alloc_zeroed};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -39,25 +48,9 @@ impl Heap {
         if STARTED.swap(true, Ordering::SeqCst) {
             return Err("the collector serves one VM per process".into());
         }
-        let find = |name: &str| symbol(name).ok_or_else(|| format!("C runtime lacks {name}"));
-        // SAFETY: each address is the named C runtime function, whose C signature the type the
-        // result is assigned to spells out.
-        let gc = unsafe {
-            Collector {
-                alloc: c_fn(find("scalanative_GC_alloc")?),
-                alloc_array: c_fn(find("scalanative_GC_alloc_array")?),
-                add_roots: c_fn(find("scalanative_GC_add_roots")?),
-                set_ids: c_fn(find("scivolo_GC_set_ids")?),
-                watch_weak_refs: c_fn(find("scivolo_GC_watch_weak_refs")?),
-                set_threads: c_fn(find("scivolo_GC_set_threads")?),
-                switch_stack: c_fn(find("scivolo_GC_switch_stack")?),
-                weak_refs_collected: find("scivolo_weak_refs_collected")?,
-            }
-        };
-        // SAFETY: as above.
-        let init: extern "C" fn(usize, usize) = unsafe { c_fn(find("scivolo_GC_init")?) };
+        let gc = Collector::new(symbol)?;
         let region = Region::map();
-        init(stack.0, stack.1);
+        gc.start(stack);
         Ok(Self { cur: 0, end: 0, allocated: 0, region, gc })
     }
 
@@ -67,7 +60,7 @@ impl Heap {
             write(obj, rtti);
             return obj;
         }
-        (self.gc.alloc)(rtti, size)
+        self.gc.alloc(rtti, size)
     }
 
     /// A zeroed array of `len` elements of `stride` bytes; may collect first.
@@ -78,7 +71,7 @@ impl Heap {
             write(arr + ARRAY_STRIDE, stride as i32);
             return arr;
         }
-        (self.gc.alloc_array)(rtti, len, stride)
+        self.gc.alloc_array(rtti, len, stride)
     }
 
     /// `size` zeroed bytes aligned to 16 holding `blob` that are never freed; the collector
@@ -86,8 +79,9 @@ impl Heap {
     pub fn permanent(&mut self, size: usize, blob: Blob) -> usize {
         let size = size.max(1).next_multiple_of(ALIGN);
         self.allocated += size;
-        let add_roots = self.gc.add_roots;
-        if let Some(addr) = self.region.as_mut().and_then(|r| r.alloc(size, blob, |l, h| add_roots(l, h))) {
+        let gc = &mut self.gc;
+        if let Some(addr) = self.region.as_mut().and_then(|r| r.alloc(size, blob, |l, h| gc.add_roots(l, h)))
+        {
             return addr;
         }
         if size > CHUNK / 4 {
@@ -103,8 +97,8 @@ impl Heap {
     }
 
     fn train(&mut self, size: usize) -> Option<usize> {
-        let add_roots = self.gc.add_roots;
-        self.region.as_mut()?.train(size.next_multiple_of(ALIGN), |low, high| add_roots(low, high))
+        let gc = &mut self.gc;
+        self.region.as_mut()?.train(size.next_multiple_of(ALIGN), |low, high| gc.add_roots(low, high))
     }
 
     fn chunk(&mut self, size: usize) -> usize {
@@ -112,12 +106,13 @@ impl Heap {
         // SAFETY: `layout` has a non-zero size.
         let ptr = unsafe { alloc_zeroed(layout) } as usize;
         assert!(ptr != 0, "out of memory allocating {size} bytes");
-        (self.gc.add_roots)(ptr, ptr + size);
+        self.gc.add_roots(ptr, ptr + size);
         ptr
     }
 }
 
 /// `len` zeroed bytes of fresh address space, at `hint` if that is free.
+#[cfg(not(portable))]
 fn map(hint: usize, len: usize) -> Option<usize> {
     // SAFETY: an anonymous private mapping without `MAP_FIXED` touches no existing memory.
     let addr = unsafe {
@@ -134,19 +129,10 @@ fn map(hint: usize, len: usize) -> Option<usize> {
 }
 
 /// Releases `len` bytes `map` returned at `addr`, of which nothing was handed out.
+#[cfg(not(portable))]
 fn unmap(addr: usize, len: usize) {
     // SAFETY: the caller's contract; nothing refers to the mapping.
     unsafe { libc::munmap(addr as *mut libc::c_void, len) };
-}
-
-/// The C function at `addr` as the function pointer type `F`.
-///
-/// # Safety
-/// `F` must be an `extern "C" fn` type matching the function's C signature.
-unsafe fn c_fn<F: Copy>(addr: usize) -> F {
-    assert_eq!(size_of::<F>(), size_of::<usize>());
-    // SAFETY: `F` is a function pointer, as large as `addr`, per the caller's contract.
-    unsafe { std::mem::transmute_copy(&addr) }
 }
 
 /// Addresses below this lie in the page every platform leaves unmapped; accessing them is a
@@ -170,9 +156,14 @@ pub fn copy(from: usize, to: usize, len: usize) {
 
 /// Sets `len` bytes at `addr` to zero, which the running program vouches for.
 pub fn zero(addr: usize, len: usize) {
-    assert!(addr >= NULL_PAGE, "zeroing address {addr:#x}");
+    fill(addr, len, 0);
+}
+
+/// Sets `len` bytes at `addr` to `byte`, which the running program vouches for.
+pub fn fill(addr: usize, len: usize, byte: u8) {
+    assert!(addr >= NULL_PAGE, "filling address {addr:#x}");
     // SAFETY: as for `read`.
-    unsafe { std::ptr::write_bytes(addr as *mut u8, 0, len) }
+    unsafe { std::ptr::write_bytes(addr as *mut u8, byte, len) }
 }
 
 /// Writes a `T` at `addr`, which the running program vouches for.

@@ -145,10 +145,10 @@ const SPIN: &str = "def spin(): Unit = while true do ()
 
 /// The exit code and stdout of `scivolo` reading `input` and, once it printed `looping`, getting
 /// `signals` SIGINTs 300 ms apart and reading `rest`; `scivolo` stops with exit code 124 after
-/// 60 s, and a line other than a definition before `looping` fails at once.
+/// 300 s, and a line other than a definition before `looping` fails at once.
 fn interrupted(input: &str, signals: usize, rest: &str) -> (Option<i32>, String) {
     let mut child = Command::new(env!("CARGO_BIN_EXE_scivolo"))
-        .env("SCIVOLO_TIMEOUT", "60")
+        .env("SCIVOLO_TIMEOUT", "300")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::null())

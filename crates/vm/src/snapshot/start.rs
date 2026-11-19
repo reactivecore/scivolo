@@ -59,8 +59,7 @@ impl Vm {
         }
         let filename = self.new_string(program)?;
         heap::write(info.filename, filename);
-        let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default();
-        heap::write(info.start_time, now.as_millis() as i64);
+        heap::write(info.start_time, crate::natives::clock::epoch().as_millis() as i64);
         Ok(array as u64)
     }
 }

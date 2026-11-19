@@ -1,5 +1,6 @@
 //! What the collector learns from class metadata: reference field offsets, and the class ids of
-//! arrays, boxed pointers and weak references; and the program's weak reference handler.
+//! arrays, boxed pointers and weak references; the program's weak reference handler; and the
+//! portable heap's cap.
 
 use crate::class::{self, ClassId};
 use crate::heap::{self, Blob, GcIds};
@@ -42,6 +43,38 @@ impl Vm {
             self.call_value(f, &[])?;
         }
         Ok(())
+    }
+
+    /// Collects first if `collect` and due, then throws `OutOfMemoryError` if allocations
+    /// passed the cap (portable mode); runs at calls and loop back-edges.
+    #[cfg(portable)]
+    pub fn heap_safepoint(&mut self, collect: bool) -> Flow<()> {
+        if collect {
+            self.heap.collect_if_due();
+        }
+        match self.heap.take_over_cap() {
+            true => self.throw_new("java.lang.OutOfMemoryError").map(drop),
+            false => Ok(()),
+        }
+    }
+
+    /// Makes `bytes` of live objects the most before `OutOfMemoryError` (portable mode).
+    #[cfg(portable)]
+    pub fn set_heap_cap(&mut self, bytes: usize) {
+        self.heap.set_cap(bytes);
+    }
+
+    /// Makes every safepoint collect and freed memory hold garbage (portable mode), which shows
+    /// objects the VM holds without rooting them.
+    #[cfg(portable)]
+    pub fn stress_collections(&mut self) {
+        self.heap.stress();
+    }
+
+    /// Bytes of objects allocated and not yet collected (portable mode).
+    #[cfg(portable)]
+    pub fn heap_used(&self) -> usize {
+        self.heap.used()
     }
 
     /// The class id of `id` if it is `java.lang.ref.WeakReference` or a subclass.

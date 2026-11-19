@@ -1,7 +1,7 @@
 //! The REPL: line editing on a terminal, else the lines of stdin.
 
 use crate::{history, tab};
-use ::repl::{Session, highlight, is_incomplete};
+use ::repl::{PROMPT, Session, highlight, is_incomplete, welcome};
 use rustyline::completion::{Completer, Pair};
 use rustyline::error::ReadlineError;
 use rustyline::highlight::{CmdKind, Highlighter};
@@ -16,8 +16,6 @@ use std::io::{BufRead, IsTerminal};
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::PathBuf;
 use vm::{Classpath, Vm};
-
-const PROMPT: &str = "> ";
 
 /// Runs the REPL over classpath `cp`; the exit code.
 pub fn run(cp: &[PathBuf]) -> Result<i32, String> {
@@ -97,11 +95,7 @@ fn interactive(session: &RefCell<Session>) -> Result<(), String> {
         let _ = editor.add_history_entry(entry.as_str());
         last = Some(entry);
     }
-    println!(
-        "Welcome to Scivolo {} (target Scala {}). Type in expressions for evaluation. Or try :help.",
-        env!("CARGO_PKG_VERSION"),
-        libs::SCALA
-    );
+    println!("{}", welcome());
     loop {
         println!();
         match editor.readline(PROMPT) {

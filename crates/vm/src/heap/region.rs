@@ -4,11 +4,12 @@
 use super::Heap;
 use std::ops::Range;
 
-#[cfg(target_os = "macos")]
+#[cfg(all(not(portable), target_os = "macos"))]
 const HINT: usize = 0x2000_0000_0000;
-#[cfg(not(target_os = "macos"))]
+#[cfg(all(not(portable), not(target_os = "macos")))]
 const HINT: usize = 0x5000_0000_0000;
 
+#[cfg(not(portable))]
 const SIZE: usize = 64 << 20;
 
 /// The step in which the region's used prefix becomes a root range of the collector.
@@ -50,7 +51,14 @@ pub struct Region {
 }
 
 impl Region {
+    /// No region: portable mode has no fixed addresses and takes no snapshot.
+    #[cfg(portable)]
+    pub fn map() -> Option<Self> {
+        None
+    }
+
     /// The region at `HINT`, in training, unless that address is not granted.
+    #[cfg(not(portable))]
     pub fn map() -> Option<Self> {
         let start = super::map(HINT, SIZE)?;
         if start != HINT {
@@ -142,8 +150,8 @@ impl Heap {
 
     /// Puts snapshot `bytes` taken at `start` back in place; whether that succeeded.
     pub fn restore(&mut self, start: usize, bytes: &[u8]) -> bool {
-        let add_roots = self.gc.add_roots;
-        self.region.as_mut().is_some_and(|r| r.restore(start, bytes, |low, high| add_roots(low, high)))
+        let gc = &mut self.gc;
+        self.region.as_mut().is_some_and(|r| r.restore(start, bytes, |low, high| gc.add_roots(low, high)))
     }
 
     /// Takes back a restored snapshot.
@@ -154,7 +162,7 @@ impl Heap {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, not(portable)))]
 mod tests {
     use super::*;
 

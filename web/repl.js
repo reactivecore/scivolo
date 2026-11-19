@@ -1,0 +1,204 @@
+// The page: a transcript and an input line. The session runs in a worker; a second instance of
+// the module without the library image highlights the input and decides when it is complete.
+
+import { choicesShown, hideChoices, moveChoice, selectedChoice, showChoices } from "./choices.js";
+import { download } from "./download.js";
+import { load } from "./scivolo.js";
+import { render } from "./sgr.js";
+
+const MODULE = "scivolo.wasm";
+const IMAGE = "libs.img.gz";
+const WIDTH = 80;
+// MiB of live objects before OutOfMemoryError.
+const HEAP_MIB = 512;
+const $ = (id) => document.getElementById(id);
+const [out, input, shade, status, stop, prompt] = ["out", "in", "shade", "status", "stop", "prompt"].map($);
+
+let module = null;
+let image = null;
+let ready = false;
+let editor = null;
+let worker = null;
+let pending = null;
+let nextId = 0;
+const history = [];
+let back = 0;
+
+function print(text, kind) {
+  const line = document.createElement("div");
+  if (kind) line.className = kind;
+  line.append(render(text));
+  out.append(line);
+  line.scrollIntoView({ block: "nearest" });
+}
+
+// Calls `f` on the highlighting instance, made again if it trapped; `fallback` meanwhile.
+function light(f, fallback) {
+  try {
+    return editor ? f(editor) : fallback;
+  } catch {
+    editor = null;
+    load(module).then((r) => (editor = r));
+    return fallback;
+  }
+}
+
+function redraw() {
+  const text = input.value;
+  shade.replaceChildren(render(light((r) => r.highlight(text), text)), "\n");
+  input.rows = text.split("\n").length;
+}
+
+function ask(message) {
+  return new Promise((resolve) => {
+    pending = { id: ++nextId, resolve };
+    worker.postMessage({ ...message, id: pending.id });
+  });
+}
+
+function busy(running) {
+  input.disabled = running;
+  stop.hidden = !running;
+  if (!running) input.focus();
+}
+
+function onMessage({ data }) {
+  if (data.type === "ready") {
+    ready = true;
+    status.textContent = "";
+    busy(false);
+  } else if (data.type === "error" || (data.type === "crashed" && !ready)) {
+    status.textContent = `The REPL could not start: ${data.message}`;
+  } else if (data.type === "crashed") {
+    print(`The session ended (${data.message}); a new one starts.`, "note");
+    restart();
+  } else if (pending && data.id === pending.id) {
+    const { resolve } = pending;
+    pending = null;
+    resolve(data);
+  }
+}
+
+function restart() {
+  worker?.terminate();
+  pending?.resolve(null);
+  pending = null;
+  busy(true);
+  stop.hidden = true;
+  ready = false;
+  status.textContent = "Starting the session…";
+  worker = new Worker(new URL("worker.js", import.meta.url), { type: "module" });
+  worker.onmessage = onMessage;
+  worker.onerror = (e) => onMessage({ data: { type: "crashed", message: e.message } });
+  worker.postMessage({ type: "start", module, image, width: WIDTH, heapMib: HEAP_MIB });
+}
+
+// Echoes the input, its first line after the prompt.
+function echo(text) {
+  const indent = " ".repeat(prompt.textContent.length);
+  text.split("\n").forEach((l, i) => print(`${i === 0 ? prompt.textContent : indent}${l}`, "input"));
+}
+
+// Runs the input; its output and a blank line follow it, as in the native REPL.
+async function run(text) {
+  echo(text);
+  input.value = "";
+  redraw();
+  if (text.trim() === "") return print("");
+  if (history.at(-1) !== text) history.push(text);
+  back = 0;
+  busy(true);
+  const reply = await ask({ type: "eval", text });
+  reply?.lines.forEach((l) => print(l));
+  const exit = reply?.exit ?? null;
+  if (exit !== null) print(`The session ended with exit code ${exit}; a new one starts.`, "note");
+  print("");
+  if (exit !== null) restart();
+  else if (reply) busy(false);
+}
+
+// The start of the identifier that ends at `cursor` of `text`.
+function wordStart(text, cursor) {
+  let i = cursor;
+  while (i > 0 && /[\p{L}\p{N}_$]/u.test(text[i - 1])) i--;
+  return i;
+}
+
+function insert(label) {
+  const [text, cursor] = [input.value, input.selectionStart];
+  const start = wordStart(text, cursor);
+  input.value = text.slice(0, start) + label + text.slice(cursor);
+  input.selectionStart = input.selectionEnd = start + label.length;
+  hideChoices();
+  redraw();
+}
+
+async function complete() {
+  const [text, cursor] = [input.value, input.selectionStart];
+  const reply = await ask({ type: "complete", text, cursor });
+  const labels = reply?.groups.flatMap((g) => g.labels) ?? [];
+  if (labels.length === 0) return;
+  const common = labels.reduce((a, b) => { let i = 0; while (i < a.length && a[i] === b[i]) i++; return a.slice(0, i); });
+  if (labels.length === 1 || common.length > cursor - wordStart(text, cursor)) insert(common);
+  if (labels.length > 1) showChoices(reply.groups, insert);
+}
+
+function recall(by) {
+  const at = Math.min(Math.max(back + by, 0), history.length);
+  if (at === back) return;
+  back = at;
+  input.value = back === 0 ? "" : history[history.length - back];
+  redraw();
+}
+
+input.addEventListener("input", () => (hideChoices(), redraw()));
+input.addEventListener("keydown", (e) => {
+  const selected = selectedChoice();
+  if (choicesShown() && ["ArrowDown", "ArrowUp"].includes(e.key)) {
+    e.preventDefault();
+    moveChoice(e.key === "ArrowDown" ? 1 : -1);
+  } else if (e.key === "Escape") hideChoices();
+  else if (e.key === "Enter" && selected !== null) {
+    e.preventDefault();
+    insert(selected);
+  } else if (e.key === "Enter" && !e.shiftKey) {
+    const text = input.value;
+    if (light((r) => r.isIncomplete(text), false)) return;
+    e.preventDefault();
+    run(text);
+  } else if (e.key === "Tab" && !e.shiftKey) {
+    e.preventDefault();
+    complete();
+  } else if (e.key === "ArrowUp" && !input.value.slice(0, input.selectionStart).includes("\n")) {
+    e.preventDefault();
+    recall(1);
+  } else if (e.key === "ArrowDown" && !input.value.slice(input.selectionEnd).includes("\n")) {
+    e.preventDefault();
+    recall(-1);
+  }
+});
+document.addEventListener("mouseup", () => {
+  if (document.getSelection().isCollapsed) input.focus();
+});
+document.addEventListener("keydown", (e) => {
+  if (document.activeElement !== input && !e.ctrlKey && !e.metaKey && !e.altKey) input.focus();
+});
+stop.onclick = () => {
+  print("Stopped; the session is reset.", "note");
+  restart();
+};
+
+try {
+  module = await WebAssembly.compile(await (await fetch(MODULE)).arrayBuffer());
+  editor = await load(module);
+  prompt.textContent = editor.prompt();
+  print(editor.welcome());
+  print("");
+  const mb = (n) => (n / 1e6).toFixed(1);
+  image = await download(IMAGE, (loaded, total) => {
+    status.textContent = `Downloading the Scala libraries: ${mb(loaded)}${total ? ` of ${mb(total)}` : ""} MB`;
+  });
+  restart();
+} catch (e) {
+  status.textContent = `The REPL could not load: ${e}`;
+}

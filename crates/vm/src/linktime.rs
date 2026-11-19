@@ -22,6 +22,9 @@ pub enum Prop {
 }
 
 /// The value of link-time property `name`, if it is one the VM knows.
+/// Whether programs see macOS: natively there; portable mode, as in the browser, is Linux.
+const DARWIN: bool = cfg!(all(target_os = "macos", not(portable)));
+
 pub fn property(name: &str) -> Option<Prop> {
     let key = name.strip_prefix(PREFIX)?;
     Some(match key {
@@ -36,10 +39,10 @@ pub fn property(name: &str) -> Option<Prop> {
         "runtimeVersion" => Prop::Str("0.5.12"),
         "garbageCollector" => Prop::Str("immix"),
         "enabledSanitizer" => Prop::Str(""),
-        "target.env" => Prop::Str(if cfg!(target_os = "macos") { "unknown" } else { "gnu" }),
+        "target.env" => Prop::Str(if DARWIN { "unknown" } else { "gnu" }),
         "target.arch" => Prop::Str(if cfg!(target_arch = "aarch64") { "aarch64" } else { "x86_64" }),
-        "target.vendor" => Prop::Str(if cfg!(target_os = "macos") { "apple" } else { "unknown" }),
-        "target.os" => Prop::Str(if cfg!(target_os = "macos") { "darwin" } else { "linux" }),
+        "target.vendor" => Prop::Str(if DARWIN { "apple" } else { "unknown" }),
+        "target.os" => Prop::Str(if DARWIN { "darwin" } else { "linux" }),
         _ => return None,
     })
 }

@@ -7,7 +7,6 @@
 
 use crate::build::{build, key};
 use crate::cache;
-use std::fs::File;
 use std::io;
 use std::path::{Path, PathBuf};
 
@@ -45,7 +44,8 @@ pub struct Image {
     map: *const u8,
     len: usize,
     count: usize,
-    /// The key that names the image's file.
+    mapped: bool,
+    /// The key that names the image's file; 0 for an image read from bytes.
     pub key: u64,
 }
 
@@ -74,8 +74,14 @@ impl Image {
         Self::map(&path, key)
     }
 
+    /// Reads an image from the bytes of an image file, e.g. one a browser downloaded.
+    pub fn from_bytes(bytes: &'static [u8]) -> io::Result<Self> {
+        Self { map: bytes.as_ptr(), len: bytes.len(), count: 0, mapped: false, key: 0 }.checked()
+    }
+
+    #[cfg(unix)]
     fn map(path: &Path, key: u64) -> io::Result<Self> {
-        let file = File::open(path)?;
+        let file = std::fs::File::open(path)?;
         let len = file.metadata()?.len() as usize;
         if len < HEADER {
             return Err(io::Error::other("library image too short"));
@@ -90,7 +96,21 @@ impl Image {
         if map == libc::MAP_FAILED {
             return Err(io::Error::last_os_error());
         }
-        let mut image = Self { map: map as *const u8, len, count: 0, key };
+        Self { map: map as *const u8, len, count: 0, mapped: true, key }.checked()
+    }
+
+    #[cfg(not(unix))]
+    fn map(path: &Path, _: u64) -> io::Result<Self> {
+        let bytes = std::fs::read(path)?;
+        Self::from_bytes(Vec::leak(bytes))
+    }
+
+    fn checked(mut self) -> io::Result<Self> {
+        let len = self.len;
+        if len < HEADER {
+            return Err(io::Error::other("library image too short"));
+        }
+        let image = &mut self;
         let bytes = image.bytes();
         if &bytes[..8] != MAGIC {
             return Err(io::Error::other("not a library image"));
@@ -109,7 +129,7 @@ impl Image {
         if end != Some(len) {
             return Err(io::Error::other("library image contents truncated"));
         }
-        Ok(image)
+        Ok(self)
     }
 
     fn bytes(&self) -> &[u8] {
@@ -156,8 +176,13 @@ impl Image {
 
 impl Drop for Image {
     fn drop(&mut self) {
-        // SAFETY: `map` and `len` describe the mapping `map` created; nothing refers into it once
-        // the image is dropped, as `find` and `names` borrow `self`.
-        unsafe { libc::munmap(self.map as *mut libc::c_void, self.len) };
+        if self.mapped {
+            // SAFETY: `map` and `len` describe the mapping `map` created; nothing refers into it
+            // once the image is dropped, as `find` and `names` borrow `self`.
+            #[cfg(unix)]
+            unsafe {
+                libc::munmap(self.map as *mut libc::c_void, self.len)
+            };
+        }
     }
 }

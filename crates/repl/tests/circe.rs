@@ -2,6 +2,7 @@
 //! CI when Coursier cannot provide it.
 
 mod deps;
+#[allow(dead_code)]
 mod transcript;
 
 #[test]

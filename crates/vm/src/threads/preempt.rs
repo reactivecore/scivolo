@@ -3,8 +3,9 @@
 
 use super::{ThreadId, Wait};
 use crate::interp::{Flow, FuncId};
+use crate::natives::clock;
 use crate::{Vm, VmError, natives};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 /// The longest the idle scheduler waits before looking for a SIGINT.
 const SIGNAL_SLICE: Duration = Duration::from_millis(100);
@@ -20,12 +21,16 @@ pub struct Interrupts {
     stop: bool,
     /// C callbacks the main thread runs, which an exception must not leave.
     callbacks: u32,
+    /// How long a run of the main thread may take before it is stopped as by a SIGINT.
+    limit: Option<Duration>,
+    /// The point on `clock::monotonic` at which the current run is stopped.
+    deadline: Option<Duration>,
 }
 
 impl Vm {
     /// Blocks the running thread for `why` until another thread wakes it (`true`) or
     /// `deadline` passes (`false`); returns `false` at once outside green threads.
-    pub fn block(&mut self, why: Wait, deadline: Option<Instant>) -> bool {
+    pub fn block(&mut self, why: Wait, deadline: Option<Duration>) -> bool {
         self.threads.sched.block_current(why, deadline);
         let id = self.threads.sched.current;
         if !self.suspend_thread() {
@@ -33,6 +38,16 @@ impl Vm {
             return false;
         }
         self.threads.sched.info[id].woken
+    }
+
+    /// Refuses a wait without `deadline`, which no other thread could end: none runs in
+    /// portable mode.
+    #[cfg(portable)]
+    pub fn refuse_endless_wait(&self, deadline: Option<Duration>) -> Flow<()> {
+        match deadline {
+            Some(_) => Ok(()),
+            None => Err(VmError::Unsupported("deadlock: every thread waits forever".into()).into()),
+        }
     }
 
     /// Lets every other runnable thread run before the running one continues.
@@ -86,7 +101,11 @@ impl Vm {
         if !i.watching {
             return;
         }
-        let taken = natives::take_sigint();
+        let expired = i.deadline.is_some_and(|d| clock::monotonic() >= d);
+        if expired {
+            i.deadline = None;
+        }
+        let taken = natives::take_sigint() + u32::from(expired);
         if taken == 0 {
             return;
         }
@@ -113,11 +132,29 @@ impl Vm {
         Ok(())
     }
 
+    /// Makes every later run that `start_time_limit` starts stop after `limit`, as on a SIGINT;
+    /// takes effect once interrupts are watched.
+    pub fn limit_runs(&mut self, limit: Option<Duration>) {
+        self.threads.interrupts.limit = limit;
+    }
+
     /// Forgets the SIGINTs received so far.
     pub fn clear_interrupts(&mut self) {
         natives::take_sigint();
         let i = &mut self.threads.interrupts;
         i.signals = 0;
         i.stop = false;
+    }
+
+    /// Starts the time limit of the next run; keeps the SIGINTs received since
+    /// `clear_interrupts`, so that the run stops at its first safepoint after one.
+    pub fn start_time_limit(&mut self) {
+        let i = &mut self.threads.interrupts;
+        i.deadline = i.limit.map(|l| clock::monotonic() + l);
+    }
+
+    /// Ends the time limit `start_time_limit` started, so that it stops no later VM code.
+    pub fn end_time_limit(&mut self) {
+        self.threads.interrupts.deadline = None;
     }
 }

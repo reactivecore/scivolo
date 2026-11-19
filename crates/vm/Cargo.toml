@@ -9,12 +9,18 @@ publish = false
 [lib]
 name = "vm"
 
+[features]
+# Runs without the C runtime, `mmap`, coroutines and OS threads, as on wasm32 (ADR 0127).
+portable = []
+
 [dependencies]
 nir.workspace = true
 libimage.workspace = true
-snrt.workspace = true
 rustc-hash.workspace = true
 zip.workspace = true
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+snrt.workspace = true
 libc = "0.2"
 corosensei = "0.3"
 

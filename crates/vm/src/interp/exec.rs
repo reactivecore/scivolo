@@ -10,6 +10,8 @@ impl Vm {
         if self.heap.take_weak_refs_collected() {
             self.run_weak_handler()?;
         }
+        #[cfg(portable)]
+        self.heap_safepoint(false)?;
         self.tick()?;
         let mark = self.frames.mark();
         let slots = self.push_frame(code)?;
@@ -176,6 +178,8 @@ impl Vm {
             };
             let target = self.jump(code, slots, next)?;
             if target <= pc {
+                #[cfg(portable)]
+                self.heap_safepoint(true)?;
                 self.tick()?;
             }
             pc = target;

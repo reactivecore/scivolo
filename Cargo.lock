@@ -844,6 +844,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "scivolo-web"
+version = "0.2.2"
+dependencies = [
+ "scivolo-libimage",
+ "scivolo-libs",
+ "scivolo-repl",
+ "scivolo-vm",
+]
+
+[[package]]
 name = "scopeguard"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

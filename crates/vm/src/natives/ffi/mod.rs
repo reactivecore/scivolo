@@ -1,11 +1,37 @@
 //! Calls into C functions found with `dlsym`, for non-variadic signatures of up to eight
-//! integer and eight floating-point arguments passed in registers.
+//! integer and eight floating-point arguments passed in registers; in portable mode, the C
+//! functions the VM implements in Rust instead.
 
+#[cfg(portable)]
+mod atomics;
+pub mod clock;
+#[cfg(not(portable))]
 mod dl;
+#[cfg(portable)]
+mod heap_externs;
+#[cfg(portable)]
+mod portable;
+#[cfg(not(portable))]
 mod sigint;
+#[cfg(portable)]
+mod table;
+#[cfg(not(portable))]
 pub mod variadic;
 
+#[cfg(not(portable))]
 pub use dl::{extern_fn, load_runtime, symbol, symbol_at};
+#[cfg(portable)]
+pub use portable::{
+    errno, exit_immediately, extern_fn, load_runtime, set_errno, symbol, symbol_at, take_sigint, variable,
+    variadic, watch_sigint,
+};
+
+/// Returns the address of the C variable `name`.
+#[cfg(not(portable))]
+pub fn variable(_: &mut Vm, name: &str) -> Option<usize> {
+    symbol(name)
+}
+#[cfg(not(portable))]
 pub use sigint::{take_sigint, watch_sigint};
 
 use crate::Vm;
@@ -19,6 +45,7 @@ pub enum Class {
     Double,
 }
 
+#[cfg(not(portable))]
 impl Class {
     /// `v`, a zero-extended value of this class, as the C ABI passes it in a register:
     /// narrow signed integers sign-extended.
@@ -63,6 +90,7 @@ fn class(ty: &Type) -> Option<Class> {
 }
 
 /// Ends the process at once with `code`, without running exit handlers.
+#[cfg(not(portable))]
 pub fn exit_immediately(code: i32) -> ! {
     // SAFETY: `_exit` has no preconditions; it never returns.
     unsafe { libc::_exit(code) }
@@ -87,33 +115,43 @@ pub fn foreign(pool: &nir::Pool, ty: nir::TypeId, addr: usize) -> Option<Foreign
     (ints <= 8 && args.len() - ints <= 8).then_some(Foreign { addr, args, ret, blocking: false })
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(all(not(portable), target_os = "macos"))]
 fn errno_location() -> *mut i32 {
     // SAFETY: `__error` returns the calling thread's errno cell and has no preconditions.
     unsafe { libc::__error() }
 }
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(all(not(portable), not(target_os = "macos")))]
 fn errno_location() -> *mut i32 {
     // SAFETY: `__errno_location` returns the calling thread's errno cell and has no preconditions.
     unsafe { libc::__errno_location() }
 }
 
+#[cfg(not(portable))]
 pub fn errno() -> i32 {
     // SAFETY: the errno cell of the calling thread is always valid to read.
     unsafe { *errno_location() }
 }
 
+#[cfg(not(portable))]
 pub fn set_errno(v: i32) {
     // SAFETY: the errno cell of the calling thread is always valid to write.
     unsafe { *errno_location() = v }
 }
 
+#[cfg(not(portable))]
 type IntFn =
     extern "C" fn(u64, u64, u64, u64, u64, u64, u64, u64, f64, f64, f64, f64, f64, f64, f64, f64) -> u64;
+#[cfg(not(portable))]
 type FloatFn =
     extern "C" fn(u64, u64, u64, u64, u64, u64, u64, u64, f64, f64, f64, f64, f64, f64, f64, f64) -> f64;
 
+#[cfg(portable)]
+pub fn call(_: &Foreign, _: &[u64]) -> Flow {
+    Err(crate::VmError::Unsupported("C calls in portable mode".into()).into())
+}
+
+#[cfg(not(portable))]
 pub fn call(f: &Foreign, values: &[u64]) -> Flow {
     let (mut ints, mut floats) = ([0u64; 8], [0f64; 8]);
     let (mut ni, mut nf) = (0, 0);

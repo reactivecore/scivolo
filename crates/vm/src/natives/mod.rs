@@ -8,6 +8,7 @@ mod gc;
 mod java_thread;
 mod junit;
 mod llvm;
+mod output;
 mod quotes;
 mod reflect;
 mod repl;
@@ -18,10 +19,12 @@ mod threads;
 mod unwind;
 
 pub use callback::Callbacks;
+pub use ffi::clock;
 pub use ffi::{
     Foreign, call as call_c_function, errno, exit_immediately, load_runtime, set_errno, symbol, symbol_at,
     take_sigint, watch_sigint,
 };
+pub use output::Written;
 pub use quotes::{Expansions, Hole, MacroArg, QuoteHost, Reflected};
 pub use resources::{Resources, embedded_content, embedded_resources};
 pub use services::{constructible, is_load, provider_error, provider_names};
@@ -48,10 +51,26 @@ pub enum Native {
 impl Native {
     pub fn call(&self, vm: &mut Vm, args: &[u64]) -> Flow {
         match self {
+            #[cfg(portable)]
+            Native::Rust(f) => {
+                vm.heap.pin();
+                let result = f(vm, args);
+                vm.heap.unpin();
+                result
+            }
+            #[cfg(not(portable))]
             Native::Rust(f) => f(vm, args),
             Native::C(f) if f.blocking => vm.call_blocking(f, args),
             Native::C(f) => ffi::call(f, args),
             Native::Property(name) => vm.property_value(name),
+            #[cfg(portable)]
+            Native::New(class, service) => {
+                vm.heap.pin();
+                let result = services::instantiate(vm, *class, *service);
+                vm.heap.unpin();
+                result
+            }
+            #[cfg(not(portable))]
             Native::New(class, service) => services::instantiate(vm, *class, *service),
         }
     }
@@ -104,7 +123,7 @@ impl Vm {
     pub fn extern_variable(&mut self, g: GlobalId) -> Result<usize, VmError> {
         let sig = self.world.pool.member_sig(g).unwrap_or_default();
         demangle::extern_name(sig)
-            .and_then(|name| ffi::symbol(&name))
+            .and_then(|name| ffi::variable(self, &name))
             .ok_or_else(|| VmError::Unsupported(format!("extern variable {}", self.world.name(g))))
     }
 

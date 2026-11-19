@@ -8,7 +8,7 @@ use libimage::{Derived, Image, Source, Spec};
 use std::io;
 use std::path::{Path, PathBuf};
 
-pub const SCALA: &str = "3.9.0";
+pub use libimage::SCALA;
 pub const NATIVE: &str = "0.5.12";
 
 /// A hash of the workspace's sources, which keys what the build derives from them.

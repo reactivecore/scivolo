@@ -2,6 +2,7 @@
 //! macros, run in the VM; skipped outside CI when Coursier cannot provide Circe.
 
 mod deps;
+#[allow(dead_code)]
 mod transcript;
 
 const DEPS: [&str; 2] = ["io.circe::circe-parser::0.14.10", "io.circe::circe-generic::0.14.10"];

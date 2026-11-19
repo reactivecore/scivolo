@@ -22,3 +22,15 @@ pub use highlight::highlight;
 pub use input::is_incomplete;
 pub use report::compile_errors;
 pub use session::Session;
+
+/// The prompt before each input.
+pub const PROMPT: &str = "> ";
+
+/// Builds the line the REPL greets with.
+pub fn welcome() -> String {
+    format!(
+        "Welcome to Scivolo {} (target Scala {}). Type in expressions for evaluation. Or try :help.",
+        env!("CARGO_PKG_VERSION"),
+        libimage::SCALA
+    )
+}

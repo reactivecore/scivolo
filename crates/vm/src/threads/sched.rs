@@ -2,9 +2,10 @@
 
 use super::ThreadId;
 use super::io::Io;
+use crate::natives::clock;
 use std::cmp::Reverse;
 use std::collections::{BinaryHeap, VecDeque};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 /// Calls and loop back-edges between checks whether another thread should run.
 const TICKS: u32 = 20_000;
@@ -34,7 +35,8 @@ pub enum Wait {
 #[derive(Default)]
 pub struct Sched {
     queue: VecDeque<ThreadId>,
-    timers: BinaryHeap<Reverse<(Instant, ThreadId, u64)>>,
+    /// Deadlines on `clock::monotonic`.
+    timers: BinaryHeap<Reverse<(Duration, ThreadId, u64)>>,
     pub info: Vec<Info>,
     pub current: ThreadId,
     live: usize,
@@ -100,7 +102,7 @@ impl Sched {
     }
 
     /// Marks the running thread blocked for `why` until woken or past `deadline`.
-    pub fn block_current(&mut self, why: Wait, deadline: Option<Instant>) {
+    pub fn block_current(&mut self, why: Wait, deadline: Option<Duration>) {
         let id = self.current;
         let info = &mut self.info[id];
         info.blocked = Some(why);
@@ -144,7 +146,7 @@ impl Sched {
 
     /// Makes runnable the threads whose deadline passed or whose blocking call finished.
     fn poll(&mut self) {
-        let now = Instant::now();
+        let now = clock::monotonic();
         while let Some(&Reverse((deadline, id, generation))) = self.timers.peek() {
             if deadline > now {
                 break;
@@ -176,8 +178,7 @@ impl Sched {
                 }
                 self.timers.pop();
             }
-            let timer =
-                self.timers.peek().map(|Reverse((d, ..))| d.saturating_duration_since(Instant::now()));
+            let timer = self.timers.peek().map(|Reverse((d, ..))| d.saturating_sub(clock::monotonic()));
             let busy = self.io.busy();
             if timer.is_none() && !busy {
                 return Next::Deadlock;

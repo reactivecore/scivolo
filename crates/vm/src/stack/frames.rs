@@ -4,7 +4,15 @@
 const ALIGN: usize = 16;
 
 /// The end of the frame stack only `StackOverflowError` construction may use.
+#[cfg(not(portable))]
 const RESERVE: usize = 16 << 20;
+/// The end of the frame stack only `StackOverflowError` construction may use.
+#[cfg(portable)]
+const RESERVE: usize = 1 << 20;
+
+/// Bytes of every frame stack in portable mode, taken from the allocator at once.
+#[cfg(portable)]
+const PORTABLE_SIZE: usize = 16 << 20;
 
 /// A frame's header: the header of the enclosing frame, the frame's method and the index of the
 /// instruction it executes.
@@ -30,6 +38,7 @@ pub struct Mark {
 impl Frames {
     /// A frame stack of `size` bytes of address space, more than `RESERVE`; pages are committed
     /// as deep calls touch them.
+    #[cfg(not(portable))]
     pub fn new(size: usize) -> Result<Self, String> {
         assert!(size > 2 * RESERVE, "frame stack of {size} bytes");
         // SAFETY: an anonymous private mapping touches no existing memory; it is unmapped only
@@ -50,6 +59,24 @@ impl Frames {
         let low = base as usize;
         let bounds = Box::new([low, low]);
         Ok(Self { bounds, size, end: low + size, reserve_open: false, innermost: 0 })
+    }
+
+    /// A frame stack of `PORTABLE_SIZE` bytes from the allocator, whatever `size` asks for.
+    #[cfg(portable)]
+    pub fn new(_size: usize) -> Result<Self, String> {
+        let size = PORTABLE_SIZE;
+        // SAFETY: `layout` has a non-zero size.
+        let low = unsafe { std::alloc::alloc_zeroed(Self::layout(size)) } as usize;
+        if low == 0 {
+            return Err("cannot allocate a frame stack".into());
+        }
+        let bounds = Box::new([low, low]);
+        Ok(Self { bounds, size, end: low + size, reserve_open: false, innermost: 0 })
+    }
+
+    #[cfg(portable)]
+    fn layout(size: usize) -> std::alloc::Layout {
+        std::alloc::Layout::from_size_align(size, ALIGN).expect("a valid layout")
     }
 
     /// Lets pushes use the reserve, or stops them.
@@ -137,9 +164,17 @@ impl Frames {
 }
 
 impl Drop for Frames {
+    #[cfg(not(portable))]
     fn drop(&mut self) {
         // SAFETY: the mapping came from `mmap` in `new` with this size; the thread's calls have
         // ended, so nothing refers into it.
         unsafe { libc::munmap(self.bounds[0] as *mut libc::c_void, self.size) };
+    }
+
+    #[cfg(portable)]
+    fn drop(&mut self) {
+        // SAFETY: the memory came from `alloc` in `new` with this layout; the thread's calls have
+        // ended, so nothing refers into it.
+        unsafe { std::alloc::dealloc(self.bounds[0] as *mut u8, Self::layout(self.size)) };
     }
 }
