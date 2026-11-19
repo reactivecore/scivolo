@@ -51,15 +51,15 @@ impl DerivedTypeTree {
         t.companion_constructor(cls)
     }
 
-    /// The info of `original`, its references to other symbols of `owner` made to the same-named
-    /// parameters or accessors visible here.
+    /// The info of `original`, its references to other symbols of `owner`, also in capture sets,
+    /// made to the same-named parameters or accessors visible here.
     fn relocated_info(&self, t: &mut Typer<'_>, original: SymbolId, owner: SymbolId) -> Option<TypeId> {
         let info = match t.syms.repeated_params.get(&original) {
             Some(&written) => written,
             None => t.u.info(original),
         };
         let mut siblings = Vec::new();
-        t.u.map_type(info, &mut |u, p| {
+        t.u.map_type_and_kept_sets(info, &mut |u, p| {
             if let Some(s) = u.sym_of(p)
                 && u.symbol(s).owner == Some(owner)
             {
@@ -74,7 +74,7 @@ impl DerivedTypeTree {
             let local = self.param_or_accessor(t, &n, ty)?;
             replacements.push((s, local));
         }
-        Some(t.u.map_type(info, &mut |u, p| {
+        Some(t.u.map_type_and_kept_sets(info, &mut |u, p| {
             u.sym_of(p).and_then(|s| replacements.iter().find(|&&(o, _)| o == s).map(|&(_, l)| l))
         }))
     }

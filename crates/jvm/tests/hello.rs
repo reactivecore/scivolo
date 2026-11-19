@@ -124,12 +124,8 @@ fn several_files_run_on_the_jvm() {
 }
 
 #[test]
-fn a_case_class_parameter_capturing_another_parameter_refused() {
-    let source = root().join("tests/jvm/refused/fieldcaptures.scala");
-    let (_, compiled) = compile("fieldcaptures", &source);
-    let stderr = String::from_utf8_lossy(&compiled.stderr);
-    let refusal = "does not support pickling a synthetic type tree of a capture set";
-    assert!(!compiled.status.success() && stderr.contains(refusal), "{stderr}");
+fn a_case_class_parameter_capturing_another_parameter_runs_on_the_jvm() {
+    runs_on_the_jvm("casecaptures", "casecaptures");
 }
 
 /// A super accessor through prefix `other.Views` whose capture set names the enclosing
