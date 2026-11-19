@@ -98,7 +98,8 @@ impl Resolution {
     }
 
     /// Chooses among the equally specific alternatives `applicable` of `alts`: by the arguments
-    /// of the next clause, then among `alts` by the only one whose result is no method or the
+    /// of the next clause, also after type arguments as `ff(c)[Int]()` (refused for alternatives
+    /// with type parameters before that clause), then among `alts` by the only one whose result is no method or the
     /// only one without default arguments, then with the expected result type taken into
     /// account (dotty's `deepenProto`).
     fn break_tie(
@@ -110,7 +111,16 @@ impl Resolution {
     ) -> Result<SymbolId, Unchosen> {
         match t.protos[proto].pt {
             Pt::Fun(next) => return self.resolve_by_next_clause(t, &applicable, (proto, next)),
-            Pt::PolyFun(_) => return Err("ambiguous overload resolved by further arguments".into()),
+            Pt::PolyFun(poly) => {
+                let top_poly = applicable.iter().any(|&a| {
+                    let info = t.u.info(a);
+                    t.u.poly(info).is_some()
+                });
+                return match t.poly_protos[poly].pt {
+                    Pt::Fun(next) if !top_poly => self.resolve_by_next_clause(t, &applicable, (proto, next)),
+                    _ => Err("ambiguous overload resolved by further arguments".into()),
+                };
+            }
             _ => {}
         }
 
