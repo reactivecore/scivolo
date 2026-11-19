@@ -22,6 +22,7 @@ pub use output::NirFile;
 pub use phases::adapt::erased_type;
 pub use phases::java_enums::derives_from_java_enum;
 pub use phases::sam::abstract_methods;
+pub use phases::same_run::bridges as same_run_bridges;
 use rustc_hash::{FxHashMap, FxHashSet};
 pub use symbols::{is_erased, is_jdk_object};
 use syntax::ast::Span;

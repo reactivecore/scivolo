@@ -180,6 +180,32 @@ fn has_run(ops: &[&str], run: &[&str]) -> bool {
     ops.windows(run.len()).any(|w| w == run)
 }
 
+/// As dotty compiling the library with the source: the forwarder of a bridge overriding a library
+/// class's bridge, without a signature; a library class's bridge not forwarded where a member it
+/// overrides is, mixed in or not; the `@throws` of a library method a bridge overrides.
+#[test]
+fn forwarders_see_the_bridges_and_mixin_forwarders_of_the_library() {
+    let out = root().join("tmp/jvm-test/linkage-libforwarders");
+    let _ = std::fs::remove_dir_all(&out);
+    let source = root().join("tests/jvm/linkage/libforwarders.scala");
+    let mut command = Command::new(env!("CARGO_BIN_EXE_scivolo-jvm"));
+    let run = command.args(["--scalalib", "-d"]).arg(&out).arg(source).output().expect("running scivolo-jvm");
+    assert!(run.status.success(), "{}", String::from_utf8_lossy(&run.stderr));
+    let Some(text) = javap_verbose(&out, "libforwarders.Nl") else { return };
+    let flags = |header: &str| {
+        let start = text.find(header).unwrap_or_else(|| panic!("{header} in\n{text}"));
+        let flags = text[start..].lines().find(|l| l.trim().starts_with("flags:")).unwrap_or_default();
+        flags.contains("ACC_SYNTHETIC")
+    };
+    assert!(flags("public static boolean isDefinedAt(java.lang.Object);"), "{text}");
+    assert!(text.contains("public static scala.collection.IterableFactory iterableFactory();"), "{text}");
+    assert!(text.contains("public static scala.collection.View<scala.runtime.Nothing$> view();"), "{text}");
+    let and_then = "scala.Function1<java.lang.Object, A> andThen(";
+    assert!(!flags(and_then), "{text}");
+    let thrown = "public static java.lang.Object apply(int) throws java.lang.IndexOutOfBoundsException;";
+    assert!(text.contains(thrown), "{text}");
+}
+
 /// As dotty: the `this` qualifier of an enum case kept as a statement, a `Null$` or `Nothing$`
 /// cast returned as it is, and, in a method with a protected range, a dead block after each store.
 #[test]

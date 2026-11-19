@@ -26,20 +26,26 @@ pub struct Forwarded {
 impl Gen<'_, '_> {
     /// Collects the methods of `module` forwarded to, sorted by source name and descriptor: the members
     /// dotty's `addForwarders` takes, but those of names a term member of the erased companion
-    /// class `companion` has (a primitive class's has no parents).
+    /// class `companion` has (a primitive class's has no parents). The library classes compiled
+    /// in the same run get their bridges and mixin forwarders first; their bridges are not
+    /// forwarded, a member they override is.
     pub fn forwarded(&mut self, module: SymbolId, companion: Option<SymbolId>) -> Vec<Forwarded> {
         let conflicting = companion.map(|c| self.conflicting_names(c)).unwrap_or_default();
         let plain = ["java.lang.Object", "scala.Any", "scala.AnyRef", "scala.Matchable"];
         let mut seen = HashSet::new();
         let mut out = Vec::new();
-        for c in self.l.u.linearization(module) {
+        let mut bases = self.l.u.linearization(module);
+        bases.retain(|&c| {
             let full = self.l.u.full_name(c);
-            if plain.contains(&full.as_str()) || full.starts_with("scala.scalanative.") {
-                continue;
-            }
+            !plain.contains(&full.as_str()) && !full.starts_with("scala.scalanative.")
+        });
+        for &c in &bases {
             self.l.enter_specialized_applies(c);
+            lower::same_run_bridges(self.l, c);
+        }
+        for c in bases {
             for m in self.l.u.decls(c).unwrap_or_default() {
-                if !self.is_method_member(m) {
+                if !self.is_method_member(m) || self.is_library_made(m) && self.l.is_bridge(m) {
                     continue;
                 }
                 let (name, desc) = (method_name(self.l.u, m), method_descriptor(self.l.u, m));
@@ -47,8 +53,8 @@ impl Gen<'_, '_> {
                     continue;
                 }
                 let bridge = self.l.is_bridge(m);
-                let target = match bridge {
-                    true => self.bridged(c, &name, &desc),
+                let target = match bridge || self.is_library_made(m) {
+                    true => self.bridged(c, m, &desc),
                     false => {
                         let mixed = self.l.mixed_in_from(m).or_else(|| self.l.jdk_forwarded_from(m));
                         Some(mixed.unwrap_or(m))
@@ -107,20 +113,31 @@ impl Gen<'_, '_> {
         })
     }
 
-    /// The method a bridge of class `c` named `name` with descriptor `desc` overrides, if it is
-    /// not deferred (dotty's `nextOverriddenSymbol` of a bridge).
-    fn bridged(&mut self, c: SymbolId, name: &str, desc: &str) -> Option<SymbolId> {
+    /// The method that `m` of class `c` with descriptor `desc`, a bridge or a mixin forwarder of a
+    /// library class, overrides, if it is not deferred (dotty's `nextOverriddenSymbol`); the bases
+    /// of `c` declare the bridges and mixin forwarders of the library classes compiled in the
+    /// same run.
+    fn bridged(&mut self, c: SymbolId, m: SymbolId, desc: &str) -> Option<SymbolId> {
+        let name = method_name(self.l.u, m);
         for b in self.l.u.linearization(c).into_iter().skip(1) {
-            for m in self.l.u.decls(b).unwrap_or_default() {
-                if self.is_method_member(m)
-                    && method_name(self.l.u, m) == name
-                    && method_descriptor(self.l.u, m) == desc
+            for o in self.l.u.decls(b).unwrap_or_default() {
+                if self.is_method_member(o)
+                    && method_name(self.l.u, o) == name
+                    && method_descriptor(self.l.u, o) == desc
                 {
-                    return self.has_forwarder(m).then_some(m);
+                    return self.has_forwarder(o).then_some(o);
                 }
             }
         }
         None
+    }
+
+    /// Whether `m` is a bridge or mixin forwarder of a library class compiled in the same run,
+    /// made after erasure; a trait gets neither.
+    pub fn is_library_made(&self, m: SymbolId) -> bool {
+        let s = self.l.u.symbol(m);
+        let made_in = |o| self.l.u.is_same_run(o) && !self.l.u.is_trait(o);
+        s.tree.is_none() && s.owner.is_some_and(made_in)
     }
 
     /// Whether `m` is a method or a getter, defined in this unit or in a library.

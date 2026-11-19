@@ -105,13 +105,18 @@ impl Gen<'_, '_> {
 
     /// The annotations of method `sym`: of an extension method those of the value class method
     /// (dotty's `ExtensionMethods`); of a mixin forwarder without any, those of the trait method
-    /// it calls, read from its TASTy if need be (dotty's `mkForwarderSym`).
+    /// it calls; of a library method those of its TASTy, read if need be (dotty's
+    /// `mkForwarderSym`).
     fn forwarded_annotations(&mut self, sym: SymbolId) -> Vec<TNodeId> {
         let holder = if self.l.mixed_in_from(sym).is_some() { sym } else { self.l.annotations_holder(sym) };
         let own = self.l.tpd.annotations(holder).to_vec();
         let forwarded =
             self.l.mixed_in_from(sym).filter(|_| own.is_empty() && !self.l.is_mixin_accessor(sym));
-        let Some(origin) = forwarded else { return own };
+        let origin = match forwarded {
+            Some(origin) => origin,
+            None if own.is_empty() => holder,
+            None => return own,
+        };
         if self.l.tpd.annotations(origin).is_empty() && self.l.u.symbol(origin).tree.is_some() {
             let read = typer::unpickle::annotations(self.l.u, self.l.tpd, self.l.names, origin);
             for annot in read.unwrap_or_default() {
