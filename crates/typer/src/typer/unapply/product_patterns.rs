@@ -5,7 +5,6 @@
 
 use super::super::extractor_members::{SEQ, get_match, product_selectors};
 use super::super::named_tuple_patterns::adapt_pattern_args;
-use super::super::small_tuples::MAX_TUPLE_ARITY;
 use super::super::unapply_args::UnapplyArgs;
 use super::super::{Pt, Typer};
 use super::{UnapplyPattern, is_named_pattern};
@@ -98,16 +97,10 @@ fn named_pattern_elements(t: &mut Typer<'_>, args: &[NodeId], result: TypeId) ->
     Ok((pattern_element_names(t, get)?, None))
 }
 
-/// The tuple pattern `(args…)` of patterns that match one tuple type.
+/// The tuple pattern `(args…)`, at most 22, of patterns that match one tuple type.
 fn auto_tupled_patterns(t: &mut Typer<'_>, args: &[NodeId]) -> NodeId {
     let span = t.ast.span(args[0]).union(t.ast.span(args[args.len() - 1])).to_synthetic();
-    if args.len() <= MAX_TUPLE_ARITY {
-        return t.tuple_apply(args, span.start_pos(), span);
-    }
-    let trees = t.ast.list(args);
-    let tuple = t.ast.node(Tree::Tuple { trees });
-    t.ast.with_span(tuple, span);
-    tuple
+    t.tuple_apply(args, span.start_pos(), span)
 }
 
 /// Types pattern `a`, possibly named, against expected type `tpe`.

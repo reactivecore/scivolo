@@ -13,6 +13,7 @@ mod ops;
 mod reduce;
 mod rules;
 mod spec;
+mod stuck;
 mod widening;
 
 pub use case_vars::CASE_VARS;

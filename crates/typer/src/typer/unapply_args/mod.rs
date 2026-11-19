@@ -75,15 +75,17 @@ impl UnapplyArgs {
 }
 
 /// Whether `n` patterns, more than one, match `types` as one tuple pattern: `types` is a single
-/// `TupleN` or a `*:` chain of at most 22 elements, as `E(x, y)` against an extractor of
-/// `Some[Int *: Int *: EmptyTuple]` (dotty's auto-tupling in `UnapplyArgs.typedPatterns`).
+/// `TupleN` or a `*:` chain of `n` elements, at most 22, as `E(x, y)` against an extractor of
+/// `Some[Int *: Int *: EmptyTuple]` (dotty's auto-tupling in `UnapplyArgs.typedPatterns`). Other
+/// arities, which dotty rejects, are not.
 pub fn auto_tupled(t: &mut Typer<'_>, types: &[TypeId], n: usize) -> bool {
     let &[single] = types else { return false };
     let normal = t.u.normalized(single);
     let tuple = t.normalized_tuple_type(normal);
     let tuple = t.u.dealias(tuple);
+    let tuple_n = format!("{}{n}", crate::defn::TUPLE);
     n > 1
         && t.u.applied(tuple).map(|(c, args)| (c, args.len())).is_some_and(|(c, arity)| {
-            t.u.class_symbol(c).is_some_and(|c| t.u.full_name(c) == format!("{}{arity}", crate::defn::TUPLE))
+            arity == n && t.u.class_symbol(c).is_some_and(|c| t.u.full_name(c) == tuple_n)
         })
 }
