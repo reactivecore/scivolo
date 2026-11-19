@@ -8,6 +8,7 @@ pub(super) mod candidates;
 mod capture;
 mod clauses;
 mod contextual;
+mod covering;
 mod dictionary;
 mod divergence;
 mod false_deps;
