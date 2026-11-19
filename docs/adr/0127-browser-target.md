@@ -57,3 +57,5 @@ exports and a `<textarea>` do).
   Rust local across a call into interpreted code must run pinned.
 - Threads, files, sockets, processes, `:load` and C libraries are refused in the browser.
 - A panic aborts the wasm instance; the page restarts it, losing the session.
+- On wasm32 the `zip` crate depends on `getrandom` with wasm-bindgen's glue, whose imports the
+  module never calls; the page provides them as functions that throw.
