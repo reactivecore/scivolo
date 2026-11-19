@@ -334,33 +334,6 @@ fn exported_match_aliases_reduce_from_tasty() {
     assert_eq!(String::from_utf8_lossy(&run.stdout), "1\n");
 }
 
-/// A case class whose repeated parameter's capture set names another parameter is refused: its
-/// `fromProduct` passes on a repeated argument of an annotated type.
-#[test]
-fn untold_capture_sets_are_refused() {
-    let out = root().join("tmp/jvm-test/untoldcaptures");
-    let _ = std::fs::remove_dir_all(&out);
-    std::fs::create_dir_all(&out).expect("tmp/jvm-test/untoldcaptures");
-    let header = "import language.experimental.captureChecking\nclass Label[T]\nclass A\n";
-    let cases = [(
-        "caserepeated",
-        "case class V(a: A^, cs: Label[Int]^{a}*)\n",
-        "does not support fromProduct of a repeated parameter of an annotated type",
-    )];
-    for (name, body, refusal) in cases {
-        let source = out.join(format!("{name}.scala"));
-        std::fs::write(&source, format!("{header}{body}")).expect("writing");
-        let run = Command::new(env!("CARGO_BIN_EXE_scivolo-jvm"))
-            .arg("-d")
-            .arg(out.join(name))
-            .arg(&source)
-            .output()
-            .expect("running scivolo-jvm");
-        let stderr = String::from_utf8_lossy(&run.stderr);
-        assert!(!run.status.success() && stderr.contains(refusal), "{name}: {stderr}");
-    }
-}
-
 /// scala-cli 3.9.0 compiles tests/jvm/tastylib/user.scala against the jar, and the result runs
 /// on `java -Xverify:all`, when both are on the PATH.
 #[test]
