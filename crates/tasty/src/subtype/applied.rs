@@ -75,6 +75,9 @@ impl Cmp<'_> {
                 Type::Var(v) => match self.vars.instance(v) {
                     Some(t) => tycon1 = t,
                     None => {
+                        if args1.len() != args2.len() {
+                            return false;
+                        }
                         let same = tycon1 == tycon2 || self.can_constrain(v) && self.recur(tycon1, tycon2);
                         return same && self.sub_args(&args1, args2, variances, &[]);
                     }
@@ -103,9 +106,11 @@ impl Cmp<'_> {
                     let is_class = |c: &Self, n: Option<crate::SymbolId>| n.is_some_and(|s| c.u.is_class(s));
                     let injective =
                         (is_class(self, n1.sym) || is_class(self, n2.sym)) && by_gadt != Some(false);
-                    return match injective {
-                        true => self.sub_args(&args1, args2, variances, &tparams),
-                        false => self.in_frozen_gadt(|c| c.sub_args(&args1, args2, variances, &tparams)),
+                    let alias = matches!(n1.meaning, Meaning::Alias(_)) && by_gadt.is_none();
+                    return match (alias && n1.sym.is_some_and(|s| !self.u.symbol(s).is_opaque()), injective) {
+                        (true, _) => self.same_alias_args(widened, (tycon2, args2), (&args1, variances)),
+                        (_, true) => self.sub_args(&args1, args2, variances, &tparams),
+                        _ => self.in_frozen_gadt(|c| c.sub_args(&args1, args2, variances, &tparams)),
                     };
                 }
                 Type::Param(..) => return tycon1 == tycon2 && self.sub_args(&args1, args2, variances, &[]),

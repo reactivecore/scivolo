@@ -158,15 +158,16 @@ impl Inlining<'_> {
 
 /// The tree replacing `t` in the copied body if it refers to the `this` of class `cls` proxied by
 /// `proxy`: the proxy as an argument inlined from outside for `this`, a selection from the proxy
-/// for an identifier of a member.
+/// for an identifier of a member unless `m` keeps it as a static reference.
 pub fn replace_this(
     i: &mut Inlining<'_>,
-    cls: SymbolId,
-    proxy: SymbolId,
+    m: &super::copy::TreeTypeMap,
+    (cls, proxy): (SymbolId, SymbolId),
     call: Span,
     t: TNodeId,
 ) -> Option<TNodeId> {
     let tpe = i.tpd.get(t).tpe?;
+    let kept = m.stop_at_static && super::prefix_seen::is_static_ref(i.u, tpe);
     let proxy_tpe = i.u.intern_type(Type::Sym(None, proxy));
     let is_cls = |i: &mut Inlining<'_>, c| i.u.class_symbol(c) == Some(cls);
     let prefix_this = i.u.sym_ref(tpe).and_then(|(p, _)| p).and_then(|p| i.u.this_of(p));
@@ -188,7 +189,7 @@ pub fn replace_this(
             Some(i.tpd.node(T::Ident { name }, span, Some(proxy_tpe), Some(proxy)))
         }
         (T::Ident { name }, Type::Sym(Some(_), s))
-            if !name.is_type && prefix_is_cls && i.u.symbol(s).kind.is_term() =>
+            if !name.is_type && !kept && prefix_is_cls && i.u.symbol(s).kind.is_term() =>
         {
             let span = i.tpd.span(t);
             let qualifier = i.singleton(proxy_tpe, Span::at(span.start()))?;

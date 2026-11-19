@@ -9,6 +9,9 @@ export SCIVOLO_LIBS := justfile_directory() + "/ref/libs"
 # The library image of development runs.
 export SCIVOLO_CACHE := justfile_directory() + "/tmp/cache"
 
+# The modules of Scala Native's library with a jar of their own, windowslib left out.
+NATIVE_JARS := "nativelib clib posixlib javalib auxlib scalalib test-interface-sbt-defs test-interface junit-runtime"
+
 default: gates
 
 # Compile Scala Native's shared unit tests (default: the language tests in `scala`) and run
@@ -257,20 +260,21 @@ lib-tasty module filter="": fetch-libs fetch-scala-native
     cargo build -q --release -p scivolo-lower
     python3 scripts/lib-tasty.py '{{ module }}' '{{ filter }}'
 
-# Build Scala Native library `module` as its published jar: our NIR, its C resources, the
-# published TASTy and a manifest, in tmp/lib/<module>/; compare it with lib-compile's oracle.
+# Build Scala Native library `module` as its published jar: our NIR, its C resources, our TASTy
+# if the published jar has TASTy (javalib's into its own jar) and a manifest, in
+# tmp/lib/<module>/; compare it with lib-compile's oracle and the published jar.
 lib-jar module: fetch-libs fetch-scala-native
     cargo build -q --release -p scivolo-lower -p scivolo-nir-dump
     python3 scripts/lib-jar.py '{{ module }}'
 
-# `sn-report 1800` with lib-jar's jars of `modules` in place of the published ones (tests built by
-# `sn-build all`), their library image in tmp/cache-ours, the report in tmp/sn-report-ours;
-# compare with a plain `sn-report 1800`'s in tmp/sn-report.
-lib-jar-report +modules: fetch-libs fetch-scala-native release
+# `sn-report 1800` with lib-jar's jars of `modules` (default: all but windowslib) in place of the
+# published ones (tests built by `sn-build all`), their library image in tmp/cache-ours, the report
+# in tmp/sn-report-ours; compare with a plain `sn-report 1800`'s in tmp/sn-report.
+lib-jar-report *modules: fetch-libs fetch-scala-native release
     cargo build -q --release -p scivolo-lower -p scivolo-nir-dump
     rm -rf tmp/libs-ours && mkdir -p tmp/libs-ours
     ln -s '{{ SCIVOLO_LIBS }}'/*.jar tmp/libs-ours/
-    for m in {{ modules }}; do python3 scripts/lib-jar.py $m || exit 1; ln -sf '{{ justfile_directory() }}'/tmp/lib/$m/${m}_native0.5_3-*.jar tmp/libs-ours/; done
+    for m in {{ if modules == "" { NATIVE_JARS } else { modules } }}; do python3 scripts/lib-jar.py $m || exit 1; ln -sf '{{ justfile_directory() }}'/tmp/lib/$m/${m}_native0.5_3-*.jar tmp/libs-ours/; done
     SCIVOLO_LIBS='{{ justfile_directory() }}/tmp/libs-ours' SCIVOLO_CACHE='{{ justfile_directory() }}/tmp/cache-ours' \
         SCIVOLO_REPORT='{{ justfile_directory() }}/tmp/sn-report-ours' SCIVOLO_TIMEOUT=1800 scripts/sn-report.sh
 
@@ -681,7 +685,8 @@ pickle-fixture:
     target/release/scivolo-nir-dump 'tmp/pickle-fixture/out/probe/Probe$.nir' > tmp/pickle-fixture/probe.dump
     python3 -I tests/pickle/quotes.py tmp/pickle-fixture/probe.dump tests/pickle
 
-# Rebuild the checked-in libs/javalib-tasty-<version>.jar (sbt, JDK) from ref/scala-native.
+# Rebuild the checked-in libs/javalib-tasty-<version>.jar (sbt, JDK) from ref/scala-native;
+# `lib-jar javalib` writes ours beside it and lists the files that differ.
 javalib-tasty:
     scripts/javalib-tasty.sh
 

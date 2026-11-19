@@ -19,6 +19,7 @@ mod encoded_names;
 mod enter;
 mod entries;
 mod erasure_memo;
+mod fresh_binders;
 mod full_names;
 mod function_classes;
 mod higher_kinds;
