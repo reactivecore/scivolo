@@ -87,6 +87,25 @@ def f: Int =
 }
 
 #[test]
+fn structural_members_of_local_values_aliasing_paths_in_the_type_of_a_block() {
+    check(
+        &[],
+        &[
+            "trait Foo extends reflect.Selectable
+val y = new Foo { val i: Int = 7 }
+def f =
+  val x: y.type = y
+  x.i\n",
+            "trait Foo extends reflect.Selectable
+val y = new Foo { val i: Int = 7 }
+def f =
+  val x = new Foo { val z: y.type = y }
+  x.z\n",
+        ],
+    );
+}
+
+#[test]
 fn members_implemented_with_dependent_parameters() {
     check(
         &[],
