@@ -518,6 +518,15 @@ fn quotes_under_capture_checking_see_only_their_own_files_function_types() {
 }
 
 #[test]
+fn wildcards_are_captured_by_a_type_box_of_the_unit() {
+    let Some(jars) = jars() else { return };
+    let a = "object A { def f(x: Any) = x.asInstanceOf[Array[?]].iterator.take(1) }\n";
+    let b = "package scala.runtime\nimport language.experimental.captureChecking\n\
+             final abstract class TypeBox[-L <: U, +U] { type CAP >: L <: U }\n";
+    dump(&jars, &[SourceFile::new("a.scala", a), SourceFile::new("b.scala", b)], "A$");
+}
+
+#[test]
 fn methods_returning_an_object_are_stable_paths() {
     let Some(jars) = jars() else { return };
     let a = "package p\nobject A { object N { class Q }; @inline def M = N }\n";
