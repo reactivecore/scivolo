@@ -40,16 +40,17 @@ pub fn params_sig(u: &mut Universe, s: SymbolId) -> Vec<String> {
 }
 
 /// Whether the signature of a constructor of class `c` ends in `c`: not for a value class,
-/// `*:` or `Array`, which erase to something else.
+/// `*:`, `Array` or `AnyVal`, which erase to something else.
 pub fn constructor_results_in_class(u: &mut Universe, c: SymbolId) -> bool {
     let name = full_name(u, c);
-    u.underlying(c).is_none() && name != crate::defn::PAIR && name != crate::defn::ARRAY
+    let erased_otherwise = [crate::defn::PAIR, crate::defn::ARRAY, tasty::defn::ANY_VAL];
+    u.underlying(c).is_none() && !erased_otherwise.contains(&name.as_str())
 }
 
 /// The result part of the signature of method `s`, a constructor's its class (`Product` for
 /// `*:`, dotty's `erasePair`; `Object` for `Array`, whose element is generic, dotty's
-/// `eraseArray`) or a value class's underlying type, `None` if `s` is not a method (dotty's
-/// `Signature.NotAMethod`).
+/// `eraseArray`, and for `AnyVal`, dotty's `specialErasure`) or a value class's underlying type,
+/// `None` if `s` is not a method (dotty's `Signature.NotAMethod`).
 pub fn result_sig(u: &mut Universe, s: SymbolId) -> Option<String> {
     let mut t = u.info(s);
     let mut method = false;
@@ -70,7 +71,7 @@ pub fn result_sig(u: &mut Universe, s: SymbolId) -> Option<String> {
         if name == crate::defn::PAIR {
             return Some(crate::defn::PRODUCT.into());
         }
-        if name == crate::defn::ARRAY {
+        if name == crate::defn::ARRAY || name == tasty::defn::ANY_VAL {
             return Some(crate::defn::OBJECT.into());
         }
         if u.underlying(c).is_none() {

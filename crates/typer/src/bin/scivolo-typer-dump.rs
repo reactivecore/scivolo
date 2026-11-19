@@ -4,7 +4,7 @@ use std::io::Write as _;
 use std::path::PathBuf;
 use syntax::source::SourceFile;
 use tasty::Universe;
-use typer::dump::{dump, library_jars};
+use typer::dump::{JAVALIB_TASTY_JAR, dump, library_jars};
 
 /// Prints what the typer makes of Scala files, in the format of `scripts/typer-oracle`.
 ///
@@ -21,10 +21,15 @@ struct Cli {
     /// Expand inline calls and print only the outermost `Inlined` trees.
     #[arg(long)]
     inlined: bool,
+    /// Type against the JDK as the JVM backend does: classes and members javalib lacks are read
+    /// from the JDK's class files, Java classes from those of the Scala library and `-classpath`.
+    /// A file whose `-classpath` names javalib's TASTy jar is typed against javalib alone.
+    #[arg(long)]
+    jvm: bool,
 }
 
 fn main() {
-    let Cli { list, errors_first, inlined } = Cli::parse();
+    let Cli { list, errors_first, inlined, jvm } = Cli::parse();
     let libs = std::env::var_os("SCIVOLO_LIBS")
         .map_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../ref/libs"), PathBuf::from);
     let jars = library_jars(&libs);
@@ -35,10 +40,18 @@ fn main() {
         let options: Vec<&str> = options.split(' ').filter(|o| !o.is_empty()).collect();
         let mut b = format!("== file {path}\n");
         let mut jars = jars.clone();
+        let library = jars.len();
         let classpath = options.windows(2).filter(|w| w[0] == "-classpath").flat_map(|w| w[1].split(':'));
         jars.extend(classpath.map(PathBuf::from));
         let run = std::panic::catch_unwind(|| {
             let mut u = Universe::open(&jars).expect("opening the library");
+            let on_javalib = jars[library..].iter().any(|j| j.ends_with(JAVALIB_TASTY_JAR));
+            if jvm && !on_javalib {
+                let on_the_jvm: Vec<usize> = std::iter::once(0).chain(library..jars.len()).collect();
+                u.set_jdk(classfile::Jdk::default());
+                u.set_jvm_target();
+                u.use_java_classfiles(&on_the_jvm).expect("reading the class files");
+            }
             let text = std::fs::read(path).expect("reading the source");
             dump(
                 &mut u,
