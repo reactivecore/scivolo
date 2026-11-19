@@ -1,12 +1,26 @@
-//! The VM's portable mode (ADR 0127), as the browser runs it: output, refusals and limits. One
-//! session, as the heap serves one VM per process.
+//! The VM's portable mode (ADR 0127), as the browser runs it: a session on the library image's
+//! bytes, output, refusals and limits. One session, as the heap serves one VM per process.
 #![cfg(feature = "portable")]
 
 #[allow(dead_code)]
 mod transcript;
 
+use libimage::Image;
 use repl::Session;
-use transcript::{check, session};
+use transcript::{MISSING, check};
+use vm::{Classpath, Vm};
+
+/// A session over the standard libraries, whose image is read from its file's bytes.
+fn session() -> Result<Session, String> {
+    let mapped = libs::image(&libs::jars()?).map_err(|e| format!("{MISSING}{e}"))?;
+    let file = libs::cache_dir().join(format!("libs-{:016x}.img", mapped.key));
+    let bytes = std::fs::read(file).map_err(|e| e.to_string())?;
+    let image: &'static Image =
+        Box::leak(Box::new(Image::from_bytes(Vec::leak(bytes)).map_err(|e| e.to_string())?));
+    let classpath = Classpath::with_image(&[], image).map_err(|e| e.to_string())?;
+    let vm = Vm::new(classpath).map_err(|e| e.to_string())?;
+    Session::new(vm, image, 80).map_err(|e| e.to_string())
+}
 
 /// Whether `out` is the lines `before`, then one line ending with `last`.
 fn is(out: &[String], before: &[&str], last: &str) -> bool {
@@ -29,7 +43,7 @@ fn expect(s: &mut Session, input: &str, want: impl Fn(&[String]) -> bool) -> Res
 }
 
 fn run() -> Result<(), String> {
-    let s = &mut session(&[])?;
+    let s = &mut session()?;
     expect(s, "println(\"a\"); System.err.println(\"b\"); print(\"c\"); 1", |o| {
         is(o, &["a", "b", "c"], ": Int = 1")
     })?;
