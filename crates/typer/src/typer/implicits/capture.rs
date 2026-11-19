@@ -123,7 +123,9 @@ fn captured(t: &mut Typer<'_>, tpe: TypeId, java_unbounded: bool) -> Option<Type
         return None;
     }
     let type_box = t.resolve_full_name("scala.runtime.TypeBox", true)?;
+    t.complete(type_box);
     let cap = t.u.decl(type_box, "CAP").ok()?.first().copied()?;
+    t.complete(cap);
     let java = !java_unbounded && t.u.class_symbol(tycon).is_some_and(|c| t.is_java_class_name(c));
     let mut captured = Vec::new();
     for (a, &p) in args.into_iter().zip(&params) {

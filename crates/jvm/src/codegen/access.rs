@@ -6,7 +6,7 @@
 use super::body::Body;
 use super::callee::{Receiver, adapt_value};
 use super::descriptors::{class_internal, method_descriptor, with_receiver};
-use super::{Gen, is_static_member, method_name, unsupported};
+use super::{Gen, method_name, unsupported};
 use classfile::{FieldOp, Invoke};
 use lower::Result;
 use names::{name_kinds, nme};
@@ -61,10 +61,9 @@ impl Gen<'_, '_> {
         qualifier: Option<TNodeId>,
         prefix: Option<SymbolId>,
     ) -> Result<bool> {
-        let getter = called && self.l.u.symbol(m).kind == tasty::Kind::Val;
         let owner = self.l.u.symbol(m).owner.expect("a member's owner");
         let jdk = lower::is_jdk_object(self.l.u, owner);
-        let static_ = jdk || (is_static_member(self.l, m) && !getter);
+        let static_ = self.is_static_access(m, called);
         let span = qualifier.map_or(Span::NONE, |q| self.l.tpd.span(q));
         if jdk && !called && !self.jdk_static_field(m, span)? {
             return unsupported(span, "a JDK static method as a field");
@@ -122,6 +121,9 @@ impl Gen<'_, '_> {
         let mut name = method_name(self.l.u, m);
         let (mut call_desc, mut interface) = (desc.clone(), false);
         let super_receiver = self.super_receiver(qualifier, m, owner);
+        if self.loads_receiver(m, qualifier) {
+            self.line(b, fun);
+        }
         let kind = match qualifier.map(|q| self.l.tpd.tree(q).clone()) {
             Some(Tree::New { tpt }) => {
                 let tpe = self.l.tpd.tpe(tpt);

@@ -51,4 +51,4 @@ scala> val max = 5
 val max: Int = 5
 
 scala> max
--- unsupported: overloaded reference
+-- unsupported: ambiguous reference

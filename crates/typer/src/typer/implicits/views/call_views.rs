@@ -8,7 +8,7 @@ use super::super::super::{Pt, Typer};
 use super::super::candidates::Candidate;
 use super::super::divergence::THROUGH_CONVERSION;
 use super::qualifier::is_plain_arg;
-use super::{Goal, ViewSearch};
+use super::{Goal, ViewProto, ViewSearch};
 use crate::ctx::Ctx;
 use crate::tpd::TNodeId;
 use tasty::{Type, TypeId};
@@ -44,6 +44,36 @@ impl ViewSearch<'_> {
                 None => return found,
                 Some(true) if clean => applying.push(c),
                 Some(_) => {}
+            }
+        }
+        applying
+    }
+
+    /// Narrows ambiguous conversions `found` to those whose result's member `name` applies to
+    /// the argument types of `proto`, as for `n % total` with `n: Long` and `total: BigInt`, where
+    /// `long2float` and `long2double` both give a `%` that takes no `BigInt`; keeps `found` when
+    /// that is unknown for a conversion.
+    pub fn applying_to(
+        &self,
+        t: &mut Typer<'_>,
+        found: Vec<Candidate>,
+        name: &str,
+        proto: &ViewProto,
+    ) -> Vec<Candidate> {
+        let args = &proto.parts[..proto.args];
+        let reported = t.diags.items.len();
+        let mut applying = Vec::new();
+        for &c in &found {
+            let (fits, clean, _) = t.speculatively(|t| {
+                let q = self.try_conversion(t, c, false);
+                q.is_ok_and(|q| member_applies(t, q, name, args, self.ctx))
+            });
+            t.retract_diags(reported);
+            if !clean {
+                return found;
+            }
+            if fits {
+                applying.push(c);
             }
         }
         applying
@@ -86,12 +116,13 @@ impl ViewSearch<'_> {
     }
 }
 
-/// Tells whether a member `name` of `q` applies to arguments of types `args`.
+/// Tells whether a member `name` of `q` applies to arguments of types `args` without converting
+/// them, as within an implicit search.
 pub fn member_applies(t: &mut Typer<'_>, q: TNodeId, name: &str, args: &[TypeId], ctx: Ctx) -> bool {
     let tpe = t.tpd.tpe(q);
     let members = t.type_members(tpe, name);
     let (applies, _, _) = t.speculatively(|t| {
-        members.iter().any(|&s| t.applicable(s, Some(tpe), args, true, ctx) != Some(false))
+        members.iter().any(|&s| t.applicable(s, Some(tpe), args, false, ctx) != Some(false))
     });
     applies
 }
@@ -122,8 +153,8 @@ fn plain_arg_types(t: &mut Typer<'_>, proto: usize) -> Option<Vec<TypeId>> {
     types.filter(|_| !diagnosed)
 }
 
-/// Tells whether a member `name` of `q` applies to arguments of types `args`, its result
-/// conforming to `pt` if it is a method of one clause; `None` if that is unknown.
+/// Tells whether a member `name` of `q` applies to arguments of types `args` without converting
+/// them, its result conforming to `pt` if it is a method of one clause; `None` if that is unknown.
 fn member_fits(
     t: &mut Typer<'_>,
     q: TNodeId,
@@ -135,7 +166,7 @@ fn member_fits(
     let tpe = t.tpd.tpe(q);
     let mut known = true;
     for m in t.type_members(tpe, name) {
-        match t.applicable(m, Some(tpe), args, true, ctx) {
+        match t.applicable(m, Some(tpe), args, false, ctx) {
             Some(true) => {}
             Some(false) => continue,
             None => {

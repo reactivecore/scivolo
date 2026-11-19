@@ -4,8 +4,8 @@ import queue
 import subprocess
 import threading
 
-from typer_corpus import (CORPORA, DUMP, WORK, corpus, feature_stats, has_errors, load_expected, selected, split,
-                          write_list)
+from typer_corpus import (CORPORA, DUMP, DUMP_JVM, WORK, corpus, feature_stats, has_errors, load_expected, selected,
+                          split, write_list)
 
 FILE_TIMEOUT = 120
 OUTCOMES = ["passed", "differ", "warnings differ", "rejected", "accepted", "syntax errors", "unsupported",
@@ -69,9 +69,9 @@ def runnable_rows(filter_, expected):
     return runnable, rows
 
 
-def write_results(rows):
-    """Write results.tsv and print the files whose outcome changed against the previous one."""
-    results = WORK / "results.tsv"
+def write_results(rows, name):
+    """Write `name` and print the files whose outcome changed against its previous version."""
+    results = WORK / name
     previous = {}
     if results.exists():
         for line in results.read_text().splitlines():
@@ -83,11 +83,11 @@ def write_results(rows):
         print(f"{before} -> {after}: {n} {d}")
 
 
-def dump_until_stuck(rows):
-    """The dumps of `rows` in order, up to the first that aborts the process or takes longer than
-    FILE_TIMEOUT."""
+def dump_until_stuck(rows, command):
+    """The dumps of `rows` by `command` in order, up to the first that aborts the process or takes
+    longer than FILE_TIMEOUT."""
     lst = write_list("run.tsv", rows)
-    proc = subprocess.Popen([str(DUMP), "--list", str(lst)], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+    proc = subprocess.Popen([*command, "--list", str(lst)], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
                             text=True, encoding="utf-8", errors="replace")
     lines, done = [], queue.Queue()
 
@@ -110,11 +110,12 @@ def dump_until_stuck(rows):
     return split("".join(lines))
 
 
-def dump(rows):
-    """The dump of each of `rows`; a crash record for one that aborts the process or times out."""
+def dump(rows, command):
+    """The dump of each of `rows` by `command`; a crash record for one that aborts the process or
+    times out."""
     actual = {}
     while rows:
-        got = dump_until_stuck(rows)
+        got = dump_until_stuck(rows, command)
         actual.update(got)
         if len(got) >= len(rows):
             break
@@ -123,17 +124,31 @@ def dump(rows):
     return actual
 
 
-def report(filter_):
-    expected = load_expected()
-    runnable, rows = runnable_rows(filter_, expected)
-    actual = dump(runnable)
+def outcomes(expected, runnable, rows, command):
+    """`rows` with the outcome of each of `runnable` typed by `command`."""
+    actual = dump(runnable, command)
+    rows = dict(rows)
     for rel, _ in runnable:
         got = actual.get(rel, "== crash no output")
         rows[rel] = classify_neg(got) if corpus(rel) == "neg" else classify(expected[rel], got)
-    write_results(rows)
-    table = "| Outcome | " + " | ".join(CORPORA) + " |\n|---|" + "---:|" * len(CORPORA) + "\n"
+    return rows
+
+
+def report(filter_):
+    """Type the selected files against the JDK into results.tsv, and those of tests/programs also
+    against Scala Native's javalib into results-native.tsv; count the outcomes into report.md."""
+    expected = load_expected()
+    runnable, rows = runnable_rows(filter_, expected)
+    rows = outcomes(expected, runnable, rows, DUMP_JVM)
+    write_results(rows, "results.tsv")
+    programs = [r for r in runnable if corpus(r[0]) == "programs"]
+    native = outcomes(expected, programs, {}, [str(DUMP)])
+    write_results(native, "results-native.tsv")
+    columns = [*CORPORA, "programs (Native)"]
+    table = "| Outcome | " + " | ".join(columns) + " |\n|---|" + "---:|" * len(columns) + "\n"
     counts = collections.Counter((corpus(n), o) for n, (o, _) in rows.items())
+    counts.update(("programs (Native)", o) for o, _ in native.values())
     for o in OUTCOMES:
-        table += f"| {o} | " + " | ".join(str(counts[c, o]) for c in CORPORA) + " |\n"
+        table += f"| {o} | " + " | ".join(str(counts[c, o]) for c in columns) + " |\n"
     (WORK / "report.md").write_text(table)
     print(table)

@@ -47,7 +47,7 @@ impl Gen<'_, '_> {
             }
         }
         let synthetic_unit = matches!(self.l.tpd.tree(expr), Tree::Literal { value: Constant::Unit })
-            && self.l.tpd.span(expr) == self.l.tpd.span(rhs);
+            && (self.is_secondary_constructor(b.method) || self.l.tpd.span(expr) == self.l.tpd.span(rhs));
         match synthetic_unit && result == "V" {
             true => b.code.ret("V"),
             false => self.expr_ret(b, expr, result)?,

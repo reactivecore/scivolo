@@ -8,7 +8,6 @@ use syntax::diag::Diagnostics;
 use syntax::source::SourceFile;
 use tasty::Universe;
 use typer::inlining::Macros;
-use typer::pickle::Pickled;
 use typer::tpd::TNodeId;
 
 /// The output of the files a unit accepts, its warnings, the refusals of the others and the
@@ -49,7 +48,7 @@ pub fn compile_isolated<R>(
     mut macros: Option<&mut dyn Macros>,
     (backend, mut generate): (
         crate::Backend,
-        impl FnMut(&mut crate::Lower, TNodeId, Vec<Pickled>) -> crate::Result<R>,
+        impl FnMut(&mut crate::Lower, TNodeId, crate::output::Pickles) -> crate::Result<R>,
     ),
 ) -> Result<Isolated<R>, Refusal> {
     let mut kept: Vec<SourceFile> = files.iter().map(|f| with_text(f, f.text.clone())).collect();

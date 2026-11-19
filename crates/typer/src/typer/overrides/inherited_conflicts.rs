@@ -4,10 +4,10 @@
 //! rejects.
 
 use super::super::Typer;
-use super::{OverrideChecks, overridable};
+use super::{OverrideChecks, UNCHECKED_OVERRIDE, overridable};
 use crate::case_members::is_synthesized_override;
 use crate::symbols::Completion;
-use names::nme;
+use names::{name_kinds, nme};
 use syntax::ast::flags as f;
 use tasty::tags::{CASE, OVERRIDE, TRAIT};
 use tasty::{SymbolId, Universe};
@@ -23,7 +23,12 @@ impl OverrideChecks {
         for &tr in &traits {
             let names: Vec<String> =
                 t.u.symbol(tr).decls.iter().map(|&d| t.u.symbol(d).name.clone()).collect();
-            for name in names.iter().filter(|n| !own_names.contains(n) && n.as_str() != nme::CONSTRUCTOR) {
+            let checked = |n: &&String| {
+                !own_names.contains(n)
+                    && n.as_str() != nme::CONSTRUCTOR
+                    && !n.contains(name_kinds::DEFAULT_GETTER)
+            };
+            for name in names.iter().filter(checked) {
                 let concrete: Vec<SymbolId> = self
                     .bases
                     .iter()
@@ -59,18 +64,19 @@ impl OverrideChecks {
         let overrides = match t.syms.flags.get(&m) {
             Some(fl) => fl.is(f::OVERRIDE) || fl.is(f::ABS_OVERRIDE),
             None => t.u.symbol(m).flags.has(OVERRIDE),
-        };
+        } || t.u.is_annotated(m, UNCHECKED_OVERRIDE);
         overrides && self.overrides_in_common(t, (a, b), m)
     }
 
-    /// Whether classes `a` and `b` both derive from a third class with a member `m` matches, or
-    /// `b` is a base class of `a`'s self type (dotty's `extendedOverriddenSymbols`).
+    /// Whether classes `a`, or its self type, and `b` both derive from a third class with a member
+    /// `m` matches, or `b` is a base class of `a`'s self type (dotty's `extendedOverriddenSymbols`).
     fn overrides_in_common(&self, t: &mut Typer<'_>, (a, b): (SymbolId, SymbolId), m: SymbolId) -> bool {
         let name = t.u.symbol(m).name.clone();
         if t.u.self_type_bases(a).contains(&b) {
             return true;
         }
-        let bases: Vec<SymbolId> = t.u.linearization(a).into_iter().skip(1).collect();
+        let mut bases: Vec<SymbolId> = t.u.linearization(a).into_iter().skip(1).collect();
+        bases.extend(t.u.self_type_bases(a));
         let common: Vec<SymbolId> = bases.into_iter().filter(|&c| c != b && t.u.derives_from(b, c)).collect();
         common.into_iter().any(|c| {
             let members = overridable(t.u, c, &name);

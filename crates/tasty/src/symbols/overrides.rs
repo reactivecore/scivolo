@@ -4,11 +4,19 @@
 //! Whether one method's signature matches another's as members of the same class (dotty's
 //! `matches`), on types in a normal form.
 
+use super::method_clauses::Clauses;
 use super::{SymbolId, Universe};
-use crate::types::{Binder, NameId, Type, TypeId};
+use crate::types::{Binder, Type, TypeId};
 
-/// The binder and parameters of each value parameter clause of a method type.
-type Clauses = Vec<(Binder, Vec<(NameId, TypeId)>)>;
+/// The rules by which `info_matches_in` relaxes the comparison of parameter types.
+#[derive(Clone, Copy, Default)]
+struct Relaxed {
+    /// Whether repeated parameters are compared as `ElimRepeated` translates them.
+    repeated: bool,
+    /// Whether the first and the second member are Java members, whose `Object` parameters
+    /// match `Any`.
+    java: (bool, bool),
+}
 
 impl Universe {
     /// Whether members `a` and `b` of `site` match as Scala members (dotty's `matchesLoosely`):
@@ -39,6 +47,24 @@ impl Universe {
     /// symbols or those of its polymorphic type, renamed to `a`'s; clauses past the other's last
     /// empty.
     pub fn info_matches(&mut self, site: TypeId, a: SymbolId, b: SymbolId) -> bool {
+        self.info_matches_in(site, (a, b), Relaxed::default())
+    }
+
+    /// Determines whether the types of members `a` and `b` of `site` match as `info_matches`
+    /// does, but as dotty compares them in `RefChecks`, after `ElimRepeated`: a repeated
+    /// parameter `T*` matches `Seq[T]`, Java varargs `Array[T]`; a parameter a Java member
+    /// declares `Object` (`java`, whether `a` and `b` are Java members) matches `Any` and `Object`.
+    pub fn info_matches_in_refchecks(
+        &mut self,
+        site: TypeId,
+        a: SymbolId,
+        b: SymbolId,
+        java: (bool, bool),
+    ) -> bool {
+        self.info_matches_in(site, (a, b), Relaxed { repeated: true, java })
+    }
+
+    fn info_matches_in(&mut self, site: TypeId, (a, b): (SymbolId, SymbolId), relaxed: Relaxed) -> bool {
         let (ta, tb) = (self.type_params(a), self.type_params(b));
         if ta.len() != tb.len() {
             return false;
@@ -57,13 +83,24 @@ impl Universe {
         let (pa, pb) = (self.poly_binders(ia), self.poly_binders(ib));
         let (ca, cb) = (self.param_clauses(ia), self.param_clauses(ib));
         let (ma, mb) = (self.method_clauses(ia), self.method_clauses(ib));
+        let (da, db) = (self.info(a), self.info(b));
+        let declared = |u: &Self, info: TypeId| u.param_clauses(info).into_iter().flat_map(|(_, ps)| ps);
+        let declared: Vec<(TypeId, TypeId)> = declared(self, da).zip(declared(self, db)).collect();
         let pairs = ca.into_iter().zip(cb).flat_map(|((_, x), (_, y))| x.into_iter().zip(y));
-        pairs.collect::<Vec<_>>().into_iter().all(|(x, y)| {
-            let (ex, ey) = (self.repeated_elem(x), self.repeated_elem(y));
-            if ex.is_some() != ey.is_some() {
-                return false;
+        pairs.collect::<Vec<_>>().into_iter().enumerate().all(|(k, (x, y))| {
+            let (x, y) = match (self.repeated_elem(x), self.repeated_elem(y)) {
+                (Some(ex), Some(ey)) => (ex, ey),
+                (None, None) => (x, y),
+                _ if relaxed.repeated => (self.from_repeated(x), self.from_repeated(y)),
+                _ => return false,
+            };
+            let (x, y) = (self.normalize(x), self.normalize(y));
+            if let Some(&(da, db)) = declared.get(k) {
+                let (ja, jb) = relaxed.java;
+                if ja && self.is_top(da) && self.is_top(y) || jb && self.is_top(db) && self.is_top(x) {
+                    return true;
+                }
             }
-            let (x, y) = (self.normalize(ex.unwrap_or(x)), self.normalize(ey.unwrap_or(y)));
             let rename =
                 |u: &mut Universe, t, own: &[SymbolId], binders: &[(Binder, usize)], methods: &Clauses| {
                     let t = methods.iter().fold(t, |t, (b, ps)| u.param_syms_as_refs(t, ps, *b));
@@ -86,6 +123,17 @@ impl Universe {
             let (x, y) = (self.param_paths_named(x, &ma), self.param_paths_named(y, &ma));
             x == y || self.is_same_type_in(x, y, &mut crate::subtype::NoVars)
         })
+    }
+
+    /// Whether `t` is `Any`, `Object` or Java's `Object`.
+    fn is_top(&mut self, t: TypeId) -> bool {
+        let d = self.defn();
+        let s = match *self.ty(t) {
+            Type::Sym(_, s) => Some(s),
+            Type::TypeRef(..) => self.resolve_ref(t),
+            _ => None,
+        };
+        s.is_some_and(|s| s == d.any || s == d.object || s == d.from_java_object)
     }
 
     /// Whether `t` is a reference to a class, whose members have the parameters they declare.
@@ -125,72 +173,5 @@ impl Universe {
                 if u.symbol(s).kind.is_term() { Type::TermRef(p, name) } else { Type::TypeRef(p, name) };
             Some(u.intern_type(named))
         })
-    }
-
-    /// The binder and parameters of each value parameter clause of method type `t`.
-    fn method_clauses(&self, mut t: TypeId) -> Clauses {
-        let mut out = Vec::new();
-        while let Type::Poly { result, .. } | Type::Method { result, .. } = *self.ty(t) {
-            if let Type::Method { binder, params, .. } = *self.ty(t) {
-                out.push((binder, self.params_of(params).to_vec()));
-            }
-            t = result;
-        }
-        out
-    }
-
-    /// The element type `T` of repeated parameter type `t`: `<repeated>[T]` or `Seq[T] @Repeated`
-    /// as TASTy gives it.
-    pub fn repeated_elem(&mut self, t: TypeId) -> Option<TypeId> {
-        let ty = *self.ty(t);
-        let applied = match ty {
-            Type::Annotated(seq, annot)
-                if self.is_class_named(annot, "scala.annotation.internal.Repeated") =>
-            {
-                seq
-            }
-            Type::Applied(c, _) if self.is_class_named(c, "scala.<repeated>") => t,
-            _ => return None,
-        };
-        match self.applied(applied)? {
-            (_, &[elem]) => Some(elem),
-            _ => None,
-        }
-    }
-
-    /// The result type of method type `t` after all its clauses.
-    pub fn result_type(&self, mut t: TypeId) -> TypeId {
-        while let Type::Poly { result, .. } | Type::Method { result, .. } = *self.ty(t) {
-            t = result;
-        }
-        t
-    }
-
-    /// The binder of each type-parameter clause of method type `t` and its number of parameters.
-    fn poly_binders(&self, mut t: TypeId) -> Vec<(Binder, usize)> {
-        let mut out = Vec::new();
-        while let Type::Poly { result, .. } | Type::Method { result, .. } = *self.ty(t) {
-            if let Type::Poly { binder, params, .. } = *self.ty(t) {
-                out.push((binder, self.params_of(params).len()));
-            }
-            t = result;
-        }
-        out
-    }
-
-    /// The value parameter clauses of method type `t`: whether each is implicit, and its
-    /// parameters' types.
-    pub fn param_clauses(&self, mut t: TypeId) -> Vec<(bool, Vec<TypeId>)> {
-        let mut out = Vec::new();
-        loop {
-            match *self.ty(t) {
-                Type::Poly { result, .. } => t = result,
-                Type::Method { params, result, implicit, .. } => {
-                    out.push((implicit, self.params_of(params).iter().map(|(_, p)| *p).collect()));
-                    t = result;
-                }
-                _ => return out,
-            }
-        }
     }
 }

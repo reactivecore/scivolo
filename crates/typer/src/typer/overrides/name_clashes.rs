@@ -49,7 +49,7 @@ impl OverrideChecks {
                     t.complete(m);
                     t.complete_erased_classes(m);
                     if t.u.erased_method(m) == t.u.erased_method(d)
-                        && (!same_name || !t.u.info_matches(self.site, d, m))
+                        && (!same_name || !t.u.info_matches_in_refchecks(self.site, d, m, (false, false)))
                     {
                         return Some("name clash between defined and inherited member");
                     }

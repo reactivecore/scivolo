@@ -111,8 +111,9 @@ impl Universe {
                         return self.base_type_within(refined, base, depth);
                     }
                     let info = self.info(s);
+                    let this = matches!(*self.ty(p), Type::This(_)) && self.symbol(s).kind == Kind::Type;
                     match self.symbol(s).owner {
-                        Some(o) if path && self.symbol(o).kind == Kind::Class => {
+                        Some(o) if (path || this) && self.symbol(o).kind == Kind::Class => {
                             self.as_seen_from(info, p, o)
                         }
                         _ => info,

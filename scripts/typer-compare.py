@@ -12,11 +12,10 @@ import subprocess
 import sys
 from pathlib import Path
 
-from typer_corpus import USING
+from typer_corpus import DUMP_JVM, USING
 
 ROOT = Path(__file__).resolve().parent.parent
 WORK = ROOT / "tmp/typer/compare"
-DUMP = ROOT / "target/release/scivolo-typer-dump"
 
 
 def records(text):
@@ -41,7 +40,7 @@ def main(files, inlined):
                              str(ROOT / "tmp/typer/3.9.0/oracle-ws"), str(ROOT / "scripts/typer-oracle"), "--",
                              *mode, "--list", str(lst)], capture_output=True, text=True)
     try:
-        ours = subprocess.run([str(DUMP), *mode, "--list", str(lst)], capture_output=True, text=True, timeout=120)
+        ours = subprocess.run([*DUMP_JVM, *mode, "--list", str(lst)], capture_output=True, text=True, timeout=120)
         ours_out = ours.stdout
     except subprocess.TimeoutExpired:
         ours_out = ""

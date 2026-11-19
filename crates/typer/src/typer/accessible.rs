@@ -64,7 +64,7 @@ impl Typer<'_> {
     /// The class, package or term up to which `sym` is accessible, `None` if it is public, a
     /// protected static Java member or a JDK class Scala Native defines under another name
     /// (dotty's `accessBoundary(owner)`).
-    fn access_boundary(&mut self, sym: SymbolId) -> Option<SymbolId> {
+    pub fn access_boundary(&mut self, sym: SymbolId) -> Option<SymbolId> {
         let (owner, flags) = (self.u.symbol(sym).owner?, self.u.symbol(sym).flags);
         if flags.has(PRIVATE) {
             return Some(owner);

@@ -27,6 +27,12 @@ impl Gen<'_, '_> {
         self.l.u.decls_named(class, nme::CONSTRUCTOR).first() == Some(&m)
     }
 
+    /// Determines whether `m` is a secondary constructor, whose body ends with a `()` added by
+    /// the parser (dotty's `SyntheticUnit`).
+    pub fn is_secondary_constructor(&mut self, m: Option<SymbolId>) -> bool {
+        m.is_some_and(|m| self.l.u.is_constructor(m)) && !self.is_primary_constructor(m)
+    }
+
     /// Whether statement `t` has no effect: a literal, `this`, `super`, a parameter or an
     /// immutable non-lazy local value, a final Java instance field of such, a closure, possibly
     /// typed, or a block of such.

@@ -1,5 +1,6 @@
 use clap::Parser;
-use lower::{Isolated, Options};
+use lower::output::{Lowered, nir_with_tasty};
+use lower::{Backend, Isolated, Options};
 use macros::{Macros, VmMacros};
 use std::path::{Path, PathBuf};
 use syntax::source::SourceFile;
@@ -52,10 +53,14 @@ struct Cli {
     /// files that need them, then fails; for measurements only.
     #[arg(long)]
     leave_out_refused: bool,
+    /// Also writes the TASTy of the top-level classes, `pkg/Class.tasty`; a file whose classes
+    /// are not pickled keeps its NIR, why on stderr.
+    #[arg(long)]
+    pickle: bool,
     /// The Scala files.
     #[arg(required = true)]
     files: Vec<String>,
-    /// The directory to write the NIR files to, emptied first.
+    /// The directory to write the NIR and TASTy files to, emptied first.
     out_dir: PathBuf,
 }
 
@@ -72,6 +77,7 @@ fn main() {
         position_root,
         scalac_options,
         leave_out_refused,
+        pickle,
         files,
         out_dir: out,
     } = Cli::parse();
@@ -126,9 +132,14 @@ fn main() {
     let copies = || sources.iter().map(|s| SourceFile::new(s.name.clone(), s.text.clone())).collect();
     let mut runner = vm.as_mut().map(|vm| VmMacros { vm, sources: copies(), settings });
     let macros = runner.as_mut().map(|r| r as &mut dyn Macros);
+    let backend = if pickle { Backend::NativeWithTasty } else { Backend::Native };
     let (lowered, refused) = match &sources[..] {
-        [one] => (lower::compile_with(&mut open(), one, cfg, macros), Vec::new()),
-        many => match lower::compile_sources_isolated(&mut open, many, cfg, macros) {
+        [one] if !pickle => {
+            let nir = lower::compile_with(&mut open(), one, cfg, macros);
+            let lowered = |nir| Lowered { nir, tasty: Vec::new(), unpickled: Vec::new() };
+            (nir.map(|(nir, diags)| (lowered(nir), diags)), Vec::new())
+        }
+        many => match lower::compile_isolated(&mut open, many, cfg, macros, (backend, nir_with_tasty)) {
             Ok(Isolated { out, diags, refused, typings }) => {
                 if leave_out_refused {
                     eprintln!("typings: {typings}");
@@ -149,16 +160,10 @@ fn main() {
         Ok((_, warnings)) if fatal && !warnings.items.is_empty() => {
             fail("the typer does not support warnings under -Werror or -Wconf")
         }
-        Ok((files, _)) => {
-            std::fs::create_dir_all(&out).expect("creating the output directory");
-            for f in files {
-                let path = out.join(format!("{}.nir", f.name.replace('.', "/")));
-                if let Some(dir) = path.parent() {
-                    std::fs::create_dir_all(dir).expect("creating a package directory");
-                }
-                std::fs::write(&path, f.bytes).expect("writing NIR");
-                println!("{}.nir", f.name);
-            }
+        Ok((lowered, _)) => {
+            lowered.write(&out).unwrap_or_else(|e| fail(&format!("writing {e}")));
+            lowered.nir.iter().for_each(|f| println!("{}.nir", f.name));
+            lowered.unpickled.iter().for_each(|why| eprintln!("no TASTy: {why}"));
             if !refused.is_empty() {
                 std::process::exit(1);
             }

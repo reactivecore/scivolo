@@ -77,6 +77,7 @@ impl Units {
             self.refused.extend(typer.unsupported.take());
         }
         typer.check_split_companions();
+        typer.complete_library_aliases();
         self.refused.extend(typer.unsupported.take());
         let mut typed = Vec::new();
         for (file, roots) in file_roots.iter().enumerate() {

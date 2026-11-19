@@ -11,7 +11,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from typer_corpus import DUMP, WORK, load_expected, relative, selected, split, write_list
+from typer_corpus import DUMP_JVM, WORK, load_expected, relative, selected, split, write_list
 from typer_oracle import checks, oracle, stats
 from typer_report import report
 from typer_stress import stress
@@ -21,7 +21,7 @@ def diff(path):
     rel = relative(str(Path(path).resolve()))
     opts = next((o for r, o, _ in selected(rel) if r == rel), "")
     lst = write_list("one.tsv", [(rel, opts)])
-    out = subprocess.run([str(DUMP), "--list", str(lst)], capture_output=True, text=True, encoding="utf-8")
+    out = subprocess.run([*DUMP_JVM, "--list", str(lst)], capture_output=True, text=True, encoding="utf-8")
     actual = split(out.stdout).get(rel, "")
     expected = load_expected().get(rel, "")
     lines = lambda s: [l + "\n" for l in re.sub(r"(\((?=[A-Z]))", r"\n\1", s).splitlines() if not l.startswith("== stats")]

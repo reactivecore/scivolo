@@ -43,17 +43,28 @@ impl TypeOps<'_> {
 }
 
 impl Typer<'_> {
-    /// Whether `tree` is a literal, `this`, or a path of stable members.
+    /// Whether `tree` is a literal, `this`, or a path of stable members and of parameterless
+    /// methods whose result types are stable paths (dotty's `isStable` of a `TermRef`).
     pub fn is_stable_path(&mut self, tree: TNodeId) -> bool {
-        let stable = |t: &mut Self, r| {
-            t.tpd.sym(r).is_some_and(|s| t.is_stable_member(s) || has_singleton_result(t.u, s))
-        };
+        let stable = |t: &mut Self, r| t.tpd.sym(r).is_some_and(|s| t.is_stable_member(s));
+        let stable_result = |t: &mut Self, r| t.tpd.sym(r).is_some_and(|s| t.has_stable_result(s));
         match *self.tpd.tree(tree) {
             T::Literal { .. } | T::This { .. } => true,
-            T::Ident { .. } => stable(self, tree),
-            T::Select { qualifier, .. } => stable(self, tree) && self.is_stable_path(qualifier),
+            T::Ident { .. } => stable(self, tree) || stable_result(self, tree),
+            T::Select { qualifier, .. } => {
+                (stable(self, tree) || stable_result(self, tree)) && self.is_stable_path(qualifier)
+            }
             _ => false,
         }
+    }
+
+    /// Whether `s` is a parameterless method whose result type is a stable path, as
+    /// `def Nil = scala.collection.immutable.Nil` (dotty's `ExprType` case of `isStable`).
+    fn has_stable_result(&mut self, s: SymbolId) -> bool {
+        if self.u.symbol(s).kind == Kind::Def {
+            self.complete(s);
+        }
+        has_stable_result(self.u, s)
     }
 
     /// Whether `tree` in a capture set of `ctx` is a reference to a term other than a variable, a
@@ -114,12 +125,11 @@ pub fn is_stable_path(u: &mut Universe, t: TypeId) -> bool {
         | Type::Package(_)
         | Type::Skolem(..) => true,
         Type::Sym(p, s) if u.symbol(s).kind.is_term() => {
-            is_stable_member(u, s)
+            (is_stable_member(u, s) || has_stable_result(u, s))
                 && p.is_none_or(|p| {
                     matches!(u.ty(p), Type::NoPrefix | Type::Sym(..) if !is_term_ref(u, p))
                         || is_stable_path(u, p)
                 })
-                || has_singleton_result(u, s)
         }
         Type::TermRef(p, _) => {
             u.resolve_ref(t).is_some_and(|s| is_stable_member(u, s)) && is_stable_path(u, p)
@@ -132,12 +142,13 @@ pub fn is_stable_path(u: &mut Universe, t: TypeId) -> bool {
     }
 }
 
-/// Whether term `s` is a parameterless method whose result is a stable path (dotty's
-/// `info.isStable` of an `ExprType`).
-fn has_singleton_result(u: &mut Universe, s: SymbolId) -> bool {
+/// Whether term `s` is a parameterless method or a by-name parameter whose result is a stable
+/// path (dotty's `info.isStable` of an `ExprType`).
+fn has_stable_result(u: &mut Universe, s: SymbolId) -> bool {
     let info = u.info(s);
     let result = match *u.ty(info) {
         Type::ByName(r) => r,
+        Type::Method { .. } | Type::Poly { .. } => return false,
         _ if u.symbol(s).kind == Kind::Def => info,
         _ => return false,
     };

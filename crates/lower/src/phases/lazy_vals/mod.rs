@@ -89,7 +89,7 @@ pub fn transform(
                 let found = var_handles::define(l, class, lazy.field, defs);
                 Some(found.map_err(|e| Unsupported { at: span, ..e })?)
             }
-            Backend::Native => None,
+            Backend::Native | Backend::NativeWithTasty => None,
         };
         if let Some(handle) = handle {
             match l.mixed_in.contains(&accessor) {
@@ -125,6 +125,7 @@ pub fn transform(
     }
     l.lazy_fields.extend(mixed_in);
     mixed_in_handles.extend(handles);
+    var_handles::position(l, template, &mixed_in_handles);
     let inits: Vec<TNodeId> = mixed_in_handles.iter().map(|h| h.init).collect();
     let mut members: Vec<TNodeId> = mixed_in_handles.iter().map(|h| h.def).collect();
     members.extend(stats);

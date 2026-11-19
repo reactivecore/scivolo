@@ -7,13 +7,11 @@ Lowers each of the module's Scala 3 source directories, with those of the module
 holds, as one unit (all of a JOINT module's together),
 as lib-compile.py does each file, and writes tmp/lib/MODULE/<the published jar's name>: that NIR, the resources under
 src/main/resources/scala-native verbatim, the published jar's TASTy and a manifest as sbt writes
-it. scalalib's files are lowered one by one, as lib-compile.py does; its jar takes the NIR of the
-classes Scala Native's build takes from Scala 2.13 from the published jar, and that of the classes
-not lowered here (the refused files') from lib-compile's oracle (listed in tmp/lib/scalalib/jar-taken.txt).
-Compares the jar's own NIR with lib-compile's oracle (diffs under tmp/lib/MODULE/jar-diffs) and
-its other entries with the published jar's, and prints one summary line.
+it. scalalib's files of scalalib_sources.py are lowered as one unit; its jar takes the NIR of the
+classes Scala Native's build takes from Scala 2.13 from the published jar (listed in
+tmp/lib/scalalib/jar-taken.txt). Compares the jar's own NIR with lib-compile's oracle (diffs under
+tmp/lib/MODULE/jar-diffs) and its other entries with the published jar's, and prints one summary line.
 """
-import concurrent.futures
 import importlib
 import shutil
 import subprocess
@@ -37,12 +35,16 @@ Implementation-URL: http://www.scala-native.org
 """
 MAIN_CLASSES = {"scalalib": "scala.util.Properties", "test-interface": "scala.scalanative.testinterface.TestMain"}
 # The modules whose source directories are lowered as one unit, as Scala Native's build does.
-JOINT = {"nativelib", "test-interface-sbt-defs", "test-interface", "junit-runtime"}
+JOINT = {"nativelib", "test-interface-sbt-defs", "test-interface", "junit-runtime", "scalalib"}
 
 
-def lower(module, stage):
-    """Lowers the source directories of the module and of the modules it holds into `stage`, those
-    of JOINT as one unit; exits with the frontend's error."""
+def source_units(module):
+    """The units of the module's sources, (name, (source directory, file) pairs): one per source
+    directory of the module and of the modules it holds, all of them together for JOINT."""
+    if module == "scalalib":
+        units = [("all", [pair for unit in lib.units(module, "") for pair in unit])]
+        lib.link_scalalib_root(units[0][1][0][0])
+        return units
     units = []
     for part in (module, *lib.parts(module)):
         for name in lib.SOURCE_DIRS:
@@ -52,47 +54,31 @@ def lower(module, stage):
                 units.append((f"{part}-{name}", unit))
     if module in JOINT:
         units = [("all", [pair for _, unit in units for pair in unit])]
-    for name, unit in units:
+    return units
+
+
+def lower(module, stage):
+    """Lowers the units of `source_units` into `stage`, scalalib's but the classes of SPECIALIZED;
+    exits with the frontend's error."""
+    env = lib.ENV
+    if module == "scalalib":
+        env = lib.ENV | {"SCIVOLO_LIBS": str(scalalib_sources.libs(lib.ORACLE_JARS))}
+    for name, unit in source_units(module):
         out = stage.parent / f"nir-{name}"
         r = subprocess.run(lib.lower_cmd(module, unit, out), capture_output=True, text=True, errors="replace",
-                           env=lib.ENV)
+                           env=env)
         if r.returncode != 0:
-            sys.exit(f"{module}/{name}: {r.stderr.strip()[:500]}")
+            sys.exit(f"{module}/{name}: {r.stderr.strip()[:2000]}")
         shutil.copytree(out, stage, dirs_exist_ok=True)
-
-
-def lower_scalalib(stage):
-    """Lowers each scalalib file on its own into `stage` but the classes of SPECIALIZED; returns
-    the files refused and the NIR files written by more than one file."""
-    units = lib.units("scalalib", "")
-    lib.link_scalalib_root(units[0][0][0])
-    env = lib.ENV | {"SCIVOLO_LIBS": str(scalalib_sources.libs(lib.ORACLE_JARS))}
-
-    def one(unit):
-        root, first = unit[0]
-        out = stage.parent / "out" / str(first.relative_to(root)).removesuffix(".scala")
-        state, reason, stdout = lib.run(lib.lower_cmd("scalalib", unit, out), lib.TIMEOUT * len(unit), env)
-        return first.relative_to(root), state, reason, out, stdout.split()
-
-    refused, twice = [], []
-    with concurrent.futures.ThreadPoolExecutor(lib.JOBS) as pool:
-        for file, state, reason, out, names in pool.map(one, units):
-            if state != "ok":
-                refused.append(f"{file}: {state} {reason}")
-            for path in (n.removesuffix(".nir").replace(".", "/") + ".nir" for n in names):
-                if scalalib_sources.specialized(path):
-                    continue
-                if (stage / path).exists():
-                    twice.append(path)
-                    continue
-                (stage / path).parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy(out / path, stage / path)
-    return refused, twice
+    if module == "scalalib":
+        for p in stage.rglob("*.nir"):
+            if scalalib_sources.specialized(str(p.relative_to(stage))):
+                p.unlink()
 
 
 def entries(module, stage, published):
     """The jar's entries in order, (name, bytes), and the names of the NIR files not lowered here:
-    scalalib's taken from the published jar or the oracle."""
+    scalalib's taken from the published jar."""
     version = f"3.9.0+{lib.VERSION}" if module == "scalalib" else lib.VERSION
     main = f"Main-Class: {MAIN_CLASSES[module]}\n" if module in MAIN_CLASSES else ""
     manifest = MANIFEST.format(m=module, v=version, main=main).replace("\n", "\r\n").encode()
@@ -102,14 +88,10 @@ def entries(module, stage, published):
         if root.is_dir():
             found |= {str(p.relative_to(root)): p.read_bytes() for p in sorted(root.rglob("*")) if p.is_file()}
     found |= {n: published.read(n) for n in published.namelist() if n.endswith(".tasty")}
-    taken = []
+    taken = {}
     if module == "scalalib":
-        oracle = lib.oracle(module)
-        specialized = {n: published.read(n) for n in published.namelist() if scalalib_sources.specialized(n)}
-        rest = {n: (oracle / n).read_bytes() for n in sorted(str(p.relative_to(oracle)) for p in oracle.rglob("*.nir"))
-                if n not in found and not scalalib_sources.specialized(n)}
-        taken = [*specialized, *rest]
-        found |= specialized | rest
+        taken = {n: published.read(n) for n in published.namelist() if scalalib_sources.specialized(n)}
+        found |= taken
     return sorted(found.items(), key=lambda e: (e[0] != "META-INF/MANIFEST.MF", e[0])), taken
 
 
@@ -126,11 +108,7 @@ def main(module):
     jar.unlink(missing_ok=True)
     stage = work / "nir"
     stage.mkdir(parents=True)
-    refused, twice = [], []
-    if module == "scalalib":
-        refused, twice = lower_scalalib(stage)
-    else:
-        lower(module, stage)
+    lower(module, stage)
     published = zipfile.ZipFile(lib.LIBS / lib.jar_name(module))
     items, taken = entries(module, stage, published)
     write_jar(jar, items)
@@ -154,13 +132,8 @@ def main(module):
           f"{counts['missing']} missing from the oracle, {only} only in the oracle ({theirs.relative_to(lib.ROOT)}), "
           f"{dropped} only in the published jar; other entries {same} of {len(upstream)} as published")
     if module == "scalalib":
-        specialized = sum(1 for n in taken if scalalib_sources.specialized(n))
-        lines = [*(f"refused {r}\n" for r in sorted(refused)), *(f"twice {p}\n" for p in sorted(twice)),
-                 *(f"taken {n}\n" for n in taken)]
-        (lib.WORK / module / "jar-taken.txt").write_text("".join(lines))
-        print(f"  {len(refused)} files refused, {len(twice)} NIR files written twice; taken: {specialized} NIR "
-              f"files of Scala 2.13's classes from the published jar, {len(taken) - specialized} only in the "
-              f"oracle (not lowered here) from the oracle")
+        (lib.WORK / module / "jar-taken.txt").write_text("".join(f"taken {n}\n" for n in taken))
+        print(f"  taken: {len(taken)} NIR files of Scala 2.13's classes from the published jar")
 
 
 if __name__ == "__main__":
