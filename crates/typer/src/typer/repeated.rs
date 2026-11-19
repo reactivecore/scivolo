@@ -5,7 +5,7 @@
 
 use super::Typer;
 use super::type_ops::TypeOps;
-use crate::defn::{ARRAY, IMMUTABLE_SEQ, INLINE_PARAM, REPEATED_ANNOT};
+use crate::defn::{IMMUTABLE_SEQ, INLINE_PARAM, REPEATED_ANNOT};
 use crate::special::entered;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::Span;
@@ -96,68 +96,6 @@ impl Typer<'_> {
         );
         self.syms.repeated_class = Some(c);
         c
-    }
-
-    /// `sequence_arg` of `a`, or `pre` if overload resolution typed it with elements of `elem`.
-    pub fn pretyped_sequence_arg(
-        &mut self,
-        a: syntax::ast::NodeId,
-        pre: Option<TNodeId>,
-        elem: TypeId,
-        ctx: crate::ctx::Ctx,
-    ) -> TNodeId {
-        let Some(pre) = pre else { return self.sequence_arg(a, Some(elem), ctx) };
-        match self.repeated_elem(self.tpd.tpe(pre)) {
-            Some(e) if self.conforms(e, elem) => pre,
-            _ => self.unsupported(a, "sequence argument of an overload"),
-        }
-    }
-
-    /// Sequence argument `a`, `xs*`, passed to a repeated parameter of element type `elem`:
-    /// `xs` typed as a `Seq[elem] | Array[? <: elem]` (a `Seq[elem]` in a quote pattern), without
-    /// an expected type if no `elem`, ascribed `<repeated>[T]` with `T` its element type.
-    pub fn sequence_arg(
-        &mut self,
-        a: syntax::ast::NodeId,
-        elem: Option<TypeId>,
-        ctx: crate::ctx::Ctx,
-    ) -> TNodeId {
-        let (Some(seq_class), Some(array_class), &syntax::ast::Tree::Typed { expr, tpt }) = (
-            self.resolve_full_name(IMMUTABLE_SEQ, true),
-            self.resolve_full_name(ARRAY, true),
-            self.ast.tree(a),
-        ) else {
-            return self.unsupported(a, "sequence argument");
-        };
-        let pt = elem.map_or(super::Pt::Any, |elem| {
-            let seq = crate::defn::type_ref(self.u, seq_class);
-            let seq = self.u.intern_applied(seq, &[elem]);
-            if ctx.mode.is(crate::ctx::Mode::QUOTED_PATTERN) {
-                return super::Pt::Type(seq);
-            }
-            let array = crate::defn::type_ref(self.u, array_class);
-            let below = self.u.intern_type(Type::Bounds(tasty::NOTHING, elem));
-            let array = self.u.intern_applied(array, &[below]);
-            super::Pt::Type(self.u.union(seq, array, false))
-        });
-        let expr = self.typed(expr, pt, ctx);
-        let expr_tpe = self.tpd.tpe(expr);
-        let b = self.u.defn();
-        if self.u.class_symbol(expr_tpe).is_some_and(|c| c == b.null || c == b.nothing) {
-            return self.unsupported(a, "sequence argument of a bottom type");
-        }
-        let widened = self.u.widen(expr_tpe);
-        let class = self.u.class_symbol(widened);
-        let from =
-            if class.is_some_and(|c| self.u.derives_from(c, array_class)) { array_class } else { seq_class };
-        let base = self.u.base_type(widened, from);
-        let Some((_, args)) = base.and_then(|b| self.u.applied(b)) else {
-            return self.unsupported(a, "sequence argument");
-        };
-        let arg = self.u.bounds(args[0]).map_or(args[0], |(_, hi)| hi);
-        let repeated = self.repeated_type(arg);
-        let tpt = self.type_tree(repeated, self.ast.span(tpt), false);
-        self.tpd.node(T::Typed { expr, tpt }, self.ast.span(a), Some(repeated), None)
     }
 
     /// Arguments `elems` of element type `elem` passed to a repeated parameter, at `span` if

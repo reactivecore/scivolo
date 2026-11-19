@@ -185,7 +185,7 @@ impl Typer<'_> {
 }
 
 /// `t` with the type parameters of binder `binder`, named `names`, and the type parameter
-/// symbols of `method` replaced by `args`.
+/// symbols of `method` replaced by `args`, the false dependencies of its method results dealiased.
 pub fn instantiate_poly(
     u: &mut tasty::Universe,
     t: TypeId,
@@ -202,5 +202,6 @@ pub fn instantiate_poly(
         }
         _ => None,
     });
-    u.subst(t, binder, names, args)
+    let t = u.subst(t, binder, names, args);
+    super::implicits::method_without_false_deps(u, t, method)
 }

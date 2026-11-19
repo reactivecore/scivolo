@@ -321,6 +321,11 @@ fn match_types_reduce_in_conformance() {
         ("object N { val h: Int = (1, \"a\").head; val n: 2 = (1, \"a\").size }", ""),
         ("object O { val d: Tuple.Head[EmptyTuple] = ??? }", "match type that may reduce"),
         (
+            "object Z { trait T; type M[X] = X match { case (h *: t, T) => Int; case _ => String }
+             def f(x: M[(Tuple, Option[Int] & T)]): M[(Tuple, Option[Int] & T)] = x }",
+            "match type that may reduce",
+        ),
+        (
             "object S { class C[-T]; type G[X] = X match { case C[List[t]] => t } }",
             "match type pattern outside the subset",
         ),

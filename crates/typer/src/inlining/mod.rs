@@ -5,10 +5,12 @@
 //! replaced by an `Inlined` tree of the method's body with the arguments bound (`Inlining`,
 //! `Inlines.inlineCall`).
 
+mod avoid;
 mod beta;
 mod blocks;
 mod call_skolems;
 mod class_parts;
+mod class_tparams;
 mod code_of;
 mod code_of_refs;
 mod compiletime;

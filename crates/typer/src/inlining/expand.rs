@@ -5,6 +5,7 @@
 //! (dotty's `Inliner.inlined`, `computeParamBindings`).
 
 use super::call_skolems::call_skolems;
+use super::class_tparams::replace_class_tparam;
 use super::copy::TreeTypeMap;
 use super::proxies::replace_param;
 use super::this_proxy::replace_this;
@@ -15,6 +16,14 @@ use rustc_hash::FxHashMap;
 use syntax::ast::Span;
 use tasty::tags::INLINE;
 use tasty::{Kind, SymbolId, Type, TypeId};
+
+/// The bindings and the body of an inline expansion.
+pub struct Expanded {
+    pub bindings: Vec<TNodeId>,
+    pub expansion: TNodeId,
+    /// Whether a proxy stands for a `this` of the body (dotty's `thisTypeProxyExists`).
+    pub this_proxied: bool,
+}
 
 pub struct Expansion<'i, 'a> {
     pub i: &'i mut Inlining<'a>,
@@ -52,7 +61,7 @@ impl<'i, 'a> Expansion<'i, 'a> {
     }
 
     /// The bindings and the expansion of the call of the inline method defined by `def`.
-    pub fn inlined(mut self, def: TNodeId) -> Result<(Vec<TNodeId>, TNodeId), Unsupported> {
+    pub fn inlined(mut self, def: TNodeId) -> Result<Expanded, Unsupported> {
         let (fun, targs, applies) = self.parts();
         let meth = self.i.tpd.sym(fun).ok_or(self.err("inline call"))?;
         let T::DefDef { paramss, rhs: Some(rhs), .. } = *self.i.tpd.tree(def) else {
@@ -99,9 +108,11 @@ impl<'i, 'a> Expansion<'i, 'a> {
         let (binding, arg_span) = (self.binding.clone(), self.arg_span.clone());
         let call_span = self.i.tpd.span(self.call);
         let expansion = self.i.copy(&mut m, rhs, &mut |i, m, t| {
-            replace_param(i, &binding, &arg_span, t).or_else(|| {
-                this.iter().find_map(|&(cls, proxy)| replace_this(i, m, (cls, proxy), call_span, t))
-            })
+            replace_param(i, &binding, &arg_span, t)
+                .or_else(|| {
+                    this.iter().find_map(|&(cls, proxy)| replace_this(i, m, (cls, proxy), call_span, t))
+                })
+                .or_else(|| replace_class_tparam(i, m, &this, t))
         })?;
         let inline_args: FxHashMap<SymbolId, TNodeId> = self
             .bindings
@@ -116,7 +127,8 @@ impl<'i, 'a> Expansion<'i, 'a> {
             })
             .collect();
         let expansion = self.i.retype(expansion, &inline_args, self.owner)?;
-        self.i.drop_unused(self.bindings, expansion, self.owner)
+        let (bindings, expansion) = self.i.drop_unused(self.bindings, expansion, self.owner)?;
+        Ok(Expanded { bindings, expansion, this_proxied: !this.is_empty() })
     }
 
     /// The reference the call applies, its type arguments and its applications, innermost first.
