@@ -25,11 +25,17 @@ impl Cmp<'_> {
     /// The declared type of term reference `t` if it is a singleton other than `t`.
     pub fn singleton_underlying(&mut self, t: TypeId) -> Option<TypeId> {
         let n = self.named(t)?;
-        let s = n.sym.filter(|&s| matches!(self.u.symbol(s).kind, Kind::Val | Kind::Param | Kind::Def))?;
-        let s = n.prefix.map_or(s, |p| self.selected_member(p, s));
-        let name = self.u.interned_name(s);
-        let refined = n.prefix.and_then(|p| self.u.term_refinement_named(p, name));
-        let underlying = refined.unwrap_or_else(|| self.u.term_type(n.prefix, s));
+        let underlying = match (n.sym, *self.u.ty(t)) {
+            (None, Type::TermRef(p, name)) => self.u.term_refinement_named(p, name)?,
+            _ => {
+                let kinds = |k| matches!(k, Kind::Val | Kind::Param | Kind::Def);
+                let s = n.sym.filter(|&s| kinds(self.u.symbol(s).kind))?;
+                let s = n.prefix.map_or(s, |p| self.selected_member(p, s));
+                let name = self.u.interned_name(s);
+                let refined = n.prefix.and_then(|p| self.u.term_refinement_named(p, name));
+                refined.unwrap_or_else(|| self.u.term_type(n.prefix, s))
+            }
+        };
         let underlying = self.u.by_name(underlying).unwrap_or(underlying);
         let singleton = match *self.u.ty(underlying) {
             Type::TermRef(..) | Type::This(_) | Type::Constant(..) | Type::Str(_) => true,
