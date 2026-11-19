@@ -2,6 +2,8 @@
 //! integer and eight floating-point arguments passed in registers; in portable mode, the C
 //! functions the VM implements in Rust instead.
 
+#[cfg(portable)]
+mod atomics;
 pub mod clock;
 #[cfg(not(portable))]
 mod dl;
