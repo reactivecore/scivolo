@@ -42,7 +42,8 @@ impl Cmp<'_> {
         None
     }
 
-    fn match_sub_type_test(&mut self, scrut: TypeId, pat: TypeId, body: TypeId) -> Outcome {
+    /// Matches `scrut` against case `pat => body` without captures.
+    pub fn match_sub_type_test(&mut self, scrut: TypeId, pat: TypeId, body: TypeId) -> Outcome {
         let disjoint = self.provably_disjoint(scrut, pat);
         match (self.recur(scrut, pat), disjoint) {
             (true, false) => Outcome::Reduced(body),
@@ -51,7 +52,8 @@ impl Cmp<'_> {
         }
     }
 
-    fn match_specced(&mut self, scrut: TypeId, s: &Specced) -> Outcome {
+    /// Matches `scrut` against case `s` with captures.
+    pub fn match_specced(&mut self, scrut: TypeId, s: &Specced) -> Outcome {
         let mut inst = Instances { of: vec![None; s.names.len()], not_specific: false };
         let bounded = self.u.subst(s.pat, s.binder, &s.names, &s.bounds);
         let disjoint = self.provably_disjoint(scrut, bounded);
@@ -153,6 +155,10 @@ impl Cmp<'_> {
                 }
                 _ => false,
             },
+            Pattern::TypeMemberExtractor { name, capture } => match self.extracted_member(scrut, *name) {
+                Some(member) => self.match_pattern(capture, member, 0, widened, inst),
+                None => false,
+            },
         }
     }
 
@@ -180,9 +186,6 @@ impl Cmp<'_> {
         let t = self.widen_term_refs(t);
         let t = self.u.dealias(t);
         let t = self.normal(t);
-        match *self.u.ty(t) {
-            Type::Constant(INTconst, n) if (0..=i32::MAX as i64).contains(&n) => Some(n),
-            _ => None,
-        }
+        self.int_constant(t).filter(|&n| n >= 0).map(i64::from)
     }
 }

@@ -5,10 +5,12 @@
 //! replaced by an `Inlined` tree of the method's body with the arguments bound (`Inlining`,
 //! `Inlines.inlineCall`).
 
+mod avoid;
 mod beta;
 mod blocks;
 mod call_skolems;
 mod class_parts;
+mod class_tparams;
 mod code_of;
 mod code_of_refs;
 mod compiletime;
@@ -22,6 +24,7 @@ mod host;
 mod implicit_args;
 mod implicit_scopes;
 mod inline_call;
+mod inner_opaque_this;
 mod local_implicits;
 mod macro_annotations;
 mod macro_args;

@@ -9,6 +9,7 @@ use syntax::ast::NodeId;
 use tasty::{SymbolId, TypeId};
 
 /// The repeated parameter of a call, whose arguments become one sequence literal.
+#[derive(Clone, Copy)]
 pub struct Varargs {
     /// The type of the parameter's elements.
     pub elem: TypeId,

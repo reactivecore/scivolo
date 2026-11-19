@@ -76,9 +76,10 @@ impl Cmp<'_> {
     /// `a & b`, merged into one application of a common constructor where all arguments merge, and
     /// with a wildcard among them where that gives a type below both; of an annotated type, its
     /// parent's with the other type, `(A & B)` of `A @x & B` and `B @x & A` (dotty's
-    /// `distributeAnd` both ways).
-    fn and_type(&mut self, a: TypeId, b: TypeId) -> TypeId {
-        if let (Some((c1, args1)), Some((c2, args2))) = (self.u.applied(a), self.u.applied(b))
+    /// `distributeAnd` both ways, the applications merged only where `distributes_and`).
+    pub fn and_type(&mut self, a: TypeId, b: TypeId) -> TypeId {
+        if self.u.distributes_and
+            && let (Some((c1, args1)), Some((c2, args2))) = (self.u.applied(a), self.u.applied(b))
             && let (args1, args2) = (args1.to_vec(), args2.to_vec())
             && args1.len() == args2.len()
             && self.same_constructor(c1, c2)

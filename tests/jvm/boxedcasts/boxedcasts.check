@@ -1,0 +1,2 @@
+Int & String is no String
+Or[Int & String, String & Int] is no String

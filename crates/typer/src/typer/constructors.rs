@@ -25,6 +25,7 @@ impl Typer<'_> {
         let tpt = self.typed_type(tpt, ctx);
         let tpe = self.tpd.tpe(tpt);
         if let T::Select { qualifier, .. } = *self.tpd.tree(tpt)
+            && !matches!(self.tpd.tree(qualifier), T::SingletonTypeTree { .. })
             && !self.is_stable_path(qualifier)
         {
             return self.unsupported(id, "new with an unstable prefix");

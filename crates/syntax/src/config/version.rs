@@ -84,8 +84,8 @@ impl SourceVersion {
         self.is_at_least(Self::V3_9) && !self.is_scala2()
     }
 
-    /// Whether `&` of two applications of a class merges their arguments (dotty's
-    /// `enablesDistributeAnd`).
+    /// Whether an intersection of two applications of one constructor merges their arguments
+    /// (dotty's `enablesDistributeAnd`).
     pub fn enables_distribute_and(self) -> bool {
         !self.is_at_least(Self::FUTURE_VERSION)
     }

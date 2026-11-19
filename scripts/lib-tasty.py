@@ -25,7 +25,9 @@ import subprocess
 import sys
 import zipfile
 
-lib = importlib.import_module("lib-compile")
+import native_modules as lib
+
+lib_compile = importlib.import_module("lib-compile")
 jvm_tasty = importlib.import_module("jvm-tasty")
 
 PICKLE = "--pickle"
@@ -138,7 +140,7 @@ def main(module, filter_):
         unpickled += [f"{shown}: {l.removeprefix('no TASTy: ')}" for l in stderr if l.startswith("no TASTy: ")]
         changed += [f"{shown}: {p}" for p in nir_changed(module, shown)]
     rows = compare(module, ours)
-    lib.write_tsv(work / "tasty.tsv", rows)
+    lib_compile.write_tsv(work / "tasty.tsv", rows)
     groups = collections.Counter(r[2] for r in rows if r[1] == "differ")
     (work / "tasty-groups.txt").write_text("".join(f"{c:5} {g}\n" for g, c in groups.most_common()))
     (work / "unpickled.txt").write_text("".join(f"{l}\n" for l in unpickled))
