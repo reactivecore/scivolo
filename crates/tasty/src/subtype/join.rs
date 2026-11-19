@@ -16,8 +16,12 @@ impl Universe {
         if let (Type::Applied(c1, _), Type::Applied(c2, _)) = (*self.ty(da), *self.ty(db))
             && c1 == c2
         {
-            return self.merged(da, db);
+            let merged = self.merged(da, db)?;
+            if !self.is_unreducible_wild(merged) {
+                return Some(merged);
+            }
         }
+        let (a, b) = (da, db);
         let (aw, bw) = (self.super_type(a), self.super_type(b));
         if aw != a || bw != b {
             let (sa, sb) = (self.is_singleton_type(a), self.is_singleton_type(b));
@@ -83,8 +87,8 @@ impl Universe {
     }
 
     /// `t` widened once unless it is a class type (dotty's `superType`): a singleton to its
-    /// type, an abstract type to its upper bound, an alias to its target, an application of a
-    /// match type alias to the match type, a match type to its bound.
+    /// type, an abstract type to its upper bound, an alias or an application of one to its
+    /// target, a match type to its bound.
     fn super_type(&mut self, t: TypeId) -> TypeId {
         if self.is_class_ref(t) {
             return t;
@@ -97,12 +101,7 @@ impl Universe {
         }
         match *self.ty(t) {
             Type::Match { bound, .. } => return bound,
-            Type::Applied(..) => {
-                let dealiased = self.dealias(t);
-                if matches!(self.ty(dealiased), Type::Match { .. }) {
-                    return dealiased;
-                }
-            }
+            Type::Applied(..) => return self.dealias(t),
             _ => {}
         }
         let Type::Sym(prefix, s) = *self.ty(t) else { return t };
@@ -149,7 +148,9 @@ impl Universe {
             }
             _ => {
                 let widened = self.widen(t);
-                let c = self.class_symbol(widened)?;
+                let widened = self.dealias(widened);
+                let (parent, _) = self.without_refinements(widened);
+                let c = self.class_symbol(parent)?;
                 let b = self.defn();
                 if c == b.null && self.null_mode().explicit {
                     return Some(vec![b.null, b.matchable, b.any]);
@@ -179,6 +180,7 @@ impl Universe {
             }
             _ => {
                 let widened = self.widen(t);
+                let widened = self.dealias(widened);
                 self.base_type(widened, c)
             }
         }
@@ -224,7 +226,7 @@ impl Universe {
                 if self.types_of(xs).len() == self.types_of(ys).len()
                     && (t1 == t2 || self.same_static_class(t1, t2).is_some()) =>
             {
-                self.class_symbol(t1)?;
+                self.class_symbol(t1).or_else(|| self.referenced(t1))?;
                 let variances = self.constructor_variances(t1);
                 let mut args = Vec::new();
                 for i in 0..self.types_of(xs).len() {
@@ -255,6 +257,18 @@ impl Universe {
             }
             _ => None,
         }
+    }
+
+    /// Whether `t` applies a type constructor that is neither a class nor a match alias to a
+    /// wildcard (dotty's `isUnreducibleWild`).
+    fn is_unreducible_wild(&mut self, t: TypeId) -> bool {
+        let Type::Applied(tycon, args) = *self.ty(t) else { return false };
+        let args = self.types_of(args).to_vec();
+        let not_class = self.referenced(tycon).is_some_and(|s| self.symbol(s).kind != Kind::Class);
+        let dealiased = self.dealias(t);
+        not_class
+            && args.iter().any(|&a| self.bounds(a).is_some())
+            && !matches!(self.ty(dealiased), Type::Match { .. })
     }
 
     /// The class of class references `x` and `y` if both are the same static class.
