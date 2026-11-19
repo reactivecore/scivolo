@@ -70,9 +70,7 @@ impl Typer<'_> {
             return Err("method value");
         };
         let params = self.u.params_of(params).to_vec();
-        if params.last().is_some_and(|&(_, p)| self.repeated_elem(p).is_some()) {
-            return Err("method value with a repeated parameter");
-        }
+        let repeated = params.last().is_some_and(|&(_, p)| self.repeated_elem(p).is_some());
         let last = self.u.method(result).is_none_or(|m| m.implicit);
         let below = match pt {
             Pt::Type(p) => Some(self.var_upper(p)),
@@ -121,6 +119,9 @@ impl Typer<'_> {
             self.ast.with_span(id, start);
             ids.push(id);
         }
+        if repeated && let Some(last) = ids.last_mut() {
+            *last = self.spread(*last, start);
+        }
         let fun = self.ast.node(Tree::TypeTree);
         self.ast.with_span(fun, self.tpd.span(lifted));
         self.splices.insert(fun, lifted);
@@ -145,6 +146,16 @@ impl Typer<'_> {
             closure = self.build().block(stats, closure, block_span.to_synthetic());
         }
         Ok(self.adapt(closure, pt, ctx))
+    }
+
+    /// Builds `expr*` at `span`, passing `expr` to a repeated parameter.
+    fn spread(&mut self, expr: NodeId, span: Span) -> NodeId {
+        let star = self.name(nme::WILDCARD_STAR);
+        let tpt = self.ast.node(Tree::Ident { name: TName { name: star, is_type: true } });
+        self.ast.with_span(tpt, span);
+        let typed = self.ast.node(Tree::Typed { expr, tpt });
+        self.ast.with_span(typed, span);
+        typed
     }
 
     /// `qual _` (dotty's `typedAsFunction`): `qual` eta-expanded, or a function value already.

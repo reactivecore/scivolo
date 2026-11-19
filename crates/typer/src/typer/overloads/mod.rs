@@ -18,6 +18,7 @@ mod poly;
 mod poly_instances;
 mod pretyped;
 mod resolve;
+mod result_applies;
 mod shapes;
 mod specific;
 mod values;
