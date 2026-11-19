@@ -70,7 +70,7 @@ impl Typer<'_> {
         {
             return Ok(apply);
         }
-        let sym = match self.choose(&found.syms, Some(tpe), pt) {
+        let sym = match self.choose(&found.syms, Some(tpe), pt, ctx) {
             Err(_) if self.unusable_for_inference(pt) => return Ok(self.error_tree(self.tpd.span(f))),
             chosen => chosen.map_err(|e| e.what)?,
         };

@@ -161,13 +161,14 @@ impl Typer<'_> {
     /// Compares members `a` and `b` of `prefix` as overloading resolution does in `ctx` (dotty's
     /// `compare`): 1 if `a` is better, -1 if `b` is, 0 if neither; `None` if undecided.
     pub fn compare_members(&mut self, prefix: TypeId, (a, b): (SymbolId, SymbolId), ctx: Ctx) -> Option<i32> {
-        Resolution { prefix: Some(prefix), pt: Pt::Any }.compare_alts(self, (a, b), true, ctx)
+        let resolution = Resolution { prefix: Some(prefix), pt: Pt::Any, ctx, member: None };
+        resolution.compare_alts(self, (a, b), true, ctx)
     }
 }
 
 /// Checks whether the first parameter clause of method `s` is followed by another that is not
 /// implicit (dotty's `resultIsMethod` with `stripInferrable`), as `def f(x: Int)(y: Int)`.
-fn result_is_method(types: &mut TypeOps, s: SymbolId) -> bool {
+pub fn result_is_method(types: &mut TypeOps, s: SymbolId) -> bool {
     let info = types.u.info(s);
     let info = types.u.strip_poly(info);
     let Some(result) = types.u.method(info).map(|m| m.result) else { return false };
