@@ -177,6 +177,12 @@ input.addEventListener("keydown", (e) => {
     recall(-1);
   }
 });
+document.addEventListener("mouseup", () => {
+  if (document.getSelection().isCollapsed) input.focus();
+});
+document.addEventListener("keydown", (e) => {
+  if (document.activeElement !== input && !e.ctrlKey && !e.metaKey && !e.altKey) input.focus();
+});
 stop.onclick = () => {
   print("Stopped; the session is reset.", "note");
   restart();
