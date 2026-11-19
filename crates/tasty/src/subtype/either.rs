@@ -32,10 +32,9 @@ impl crate::Universe {
 }
 
 impl Cmp<'_> {
-    /// Whether `first` holds, or else `second`; when both hold, the constraint of `second` is
-    /// kept if the one of `first` subsumes it, that of `first` otherwise (dotty's `tryAlso`), or
-    /// in a necessary comparison the subsumed one of both constraints and GADT constraints,
-    /// else neither.
+    /// Whether `first` holds, or else `second`; when both hold, the constraint as `try_also`
+    /// keeps it, or in a necessary comparison the subsumed one of both constraints and GADT
+    /// constraints, else neither.
     pub fn either(
         &mut self,
         first: impl FnOnce(&mut Self) -> bool,
@@ -49,23 +48,30 @@ impl Cmp<'_> {
             self.vars.rollback(mark);
             return second(self);
         }
+        self.try_also(mark, second);
+        true
+    }
+
+    /// Runs `also` on the constraint at `mark` in place of the changes made since: keeps the
+    /// constraint of `also` if it holds and the changes subsume it, else the changes (dotty's
+    /// `tryAlso`).
+    pub fn try_also(&mut self, mark: Mark, also: impl FnOnce(&mut Self) -> bool) {
         let left = self.vars.changes_since(mark);
         if left.vars.is_empty() {
-            return true;
+            return;
         }
         let bounds = self.snapshot(&left.vars);
         self.vars.rollback(mark);
-        if second(self) {
+        if also(self) {
             let right = self.vars.changes_since(mark).vars;
             let mut vars = right.clone();
             vars.extend(&left.vars);
             if right.is_empty() || vars.iter().all(|&v| self.subsumes_bounds(&bounds, v)) {
-                return true;
+                return;
             }
         }
         self.vars.rollback(mark);
         self.vars.redo(left);
-        true
     }
 
     /// `either` keeping only constraints that both branches need (dotty's `necessaryEither`).

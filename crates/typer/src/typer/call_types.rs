@@ -34,15 +34,15 @@ impl Typer<'_> {
         }
         for a in implicit_args {
             if self.has_union_bounded_var(a) {
-                return Err("type variable bounded by a union in an implicit argument");
+                return Err("type variable bounded by an alias of a union in an implicit argument");
             }
             self.define_tree(a, true)?;
         }
         self.define_tree(call, false)
     }
 
-    /// Whether a type in `t` has a type variable without instance whose bound is or widens to a
-    /// union.
+    /// Whether a type in `t` has a type variable without instance whose bound widens to an alias
+    /// of a union.
     fn has_union_bounded_var(&mut self, t: TNodeId) -> bool {
         let mut vars = Vec::new();
         if let Some(tpe) = self.tpd.get(t).tpe {
@@ -60,7 +60,7 @@ impl Typer<'_> {
                 let b = self.zonk(b);
                 let w = self.u.widen(b);
                 let d = self.u.dealias(w);
-                if matches!(self.u.ty(d), Type::Or(..)) {
+                if d != w && matches!(self.u.ty(d), Type::Or(..)) {
                     return true;
                 }
             }

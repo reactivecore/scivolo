@@ -5,7 +5,7 @@
 
 use super::Typer;
 use crate::tpd::{TNodeId, Tree as T};
-use tasty::{NOTHING, Type, TypeId, TypeVars, VarId};
+use tasty::{NOTHING, TypeId, TypeVars, VarId};
 
 impl Typer<'_> {
     /// Instantiates the type variables other than locked ones that type applications in `tree`'s
@@ -36,9 +36,6 @@ impl Typer<'_> {
             let (lo, hi) = (self.zonk(lo), self.zonk(hi));
             let direction = self.constraint.direction(self.u, v);
             if direction <= 0 && lo != NOTHING {
-                if matches!(self.u.ty(lo), Type::And(..)) {
-                    return Err("type variable minimized to an intersection before an implicit search");
-                }
                 self.instantiate_var(v, true)?;
             } else if direction >= 0 && !self.is_any(hi) && self.u.var(hi).is_none() {
                 self.instantiate_var(v, false)?;
