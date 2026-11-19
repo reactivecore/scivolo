@@ -5,6 +5,7 @@
 //! (dotty's `Inliner.inlined`, `computeParamBindings`).
 
 use super::call_skolems::call_skolems;
+use super::class_tparams::replace_class_tparam;
 use super::copy::TreeTypeMap;
 use super::proxies::replace_param;
 use super::this_proxy::replace_this;
@@ -22,28 +23,6 @@ pub struct Expanded {
     pub expansion: TNodeId,
     /// Whether a proxy stands for a `this` of the body (dotty's `thisTypeProxyExists`).
     pub this_proxied: bool,
-}
-
-/// An inferred type tree of the type `m` maps type tree `t` to, if `t` refers to a type parameter
-/// of a class whose `this` a proxy of `this` stands for (dotty's `paramProxy` of `registerType`).
-fn replace_class_tparam(
-    i: &mut Inlining<'_>,
-    m: &TreeTypeMap,
-    this: &[(SymbolId, SymbolId)],
-    t: TNodeId,
-) -> Option<TNodeId> {
-    let T::Ident { name } = *i.tpd.tree(t) else { return None };
-    let s = i.tpd.sym(t)?;
-    let owner = i.u.symbol(s).owner?;
-    if !this.iter().any(|&(cls, _)| cls == owner) || !i.u.type_params(owner).contains(&s) {
-        return None;
-    }
-    let tpe = i.map_type(m, i.tpd.tpe(t));
-    if name.is_type {
-        return Some(i.tpd.node(T::TypeTree { inferred: true }, i.tpd.span(t), Some(tpe), None));
-    }
-    let sym = i.u.sym_of(tpe).or_else(|| i.u.class_symbol(tpe));
-    Some(i.tpd.node(T::Ident { name }, i.tpd.span(t), Some(tpe), sym))
 }
 
 pub struct Expansion<'i, 'a> {

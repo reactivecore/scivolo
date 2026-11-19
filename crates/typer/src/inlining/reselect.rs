@@ -24,8 +24,8 @@ impl Inlining<'_> {
 
     /// The member named `name` that selection `t` from `qualifier` finds in the class of the
     /// qualifier's type before the owner of the selected symbol, a type for a type, a term with
-    /// the selected symbol's signature for a term, abstract ones only for an abstract selected symbol: none if there is none, `Err`
-    /// if there are several or it is private.
+    /// the selected symbol's signature for a term, abstract ones only for an abstract selected
+    /// symbol: none if there is none, `Err` if there are several or it is private.
     fn reselected(&mut self, t: TNodeId, qualifier: TNodeId, name: String) -> Result<Option<SymbolId>, ()> {
         let (Some(sym), Some(q)) = (self.tpd.sym(t), self.tpd.get(qualifier).tpe) else { return Ok(None) };
         let owner = self.u.symbol(sym).owner;

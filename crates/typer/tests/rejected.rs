@@ -608,3 +608,29 @@ fn exports_of_a_java_class_skip_its_statics() {
         &["export java.util.UUID\ndef bar = println(new UUID(1, 2))\n"],
     );
 }
+
+/// A value selected through an inline proxy is widened to its type only covariantly: dotty types
+/// the invariant `Set[c.v.type]` as `Set[? <: Int]`, which `Set[Int]` would not stand for.
+#[test]
+fn values_selected_through_proxies_widen_covariantly() {
+    let cell = "class Cell(val v: Int)\n";
+    check(
+        &[(
+            &format!(
+                "{cell}transparent inline def boxed(c: Cell) =
+  val a: Set[c.v.type] = Set(c.v)
+  a
+def f(s: Set[Int]): String = \"Set[Int]\"
+def f(s: Any): String = \"Any\"
+def g = f(boxed(new Cell(4)))\n"
+            ),
+            "unsupported inline expansion of a type referring to a binding",
+        )],
+        &[&format!(
+            "{cell}transparent inline def wrap(c: Cell) =
+  val r: Option[c.v.type] = Some(c.v)
+  r
+def g: Option[Int] = wrap(new Cell(3))\n"
+        )],
+    );
+}

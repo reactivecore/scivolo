@@ -10,6 +10,7 @@ mod beta;
 mod blocks;
 mod call_skolems;
 mod class_parts;
+mod class_tparams;
 mod code_of;
 mod code_of_refs;
 mod compiletime;

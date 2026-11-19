@@ -72,8 +72,9 @@ impl Inlining<'_> {
 
     /// Whether a local value of `locals` occurs in `t`, at a position of variance `variance`
     /// (1 covariant, 0 invariant, -1 contravariant), where its type cannot stand for it: other
-    /// than covariantly, or contravariantly for an inline proxy; a type or a covariant value
-    /// selected from a path through one counts by its alias or its type.
+    /// than covariantly, or contravariantly for an inline proxy; a type selected from a path
+    /// through one counts by its alias, a value by its type if that is a singleton or the
+    /// position covariant, else as misplaced.
     fn misplaced_local(&mut self, t: TypeId, locals: &[SymbolId], variance: i8, depth: u32) -> bool {
         if depth == 0 {
             return mentions_any(self.u, t, locals);
@@ -85,8 +86,11 @@ impl Inlining<'_> {
                     return if proxy { variance < 0 } else { variance < 1 };
                 }
                 let Some(p) = p.filter(|&p| mentions_any(self.u, p, locals)) else { return false };
-                match widened_value(self.u, t).filter(|_| variance > 0) {
-                    Some(w) => self.misplaced_local(w, locals, variance, depth - 1),
+                match widened_value(self.u, t) {
+                    Some(w) if variance > 0 || is_singleton(self.u, w) => {
+                        self.misplaced_local(w, locals, variance, depth - 1)
+                    }
+                    Some(_) => true,
                     None => self.misplaced_local(p, locals, 0, depth - 1),
                 }
             }
@@ -136,6 +140,15 @@ impl Inlining<'_> {
 fn widened_value(u: &mut tasty::Universe, t: TypeId) -> Option<TypeId> {
     let w = u.widen_once(t).filter(|&w| w != t)?;
     Some(u.by_name(w).unwrap_or(w))
+}
+
+/// Whether `t` is a path, a `this` or a constant.
+fn is_singleton(u: &mut tasty::Universe, t: TypeId) -> bool {
+    match *u.ty(t) {
+        Type::Constant(..) | Type::Str(_) | Type::This(_) | Type::TermRef(..) | Type::Skolem(..) => true,
+        Type::Sym(_, s) => !u.is_type_symbol(s),
+        _ => false,
+    }
 }
 
 /// Whether type `t` refers to one of `syms`.
