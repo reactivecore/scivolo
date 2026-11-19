@@ -1174,10 +1174,14 @@ whole-module build); scala-cli's builds of `ToExpr.scala` and `FromExpr.scala` a
 quotes as ours, up to the source path. `lib-jar scalalib` lowers all files as one unit, as Scala
 Native's build does: their quotes are as the oracle's. There, `ProcessImpl`'s `$N$` names of
 pattern definitions (`CompoundProcess`'s `$1$`, `DummyProcess`'s `$3$` in dotty, `$3$` and `$2$`
-in ours) follow the order in which the member classes of `ProcessImpl` are completed: dotty
-completes `CompoundProcess` first while it types `object Process` (`Process.scala`,
-`ProcessBuilderImpl.scala` and `ProcessImpl.scala` alone: dotty `$3$`, ours `$2$` for
-`DummyProcess`; without `Process.scala` both `$2$`); case 1: private names, the same meaning.
+in ours) follow the order in which the member classes of `ProcessImpl` are completed. Dotty
+completes `CompoundProcess` first when a name lookup on `ProcessImpl`'s self type
+(`ProcessImpl & Process.type`, `Process` of the same run) computes its members as seen from it
+(`Typer.findRef`, `Types.findMember`, `ClassDenotation.addInherited`,
+`SingleDenotation.computeAsSeenFrom` forcing the class's info); our lookup does not complete
+member classes. `Process.scala`, `ProcessBuilderImpl.scala` and `ProcessImpl.scala` alone: dotty
+`$3$`, ours `$2$` for `DummyProcess`; without `Process.scala` both `$2$`. Case 1: private names,
+the same meaning.
 
 ## Native executables
 
