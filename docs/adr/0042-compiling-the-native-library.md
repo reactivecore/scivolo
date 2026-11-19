@@ -21,9 +21,9 @@ program is linked. scivolo compiles a curated copy (`native/`) with clang in `cr
   copied verbatim, and the manifest. Accepted NIR differences are the order of var slots, which
   Scala Native takes from a hash set (`var-order`), and those `docs/conformance.md` names as case
   1 or 3 of `CLAUDE.md`. `.class` files are not produced for now; `scivolo-jvm` could produce them
-  if JVM-side tooling on these jars becomes a goal. TASTy comes from our pickler once
-  `scivolo-lower` writes it (stage 4 of research 36); until then a module's jar carries the
-  upstream TASTy, as `libs/javalib-tasty-0.5.12.jar` carries sbt's.
+  if JVM-side tooling on these jars becomes a goal. TASTy comes from our pickler
+  (`scivolo-lower --pickle`) in the jars whose published ones carry TASTy; javalib's, which its
+  published jar lacks, goes into a TASTy-only jar as `libs/javalib-tasty-0.5.12.jar`.
 - **Stages.** Per-file compilation against the module's own published TASTy first (the measuring
   tool), then a module as one unit against its dependencies' jars, then scalalib from the patched
   3.9.0 sources, then TASTy.
