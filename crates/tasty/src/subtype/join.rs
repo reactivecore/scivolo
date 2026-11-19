@@ -149,6 +149,9 @@ impl Universe {
             _ => {
                 let widened = self.widen(t);
                 let widened = self.dealias(widened);
+                if widened != t && matches!(self.ty(widened), Type::Or(..) | Type::And(..)) {
+                    return self.or_base_classes(widened);
+                }
                 let (parent, _) = self.without_refinements(widened);
                 let c = self.class_symbol(parent)?;
                 let b = self.defn();
@@ -181,6 +184,9 @@ impl Universe {
             _ => {
                 let widened = self.widen(t);
                 let widened = self.dealias(widened);
+                if widened != t && matches!(self.ty(widened), Type::Or(..) | Type::And(..)) {
+                    return self.or_base_type(widened, c);
+                }
                 self.base_type(widened, c)
             }
         }

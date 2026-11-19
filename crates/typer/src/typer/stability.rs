@@ -45,7 +45,9 @@ impl TypeOps<'_> {
 impl Typer<'_> {
     /// Whether `tree` is a literal, `this`, or a path of stable members.
     pub fn is_stable_path(&mut self, tree: TNodeId) -> bool {
-        let stable = |t: &mut Self, r| t.tpd.sym(r).is_some_and(|s| t.is_stable_member(s));
+        let stable = |t: &mut Self, r| {
+            t.tpd.sym(r).is_some_and(|s| t.is_stable_member(s) || has_singleton_result(t.u, s))
+        };
         match *self.tpd.tree(tree) {
             T::Literal { .. } | T::This { .. } => true,
             T::Ident { .. } => stable(self, tree),
@@ -117,6 +119,7 @@ pub fn is_stable_path(u: &mut Universe, t: TypeId) -> bool {
                     matches!(u.ty(p), Type::NoPrefix | Type::Sym(..) if !is_term_ref(u, p))
                         || is_stable_path(u, p)
                 })
+                || has_singleton_result(u, s)
         }
         Type::TermRef(p, _) => {
             u.resolve_ref(t).is_some_and(|s| is_stable_member(u, s)) && is_stable_path(u, p)
@@ -127,6 +130,18 @@ pub fn is_stable_path(u: &mut Universe, t: TypeId) -> bool {
         }
         _ => false,
     }
+}
+
+/// Whether term `s` is a parameterless method whose result is a stable path (dotty's
+/// `info.isStable` of an `ExprType`).
+fn has_singleton_result(u: &mut Universe, s: SymbolId) -> bool {
+    let info = u.info(s);
+    let result = match *u.ty(info) {
+        Type::ByName(r) => r,
+        _ if u.symbol(s).kind == Kind::Def => info,
+        _ => return false,
+    };
+    is_stable_path(u, result)
 }
 
 /// Whether `t` is a class type whose arguments and abstract type members have good bounds
