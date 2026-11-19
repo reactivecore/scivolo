@@ -247,6 +247,10 @@ impl Universe {
                 Some(self.intern_applied(t1, &args))
             }
             (Type::Sym(p1, s1), Type::Sym(p2, s2)) if s1 == s2 && p1 == p2 => Some(x),
+            (Type::Sym(Some(p1), s1), Type::Sym(Some(p2), s2)) if s1 == s2 && !self.is_static_symbol(s1) => {
+                let prefix = self.lub(p1, p2);
+                Some(self.intern_type(Type::Sym(Some(prefix), s1)))
+            }
             (Type::Sym(..) | Type::TypeRef(..), Type::Sym(..) | Type::TypeRef(..)) => {
                 let c = self.same_static_class(x, y)?;
                 self.type_params(c).is_empty().then_some(x)
