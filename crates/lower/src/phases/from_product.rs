@@ -42,11 +42,11 @@ pub fn from_product(
     let ctor = ctor.into_iter().next().expect("a case class constructor");
     let (created_type, param_types) = instantiated_constructor(l, case_class, ctor);
     let flags = Flags::default().with(SYNTHETIC);
-    let mut locals = Vec::new();
     let accessors = case_accessors(l, case_class);
     let (module, getters) = unrolled_getters(l, case_class, &accessors)?;
     let unrolled_from = accessors.len() - getters.len();
-    let (method, def) = l.method_like(class, like, flags, info, focus, |l, args, _| {
+    let (_, def) = l.method_like(class, like, flags, info, focus, |l, args, _| {
+        let method = l.tpd.sym(args[0]).and_then(|p| l.u.symbol(p).owner).expect("`fromProduct`");
         let mut defs = Vec::new();
         let mut refs = Vec::new();
         let mut arity = None;
@@ -56,8 +56,7 @@ pub fn from_product(
             let rhs = l.select(product_ref, cc.product_arity, Span::NONE);
             let rhs = l.positioned(rhs);
             let int = l.u.widen(l.tpd.tpe(rhs));
-            let (def, binding) = val_def(l, class, nme::ARITY, int, rhs);
-            locals.push(binding);
+            let (def, binding) = val_def(l, (class, method), nme::ARITY, int, rhs);
             defs.push(def);
             arity = Some(binding);
         }
@@ -88,8 +87,7 @@ pub fn from_product(
             let rhs = l.type_cast_unless_conforms(element, tpe);
             let name = l.u.symbol(accessor).name.clone();
             let name = fresh(l, class, &name);
-            let (def, binding) = val_def(l, class, &name, tpe, rhs);
-            locals.push(binding);
+            let (def, binding) = val_def(l, (class, method), &name, tpe, rhs);
             defs.push(def);
             let arg = l.ident(binding, Span::NONE);
             refs.push(match repeated {
@@ -107,16 +105,20 @@ pub fn from_product(
         let block = l.positioned(block);
         l.type_cast_unless_conforms(block, mono)
     })?;
-    for local in locals {
-        l.u.set_owner(local, method);
-    }
     l.tpd.get_mut(def).span = Span::NONE;
     Ok(Some(l.with_span(def, focus)))
 }
 
-/// `val name: tpe = rhs`, its symbol owned by `class` until the caller moves it.
-fn val_def(l: &mut Lower, class: SymbolId, name: &str, tpe: TypeId, rhs: TNodeId) -> (TNodeId, SymbolId) {
+/// `val name: tpe = rhs` local to `method` of `class`.
+fn val_def(
+    l: &mut Lower,
+    (class, method): (SymbolId, SymbolId),
+    name: &str,
+    tpe: TypeId,
+    rhs: TNodeId,
+) -> (TNodeId, SymbolId) {
     let binding = l.u.define(symbol(name, Kind::Val, class, Flags::default().with(SYNTHETIC)));
+    l.u.set_owner(binding, method);
     l.u.set_info(binding, tpe);
     let tpt = l.type_tree(tpe, Span::NONE);
     let term = l.term_name(name);

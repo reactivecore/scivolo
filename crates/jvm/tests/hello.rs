@@ -94,6 +94,31 @@ fn partial_applications_take_apply_under_scala_3_3() {
 }
 
 #[test]
+fn blocks_selecting_structural_members_of_local_selectables_run() {
+    runs_on_the_jvm("selectableblock", "Test");
+}
+
+#[test]
+fn assignments_of_static_vars_through_values_run_on_the_jvm() {
+    runs_on_the_jvm("staticassign", "Staticassign");
+}
+
+#[test]
+fn static_methods_beside_instance_methods_of_their_names_run_on_the_jvm() {
+    runs_on_the_jvm("staticforwarders", "Staticforwarders");
+}
+
+#[test]
+fn anonymous_mirrors_of_inline_bodies_run_on_the_jvm() {
+    runs_on_the_jvm("inlinemirrors", "Inlinemirrors");
+}
+
+#[test]
+fn bridges_returning_context_functions_over_22_parameters_run_on_the_jvm() {
+    runs_on_the_jvm("contextxxl", "Contextxxl");
+}
+
+#[test]
 fn several_files_run_on_the_jvm() {
     runs_on_the_jvm("units", "Units");
 }
