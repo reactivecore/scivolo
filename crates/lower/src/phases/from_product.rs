@@ -42,11 +42,16 @@ pub fn from_product(
     let ctor = ctor.into_iter().next().expect("a case class constructor");
     let (created_type, param_types) = instantiated_constructor(l, case_class, ctor);
     let flags = Flags::default().with(SYNTHETIC);
-    let mut locals = Vec::new();
     let accessors = case_accessors(l, case_class);
     let (module, getters) = unrolled_getters(l, case_class, &accessors)?;
     let unrolled_from = accessors.len() - getters.len();
-    let (method, def) = l.method_like(class, like, flags, info, focus, |l, args, _| {
+    let bindings = bindings(l, class, ctor, &accessors, &param_types);
+    let (_, def) = l.method_like(class, like, flags, info, focus, |l, args, _| {
+        let method = l.tpd.sym(args[0]).and_then(|p| l.u.symbol(p).owner).expect("`fromProduct`");
+        for &binding in &bindings {
+            l.u.set_owner(binding, method);
+        }
+
         let mut defs = Vec::new();
         let mut refs = Vec::new();
         let mut arity = None;
@@ -56,20 +61,13 @@ pub fn from_product(
             let rhs = l.select(product_ref, cc.product_arity, Span::NONE);
             let rhs = l.positioned(rhs);
             let int = l.u.widen(l.tpd.tpe(rhs));
-            let (def, binding) = val_def(l, class, nme::ARITY, int, rhs);
-            locals.push(binding);
-            defs.push(def);
+            let binding = val_sym(l, class, nme::ARITY, int);
+            l.u.set_owner(binding, method);
+            defs.push(val_def(l, binding, rhs));
             arity = Some(binding);
         }
-        for (i, (&accessor, param)) in accessors.iter().zip(param_types).enumerate() {
+        for (i, (&binding, &param)) in bindings.iter().zip(&param_types).enumerate() {
             let repeated = repeated_elem(l, param);
-            let tpe = match repeated {
-                Some(elem) => {
-                    let seq = l.u.class_ref(tasty::defn::IMMUTABLE_SEQ);
-                    l.u.intern_applied(seq, &[elem])
-                }
-                None => param,
-            };
             let product_ref = l.copy_ident(args[0]);
             l.tpd.mark_copy(product_ref, args[0]);
             let index = l.int_literal(i as i32);
@@ -85,12 +83,9 @@ pub fn from_product(
                 element = l.tpd.node(branch, Span::NONE, Some(tasty::ANY), None);
                 element = l.positioned(element);
             }
+            let tpe = l.u.info(binding);
             let rhs = l.type_cast_unless_conforms(element, tpe);
-            let name = l.u.symbol(accessor).name.clone();
-            let name = fresh(l, class, &name);
-            let (def, binding) = val_def(l, class, &name, tpe, rhs);
-            locals.push(binding);
-            defs.push(def);
+            defs.push(val_def(l, binding, rhs));
             let arg = l.ident(binding, Span::NONE);
             refs.push(match repeated {
                 Some(_) => {
@@ -107,22 +102,70 @@ pub fn from_product(
         let block = l.positioned(block);
         l.type_cast_unless_conforms(block, mono)
     })?;
-    for local in locals {
-        l.u.set_owner(local, method);
-    }
     l.tpd.get_mut(def).span = Span::NONE;
     Ok(Some(l.with_span(def, focus)))
 }
 
-/// `val name: tpe = rhs`, its symbol owned by `class` until the caller moves it.
-fn val_def(l: &mut Lower, class: SymbolId, name: &str, tpe: TypeId, rhs: TNodeId) -> (TNodeId, SymbolId) {
+/// The synthetic `val name: tpe`, owned by `class` until the caller moves it.
+fn val_sym(l: &mut Lower, class: SymbolId, name: &str, tpe: TypeId) -> SymbolId {
     let binding = l.u.define(symbol(name, Kind::Val, class, Flags::default().with(SYNTHETIC)));
     l.u.set_info(binding, tpe);
+    binding
+}
+
+/// `val b: T = rhs` of `val` `binding` of type `T`.
+fn val_def(l: &mut Lower, binding: SymbolId, rhs: TNodeId) -> TNodeId {
+    let tpe = l.u.info(binding);
     let tpt = l.type_tree(tpe, Span::NONE);
-    let term = l.term_name(name);
+    let term = l.term_name(&l.u.symbol(binding).name.clone());
     let def =
         l.tpd.node(Tree::ValDef { name: term, tpt, rhs: Some(rhs) }, Span::NONE, Some(tpe), Some(binding));
-    (l.positioned(def), binding)
+    l.positioned(def)
+}
+
+/// The `val`s of `fromProduct` for case accessors `accessors` of a class with constructor `ctor`,
+/// of parameter types `params`, a repeated one's as a `Seq`, owned by `class` until the caller
+/// moves them; a reference to a constructor parameter or its accessor on `this` names its `val`
+/// instead (dotty's `substParams` of a dependent constructor): `val b$1: B^{a$1}` of
+/// `case class C(a: A^, b: B^{a})`.
+fn bindings(
+    l: &mut Lower,
+    class: SymbolId,
+    ctor: SymbolId,
+    accessors: &[SymbolId],
+    params: &[TypeId],
+) -> Vec<SymbolId> {
+    let mut vals = Vec::new();
+    let mut originals = Vec::new();
+    for (&accessor, &param) in accessors.iter().zip(params) {
+        let tpe = match repeated_elem(l, param) {
+            Some(elem) => {
+                let seq = l.u.class_ref(tasty::defn::IMMUTABLE_SEQ);
+                l.u.intern_applied(seq, &[elem])
+            }
+            None => param,
+        };
+        let name = l.u.symbol(accessor).name.clone();
+        let original = l.u.decls_named(ctor, &name).into_iter().find(|&p| l.u.symbol(p).kind == Kind::Param);
+        originals.push(original);
+        let name = fresh(l, class, &name);
+        vals.push(val_sym(l, class, &name, tpe));
+    }
+
+    for &val in &vals {
+        let info = l.u.info(val);
+        let info = l.u.map_type_and_kept_sets(info, &mut |u, part| {
+            let Type::Sym(prefix, r) = *u.ty(part) else { return None };
+            if prefix.is_some_and(|p| !matches!(u.ty(p), Type::This(_))) {
+                return None;
+            }
+            let i = accessors.iter().position(|&a| a == r);
+            let i = i.or_else(|| originals.iter().position(|&p| p == Some(r)))?;
+            Some(u.intern_type(Type::Sym(None, vals[i])))
+        });
+        l.u.set_info(val, info);
+    }
+    vals
 }
 
 /// The companion of `case_class` and the default getters of its case accessors `accessors` from
@@ -152,30 +195,4 @@ fn unrolled_getters(
         getters.push(g);
     }
     Ok((module, getters))
-}
-
-impl Lower<'_> {
-    /// `t`, cast to `tpe` unless its type conforms.
-    pub fn ensure_conforms(&mut self, t: TNodeId, tpe: TypeId) -> TNodeId {
-        self.cast_unless_conforms(t, tpe, self.defs.as_instance_of)
-    }
-
-    /// `t`, cast to `tpe` with `$asInstanceOf$` unless its type conforms (dotty's
-    /// `ensureConforms` before erasure).
-    pub fn type_cast_unless_conforms(&mut self, t: TNodeId, tpe: TypeId) -> TNodeId {
-        self.cast_unless_conforms(t, tpe, self.defs.type_cast)
-    }
-
-    fn cast_unless_conforms(&mut self, t: TNodeId, tpe: TypeId, cast: SymbolId) -> TNodeId {
-        let from = self.tpd.tpe(t);
-        if self.u.is_subtype(from, tpe) {
-            return t;
-        }
-        let fun = self.select(t, cast, Span::NONE);
-        let fun = self.positioned(fun);
-        let tpt = self.type_tree(tpe, Span::NONE);
-        let args = self.tpd.list(&[tpt]);
-        let cast = self.tpd.node(Tree::TypeApply { fun, args }, Span::NONE, Some(tpe), Some(cast));
-        self.positioned(cast)
-    }
 }

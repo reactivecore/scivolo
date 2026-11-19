@@ -6,7 +6,7 @@
 use super::{Avoid, is_path};
 use crate::typer::Typer;
 use crate::typer::approx::{self, Approx};
-use tasty::{Kind, NOTHING, SymbolId, Type, TypeId};
+use tasty::{Kind, NOTHING, NameId, SymbolId, Type, TypeId};
 
 impl Avoid<'_> {
     /// Approximates a selection such as `x.T` or `x.y.type` whose prefix `x` had to be
@@ -45,14 +45,51 @@ impl Avoid<'_> {
     }
 
     /// Approximates `tpe`, a reference `pre.name` by name, as the reference to the symbol it
-    /// resolves to if `pre` mentions a local; gives up if it resolves to none.
+    /// resolves to if `pre` mentions a local, as `refined_term` if it is a term only a refinement
+    /// declares; gives up on a type it resolves to none.
     pub fn named(self, t: &mut Typer, tpe: TypeId, pre: TypeId, v: i8) -> Option<Approx> {
         if !t.refers_to(pre, self.locals) {
             return Some(Approx::Exact(tpe));
         }
-        let s = t.u.resolve_ref(tpe)?;
+        let Some(s) = t.u.resolve_ref(tpe) else {
+            let Type::TermRef(_, name) = *t.u.ty(tpe) else { return None };
+            return self.refined_term(t, tpe, (pre, name), v);
+        };
         let resolved = t.u.intern_type(Type::Sym(Some(pre), s));
         self.at(t, resolved, v)
+    }
+
+    /// Approximates `x.a`, a term `a` only a refinement of the type of `x` declares, as the
+    /// structural `x.a` of `val x = new Selectable { val a = 1 }`: by the type of `a` where a
+    /// supertype will do, by `a` of the approximated prefix if it still declares `a`, and by any
+    /// type at all otherwise (dotty's `AvoidMap.derivedSelect` of a refined member).
+    fn refined_term(
+        self,
+        t: &mut Typer,
+        tpe: TypeId,
+        (pre, name): (TypeId, NameId),
+        v: i8,
+    ) -> Option<Approx> {
+        let info = t.u.term_refinement_named(pre, name)?;
+        let info = t.u.by_name(info).unwrap_or(info);
+        let p = self.at(t, pre, v.max(0));
+        if p == Some(Approx::Exact(pre)) {
+            return Some(Approx::Exact(tpe));
+        }
+        let singleton = matches!(p, Some(Approx::Exact(q)) if is_path(t.u, q));
+        if !singleton && (v > 0 || is_path(t.u, info)) {
+            return self.elsewhere().at(t, info, v);
+        }
+        let p = p?;
+        if t.u.term_refinement_named(p.hi(), name).is_none() {
+            return Some(approx::empty(t.u, v));
+        }
+        let hi = t.u.intern_type(Type::TermRef(p.hi(), name));
+        let lo = match p.lo() {
+            NOTHING => NOTHING,
+            lo => t.u.intern_type(Type::TermRef(lo, name)),
+        };
+        Some(approx::range(t.u, Approx::Exact(lo), Approx::Exact(hi), v))
     }
 
     /// Approximates a selection such as `x.T` whose prefix `x` cannot be approximated: by what the

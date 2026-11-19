@@ -1,69 +1,14 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
-//   compiler/src/dotty/tools/dotc/config/MigrationVersion.scala
 //   compiler/src/dotty/tools/dotc/parsing/Parsers.scala
 //   compiler/src/dotty/tools/dotc/report.scala
 //! Legacy syntax, accepted with a warning or rejected by source version (dotty's
-//! `MigrationVersion` and `report.errorOrMigrationWarning`).
+//! `report.errorOrMigrationWarning`).
 
 use super::Parser;
 use crate::ast::Span;
-use crate::config::SourceVersion as V;
+pub use crate::config::Migration;
+use crate::config::Severity;
 use crate::diag::{Message, rewrite_notice};
-
-/// A legacy construct and the source versions that warn about it and reject it.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum Migration {
-    Scala2to3,
-    ForComprehensionPatternWithoutCase,
-    AscriptionAfterPattern,
-    ExplicitContextBoundArgument,
-    AlphanumericInfix,
-    RemoveThisQualifier,
-    UninitializedVars,
-    VarargSpliceAscription,
-    WildcardType,
-    WithOperator,
-    FunctionUnderscore,
-    AmbiguousNamedTupleSyntax,
-    ImportWildcard,
-    ImportRename,
-    ParameterEnclosedByParenthesis,
-    XmlLiteral,
-    GivenSyntax,
-    ImplicitParamsWithoutUsing,
-    Scala2Implicits,
-    IdentifierDollars,
-}
-
-impl Migration {
-    /// (warn from, error from); `None` for never.
-    fn versions(self) -> (V, Option<V>) {
-        use Migration::*;
-        let v = |s| V::parse(s).expect("a source version");
-        match self {
-            Scala2to3 => (v("3.0"), Some(v("3.0"))),
-            ForComprehensionPatternWithoutCase => (v("3.2"), Some(v("3.4"))),
-            AscriptionAfterPattern => (v("3.3"), Some(v("future"))),
-            ExplicitContextBoundArgument => (v("3.4"), Some(v("3.5"))),
-            AlphanumericInfix
-            | RemoveThisQualifier
-            | UninitializedVars
-            | VarargSpliceAscription
-            | WildcardType
-            | WithOperator
-            | FunctionUnderscore => (v("3.4"), Some(v("future"))),
-            AmbiguousNamedTupleSyntax => (v("3.6"), Some(v("future"))),
-            ImportWildcard
-            | ImportRename
-            | ParameterEnclosedByParenthesis
-            | XmlLiteral
-            | GivenSyntax
-            | Scala2Implicits => (v("future"), Some(v("future"))),
-            ImplicitParamsWithoutUsing => (v("3.7"), Some(v("future"))),
-            IdentifierDollars => (v("3.9"), None),
-        }
-    }
-}
 
 impl Parser<'_> {
     /// An error for syntax that `option` disallows.
@@ -89,19 +34,10 @@ impl Parser<'_> {
     /// Report `msg` as an error, a migration warning or a warning, depending on the source
     /// version and when `m` became legacy syntax; nothing under `2.13`.
     pub fn error_or_migration_warning(&mut self, msg: impl Into<Message>, span: Span, m: Migration) {
-        let version = self.s.cfg.source_version;
-        if version.is_scala2() {
-            return;
-        }
-        let (warn_from, error_from) = m.versions();
-        if let Some(error_from) = error_from.filter(|&e| version.is_at_least(e)) {
-            if version != error_from.migrating_variant() {
-                self.syntax_error_span(msg, span);
-            } else {
-                self.s.diags.warning_at(span.start(), span.end(), span.point(), msg);
-            }
-        } else if version.is_at_least(warn_from) {
-            self.s.diags.warning_at(span.start(), span.end(), span.point(), msg);
+        match m.severity(self.s.cfg.source_version) {
+            Some(Severity::Error) => self.syntax_error_span(msg, span),
+            Some(Severity::Warning) => self.s.diags.warning_at(span.start(), span.end(), span.point(), msg),
+            None => {}
         }
     }
 

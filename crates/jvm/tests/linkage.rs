@@ -132,8 +132,8 @@ fn member_lines<'a>(text: &'a str, header: &str) -> Vec<&'a str> {
 /// value's line, no line for the `()` ending a secondary constructor, a branch's match marked again
 /// on its scrutinee's line after the cases' line, a lazy value's `VarHandle` set on the line its
 /// class's parents end, an `InnerClasses` entry for an object with an operator name, and the
-/// conversion of an
-/// implicit class deprecated for companion methods, the class only if for companion classes.
+/// conversion of an implicit class deprecated for companion methods, the class only if for
+/// companion classes.
 #[test]
 fn line_marks_and_deprecations_follow_dotty() {
     let out = compile("lines");
@@ -229,6 +229,18 @@ fn phantom_values_and_static_qualifiers_follow_dotty() {
     let run = run.expect("running java");
     assert!(run.status.success(), "{}", String::from_utf8_lossy(&run.stderr));
     assert_eq!(String::from_utf8_lossy(&run.stdout), "Red\nList(Red, Green)\nnull\nno value\n");
+}
+
+/// The static forwarder of a synthetic trait method, the body of a lambda an anonymous class
+/// calls, is public and static only, as dotty's `makeStatifiedDefSymbol` makes it.
+#[test]
+fn trait_forwarders_of_synthetic_methods_are_not_synthetic() {
+    let out = compile("forwarderflags");
+    let Some(text) = javap_verbose(&out, "forwarderflags.Ord") else { return };
+    let forwarder = "forwarderflags$Ord$$_$orElse$$anonfun$1$(";
+    let start = text.find(forwarder).unwrap_or_else(|| panic!("{forwarder} in\n{text}"));
+    let flags = text[start..].lines().find(|l| l.trim().starts_with("flags:"));
+    assert_eq!(flags.map(str::trim), Some("flags: (0x0009) ACC_PUBLIC, ACC_STATIC"), "{text}");
 }
 
 /// Without Scala Native's library on the class path its API does not exist, as for dotty.

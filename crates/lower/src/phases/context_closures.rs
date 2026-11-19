@@ -101,11 +101,10 @@ pub fn unbunched(l: &mut Lower, apply: SymbolId, anon: &Anon, args: &[TNodeId], 
     captured.iter().copied().chain(elements).collect()
 }
 
-/// `closure(anon)` of the function type of `anon`'s arity capturing `args`, `Function1` of one
-/// taking an array; in a block, in two if of its `$adapted` method (dotty's `etaExpand` and
-/// `adaptClosure`).
+/// `closure(anon)` of the function type of `anon`'s arity capturing `args`; in a block, in two if
+/// of its `$adapted` method (dotty's `etaExpand` and `adaptClosure`).
 pub fn closure(l: &mut Lower, anon: &Anon, args: &[TNodeId], span: Span) -> TNodeId {
-    let function = function_type(l, if anon.bunched.is_some() { 1 } else { anon.arity });
+    let function = function_type(l, anon.arity);
     let env = l.tpd.list(args);
     let meth = l.ident(anon.adapted.as_ref().map_or(anon.sym, |a| a.0), span);
     let tpt = anon.interface.map(|i| {

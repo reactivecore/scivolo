@@ -31,8 +31,8 @@ fn sources_refer_to_each_other_and_errors_name_their_file() {
     );
     let error = compile("class C", "object C").expect_err("split companions");
     assert!(error.contains("companion object in different source files"), "{error}");
-    let error = compile("import scala.language.`3.9-migration`\nobject A", "object B");
-    assert!(error.expect_err("a migrating source version").contains("source versions"));
+    let error = compile("import scala.language.`3.0-migration`\nobject A", "object B");
+    assert!(error.expect_err("source version 3.0-migration").contains("source version 3.0-migration"));
     let a = "import scala.language.`3.7`\nobject A { def f = B.g }";
     compile(a, "import scala.language.implicitConversions\nobject B { def g = 1 }")
         .expect("per-file imports");
@@ -84,8 +84,8 @@ fn a_refused_file_leaves_out_itself_and_the_files_needing_it() {
         SourceFile::new("a.scala", "object A { def f: Int = 1 }"),
         SourceFile::new("b.scala", "object B { def g: Int = \"s\" }"),
         SourceFile::new("c.scala", "object C { def h: Int = B.g + A.f }"),
-        SourceFile::new("d.scala", "import scala.language.`3.9-migration`\nobject D"),
-        SourceFile::new("e.scala", "import scala.language.`3.9-migration`\nobject E"),
+        SourceFile::new("d.scala", "import scala.language.`3.0-migration`\nobject D"),
+        SourceFile::new("e.scala", "import scala.language.`3.0-migration`\nobject E"),
         SourceFile::new("f.scala", "object F { def f = { var i = 0; i += 1; i } }"),
     ];
     let mut open = || Universe::open(&jars).unwrap();
@@ -506,4 +506,85 @@ fn overloads_see_the_type_members_their_prefix_overrides() {
         let bb = dump(&jars, &sources, "p.BB");
         assert!(bb.contains("put$extension(p.Buf, int, p.Buf)"), "{bb}");
     }
+}
+
+#[test]
+fn quotes_under_capture_checking_see_only_their_own_files_function_types() {
+    let Some(jars) = jars() else { return };
+    let a = "import language.experimental.captureChecking\nimport scala.quoted.*\n\
+             object A { def one(using Quotes): Expr[Int] = '{ 1 } }\n";
+    let b = "object B { val f: Int => Int = x => x }\n";
+    dump(&jars, &[SourceFile::new("a.scala", a), SourceFile::new("b.scala", b)], "A$");
+}
+
+#[test]
+fn wildcards_are_captured_by_a_type_box_of_the_unit() {
+    let Some(jars) = jars() else { return };
+    let a = "object A { def f(x: Any) = x.asInstanceOf[Array[?]].iterator.take(1) }\n";
+    let b = "package scala.runtime\nimport language.experimental.captureChecking\n\
+             final abstract class TypeBox[-L <: U, +U] { type CAP >: L <: U }\n";
+    dump(&jars, &[SourceFile::new("a.scala", a), SourceFile::new("b.scala", b)], "A$");
+}
+
+#[test]
+fn parents_of_library_classes_see_the_units_aliases() {
+    let Some(jars) = jars() else { return };
+    let a = "package scala\nobject E { def g: java.lang.RuntimeException = new java.util.NoSuchElementException(\"x\") }\n";
+    let b = "package object scala {\n  type Throwable = java.lang.Throwable\n  type Exception = java.lang.Exception\n  \
+             type RuntimeException = java.lang.RuntimeException\n}\n";
+    dump(&jars, &[SourceFile::new("a.scala", a), SourceFile::new("b.scala", b)], "scala.E$");
+}
+
+#[test]
+fn scala_library_units_complete_the_aliases_library_classes_refer_to() {
+    let Some(jars) = jars() else { return };
+    let a = "package scala\ntrait E {\n  @throws[NoSuchElementException]\n  def next(): Int\n}\n";
+    let b = "package object scala {\n  type Throwable = java.lang.Throwable\n  type Exception = java.lang.Exception\n  \
+             type RuntimeException = java.lang.RuntimeException\n  \
+             type NoSuchElementException = java.util.NoSuchElementException\n}\n";
+    let mut u = Universe::open(&jars).unwrap();
+    u.set_same_run_jar(0);
+    let sources = [SourceFile::new("a.scala", a), SourceFile::new("b.scala", b)];
+    lower::compile_sources(&mut u, &sources, Config::from_options(&[]), None).map_err(|r| r.what).unwrap();
+}
+
+#[test]
+fn tuples_are_pair_children_by_their_offsets_in_their_own_files() {
+    let Some(jars) = jars() else { return };
+    let pair = "package scala\nsealed trait Tuple extends Product\nsealed trait NonEmptyTuple extends Tuple\n\
+                sealed abstract class *:[+H, +T <: Tuple] extends NonEmptyTuple\nobject *:\n";
+    let tuple = |n: usize, header: &str| {
+        let params = (1..=n).map(|i| format!("+T{i}")).collect::<Vec<_>>().join(", ");
+        let fields = (1..=n).map(|i| format!("_{i}: T{i}")).collect::<Vec<_>>().join(", ");
+        let types = (1..=n).map(|i| format!("T{i}")).collect::<Vec<_>>().join(", ");
+        format!(
+            "package scala\n{header}final case class Tuple{n}[{params}]({fields}) extends Product{n}[{types}]\n"
+        )
+    };
+    let sources = [
+        SourceFile::new("Tuple.scala", pair),
+        SourceFile::new("Tuple20.scala", tuple(20, &"\n".repeat(50))),
+        SourceFile::new("Tuple21.scala", tuple(21, "")),
+    ];
+    let mut u = Universe::open(&jars).unwrap();
+    u.set_same_run_jar(0);
+    let (files, _) = lower::compile_sources(&mut u, &sources, Config::from_options(&[]), None)
+        .map_err(|r| r.what)
+        .unwrap();
+    let pair = files.iter().find(|f| f.name == "scala.$times$colon$").expect("`*:`'s companion");
+    let (mut caches, mut pool) = (nir::Caches::default(), nir::Pool::default());
+    let defs = nir::Reader::new(&pair.bytes, &mut caches, &mut pool).unwrap().all().unwrap();
+    let shown: String = defs.iter().map(|d| nir::show::defn_with_debug_info(&pool, d)).collect();
+    let at = |n: usize| shown.find(&format!("is[@scala.Tuple{n}]")).unwrap_or_else(|| panic!("{shown}"));
+    assert!(at(21) < at(20), "{shown}");
+}
+
+#[test]
+fn methods_returning_an_object_are_stable_paths() {
+    let Some(jars) = jars() else { return };
+    let a = "package p\nobject A { object N { class Q }; @inline def M = N }\n";
+    let b = "package p\nimport A.M\nobject B {\n  val x: Option[M.type] = None\n  \
+             def f(a: Any) = a match { case M => 1; case _ => 2 }\n  def g = new M.Q\n}\n";
+    let b = dump(&jars, &[SourceFile::new("a.scala", a), SourceFile::new("b.scala", b)], "p.B$");
+    assert!(b.contains("@p.A$N$Q"), "{b}");
 }

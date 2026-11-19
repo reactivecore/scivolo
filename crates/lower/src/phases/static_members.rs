@@ -7,7 +7,7 @@
 use super::walk::{class_defs, subtrees};
 use crate::{Lower, Result, unsupported};
 use names::nme;
-use rustc_hash::FxHashSet;
+use rustc_hash::{FxHashMap, FxHashSet};
 use tasty::SymbolId;
 use tasty::defn::STATIC_ANNOT;
 use tasty::tags::STATIC;
@@ -62,9 +62,9 @@ pub fn transform(l: &mut Lower, root: TNodeId) -> Result<()> {
         }
     }
     let trees = subtrees(l.tpd, root);
-    let assigned: FxHashSet<TNodeId> = (trees.iter())
+    let assigned: FxHashMap<TNodeId, TNodeId> = (trees.iter())
         .filter_map(|&t| match *l.tpd.tree(t) {
-            Tree::Assign { lhs, .. } => Some(lhs),
+            Tree::Assign { lhs, .. } => Some((lhs, t)),
             _ => None,
         })
         .collect();
@@ -79,15 +79,13 @@ pub fn transform(l: &mut Lower, root: TNodeId) -> Result<()> {
                 let Tree::Select { qualifier, .. } = *l.tpd.tree(t) else { unreachable!("a selection") };
                 let this = matches!(l.tpd.tree(qualifier), Tree::This { .. });
                 let path = this || super::select_static::is_static_owner_ref(l, qualifier);
-                if !path && assigned.contains(&t) {
-                    return unsupported(
-                        span,
-                        "an assignment of an `@static` member of a value other than a path",
-                    );
-                }
                 let tpe = l.tpd.tpe(t);
                 let mut r = l.ident(s, span);
                 l.tpd.get_mut(r).tpe = Some(tpe);
+                if let Some(&assign) = assigned.get(&t).filter(|_| !path) {
+                    super::select_static::assign_after_qualifier(l, assign, qualifier, r);
+                    continue;
+                }
                 if !path {
                     r = l.block(&[qualifier], r, span);
                     blocks.insert(t);

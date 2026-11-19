@@ -80,6 +80,9 @@ pub struct Units {
     /// The next unit's source files, each at its offset among the sources, if the TASTy of its
     /// top-level classes is pickled before its inline calls expand.
     pub tasty_sources: Option<Vec<(SourceFile, syntax::source::Offset)>>,
+    /// If set, where and why pickling a file's classes was refused: such a file keeps its other
+    /// output, without its TASTy.
+    pub unpickled: Option<Vec<(Span, String)>>,
     /// Where and why the last unit was refused, the first refusal first: at most one per file and
     /// stage, and per definition the inline calls of which do not expand.
     pub refused: Vec<(Span, String)>,
