@@ -3,6 +3,7 @@
 //! Subtyping (dotty's `TypeComparer`): one comparison for ground types and for types with type
 //! variables, whose constraint the caller keeps behind `TypeVars`.
 
+mod alias_args;
 mod applied;
 mod applied_gadt;
 mod args;
