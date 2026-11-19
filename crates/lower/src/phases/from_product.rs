@@ -46,8 +46,12 @@ pub fn from_product(
     let (module, getters) = unrolled_getters(l, case_class, &accessors)?;
     let unrolled_from = accessors.len() - getters.len();
     let bindings = bindings(l, class, ctor, &accessors, &param_types);
-    let mut locals = bindings.clone();
-    let (method, def) = l.method_like(class, like, flags, info, focus, |l, args, _| {
+    let (_, def) = l.method_like(class, like, flags, info, focus, |l, args, _| {
+        let method = l.tpd.sym(args[0]).and_then(|p| l.u.symbol(p).owner).expect("`fromProduct`");
+        for &binding in &bindings {
+            l.u.set_owner(binding, method);
+        }
+
         let mut defs = Vec::new();
         let mut refs = Vec::new();
         let mut arity = None;
@@ -58,7 +62,7 @@ pub fn from_product(
             let rhs = l.positioned(rhs);
             let int = l.u.widen(l.tpd.tpe(rhs));
             let binding = val_sym(l, class, nme::ARITY, int);
-            locals.push(binding);
+            l.u.set_owner(binding, method);
             defs.push(val_def(l, binding, rhs));
             arity = Some(binding);
         }
@@ -98,9 +102,6 @@ pub fn from_product(
         let block = l.positioned(block);
         l.type_cast_unless_conforms(block, mono)
     })?;
-    for local in locals {
-        l.u.set_owner(local, method);
-    }
     l.tpd.get_mut(def).span = Span::NONE;
     Ok(Some(l.with_span(def, focus)))
 }
