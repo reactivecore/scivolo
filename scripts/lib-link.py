@@ -18,7 +18,7 @@ import concurrent.futures
 import importlib
 import os
 import queue
-import shutil
+import re
 import subprocess
 import sys
 
@@ -33,8 +33,10 @@ WORK = lib.ROOT / "tmp/lib-link"
 JOBS = max(2, (os.cpu_count() or 4) // 2)
 # Seconds a linked program may run.
 TIMEOUT = 60
-# Times a link is tried while the linker fails with ClosedFileSystemException.
-LINK_ATTEMPTS = 3
+# The errors of the linker's jar file systems closed while in use, which a retry links past.
+SPURIOUS = ["ClosedFileSystemException", '"this.inodes" is null']
+# Times a link is tried while the linker fails with one of SPURIOUS.
+LINK_ATTEMPTS = 5
 # The line of a run log giving the exit code.
 EXIT = "--- exit "
 
@@ -70,7 +72,8 @@ def link_run(name, jars, workdirs, out):
                            stderr=subprocess.STDOUT, text=True, errors="replace", timeout=TIMEOUT)
     except subprocess.TimeoutExpired:
         return "timeout", ""
-    got = f"{r.stdout.rstrip()}\n{EXIT}{r.returncode}\n"
+    stdout = re.sub(r"si_addr=0x[0-9a-f]+", "si_addr=ADDRESS", r.stdout.rstrip())
+    got = f"{stdout}\n{EXIT}{r.returncode}\n"
     (out / "logs" / f"{name}.out").write_text(got)
     if (PROGRAMS / name / ".check-by-hand").exists():
         published = WORK / "published" / "logs" / f"{name}.out"
@@ -85,8 +88,8 @@ def link_run(name, jars, workdirs, out):
 
 
 def link(name, jars, workdirs, out):
-    """Links NAME into out/bin, retrying the linker's spurious ClosedFileSystemException; the
-    first error line on failure, else none."""
+    """Links NAME into out/bin, retrying the linker's failures of SPURIOUS; the first error line
+    on failure, else none."""
     workdir = workdirs.get()
     try:
         cmd = [*LD, "--main", name, "-o", str(out / "bin" / name), "--workdir", str(workdir), str(PROGRAMS / name),
@@ -97,7 +100,7 @@ def link(name, jars, workdirs, out):
             (out / "logs" / f"{name}.link").write_text(log)
             if r.returncode == 0:
                 return None
-            if "ClosedFileSystemException" not in log:
+            if not any(s in log for s in SPURIOUS):
                 break
         return next((l for l in log.splitlines() if "rror" in l or "Exception" in l), "")[:160]
     finally:
@@ -108,9 +111,8 @@ def main(mode, filter_):
     jars = class_path(mode)
     check_linker()
     out = WORK / mode
-    shutil.rmtree(out, ignore_errors=True)
     for d in ("bin", "logs"):
-        (out / d).mkdir(parents=True)
+        (out / d).mkdir(parents=True, exist_ok=True)
     workdirs = queue.Queue()
     for i in range(JOBS):
         workdirs.put(WORK / "work" / mode / str(i))
