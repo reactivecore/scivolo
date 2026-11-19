@@ -18,9 +18,19 @@ fn session() -> Result<Session, String> {
     let image: &'static Image =
         Box::leak(Box::new(Image::from_bytes(Vec::leak(bytes)).map_err(|e| e.to_string())?));
     let classpath = Classpath::with_image(&[], image).map_err(|e| e.to_string())?;
-    let vm = Vm::new(classpath).map_err(|e| e.to_string())?;
+    let mut vm = Vm::new(classpath).map_err(|e| e.to_string())?;
+    vm.set_heap_cap(HEAP_CAP);
     Session::new(vm, image, 80).map_err(|e| e.to_string())
 }
+
+/// Bytes of live objects the session may hold, small so that garbage must be collected.
+const HEAP_CAP: usize = 48 << 20;
+
+/// Inputs of 256 KiB of garbage each, together five times `HEAP_CAP`.
+const INPUTS: usize = 1000;
+
+/// Inputs after which the session forgets its history, which every input types against.
+const RESET_EVERY: usize = 100;
 
 /// Whether `out` is the lines `before`, then one line ending with `last`.
 fn is(out: &[String], before: &[&str], last: &str) -> bool {
@@ -56,14 +66,41 @@ fn run() -> Result<(), String> {
     expect(s, "Thread.sleep(20); System.nanoTime() > 0 && System.currentTimeMillis() > 0", |o| {
         is(o, &[], ": Boolean = true")
     })?;
-    expect(s, "Iterator.continually(new Array[Byte](1 << 20)).take(2000).map(_.length.toLong).sum", |o| {
-        has(o, "java.lang.OutOfMemoryError")
-    })?;
+    collections(s)?;
     expect(s, "sys.exit(3)", |_| true)?;
     match s.exit() {
         Some(3) => Ok(()),
         code => Err(format!("sys.exit(3) ended the session with {code:?}")),
     }
+}
+
+/// Garbage of many inputs and of one long loop stays under `HEAP_CAP`, live values survive the
+/// collections intact, and live data past the cap throws `OutOfMemoryError` without ending the
+/// session.
+fn collections(s: &mut Session) -> Result<(), String> {
+    for i in 0..INPUTS {
+        if i % RESET_EVERY == 0 {
+            s.reset();
+        }
+        expect(s, "Array.fill(64)(new Array[Byte](4096)).length", |o| is(o, &[], ": Int = 64"))?;
+    }
+    expect(s, "val keep = Vector.tabulate(20000)(i => s\"v$i\")", |_| true)?;
+    expect(
+        s,
+        "val table = scala.collection.mutable.HashMap.from((0 until 5000).map(i => i -> i.toString))",
+        |_| true,
+    )?;
+    let lap = "var n = 0L; var i = 0; while i < 4000 do { n += new Array[Byte](100000).length; i += 1 }; n";
+    expect(s, lap, |o| o.last().is_some_and(|l| l.ends_with(": Long = 400000000L")))?;
+    let each = "(1 to 3000).foldLeft(0L)((n, _) => n + Array.fill(10)(new Array[Long](1000)).length)";
+    expect(s, each, |o| is(o, &[], ": Long = 30000L"))?;
+    expect(s, "keep(12345) + keep.map(_.length).sum + table(4321)", |o| {
+        is(o, &[], "= \"v123451088904321\"")
+    })?;
+    expect(s, "val big = Array.fill(200)(new Array[Byte](1 << 20)); big.length", |o| {
+        has(o, "java.lang.OutOfMemoryError")
+    })?;
+    expect(s, "keep.last + table.size", |o| is(o, &[], ": String = \"v199995000\""))
 }
 
 #[test]

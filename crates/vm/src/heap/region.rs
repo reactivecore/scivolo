@@ -150,7 +150,7 @@ impl Heap {
 
     /// Puts snapshot `bytes` taken at `start` back in place; whether that succeeded.
     pub fn restore(&mut self, start: usize, bytes: &[u8]) -> bool {
-        let gc = &self.gc;
+        let gc = &mut self.gc;
         self.region.as_mut().is_some_and(|r| r.restore(start, bytes, |low, high| gc.add_roots(low, high)))
     }
 

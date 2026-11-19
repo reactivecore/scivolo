@@ -180,6 +180,13 @@ impl Vm {
             };
             let target = self.jump(code, slots, next)?;
             if target <= pc {
+                #[cfg(portable)]
+                {
+                    self.heap.collect_if_due();
+                    if self.heap.take_over_cap() {
+                        return self.throw_new("java.lang.OutOfMemoryError");
+                    }
+                }
                 self.tick()?;
             }
             pc = target;

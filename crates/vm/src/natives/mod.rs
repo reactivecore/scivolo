@@ -51,10 +51,26 @@ pub enum Native {
 impl Native {
     pub fn call(&self, vm: &mut Vm, args: &[u64]) -> Flow {
         match self {
+            #[cfg(portable)]
+            Native::Rust(f) => {
+                vm.heap.pin();
+                let result = f(vm, args);
+                vm.heap.unpin();
+                result
+            }
+            #[cfg(not(portable))]
             Native::Rust(f) => f(vm, args),
             Native::C(f) if f.blocking => vm.call_blocking(f, args),
             Native::C(f) => ffi::call(f, args),
             Native::Property(name) => vm.property_value(name),
+            #[cfg(portable)]
+            Native::New(class, service) => {
+                vm.heap.pin();
+                let result = services::instantiate(vm, *class, *service);
+                vm.heap.unpin();
+                result
+            }
+            #[cfg(not(portable))]
             Native::New(class, service) => services::instantiate(vm, *class, *service),
         }
     }

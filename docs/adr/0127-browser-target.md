@@ -24,8 +24,12 @@ exports and a `<textarea>` do).
   selects a second backing for the four OS dependencies, so it runs natively too and CI tests it:
   - the C externs the runtime needs are Rust functions in a name table
     (`natives/ffi/table.rs`); any other extern is refused as a missing native;
-  - the heap bumps objects from allocator chunks, never frees them, and throws
-    `OutOfMemoryError` past a cap (`heap/portable.rs`);
+  - the heap is a non-moving mark-sweep of its own (`heap/portable/`): objects bumped into
+    the free runs of aligned chunks with start, end and mark bitmaps, large ones from the
+    allocator; roots are the permanent heap, ranges the program registers and the frame
+    stacks, all scanned conservatively, as is every reached object; it collects only at loop
+    back-edges and between runs, while no Rust native or VM entry pins the heap, so no object
+    lives only in a Rust local; live data past a cap throws `OutOfMemoryError`;
   - frame stacks come from the allocator; the main thread runs inline on the caller's stack;
     starting a thread is refused, and a wait without deadline is refused as a deadlock;
   - the stack guard allows a named budget below where the main thread starts.
@@ -37,9 +41,13 @@ exports and a `<textarea>` do).
 
 ## Consequences
 - Native default builds keep the C runtime, Immix and green threads unchanged.
-- Without a collector a session's garbage accumulates until the cap; a collection between
-  inputs is a later step. Immix's behaviour (collection while running) is case 1 of the
-  conformance rules only as far as no live object is freed; programs that rely on collection
-  to stay under the cap end with `OutOfMemoryError` where Immix would go on.
+- Differences from Immix, case 1 of the conformance rules (when garbage is reclaimed is not
+  observable): collections happen later (never inside a Rust native or a REPL rendering, nor
+  in a loop without back-edges), so a program can reach `OutOfMemoryError` where Immix would
+  have collected; weak references are never cleared; registered root ranges are never
+  removed; objects are scanned conservatively instead of by their layout, which keeps more
+  garbage alive.
+- The collector is only as sound as its safepoints: VM code that keeps an object only in a
+  Rust local across a call into interpreted code must run pinned.
 - Threads, files, sockets, processes, `:load` and C libraries are refused in the browser.
 - A panic aborts the wasm instance; the page restarts it, losing the session.

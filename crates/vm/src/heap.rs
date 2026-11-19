@@ -79,7 +79,7 @@ impl Heap {
     pub fn permanent(&mut self, size: usize, blob: Blob) -> usize {
         let size = size.max(1).next_multiple_of(ALIGN);
         self.allocated += size;
-        let gc = &self.gc;
+        let gc = &mut self.gc;
         if let Some(addr) = self.region.as_mut().and_then(|r| r.alloc(size, blob, |l, h| gc.add_roots(l, h)))
         {
             return addr;
@@ -97,7 +97,7 @@ impl Heap {
     }
 
     fn train(&mut self, size: usize) -> Option<usize> {
-        let gc = &self.gc;
+        let gc = &mut self.gc;
         self.region.as_mut()?.train(size.next_multiple_of(ALIGN), |low, high| gc.add_roots(low, high))
     }
 

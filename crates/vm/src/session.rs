@@ -63,7 +63,14 @@ impl Vm {
     /// Constructs module `name` unless it was constructed before, also unsuccessfully.
     pub fn eval_module(&mut self, name: &str) -> Result<(), VmError> {
         let top = self.world.top(name);
-        self.run_main_thread(move |vm| vm.module(top).map(drop))
+        self.run_main_thread(move |vm| {
+            #[cfg(portable)]
+            vm.heap.unpin();
+            let constructed = vm.module(top).map(drop);
+            #[cfg(portable)]
+            vm.heap.pin();
+            constructed
+        })
     }
 
     /// What the no-argument method `method` of module `module`, returning a `java.lang.String`,
@@ -128,8 +135,21 @@ impl Vm {
         self.run_training(body)
     }
 
-    /// Runs `body` as `run_main_thread` does, in training until `init_runtime` returns.
+    /// Runs `body` as `run_main_thread` does, in training until `init_runtime` returns. In
+    /// portable mode it collects first if due, and `body` runs with the heap pinned.
     fn run_training(&mut self, body: impl FnOnce(&mut Vm) -> Flow<()> + 'static) -> Result<(), VmError> {
+        #[cfg(portable)]
+        {
+            self.heap.collect_if_due();
+            self.heap.pin();
+        }
+        let ran = self.run_pinned(body);
+        #[cfg(portable)]
+        self.heap.unpin();
+        ran
+    }
+
+    fn run_pinned(&mut self, body: impl FnOnce(&mut Vm) -> Flow<()> + 'static) -> Result<(), VmError> {
         let vm: *mut Vm = self;
         let _running = self.callbacks.enter(vm);
         let main = move |vm: &mut Vm| {

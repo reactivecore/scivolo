@@ -181,4 +181,16 @@ impl Vm {
     pub fn heap_bytes(&self) -> usize {
         self.heap.allocated
     }
+
+    /// Makes `bytes` of live objects the most before `OutOfMemoryError` (portable mode).
+    #[cfg(portable)]
+    pub fn set_heap_cap(&mut self, bytes: usize) {
+        self.heap.set_cap(bytes);
+    }
+
+    /// Bytes of objects allocated and not yet collected (portable mode).
+    #[cfg(portable)]
+    pub fn heap_used(&self) -> usize {
+        self.heap.used()
+    }
 }

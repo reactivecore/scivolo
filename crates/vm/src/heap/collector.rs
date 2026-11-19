@@ -53,7 +53,7 @@ impl Collector {
     }
 
     /// Makes the collector scan `low..high` conservatively.
-    pub fn add_roots(&self, low: usize, high: usize) {
+    pub fn add_roots(&mut self, low: usize, high: usize) {
         (self.add_roots)(low, high)
     }
 }
