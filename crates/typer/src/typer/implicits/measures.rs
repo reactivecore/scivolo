@@ -7,6 +7,7 @@ use super::super::type_ops::TypeOps;
 use super::covering::cover;
 use tasty::{Binder, ParamList, SymbolId, Type, TypeId, TypeVars, Universe, VarId};
 
+/// The refusal of a divergence check of a type the measures do not cover.
 pub const OUTSIDE: &str = "divergence check of a type outside the subset";
 
 /// dotty's `typeSize` and `coveringSet`.
