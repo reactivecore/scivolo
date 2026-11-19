@@ -33,7 +33,7 @@ impl Resolution {
                 mapped.push((mapped_alternative(t, alt, info, 1), alt));
             }
         }
-        choose_mapped(t, &mapped, Pt::Fun(next))
+        choose_mapped(t, &mapped, Resolution { prefix: None, pt: Pt::Fun(next), ..self })
     }
 
     /// Chooses the alternative of methods `alts` that the expected type selects with their
@@ -48,7 +48,7 @@ impl Resolution {
             let (info, clauses) = strip_implicit_clauses(t.u, info, original);
             mapped.push((mapped_alternative(t, alt, info, clauses), alt));
         }
-        choose_mapped(t, &mapped, self.pt)
+        choose_mapped(t, &mapped, Resolution { prefix: None, ..self })
     }
 }
 
@@ -60,12 +60,11 @@ pub fn leading_implicit(u: &mut Universe, s: SymbolId) -> Option<bool> {
     u.method(info).filter(|m| m.implicit).map(|m| m.contextual)
 }
 
-/// Chooses the original of the alternative of copies `mapped` that `pt` selects, in a nested
-/// resolution.
-fn choose_mapped(t: &mut Typer, mapped: &[Mapped], pt: Pt) -> Result<SymbolId, Unchosen> {
+/// Chooses the original of the alternative of copies `mapped` that `nested` selects.
+fn choose_mapped(t: &mut Typer, mapped: &[Mapped], nested: Resolution) -> Result<SymbolId, Unchosen> {
     let copies: Vec<SymbolId> = mapped.iter().map(|&(c, _)| c).collect();
     let back = |s: SymbolId| mapped.iter().find(|&&(c, _)| c == s).map_or(s, |&(_, a)| a);
-    let chosen = Resolution { prefix: None, pt }.choose(t, &copies);
+    let chosen = nested.choose(t, &copies);
     chosen
         .map(back)
         .map_err(|e| Unchosen { ambiguous: e.ambiguous.map(|a| a.into_iter().map(back).collect()), ..e })

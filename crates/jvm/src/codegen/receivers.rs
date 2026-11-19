@@ -3,9 +3,9 @@
 //! The class a virtual call or a field access names (dotty's `receiverClass` of `genApply` and
 //! `genCallMethod`).
 
-use super::Gen;
 use super::callee::Receiver;
 use super::descriptors::{descriptor, internal, method_descriptor};
+use super::{Gen, is_static_member};
 use names::nme;
 use tasty::{Erased, SymbolId};
 use typer::tpd::{TNodeId, Tree};
@@ -20,6 +20,22 @@ const OBJECT_METHODS: [(&str, &str); 5] = [
 ];
 
 impl Gen<'_, '_> {
+    /// Determines whether member `m`, a getter's call if `called`, is reached without a receiver:
+    /// a member of an object standing for a JDK class's statics, or a static member but a getter.
+    pub fn is_static_access(&self, m: SymbolId, called: bool) -> bool {
+        let owner = self.l.u.symbol(m).owner.expect("a member's owner");
+        let getter = called && self.l.u.symbol(m).kind == tasty::Kind::Val;
+        lower::is_jdk_object(self.l.u, owner) || (is_static_member(self.l, m) && !getter)
+    }
+
+    /// Determines whether a call of method `m` on `qualifier` loads its receiver as dotty's
+    /// `genLoadQualifier`: of an instance method, but on `new` or `super`.
+    pub fn loads_receiver(&self, m: SymbolId, qualifier: Option<TNodeId>) -> bool {
+        let made =
+            matches!(qualifier.map(|q| self.l.tpd.tree(q)), Some(Tree::New { .. } | Tree::Super { .. }));
+        !made && !self.is_static_access(m, true)
+    }
+
     /// The class a virtual call of `m` on `qualifier` names: the qualifier's erased class (its
     /// class for `super`), `Object` or the array type for an array, `m`'s trait for a trait method
     /// overriding one of `Object`; none where the qualifier's type erases to no class of its own or
