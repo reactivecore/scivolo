@@ -129,7 +129,8 @@ fn member_lines<'a>(text: &'a str, header: &str) -> Vec<&'a str> {
 
 /// Line marks and `Deprecated` as dotty writes them: a value class extension method's object of
 /// the receiver's line, an array update after its operands, a field initializer's `this` of its
-/// value's line, no line for the `()` ending a secondary constructor, and the conversion of an
+/// value's line, no line for the `()` ending a secondary constructor, a branch's match marked again
+/// on its scrutinee's line after the cases' line, and the conversion of an
 /// implicit class deprecated for companion methods, the class only if for companion classes.
 #[test]
 fn line_marks_and_deprecations_follow_dotty() {
@@ -145,6 +146,13 @@ fn line_marks_and_deprecations_follow_dotty() {
     let primary = member_lines(&fields, "public lines.Fields(int, int)");
     assert_eq!(primary, ["line 25: 0", "line 27: 4", "line 26: 12"], "{fields}");
     assert_eq!(member_lines(&fields, "public lines.Fields(int);"), ["line 31: 0", "line 32: 2"], "{fields}");
+    let Some(branches) = javap_verbose(&out, "lines.Branches$") else { return };
+    let contracted = member_lines(&branches, "java.lang.Object contracted(");
+    assert_eq!(
+        contracted,
+        ["line 36: 0", "line 36: 11", "line 37: 15", "line 38: 31", "line 39: 33"],
+        "{branches}"
+    );
     for (class, deprecated) in [("lines.Calls$Wrapped", false), ("lines.Calls$Both", true)] {
         let Some(text) = javap_verbose(&out, class) else { return };
         assert_eq!(text.lines().any(|l| l == "Deprecated: true"), deprecated, "{text}");

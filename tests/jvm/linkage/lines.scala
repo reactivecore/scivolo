@@ -31,3 +31,9 @@ class Fields(a: Int, b: Int):
     a,
     a
   )
+
+object Branches:
+  def contracted(array: Array[AnyRef], lev: Int): AnyRef = if (array.length == 1 && lev > 0) array(0) match {
+    case s: String => s
+    case _ => array
+  } else array
