@@ -81,6 +81,8 @@ expect("new Thread(() => ()).start()", (o) => o.some((l) => l.includes("threads 
 const groups = repl.complete("List(1).ma", 10);
 if (!groups.some((g) => g.labels.includes("map"))) throw new Error(`completion: ${JSON.stringify(groups)}`);
 if (!repl.highlight("val x = 1").includes("\x1b[")) throw new Error("highlighting has no colours");
+if (!/^Welcome to Scivolo \S+ \(target Scala 3\.9\.0\)\./.test(repl.welcome())) throw new Error(`welcome: ${repl.welcome()}`);
+if (repl.prompt() !== "> ") throw new Error(`prompt: ${repl.prompt()}`);
 expect(":quit", () => true);
 if (repl.exitCode() !== 0) throw new Error(`:quit left exit code ${repl.exitCode()}`);
 console.log(`web-test: ${files.length} transcripts and the browser checks pass`);

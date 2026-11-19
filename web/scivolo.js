@@ -58,6 +58,14 @@ export class Repl {
     return this.call(encoder.encode(text), () => this.x.highlight());
   }
 
+  welcome() {
+    return this.call(new Uint8Array(), () => this.x.welcome());
+  }
+
+  prompt() {
+    return this.call(new Uint8Array(), () => this.x.prompt());
+  }
+
   isIncomplete(text) {
     this.put(encoder.encode(text));
     return this.x.is_incomplete() !== 0;

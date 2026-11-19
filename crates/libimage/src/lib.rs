@@ -6,3 +6,6 @@ pub mod cache;
 mod image;
 
 pub use image::{Derived, Image, Source, Spec};
+
+/// The Scala version whose libraries the image holds.
+pub const SCALA: &str = "3.9.0";

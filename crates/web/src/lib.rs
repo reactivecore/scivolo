@@ -100,6 +100,18 @@ pub extern "C" fn highlight() -> *const u8 {
     reply_with(&repl::highlight(&argument()))
 }
 
+/// Replies with the line the REPL greets with.
+#[unsafe(no_mangle)]
+pub extern "C" fn welcome() -> *const u8 {
+    reply_with(&repl::welcome())
+}
+
+/// Replies with the prompt before each input.
+#[unsafe(no_mangle)]
+pub extern "C" fn prompt() -> *const u8 {
+    reply_with(repl::PROMPT)
+}
+
 /// Returns 1 if the input in the buffer needs more lines, else 0.
 #[unsafe(no_mangle)]
 pub extern "C" fn is_incomplete() -> u32 {
