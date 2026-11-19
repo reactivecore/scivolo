@@ -155,6 +155,10 @@ impl Cmp<'_> {
                 }
                 _ => false,
             },
+            Pattern::TypeMemberExtractor { name, capture } => match self.extracted_member(scrut, *name) {
+                Some(member) => self.match_pattern(capture, member, 0, widened, inst),
+                None => false,
+            },
         }
     }
 

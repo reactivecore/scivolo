@@ -5,6 +5,7 @@
 
 use super::super::Cmp;
 use super::super::refs::Meaning;
+use super::type_members::Captures;
 use crate::types::{Binder, NameId, Type, TypeId};
 use crate::{Kind, SymbolId};
 
@@ -25,6 +26,11 @@ pub enum Pattern {
         tycon: TypeId,
         sym: SymbolId,
         args: Vec<Pattern>,
+    },
+    /// A type member refined as a capture, `C { type T = x }`: its name and capture pattern.
+    TypeMemberExtractor {
+        name: NameId,
+        capture: Box<Pattern>,
     },
 }
 
@@ -83,17 +89,19 @@ impl Cmp<'_> {
                     return Spec::Legacy(Legacy { binder, params, pat, body });
                 }
                 let names: Vec<_> = self.u.params_of(params).iter().map(|&(n, _)| n).collect();
+                let bounds: Vec<TypeId> = self.u.params_of(params).iter().map(|&(_, b)| b).collect();
                 let mut unaccounted = vec![true; names.len()];
+                let pat = self.u.map_type(pat, &mut |u, x| Some(u.beta_reduced(x)).filter(|&r| r != x));
                 if self.missing_captures(pat, binder, names.len()) {
                     return Spec::Unsupported;
                 }
-                let Some(pattern) = self.spec_pattern(pat, 1, (binder, &names), &mut unaccounted) else {
+                let captures = Captures { binder, names: &names, bounds: &bounds };
+                let Some(pattern) = self.spec_pattern(pat, 1, &captures, &mut unaccounted) else {
                     return Spec::Unsupported;
                 };
                 if unaccounted.contains(&true) {
                     return Spec::Unsupported;
                 }
-                let bounds = self.u.params_of(params).iter().map(|&(_, b)| b).collect();
                 Spec::Specced(Specced { binder, names, bounds, pattern, pat, body })
             }
             _ => Spec::Unsupported,
@@ -116,22 +124,22 @@ impl Cmp<'_> {
     }
 
     /// `pat` as a legal pattern at `variance`; `None` for a pattern outside them.
-    fn spec_pattern(
+    pub fn spec_pattern(
         &mut self,
         pat: TypeId,
         variance: i8,
-        captures: (Binder, &[NameId]),
+        captures: &Captures,
         unaccounted: &mut [bool],
     ) -> Option<Pattern> {
         match *self.u.ty(pat) {
-            Type::Param(b, i) if b == captures.0 => {
+            Type::Param(b, i) if b == captures.binder => {
                 *unaccounted.get_mut(i as usize)? = false;
-                let name = self.u.name(*captures.1.get(i as usize)?);
+                let name = self.u.name(*captures.names.get(i as usize)?);
                 Some(Pattern::Capture(i, name == "_" || name.starts_with("_$")))
             }
             Type::Applied(tycon, args) if variance == 1 => {
                 let args = self.u.types_of(args).to_vec();
-                if matches!(self.u.ty(tycon), Type::Param(b, _) if *b == captures.0) {
+                if matches!(self.u.ty(tycon), Type::Param(b, _) if *b == captures.binder) {
                     return None;
                 }
                 if !matches!(self.u.ty(tycon), Type::Sym(..) | Type::TypeRef(..)) {
@@ -170,10 +178,9 @@ impl Cmp<'_> {
                 }
                 None
             }
-            Type::Refined(_, _, info) if variance == 1 => match *self.u.ty(info) {
-                Type::Alias(a) if matches!(self.u.ty(a), Type::Param(b, _) if *b == captures.0) => None,
-                _ => Some(Pattern::TypeTest),
-            },
+            Type::Refined(parent, name, info) if variance == 1 => {
+                self.refined_pattern((parent, name, info), captures, unaccounted)
+            }
             _ => Some(Pattern::TypeTest),
         }
     }
@@ -183,7 +190,7 @@ impl Cmp<'_> {
         &mut self,
         args: &[TypeId],
         variances: &[i8],
-        captures: (Binder, &[NameId]),
+        captures: &Captures,
         unaccounted: &mut [bool],
     ) -> Option<Vec<Pattern>> {
         if variances.len() != args.len() {
