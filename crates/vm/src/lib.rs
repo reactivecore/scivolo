@@ -19,6 +19,9 @@ mod threads;
 mod throwable;
 mod world;
 
+/// Whether the VM runs in portable mode (ADR 0127): without the C runtime, files and threads.
+pub const PORTABLE: bool = cfg!(portable);
+
 pub use class::{FieldSlot, array_names, instance_fields};
 pub use classpath::Classpath;
 pub use error::VmError;

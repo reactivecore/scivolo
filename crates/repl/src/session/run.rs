@@ -7,6 +7,7 @@ use crate::render::{self, Definition};
 use crate::report::Place;
 use crate::trace;
 use lower::NirFile;
+use std::time::Duration;
 use vm::VmError;
 
 /// The place of the wrapper module, whose span starts the input.
@@ -27,6 +28,12 @@ pub struct Unit {
 }
 
 impl Session {
+    /// Makes each input stop after running for `limit`, as on Ctrl-C, once interrupts are
+    /// watched.
+    pub fn limit_runs(&mut self, limit: Option<Duration>) {
+        self.vm.limit_runs(limit);
+    }
+
     /// Loads and runs `unit`; the lines it prints.
     pub fn run(&mut self, unit: Unit) -> Vec<String> {
         let Unit { module, files, defs, earlier, unit_res, count: mut out, mut warnings } = unit;

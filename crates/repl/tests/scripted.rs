@@ -6,10 +6,14 @@ mod transcript;
 use std::path::{Path, PathBuf};
 use transcript::{answer, check, non_blank, session};
 
+/// The transcript that portable mode, which refuses `:load`, skips.
+const PORTABLE_SKIPPED: &str = "load.check";
+
 fn transcripts() -> Vec<PathBuf> {
     let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/repl");
     let mut files: Vec<PathBuf> = std::fs::read_dir(dir).unwrap().map(|e| e.unwrap().path()).collect();
     files.retain(|f| f.extension().is_some_and(|e| e == "check"));
+    files.retain(|f| !vm::PORTABLE || !f.ends_with(PORTABLE_SKIPPED));
     files.sort();
     files
 }

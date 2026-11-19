@@ -1,0 +1,73 @@
+:root {
+  --bg: #fbfbf9;
+  --fg: #1d1d1b;
+  --muted: #6b6b66;
+  --line: #e2e2dc;
+  --accent: #b5371f;
+  --keyword: #a4306f;
+  --type: #1f6aa5;
+  --literal: #2c7a3b;
+  --comment: #8a8a83;
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #161615;
+    --fg: #e6e6e1;
+    --muted: #9a9a93;
+    --line: #2e2e2b;
+    --accent: #f0785a;
+    --keyword: #e48ac0;
+    --type: #7ab8ea;
+    --literal: #8fcf8f;
+    --comment: #7b7b75;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0 auto;
+  max-width: 64rem;
+  padding: 1rem;
+  background: var(--bg);
+  color: var(--fg);
+  font: 15px/1.45 system-ui, sans-serif;
+}
+
+header { display: flex; align-items: baseline; gap: 1rem; flex-wrap: wrap; }
+h1 { margin: 0; font-size: 1.3rem; }
+header p { margin: 0; color: var(--muted); flex: 1; }
+button { font: inherit; padding: 0.2rem 0.9rem; border: 1px solid var(--accent); border-radius: 4px;
+  background: none; color: var(--accent); cursor: pointer; }
+
+#terminal { margin-top: 1rem; border-top: 1px solid var(--line); padding-top: 0.5rem;
+  font: 14px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+pre, textarea { font: inherit; margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+#out .input { color: var(--muted); }
+#out .note { color: var(--accent); }
+
+#line { display: flex; gap: 0.5ch; }
+.prompt { color: var(--muted); white-space: pre; }
+#editor { position: relative; flex: 1; }
+#shade, #in { padding: 0; border: 0; width: 100%; }
+#in { position: absolute; inset: 0; resize: none; overflow: hidden; outline: none;
+  background: transparent; color: transparent; caret-color: var(--fg); }
+#in:disabled { cursor: progress; }
+
+#choices { list-style: none; margin: 0.3rem 0 0; padding: 0.3rem 0; columns: 14rem auto;
+  border: 1px solid var(--line); border-radius: 4px; }
+#choices li { padding: 0 0.6rem; cursor: pointer; break-inside: avoid; }
+#choices li.header { color: var(--muted); cursor: default; }
+#choices li[aria-selected="true"] { background: var(--line); }
+#status { color: var(--muted); margin: 0.5rem 0 0; }
+#status:empty { display: none; }
+footer { margin-top: 1.5rem; color: var(--muted); font-size: 0.85rem; }
+
+.b { font-weight: 600; }
+.c30, .c90, .c37, .c97 { color: var(--muted); }
+.c31, .c91 { color: var(--accent); }
+.c32, .c92 { color: var(--literal); }
+.c33, .c93, .c35, .c95 { color: var(--keyword); }
+.c34, .c94, .c36, .c96 { color: var(--type); }

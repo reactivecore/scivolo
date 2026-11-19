@@ -9,6 +9,9 @@ const NESTING: u32 = 16;
 impl Session {
     /// The lines `:load path` prints.
     pub fn load(&mut self, path: &str) -> Vec<String> {
+        if vm::PORTABLE {
+            return vec![format!("Couldn't load file \"{path}\": files are not supported here")];
+        }
         let shown = || canonical(path).display().to_string();
         if !Path::new(path).exists() {
             return vec![format!("Couldn't find file \"{}\"", shown())];

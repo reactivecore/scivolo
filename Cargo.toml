@@ -54,3 +54,9 @@ opt-level = 2
 
 [profile.release]
 debug = "line-tables-only"
+
+# The browser's module (crates/web): optimised, without debug information.
+[profile.web]
+inherits = "release"
+debug = false
+strip = true

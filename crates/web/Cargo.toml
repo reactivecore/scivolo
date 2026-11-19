@@ -1,0 +1,26 @@
+[package]
+name = "scivolo-web"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+name = "web"
+crate-type = ["cdylib", "rlib"]
+
+[features]
+# Builds the exports natively too, on the VM's portable mode, so that they are linted.
+portable = ["repl/portable"]
+
+[dependencies]
+libimage.workspace = true
+repl.workspace = true
+vm.workspace = true
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+libs.workspace = true
+
+[lints]
+workspace = true

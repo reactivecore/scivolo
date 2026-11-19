@@ -37,7 +37,13 @@ exports and a `<textarea>` do).
   its result lines; clocks read `clock_gettime` natively and the host's `now_ms` on wasm32.
 - The library image is read from bytes the page downloads (`Image::from_bytes`).
 - `crates/web`, the module the page loads, may hold `unsafe` for its exported ABI and one
-  global session, the only state outside `Vm` there.
+  global session, the only state outside `Vm` there. The ABI is hand-written: the page writes
+  an argument into a buffer the module hands out, and a reply is a length and UTF-8 bytes.
+- Each input runs under a time limit, which stops it as Ctrl-C does natively and keeps the
+  session; `:load` is refused.
+- The page (`web/`) is hand-written: a Web Worker owns the session, and a second instance
+  without the library image highlights the input and decides when it is complete, so a trap
+  there costs no session; after a trap or the stop button the page starts a new session.
 
 ## Consequences
 - Native default builds keep the C runtime, Immix and green threads unchanged.

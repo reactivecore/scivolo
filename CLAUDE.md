@@ -110,9 +110,10 @@ its upstream files:
   access by address goes through `heap::read`/`heap::write`), `stack/` (frame
   stacks and green-thread coroutines), and `natives/ffi/` and
   `natives/callback.rs` (the C boundary); outside it, only in
-  `crates/libimage/src/image.rs` (maps the library image). The callback
+  `crates/libimage/src/image.rs` (maps the library image) and `crates/web/src/lib.rs` (the
+  browser module's exported ABI, ADR 0127). The callback
   slot table (ADR 0002), the collector (ADR 0004) and the SIGINT counter
-  (ADR 0013) are the only state outside `Vm`.
+  (ADR 0013) are the only state outside `Vm`; in `crates/web`, its one session (ADR 0127).
 - A bounded computation with its own state is a component (ADR 0113): a struct
   that owns that state, created, run with its services (`&mut Typer`,
   `&mut Universe`) as arguments, and dropped; its helpers are its methods or

@@ -783,6 +783,30 @@ test *args:
 test-portable:
     cargo clippy -p scivolo-repl --features portable --all-targets {{ locked }} -- -D warnings
     cargo test -p scivolo-repl --features portable {{ locked }} --test scripted --test portable
+    cargo clippy -p scivolo-web --features portable --all-targets {{ locked }} -- -D warnings
+
+# The browser's module, built by rustup's toolchain, which has the wasm32 target.
+web_wasm := "target/wasm32-unknown-unknown/web/web.wasm"
+
+# Build the browser's module (crates/web) into `web_wasm`.
+web-build:
+    RUSTC="$(rustup which rustc)" "$(rustup which cargo)" build -p scivolo-web --lib --profile web \
+        --target wasm32-unknown-unknown {{ locked }}
+
+# Build the library image of the standard libraries if needed and gzip it into `dir`.
+web-image dir="tmp/web-dist":
+    mkdir -p {{ dir }}
+    gzip -9 -c "$(cargo run -q -p scivolo-web --bin scivolo-web-image {{ locked }})" > {{ dir }}/libs.img.gz
+
+# Run the REPL transcripts, the time limit and the refusals in the browser's module under node.
+web-test: web-build
+    node web/test.mjs {{ web_wasm }} "$(cargo run -q -p scivolo-web --bin scivolo-web-image {{ locked }})" tests/repl
+
+# Build the browser REPL into `dir`; `python3 -m http.server -d tmp/web-dist 8000` serves it
+# at http://localhost:8000.
+web-dist dir="tmp/web-dist": web-build (web-image dir)
+    cp web/index.html web/style.css web/repl.js web/sgr.js web/worker.js web/scivolo.js {{ dir }}/
+    cp {{ web_wasm }} {{ dir }}/scivolo.wasm
 
 # Open a merge request of the current branch into `target`, described by tmp/mr.md.
 mr-create title target="main" *flags:

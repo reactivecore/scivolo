@@ -7,6 +7,7 @@ mod transcript;
 
 use libimage::Image;
 use repl::Session;
+use std::time::{Duration, Instant};
 use transcript::{MISSING, check};
 use vm::{Classpath, Vm};
 
@@ -66,12 +67,30 @@ fn run() -> Result<(), String> {
     expect(s, "Thread.sleep(20); System.nanoTime() > 0 && System.currentTimeMillis() > 0", |o| {
         is(o, &[], ": Boolean = true")
     })?;
+    expect(s, ":load x.scala", |o| has(o, "files are not supported here"))?;
+    time_limit(s)?;
     collections(s)?;
     expect(s, "sys.exit(3)", |_| true)?;
     match s.exit() {
         Some(3) => Ok(()),
         code => Err(format!("sys.exit(3) ended the session with {code:?}")),
     }
+}
+
+/// The time limit stops a loop and a sleep as Ctrl-C does, and the session keeps its definitions.
+fn time_limit(s: &mut Session) -> Result<(), String> {
+    s.watch_interrupts().map_err(|e| e.to_string())?;
+    s.limit_runs(Some(Duration::from_millis(300)));
+    let stopped = |o: &[String]| o.first().is_some_and(|l| l.starts_with("java.lang.ThreadDeath"));
+    let started = Instant::now();
+    expect(s, "val kept = 41", |_| true)?;
+    expect(s, "while true do ()", stopped)?;
+    expect(s, "Thread.sleep(60000)", stopped)?;
+    if started.elapsed() > Duration::from_secs(20) {
+        return Err(format!("the time limit stopped the inputs after {:?}", started.elapsed()));
+    }
+    s.limit_runs(None);
+    expect(s, "kept + 1", |o| is(o, &[], ": Int = 42"))
 }
 
 /// Garbage of many inputs and of one long loop stays under `HEAP_CAP`, live values survive the

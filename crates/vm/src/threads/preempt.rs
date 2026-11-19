@@ -3,6 +3,7 @@
 
 use super::{ThreadId, Wait};
 use crate::interp::{Flow, FuncId};
+use crate::natives::clock;
 use crate::{Vm, VmError, natives};
 use std::time::Duration;
 
@@ -20,6 +21,10 @@ pub struct Interrupts {
     stop: bool,
     /// C callbacks the main thread runs, which an exception must not leave.
     callbacks: u32,
+    /// How long a run of the main thread may take before it is stopped as by a SIGINT.
+    limit: Option<Duration>,
+    /// The point on `clock::monotonic` at which the current run is stopped.
+    deadline: Option<Duration>,
 }
 
 impl Vm {
@@ -96,7 +101,11 @@ impl Vm {
         if !i.watching {
             return;
         }
-        let taken = natives::take_sigint();
+        let expired = i.deadline.is_some_and(|d| clock::monotonic() >= d);
+        if expired {
+            i.deadline = None;
+        }
+        let taken = natives::take_sigint() + u32::from(expired);
         if taken == 0 {
             return;
         }
@@ -123,11 +132,18 @@ impl Vm {
         Ok(())
     }
 
-    /// Forgets the SIGINTs received so far.
+    /// Makes every later run that `clear_interrupts` starts stop after `limit`, as on a SIGINT;
+    /// takes effect once interrupts are watched.
+    pub fn limit_runs(&mut self, limit: Option<Duration>) {
+        self.threads.interrupts.limit = limit;
+    }
+
+    /// Forgets the SIGINTs received so far and starts the time limit of the next run.
     pub fn clear_interrupts(&mut self) {
         natives::take_sigint();
         let i = &mut self.threads.interrupts;
         i.signals = 0;
         i.stop = false;
+        i.deadline = i.limit.map(|l| clock::monotonic() + l);
     }
 }

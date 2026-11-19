@@ -147,6 +147,8 @@ fn sleep(vm: &mut Vm, args: &[u64]) -> Flow {
     let before = vm.set_thread_state("ParkedWaitingTimed")?;
     let mut interrupted = false;
     while !interrupted && clock::monotonic() < deadline {
+        #[cfg(portable)]
+        vm.poll_signals();
         interrupted = std::mem::take(&mut vm.threads.sched.info[id].interrupt);
         if !interrupted {
             vm.block(Wait::Sleep, Some(deadline));
