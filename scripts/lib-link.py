@@ -6,10 +6,12 @@ Usage: scripts/lib-link.py ours|published [FILTER]
 Links each test program whose name contains FILTER (default: all) with Scala Native 0.5.12's
 scala-native-ld and clang: its committed NIR and, as the whole class path, the jars of LINKED that
 `just lib-jar` wrote into tmp/lib/MODULE (`ours`) or the published ones (`published`). Runs the
-binary and compares its output with the `.check` file. Fails before linking when the class path
-holds another jar or the linker's own class path holds a library jar. Writes
-tmp/lib-link/MODE/results.tsv, prints the programs not passed and one summary line, and exits
-with 1 unless all passed.
+binary and compares its output with the `.check` file; that of a program with a `.check-by-hand`
+(written for the VM) and its exit code with the binary's linked against the published jars by an
+earlier `published` run, "by hand" without one. Fails before linking when the class path holds
+another jar or the linker's own class path holds a library jar. Writes
+tmp/lib-link/MODE/results.tsv, prints the programs neither passed nor by hand and one summary
+line, and exits with 1 if there are any.
 """
 import collections
 import concurrent.futures
@@ -31,6 +33,10 @@ WORK = lib.ROOT / "tmp/lib-link"
 JOBS = max(2, (os.cpu_count() or 4) // 2)
 # Seconds a linked program may run.
 TIMEOUT = 60
+# Times a link is tried while the linker fails with ClosedFileSystemException.
+LINK_ATTEMPTS = 3
+# The line of a run log giving the exit code.
+EXIT = "--- exit "
 
 
 def class_path(mode):
@@ -56,26 +62,46 @@ def link_run(name, jars, workdirs, out):
     check = PROGRAMS / name / f"{name}.check"
     if not check.exists():
         return "no .check", ""
-    binary, workdir = out / "bin" / name, workdirs.get()
+    failed = link(name, jars, workdirs, out)
+    if failed:
+        return "link failed", failed
     try:
-        cmd = [*LD, "--main", name, "-o", str(binary), "--workdir", str(workdir), str(PROGRAMS / name), *map(str, jars)]
-        r = subprocess.run(cmd, capture_output=True, text=True, errors="replace")
-        (out / "logs" / f"{name}.link").write_text(r.stdout + r.stderr)
-        if r.returncode != 0:
-            return "link failed", next((l for l in (r.stdout + r.stderr).splitlines() if "rror" in l), "")[:160]
-    finally:
-        workdirs.put(workdir)
-    try:
-        r = subprocess.run([str(binary)], cwd=PROGRAMS / name, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                           text=True, errors="replace", timeout=TIMEOUT)
+        r = subprocess.run([str(out / "bin" / name)], cwd=PROGRAMS / name, stdout=subprocess.PIPE,
+                           stderr=subprocess.STDOUT, text=True, errors="replace", timeout=TIMEOUT)
     except subprocess.TimeoutExpired:
         return "timeout", ""
-    (out / "logs" / f"{name}.out").write_text(r.stdout)
+    got = f"{r.stdout.rstrip()}\n{EXIT}{r.returncode}\n"
+    (out / "logs" / f"{name}.out").write_text(got)
+    if (PROGRAMS / name / ".check-by-hand").exists():
+        published = WORK / "published" / "logs" / f"{name}.out"
+        if out.name == "published" or not published.exists():
+            return "by hand", f"exit {r.returncode}"
+        return ("passed", "") if got == published.read_text() else ("wrong output", "unlike the published jars'")
     if r.returncode != 0:
         return "crashed", f"exit {r.returncode}"
     if r.stdout.rstrip("\n") != check.read_text(errors="replace").rstrip("\n"):
-        return "wrong output", "check by hand" if (PROGRAMS / name / ".check-by-hand").exists() else ""
+        return "wrong output", ""
     return "passed", ""
+
+
+def link(name, jars, workdirs, out):
+    """Links NAME into out/bin, retrying the linker's spurious ClosedFileSystemException; the
+    first error line on failure, else none."""
+    workdir = workdirs.get()
+    try:
+        cmd = [*LD, "--main", name, "-o", str(out / "bin" / name), "--workdir", str(workdir), str(PROGRAMS / name),
+               *map(str, jars)]
+        for _ in range(LINK_ATTEMPTS):
+            r = subprocess.run(cmd, capture_output=True, text=True, errors="replace")
+            log = r.stdout + r.stderr
+            (out / "logs" / f"{name}.link").write_text(log)
+            if r.returncode == 0:
+                return None
+            if "ClosedFileSystemException" not in log:
+                break
+        return next((l for l in log.splitlines() if "rror" in l or "Exception" in l), "")[:160]
+    finally:
+        workdirs.put(workdir)
 
 
 def main(mode, filter_):
@@ -93,12 +119,12 @@ def main(mode, filter_):
         rows = list(pool.map(lambda n: link_run(n, jars, workdirs, out), names))
     (out / "results.tsv").write_text("".join(f"{n}\t{o}\t{d}\n" for n, (o, d) in zip(names, rows)))
     for name, (outcome, detail) in zip(names, rows):
-        if outcome != "passed":
+        if outcome not in ("passed", "by hand"):
             print(f"{outcome:13} {name} {detail}")
     counts = collections.Counter(o for o, _ in rows)
     print(f"{mode}: {counts['passed']} of {len(names)} programs linked by scala-native-ld {lib.VERSION} with "
-          f"outputs as their .check; {dict(counts)}; class path {', '.join(os.path.relpath(j, lib.ROOT) for j in jars)}")
-    sys.exit(0 if counts["passed"] == len(names) else 1)
+          f"outputs as expected; {dict(counts)}; class path {', '.join(os.path.relpath(j, lib.ROOT) for j in jars)}")
+    sys.exit(0 if counts["passed"] + counts["by hand"] == len(names) else 1)
 
 
 if __name__ == "__main__":
