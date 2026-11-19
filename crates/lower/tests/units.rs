@@ -536,6 +536,19 @@ fn parents_of_library_classes_see_the_units_aliases() {
 }
 
 #[test]
+fn scala_library_units_complete_the_aliases_library_classes_refer_to() {
+    let Some(jars) = jars() else { return };
+    let a = "package scala\ntrait E {\n  @throws[NoSuchElementException]\n  def next(): Int\n}\n";
+    let b = "package object scala {\n  type Throwable = java.lang.Throwable\n  type Exception = java.lang.Exception\n  \
+             type RuntimeException = java.lang.RuntimeException\n  \
+             type NoSuchElementException = java.util.NoSuchElementException\n}\n";
+    let mut u = Universe::open(&jars).unwrap();
+    u.set_same_run_jar(0);
+    let sources = [SourceFile::new("a.scala", a), SourceFile::new("b.scala", b)];
+    lower::compile_sources(&mut u, &sources, Config::from_options(&[]), None).map_err(|r| r.what).unwrap();
+}
+
+#[test]
 fn methods_returning_an_object_are_stable_paths() {
     let Some(jars) = jars() else { return };
     let a = "package p\nobject A { object N { class Q }; @inline def M = N }\n";
