@@ -152,7 +152,8 @@ impl Typer<'_> {
         for _ in 0..MAX_ELEMENTS {
             t = self.u.normalized(t);
             let d = self.u.dealias(t);
-            let Some((c, args)) = self.u.applied(d) else { break };
+            t = self.u.normalized(d);
+            let Some((c, args)) = self.u.applied(t) else { break };
             let args = args.to_vec();
             let class = self.u.class_symbol(c);
             if class.is_some_and(|c| self.u.full_name(c) == format!("{}{}", crate::defn::TUPLE, args.len())) {

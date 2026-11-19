@@ -8,6 +8,7 @@ pub(super) mod candidates;
 mod capture;
 mod clauses;
 mod contextual;
+mod covering;
 mod dictionary;
 mod divergence;
 mod false_deps;
@@ -28,6 +29,7 @@ mod using_args;
 mod views;
 
 pub use attempts::{CANDIDATE_OUTSIDE, NESTED_OUTSIDE};
+pub use false_deps::method_without_false_deps;
 pub use history::History;
 pub use search::is_misfit;
 pub use views::{Goal, QualifierView, Viewed};

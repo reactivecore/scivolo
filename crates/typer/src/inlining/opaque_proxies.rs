@@ -51,8 +51,15 @@ impl Expansion<'_, '_> {
             o = self.i.u.symbol(x).owner;
         }
         let inside = o.is_some();
-        let source = self.i.u.source_module(module).filter(|_| self.i.u.is_static_owner(module) && !inside);
-        let Some(source) = source.filter(|_| this.is_empty()) else { return Err(refused) };
+        let source =
+            self.i.u.source_module(module).filter(|_| self.i.u.is_static_owner(module) && this.is_empty());
+        if inside && self.prefix_is_this_of(fun, meth, module) {
+            return Ok(None);
+        }
+        let Some(source) = source else { return Err(refused) };
+        if inside {
+            return self.bind_inner_opaque_this(module, source).map(Some);
+        }
         let module_ref = crate::defn::type_ref(self.i.u, source);
         let point = Span::at(self.i.tpd.span(self.call).point());
         let at = self.opaque_refs.len();

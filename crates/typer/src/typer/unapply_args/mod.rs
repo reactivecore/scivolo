@@ -11,7 +11,8 @@ use tasty::TypeId;
 /// The expected types of the argument patterns of one extractor (dotty's `UnapplyArgs`): for
 /// `unapply`, the product selectors of its result, as for `case class C(a: Int, b: String)`,
 /// the `get` of an `isEmpty`/`get` result, or those of the `get`'s product selectors, none for a
-/// `Boolean` result, the elements of a generic tuple; for `unapplySeq`, the element type of a
+/// `Boolean` result, the elements of a generic tuple, else a product's selectors, as one tuple
+/// for `case E(x, y)` of `case class E(p: (Int, Int))`; for `unapplySeq`, the element type of a
 /// sequence, after the product selectors before a last sequence one. Refuses other result types
 /// and a number of patterns that matches none of these.
 pub struct UnapplyArgs {
@@ -19,6 +20,8 @@ pub struct UnapplyArgs {
     pub result: TypeId,
     /// The number of patterns.
     pub n: usize,
+    /// Whether several patterns may match one tuple type, unless `noAutoTupling` is enabled.
+    pub auto_tupling: bool,
 }
 
 /// The types of the patterns of a sequence extractor.
@@ -51,11 +54,13 @@ impl UnapplyArgs {
             } else if t.derives_from_named(result, NON_EMPTY_TUPLE) {
                 let widened = t.u.widen(result);
                 t.tuple_elements_within(widened, usize::MAX).unwrap_or_default()
+            } else if t.derives_from_named(result, PRODUCT) && !product_selectors(t, result)?.is_empty() {
+                product_selectors(t, result)?
             } else {
                 return Err("extractor result type");
             };
 
-        if types.len() != n {
+        if types.len() != n && !(self.auto_tupling && auto_tupled(t, &types, n)) {
             return Err("wrong number of patterns");
         }
         Ok(types)
@@ -70,4 +75,20 @@ impl UnapplyArgs {
         let get = get_match(t, self.result)?.ok_or("sequence extractor result type")?;
         self.seq_match(t, get)?.ok_or("sequence extractor result type")
     }
+}
+
+/// Whether `n` patterns, more than one, match `types` as one tuple pattern: `types` is a single
+/// `TupleN` or a `*:` chain of `n` elements, at most 22, as `E(x, y)` against an extractor of
+/// `Some[Int *: Int *: EmptyTuple]` (dotty's auto-tupling in `UnapplyArgs.typedPatterns`). Other
+/// arities, which dotty rejects, are not.
+pub fn auto_tupled(t: &mut Typer<'_>, types: &[TypeId], n: usize) -> bool {
+    let &[single] = types else { return false };
+    let normal = t.u.normalized(single);
+    let tuple = t.normalized_tuple_type(normal);
+    let tuple = t.u.dealias(tuple);
+    let tuple_n = format!("{}{n}", crate::defn::TUPLE);
+    n > 1
+        && t.u.applied(tuple).map(|(c, args)| (c, args.len())).is_some_and(|(c, arity)| {
+            arity == n && t.u.class_symbol(c).is_some_and(|c| t.u.full_name(c) == tuple_n)
+        })
 }

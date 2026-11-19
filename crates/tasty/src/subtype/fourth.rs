@@ -113,8 +113,8 @@ impl Cmp<'_> {
         nb.sym.is_some() && nb.sym == self.u.source_module(c) && self.sub_prefix(na.prefix, nb.prefix)
     }
 
-    /// `x & y <: b`: through `b` dealiased, `|` in the intersection distributed, else one of
-    /// the parts.
+    /// `x & y <: b`: through `b` dealiased, `|` in the intersection distributed, the intersection
+    /// simplified into one type (dotty's `trySimplify`), else one of the parts.
     fn and_below(&mut self, a: TypeId, b: TypeId, x: TypeId, y: TypeId) -> bool {
         let dealiased = self.u.dealias(b);
         if dealiased != b {
@@ -129,6 +129,10 @@ impl Cmp<'_> {
                 let (ap, aq) = (inter(self, p), inter(self, q));
                 return self.recur(ap, b) && self.recur(aq, b);
             }
+        }
+        let simplified = self.and_type(x, y);
+        if !matches!(self.u.ty(simplified), Type::And(..)) {
+            return self.recur(simplified, b);
         }
         self.either(|s| s.recur(x, b), |s| s.recur(y, b))
     }

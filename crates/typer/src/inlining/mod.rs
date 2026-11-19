@@ -24,6 +24,7 @@ mod host;
 mod implicit_args;
 mod implicit_scopes;
 mod inline_call;
+mod inner_opaque_this;
 mod local_implicits;
 mod macro_annotations;
 mod macro_args;

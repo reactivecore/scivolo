@@ -104,7 +104,7 @@ fn is_bool_constant(u: &mut Universe, tpe: TypeId, value: bool) -> bool {
 fn extractor_arg_types(t: &mut Typer<'_>, fun: TNodeId, n: usize) -> Option<Vec<TypeId>> {
     let result = extractor_result(t, fun);
     let seq = t.tpd.sym(t.tpd.meth_part(fun)).is_some_and(|s| t.u.symbol(s).name == nme::UNAPPLY_SEQ);
-    let args = UnapplyArgs { result, n };
+    let args = UnapplyArgs { result, n, auto_tupling: false };
     if !seq {
         return args.arg_types(t).ok();
     }

@@ -98,7 +98,8 @@ impl Resolution {
     }
 
     /// Chooses among the equally specific alternatives `applicable` of `alts`: by the arguments
-    /// of the next clause, then among `alts` by the only one whose result is no method or the
+    /// of the next clause, also after type arguments as `ff(c)[Int]()` (refused for alternatives
+    /// with type parameters before that clause), then among `alts` by the only one whose result is no method or the
     /// only one without default arguments, then with the expected result type taken into
     /// account (dotty's `deepenProto`).
     fn break_tie(
@@ -110,7 +111,16 @@ impl Resolution {
     ) -> Result<SymbolId, Unchosen> {
         match t.protos[proto].pt {
             Pt::Fun(next) => return self.resolve_by_next_clause(t, &applicable, (proto, next)),
-            Pt::PolyFun(_) => return Err("ambiguous overload resolved by further arguments".into()),
+            Pt::PolyFun(poly) => {
+                let top_poly = applicable.iter().any(|&a| {
+                    let info = t.u.info(a);
+                    t.u.poly(info).is_some()
+                });
+                return match t.poly_protos[poly].pt {
+                    Pt::Fun(next) if !top_poly => self.resolve_by_next_clause(t, &applicable, (proto, next)),
+                    _ => Err("ambiguous overload resolved by further arguments".into()),
+                };
+            }
             _ => {}
         }
 
@@ -167,11 +177,17 @@ impl Typer<'_> {
 }
 
 /// Checks whether the first parameter clause of method `s` is followed by another that is not
-/// implicit (dotty's `resultIsMethod` with `stripInferrable`), as `def f(x: Int)(y: Int)`.
+/// implicit, past type parameters (dotty's `resultIsMethod` with `stripInferrable`), as
+/// `def f(x: Int)(y: Int)` or `def f(x: Int)[T](y: T)`.
 pub fn result_is_method(types: &mut TypeOps, s: SymbolId) -> bool {
     let info = types.u.info(s);
     let info = types.u.strip_poly(info);
-    let Some(result) = types.u.method(info).map(|m| m.result) else { return false };
-    let result = types.strip_implicit(result);
-    types.u.method(result).is_some()
+    let Some(mut result) = types.u.method(info).map(|m| m.result) else { return false };
+    loop {
+        match *types.u.ty(result) {
+            Type::Method { result: r, implicit: true, .. } | Type::Poly { result: r, .. } => result = r,
+            Type::Method { .. } => return true,
+            _ => return false,
+        }
+    }
 }

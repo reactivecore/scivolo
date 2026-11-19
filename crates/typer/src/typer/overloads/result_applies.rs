@@ -4,6 +4,7 @@
 //! takes the arguments (dotty's `applyMembers` and `retract` in `resolveOverloaded`).
 
 use super::alternatives::{RESULT_APPLY, result_applies};
+use super::poly_instances::mapped_info;
 use super::{Resolution, Unchosen};
 use crate::typer::Typer;
 use tasty::SymbolId;
@@ -24,6 +25,7 @@ impl Resolution {
         for &s in methods {
             let tpe = t.ref_type(self.prefix, s);
             let info = t.method_info(tpe).unwrap_or(tpe);
+            let info = mapped_info(t, info, s);
             if t.u.param_clauses(info).is_empty() {
                 let applies = result_applies(t, info, n);
                 if let Some(&first) = applies.first() {

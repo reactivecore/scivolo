@@ -18,12 +18,15 @@ pub fn boxed_unit_unit(u: &mut Universe, runtime: SymbolId) -> SymbolId {
     java_static(u, class, "UNIT", Kind::Val, info)
 }
 
-/// Class `name` of package `owner`, defined if the library has no TASTy for it.
+/// Class `name` of package `owner`, defined as a Java class of the library if the library has no
+/// TASTy for it.
 pub fn java_class(u: &mut Universe, owner: SymbolId, name: &str) -> SymbolId {
-    match member(u, owner, name, Kind::Class) {
-        Ok(c) => c,
-        Err(_) => u.define(symbol(name, Kind::Class, owner, Flags::default())),
+    if let Ok(c) = member(u, owner, name, Kind::Class) {
+        return c;
     }
+    let c = u.define(symbol(name, Kind::Class, owner, Flags::default()));
+    u.mark_library_java_stub(c);
+    c
 }
 
 /// Static member `name` of Java class `class`, defined of type `info` if missing.

@@ -45,6 +45,23 @@ impl Resolution {
         Ok(narrowed)
     }
 
+    /// Checks whether the shapes of the arguments of `proto` exclude all methods `alts`, as
+    /// `_ + 1` excludes `def w[T](x: String)`, leaving only the `apply` members of parameterless
+    /// alternatives' results (dotty's `narrowByShapes` over the alternatives `applyMembers`
+    /// expands).
+    pub fn shapes_exclude(
+        self,
+        t: &mut Typer,
+        alts: &[SymbolId],
+        proto: usize,
+    ) -> Result<bool, &'static str> {
+        let args = t.protos[proto].args.clone();
+        if alts.is_empty() || !args.iter().any(|&a| unknown_param_function(t, a).is_some()) {
+            return Ok(false);
+        }
+        Ok(self.narrow_by_shapes(t, alts, proto, false)?.is_empty())
+    }
+
     /// Checks whether function argument `arg` at position `i` takes its parameters as one tuple:
     /// no alternative of `alts` takes a function of as many parameters there and one takes a
     /// function of a tuple of that many (dotty's `normArg` with `ptIsCorrectProduct`), as
