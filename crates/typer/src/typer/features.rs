@@ -17,7 +17,7 @@ use tasty::{NullMode, SymbolId, TypeId};
 /// Refuses the files of `units` whose source version is unsupported, each with its root's span.
 pub fn source_versions(ast: &Ast, units: &[&SourceUnit]) -> Vec<(Span, String)> {
     let refusal = |unit: &SourceUnit| {
-        let what = super::check_source_version(unit.cfg.source_version).err()?;
+        let what = super::check_source_version(&unit.cfg).err()?;
         Some((ast.span(unit.root), what))
     };
     units.iter().filter_map(|unit| refusal(unit)).collect()
@@ -114,7 +114,6 @@ impl Typer<'_> {
         if file != outer {
             let v = cfg.source_version;
             self.features = cfg.features;
-            self.source_future = v.requires_new_syntax();
             self.dollar_names_warned = v.is_at_least(SourceVersion::V3_9);
             self.scala2 = v.is_scala2();
             self.source_version = v;

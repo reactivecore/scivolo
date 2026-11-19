@@ -967,13 +967,16 @@ Results:
   pass; the typer refuses two for classes Scala Native's javalib lacks, a platform limit:
   `java.lang.SuppressWarnings` (`annot-java-tree`) and `java.text.SimpleDateFormat`
   (`f-interpolator-tests`); 8 are skipped.
-- **`-source 3.3` to `3.6`:** below 3.4 match types reduce as dotty's legacy matching does (a
-  case with captures matched by a subtype comparison); the typer refuses ranking two implicits
-  below 3.7 and an implicit defined after the search below 3.6 (dotty's old schemes). Earlier and
-  migrating versions are refused.
+- **`-source 3.0` to `3.6` and `-migration` versions:** below 3.4 match types reduce as dotty's
+  legacy matching does (a case with captures matched by a subtype comparison); below 3.6
+  implicits rank by dotty's intermediate scheme; the typer refuses an implicit defined after the
+  search below 3.6, a pair of implicits the two schemes rank differently in 3.6 and
+  3.7-migration (dotty warns), and an inferred match type bound in 3.6-migration. Legacy
+  constructs are errors, warnings or accepted by dotty's `MigrationVersion` table. `3.0-migration`
+  (Scala 2 typing rules) and `-rewrite` are refused.
 - **`-source future`:** typed as 3.9 with the parser's new-syntax rules; the typer refuses
-  alphanumeric infix calls, types and extractor patterns not declared `infix`, which it warns
-  about otherwise, and checks no other `future` rule.
+  alphanumeric infix calls, types and extractor patterns not declared `infix`, and checks no
+  other `future` rule (`future-migration` warns about them as dotty does).
 - **Capture checking:** typed as dotty's typer types it (`ImpureFunctionN`, `@retains` trees);
   the typer's types drop `@retains`, `@retainsCap` and `@retainsByName` (the annotations are not
   refining and erase away; class files as dotty's). TASTy keeps a capture set of static

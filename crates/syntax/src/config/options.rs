@@ -57,7 +57,7 @@ impl Config {
                     let v = value();
                     match SourceVersion::parse(v) {
                         Some(sv) if sv.is_scala2() => unknown(arg),
-                        Some(sv) if !v.ends_with("-migration") => cfg.source_version = sv,
+                        Some(sv) if !sv.migrate_to_3() && v != "3.1-migration" => cfg.source_version = sv,
                         Some(sv) if v != "3.1-migration" => {
                             cfg.source_version = sv;
                             unknown(arg)
@@ -72,6 +72,10 @@ impl Config {
                 }
                 "-new-syntax" => cfg.new_syntax = true,
                 "-preview" => cfg.preview = true,
+                "-rewrite" => {
+                    cfg.rewrite = true;
+                    unknown(arg)
+                }
                 "-indent" => cfg.indent = true,
                 "-experimental" => experimental = true,
                 "-Yexplicit-nulls" => cfg.explicit_nulls = true,
@@ -118,8 +122,9 @@ mod tests {
 
     #[test]
     fn names_the_first_option_not_implemented() {
-        let bad: [&[&str]; 8] = [
+        let bad: [&[&str]; 9] = [
             &["-source"],
+            &["-rewrite"],
             &["-Xmixin-force-forwarders:junit"],
             &["-source:3.0-migration"],
             &["-source:nonsense"],
@@ -136,6 +141,7 @@ mod tests {
         assert!(Config::checked(&["-Yexplicit-nulls"]).unwrap().explicit_nulls);
         assert!(!Config::checked(&["-Xmixin-force-forwarders:false"]).unwrap().force_forwarders);
         assert!(Config::checked(&["-Wnonunit-statement", "-source", "3.9"]).is_ok());
+        assert!(Config::checked(&["-source:3.4-migration"]).unwrap().source_version.migrating);
     }
 
     #[test]

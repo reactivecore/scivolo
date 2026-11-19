@@ -6,6 +6,7 @@
 use super::super::Typer;
 use super::{RUNTIME_CHECKED, Refutable, UNCHECKED};
 use crate::tpd::{TNodeId, Tree as T};
+use syntax::config::{Migration, SourceVersion};
 use tasty::TypeId;
 
 /// Reports `reason` as dotty's migration warning about a refutable pattern definition of
@@ -35,12 +36,16 @@ pub fn warn_refutable(t: &mut Typer<'_>, reason: Refutable, sel: TNodeId) {
         Refutable::Unknown => return,
     };
 
-    let rewrite = t.rewrite_notice("This patch", "3.8-migration");
+    let (patch, version) = match t.source_version.is_at_least(SourceVersion::V3_8) {
+        true => (".runtimeChecked", "3.8-migration"),
+        false => (": @unchecked", "3.2-migration"),
+    };
+    let rewrite = t.rewrite_notice("This patch", version);
     let text = format!(
-        "{message}\n\nIf {usage} is intentional, this can be communicated by adding `.runtimeChecked` \
+        "{message}\n\nIf {usage} is intentional, this can be communicated by adding `{patch}` \
          after the expression,\nwhich may result in a MatchError at runtime.{rewrite}"
     );
-    t.diags.warning_at(span.start(), span.end(), span.point(), text);
+    t.error_or_migration_warning(span, text, Migration::ForComprehensionUncheckedPathDefs);
 }
 
 /// Type `tpe` as dotty's messages show it, a repeated type as `T*`.
