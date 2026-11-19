@@ -132,6 +132,7 @@ const DOTTY_TASTY: &[(&str, &[&str])] = &[
     ("anymembers", &["AnyMembers"]),
     ("inheritedresults", &["InheritedResults"]),
     ("wildcardselections", &["WildcardSelections"]),
+    ("valueclasses", &["Count", "Name"]),
 ];
 
 /// The trees, positions and flag attributes of the classes of `DOTTY_TASTY` are dotty's: the
@@ -166,8 +167,9 @@ const DOTTY_TASTY: &[(&str, &[&str])] = &[
 /// constructor signature ending in `Object` (newarrays.scala), the members of `Any` refer to
 /// classes through their package's `this` (anymembers.scala), and an inherited result type comes
 /// from the parents' base types intersected in order (inheritedresults.scala), and a selection on
-/// a prefix with a wildcard argument is approximated (wildcardselections.scala). Needs a JDK (java
-/// on the PATH), as dotty's did.
+/// a prefix with a wildcard argument is approximated (wildcardselections.scala), and a value class
+/// calls `AnyVal`'s constructor signed with result `Object` and its `hashCode` refers to its value
+/// by name (valueclasses.scala). Needs a JDK (java on the PATH), as dotty's did.
 #[test]
 fn probes_pickle_as_dotty_s() {
     if Command::new("java").arg("-version").output().is_err() {

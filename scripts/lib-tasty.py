@@ -79,9 +79,12 @@ def without_addresses(line):
 
 
 def first_change(left, right):
-    """The first line that differs between printouts `left` and `right` besides addresses, its
-    numbers replaced by N, or `addresses only`."""
-    left, right = [without_addresses(l) for l in left], [without_addresses(l) for l in right]
+    """The first line that differs between printouts `left` and `right` besides addresses and the
+    order of names, its numbers replaced by N, or `addresses only`."""
+    def trees(lines):
+        start = next((i for i, l in enumerate(lines) if l.startswith("Trees")), 0)
+        return [without_addresses(l) for l in lines[start:]]
+    left, right = trees(left), trees(right)
     line = next((l for l in difflib.unified_diff(left, right, lineterm="", n=0) if l[:1] in "+-" and l[1:3] not in ("--", "++")), None)
     return "addresses only" if line is None else re.sub(r"\d+", "N", line)
 
