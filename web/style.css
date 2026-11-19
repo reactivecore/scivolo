@@ -28,27 +28,31 @@
 * { box-sizing: border-box; }
 
 body {
-  margin: 0 auto;
-  max-width: 64rem;
-  padding: 1rem;
+  margin: 0;
+  padding: 0 0.75rem 1rem;
   background: var(--bg);
   color: var(--fg);
   font: 15px/1.45 system-ui, sans-serif;
 }
 
-header { display: flex; align-items: baseline; gap: 1rem; flex-wrap: wrap; }
+header { position: sticky; top: 0; z-index: 1; padding: 0.75rem 0 0.5rem; background: var(--bg);
+  border-bottom: 1px solid var(--line); }
+#title { display: flex; align-items: baseline; gap: 1rem; flex-wrap: wrap; }
 h1 { margin: 0; font-size: 1.3rem; }
-header p { margin: 0; color: var(--muted); flex: 1; }
+header p { margin: 0; color: var(--muted); }
+#title p { flex: 1; }
+#keys { margin-top: 0.3rem; font-size: 0.85rem; }
 button { font: inherit; padding: 0.2rem 0.9rem; border: 1px solid var(--accent); border-radius: 4px;
   background: none; color: var(--accent); cursor: pointer; }
 
-#terminal { margin-top: 1rem; border-top: 1px solid var(--line); padding-top: 0.5rem;
+#terminal { padding-top: 0.5rem;
   font: 14px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
 pre, textarea { font: inherit; margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+#out > div { min-height: 1.4em; }
 #out .input { color: var(--muted); }
 #out .note { color: var(--accent); }
 
-#line { display: flex; gap: 0.5ch; }
+#line { display: flex; }
 .prompt { color: var(--muted); white-space: pre; }
 #editor { position: relative; flex: 1; }
 #shade, #in { padding: 0; border: 0; width: 100%; }
@@ -63,7 +67,6 @@ pre, textarea { font: inherit; margin: 0; white-space: pre-wrap; overflow-wrap: 
 #choices li[aria-selected="true"] { background: var(--line); }
 #status { color: var(--muted); margin: 0.5rem 0 0; }
 #status:empty { display: none; }
-footer { margin-top: 1.5rem; color: var(--muted); font-size: 0.85rem; }
 
 .b { font-weight: 600; }
 .c30, .c90, .c37, .c97 { color: var(--muted); }

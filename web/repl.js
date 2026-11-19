@@ -12,7 +12,7 @@ const WIDTH = 80;
 // MiB of live objects before OutOfMemoryError.
 const HEAP_MIB = 512;
 const $ = (id) => document.getElementById(id);
-const [out, input, shade, status, stop] = ["out", "in", "shade", "status", "stop"].map($);
+const [out, input, shade, status, stop, prompt] = ["out", "in", "shade", "status", "stop", "prompt"].map($);
 
 let module = null;
 let image = null;
@@ -93,12 +93,20 @@ function restart() {
   worker.postMessage({ type: "start", module, image, width: WIDTH, heapMib: HEAP_MIB });
 }
 
+// Echoes the input after a blank line, its first line after the prompt, as the native REPL shows it.
+function echo(text) {
+  const indent = " ".repeat(prompt.textContent.length);
+  print("");
+  text.split("\n").forEach((l, i) => print(`${i === 0 ? prompt.textContent : indent}${l}`, "input"));
+}
+
 async function run(text) {
-  if (history.at(-1) !== text) history.push(text);
-  back = 0;
-  text.split("\n").forEach((l, i) => print(`${i === 0 ? "scala> " : "     | "}${l}`, "input"));
+  echo(text);
   input.value = "";
   redraw();
+  if (text.trim() === "") return;
+  if (history.at(-1) !== text) history.push(text);
+  back = 0;
   busy(true);
   const reply = await ask({ type: "eval", text });
   if (!reply) return;
@@ -157,7 +165,7 @@ input.addEventListener("keydown", (e) => {
     const text = input.value;
     if (light((r) => r.isIncomplete(text), false)) return;
     e.preventDefault();
-    if (text.trim() !== "") run(text);
+    run(text);
   } else if (e.key === "Tab" && !e.shiftKey) {
     e.preventDefault();
     complete();
@@ -177,6 +185,8 @@ stop.onclick = () => {
 try {
   module = await WebAssembly.compile(await (await fetch(MODULE)).arrayBuffer());
   editor = await load(module);
+  prompt.textContent = editor.prompt();
+  print(editor.welcome());
   const mb = (n) => (n / 1e6).toFixed(1);
   image = await download(IMAGE, (loaded, total) => {
     status.textContent = `Downloading the Scala libraries: ${mb(loaded)}${total ? ` of ${mb(total)}` : ""} MB`;

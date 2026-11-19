@@ -9,14 +9,18 @@
 </head>
 <body>
   <header>
-    <h1>Scivolo</h1>
-    <p>A Scala 3 REPL, interpreted in your browser. No threads, files or extra libraries.</p>
-    <button id="stop" hidden>Stop</button>
+    <div id="title">
+      <h1>Scivolo</h1>
+      <p>A Scala 3 REPL, interpreted in your browser. No threads, files or extra libraries.</p>
+      <button id="stop" hidden>Stop</button>
+    </div>
+    <p id="keys">Enter runs the input once it is complete, Shift+Enter adds a line, Tab completes,
+      ↑ and ↓ walk the history.</p>
   </header>
   <main id="terminal">
     <pre id="out" aria-live="polite"></pre>
     <div id="line">
-      <span class="prompt">scala&gt;</span>
+      <span class="prompt" id="prompt"></span>
       <div id="editor">
         <pre id="shade" aria-hidden="true"></pre>
         <textarea id="in" rows="1" spellcheck="false" autocapitalize="off" autocomplete="off"
@@ -26,7 +30,5 @@
     <ul id="choices" role="listbox" hidden></ul>
     <p id="status">Loading…</p>
   </main>
-  <footer>Enter runs the input once it is complete, Shift+Enter adds a line, Tab completes,
-    ↑ and ↓ walk the history.</footer>
 </body>
 </html>
