@@ -655,6 +655,20 @@ def g: Option[Int] = wrap(new Cell(3))\n"
 }
 
 #[test]
+fn outer_type_parameters_of_a_method_with_an_inferred_result_stay_outer_in_compared_binders() {
+    check(
+        &[(
+            "class L[T](t: T) { def app[E](x: E): T = t }
+def m1[E](e: E) =
+  val f: L[E] { def app[E](x: E): E } = new L[E](e)
+  f\n",
+            "",
+        )],
+        &[],
+    );
+}
+
+#[test]
 fn exports_of_a_package_skip_its_packages() {
     check(&[("package A { package inner { class D } }\npackage B { export A.inner }\n", "")], &[]);
 }
