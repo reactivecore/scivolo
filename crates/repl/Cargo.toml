@@ -9,6 +9,10 @@ publish = false
 [lib]
 name = "repl"
 
+[features]
+# The VM's portable mode (ADR 0127), as in the browser.
+portable = ["vm/portable"]
+
 [dependencies]
 libimage.workspace = true
 lower.workspace = true

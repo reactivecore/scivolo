@@ -16,6 +16,11 @@ fn nir_files(dir: &Path, out: &mut Vec<PathBuf>) {
 }
 
 fn main() {
+    println!("cargo::rustc-check-cfg=cfg(portable)");
+    let wasm = std::env::var("CARGO_CFG_TARGET_ARCH").is_ok_and(|a| a == "wasm32");
+    if wasm || std::env::var_os("CARGO_FEATURE_PORTABLE").is_some() {
+        println!("cargo::rustc-cfg=portable");
+    }
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../overlay/nir");
     let root = root.canonicalize().unwrap_or(root);
     println!("cargo::rerun-if-changed={}", root.display());

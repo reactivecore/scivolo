@@ -2,10 +2,11 @@
 //! monitors and `wait`/`notify` replace their pthread-based implementations.
 
 use super::NativeFn;
+use super::ffi::clock;
 use crate::interp::Flow;
 use crate::threads::{ThreadId, Wait};
 use crate::{Vm, heap};
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::time::Duration;
 
 pub fn extern_fn(name: &str) -> Option<NativeFn> {
     match name {
@@ -23,7 +24,7 @@ pub fn method(owner: &str, sig: &str) -> Option<NativeFn> {
         },
         ("java.lang.impl.PosixThread", "D5sleepjuEO") => sleep,
         ("java.lang.impl.PosixThread", "D10sleepNanosiuEO") => |vm, args| {
-            let deadline = Instant::now() + Duration::from_nanos(args[1] as i32 as u64);
+            let deadline = clock::monotonic() + Duration::from_nanos(args[1] as i32 as u64);
             let before = vm.set_thread_state("ParkedWaitingTimed")?;
             vm.block(Wait::Sleep, Some(deadline));
             vm.put_thread_state(before)
@@ -62,6 +63,8 @@ pub fn method(owner: &str, sig: &str) -> Option<NativeFn> {
             |vm, args| vm.monitor_notify(args[0] as usize, true).map(|()| 0)
         }
         ("scala.scalanative.meta.LinktimeInfo$", "D24isContinuationsSupportedzEO") => |_, _| Ok(0),
+        #[cfg(portable)]
+        ("java.lang.Thread", "D5startuEO") => |vm, _| vm.start_thread(0, |_| Ok(())).map(|()| 0),
         _ => return None,
     };
     Some(f)
@@ -89,12 +92,14 @@ fn park(vm: &mut Vm, args: &[u64]) -> Flow {
     }
     let deadline = match (time, absolute) {
         (0, false) => None,
-        (nanos, false) => Some(Instant::now() + Duration::from_nanos(nanos as u64)),
+        (nanos, false) => Some(clock::monotonic() + Duration::from_nanos(nanos as u64)),
         (millis, true) => {
-            let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_millis() as i64;
-            Some(Instant::now() + Duration::from_millis((millis - now).max(0) as u64))
+            let now = clock::epoch().as_millis() as i64;
+            Some(clock::monotonic() + Duration::from_millis((millis - now).max(0) as u64))
         }
     };
+    #[cfg(portable)]
+    vm.refuse_endless_wait(deadline)?;
     let before =
         vm.set_thread_state(if deadline.is_some() { "ParkedWaitingTimed" } else { "ParkedWaiting" })?;
     if !std::mem::take(&mut vm.threads.sched.info[id].permit) {
@@ -138,10 +143,10 @@ fn sleep(vm: &mut Vm, args: &[u64]) -> Flow {
     if vm.take_interrupt()? {
         return vm.throw_new("java.lang.InterruptedException");
     }
-    let deadline = Instant::now() + Duration::from_millis(args[1] as i64 as u64);
+    let deadline = clock::monotonic() + Duration::from_millis(args[1] as i64 as u64);
     let before = vm.set_thread_state("ParkedWaitingTimed")?;
     let mut interrupted = false;
-    while !interrupted && Instant::now() < deadline {
+    while !interrupted && clock::monotonic() < deadline {
         interrupted = std::mem::take(&mut vm.threads.sched.info[id].interrupt);
         if !interrupted {
             vm.block(Wait::Sleep, Some(deadline));
@@ -160,6 +165,6 @@ fn wait(vm: &mut Vm, obj: u64, millis: i64, nanos: i32) -> Flow {
         return vm.throw_new("java.lang.IllegalArgumentException");
     }
     let timeout = Duration::from_millis(millis as u64) + Duration::from_nanos(nanos as u64);
-    let deadline = (!timeout.is_zero()).then(|| Instant::now() + timeout);
+    let deadline = (!timeout.is_zero()).then(|| clock::monotonic() + timeout);
     vm.monitor_wait(obj as usize, deadline).map(|()| 0)
 }

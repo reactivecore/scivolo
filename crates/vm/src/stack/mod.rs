@@ -1,14 +1,20 @@
 //! Stacks: the bounds of the OS thread's native stack, the interpreter's frame stacks, and the
 //! coroutines green threads run on.
 
+#[cfg(not(portable))]
 mod coroutine;
 mod frames;
+#[cfg(portable)]
+mod inline;
 
-pub use coroutine::{Coroutine, approximate_sp, suspend};
+#[cfg(not(portable))]
+pub use coroutine::{Coroutine, suspend};
 pub use frames::Frames;
+#[cfg(portable)]
+pub use inline::{Coroutine, suspend};
 
 /// The lowest and highest address of the current thread's stack, if the platform tells.
-#[cfg(target_os = "macos")]
+#[cfg(all(not(portable), target_os = "macos"))]
 pub fn bounds() -> Option<(usize, usize)> {
     // SAFETY: both functions only read the calling thread's own attributes.
     let (high, size) = unsafe {
@@ -19,7 +25,7 @@ pub fn bounds() -> Option<(usize, usize)> {
 }
 
 /// The lowest and highest address of the current thread's stack, if the platform tells.
-#[cfg(target_os = "linux")]
+#[cfg(all(not(portable), target_os = "linux"))]
 pub fn bounds() -> Option<(usize, usize)> {
     let mut attr = std::mem::MaybeUninit::<libc::pthread_attr_t>::uninit();
     let (mut addr, mut size) = (std::ptr::null_mut(), 0);
@@ -35,7 +41,20 @@ pub fn bounds() -> Option<(usize, usize)> {
     ok.then_some((addr as usize, addr as usize + size))
 }
 
-#[cfg(not(any(target_os = "macos", target_os = "linux")))]
+#[cfg(all(not(portable), not(any(target_os = "macos", target_os = "linux"))))]
 pub fn bounds() -> Option<(usize, usize)> {
     None
+}
+
+/// Returns empty bounds: portable mode scans no native stack.
+#[cfg(portable)]
+pub fn bounds() -> Option<(usize, usize)> {
+    Some((0, 0))
+}
+
+/// An address near the top of the current native stack.
+#[inline(never)]
+pub fn approximate_sp() -> usize {
+    let marker = 0u8;
+    std::hint::black_box(&raw const marker as usize)
 }

@@ -13,6 +13,10 @@ pub const MAIN_STACK: usize = 1 << 30;
 const THREAD_STACK: usize = 256 << 20;
 const THREAD_FRAMES: usize = 256 << 20;
 
+/// Native stack the main thread may use in portable mode below where it starts; the host must
+/// leave `STACK_RESERVE` more below that.
+pub const PORTABLE_STACK: usize = 8 << 20;
+
 impl Vm {
     /// Starts a thread for `NativeThread` object `native` that runs `body`.
     pub fn start_thread(
@@ -20,6 +24,9 @@ impl Vm {
         native: usize,
         body: impl FnOnce(&mut Vm) -> Flow<()> + 'static,
     ) -> Flow<()> {
+        if cfg!(portable) {
+            return Err(VmError::Unsupported("threads are not supported here".into()).into());
+        }
         let cell = match self.threads.cells.pop() {
             Some(c) => c,
             None => self.heap.permanent(16, heap::Blob::Words),
@@ -52,7 +59,11 @@ impl Vm {
         let (low, high) = co.bounds();
         let frames = Frames::new(if stack_size == MAIN_STACK { MAIN_STACK } else { THREAD_FRAMES })
             .map_err(VmError::Unsupported)?;
-        let guard = StackGuard { floor: low + STACK_RESERVE.min((high - low) / 4), overflowing: false };
+        let floor = match cfg!(portable) {
+            true => crate::stack::approximate_sp().saturating_sub(PORTABLE_STACK),
+            false => low + STACK_RESERVE.min((high - low) / 4),
+        };
+        let guard = StackGuard { floor, overflowing: false };
         let saved = Saved { frames, cell, guard, walk: StackWalk::default(), yielder: 0, errno: 0 };
         let thread = Some(Box::new(GreenThread { co, saved, sp: 0, own_cell }));
         let id = match self.threads.free.pop() {

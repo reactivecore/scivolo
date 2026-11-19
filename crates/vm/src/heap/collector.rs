@@ -1,41 +1,71 @@
 //! The collector's entry points in the C runtime, and the VM's calls through them that are not
 //! allocations.
 
-use super::{Heap, read, write};
+use super::{GcIds, Heap, ThreadRoots, read, write};
 
 pub struct Collector {
-    pub alloc: extern "C" fn(usize, usize) -> usize,
-    pub alloc_array: extern "C" fn(usize, usize, usize) -> usize,
-    pub add_roots: extern "C" fn(usize, usize),
-    pub set_ids: extern "C" fn(*const GcIds),
-    pub watch_weak_refs: extern "C" fn(),
-    pub set_threads: extern "C" fn(*const ThreadRoots, i32),
-    pub switch_stack: extern "C" fn(usize, usize),
+    alloc: extern "C" fn(usize, usize) -> usize,
+    alloc_array: extern "C" fn(usize, usize, usize) -> usize,
+    add_roots: extern "C" fn(usize, usize),
+    set_ids: extern "C" fn(*const GcIds),
+    watch_weak_refs: extern "C" fn(),
+    set_threads: extern "C" fn(*const ThreadRoots, i32),
+    switch_stack: extern "C" fn(usize, usize),
     /// The `int` the collector sets when it has cleared weak references.
-    pub weak_refs_collected: usize,
+    weak_refs_collected: usize,
+    init: extern "C" fn(usize, usize),
 }
 
-/// The roots of one green thread: its frame stack's `[low, top]` bounds, and `low..high` of its
-/// native stack while suspended (empty while it runs).
-#[repr(C)]
-pub struct ThreadRoots {
-    pub frames: *const usize,
-    pub low: usize,
-    pub high: usize,
+impl Collector {
+    /// Finds Immix's entry points with `symbol`, which finds C runtime functions.
+    pub fn new(symbol: impl Fn(&str) -> Option<usize>) -> Result<Self, String> {
+        let find = |name: &str| symbol(name).ok_or_else(|| format!("C runtime lacks {name}"));
+        // SAFETY: each address is the named C runtime function, whose C signature the type the
+        // result is assigned to spells out.
+        unsafe {
+            Ok(Collector {
+                init: c_fn(find("scivolo_GC_init")?),
+                alloc: c_fn(find("scalanative_GC_alloc")?),
+                alloc_array: c_fn(find("scalanative_GC_alloc_array")?),
+                add_roots: c_fn(find("scalanative_GC_add_roots")?),
+                set_ids: c_fn(find("scivolo_GC_set_ids")?),
+                watch_weak_refs: c_fn(find("scivolo_GC_watch_weak_refs")?),
+                set_threads: c_fn(find("scivolo_GC_set_threads")?),
+                switch_stack: c_fn(find("scivolo_GC_switch_stack")?),
+                weak_refs_collected: find("scivolo_weak_refs_collected")?,
+            })
+        }
+    }
+
+    /// Starts Immix on the calling thread, whose stack spans `stack`.
+    pub fn start(&self, stack: (usize, usize)) {
+        (self.init)(stack.0, stack.1);
+    }
+
+    /// A zeroed object of `size` bytes whose header points to `rtti`; may collect first.
+    pub fn alloc(&mut self, rtti: usize, size: usize) -> usize {
+        (self.alloc)(rtti, size)
+    }
+
+    /// A zeroed array of `len` elements of `stride` bytes; may collect first.
+    pub fn alloc_array(&mut self, rtti: usize, len: usize, stride: usize) -> usize {
+        (self.alloc_array)(rtti, len, stride)
+    }
+
+    /// Makes the collector scan `low..high` conservatively.
+    pub fn add_roots(&self, low: usize, high: usize) {
+        (self.add_roots)(low, high)
+    }
 }
 
-/// Class ids the collector needs to tell arrays, blobs, boxed pointers and weak references
-/// apart, and where a weak reference keeps its referent; `scivolo_GC_set_ids` reads it.
-#[repr(C)]
-pub struct GcIds {
-    pub object_array: i32,
-    pub blob_array: i32,
-    pub arrays_min: i32,
-    pub arrays_max: i32,
-    pub boxed_ptr: i32,
-    pub weak_refs_min: i32,
-    pub weak_refs_max: i32,
-    pub weak_referent_offset: i32,
+/// The C function at `addr` as the function pointer type `F`.
+///
+/// # Safety
+/// `F` must be an `extern "C" fn` type matching the function's C signature.
+unsafe fn c_fn<F: Copy>(addr: usize) -> F {
+    assert_eq!(size_of::<F>(), size_of::<usize>());
+    // SAFETY: `F` is a function pointer, as large as `addr`, per the caller's contract.
+    unsafe { std::mem::transmute_copy(&addr) }
 }
 
 impl Heap {

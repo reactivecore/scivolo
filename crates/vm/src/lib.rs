@@ -28,9 +28,9 @@ pub use layout::{ARRAY_HEADER, ARRAY_LENGTH, ARRAY_STRIDE, align_of, size_of, st
 pub use linktime::{Prop, accessor_property, method_name, parse_member, property};
 pub use member_table::nir_table;
 pub use natives::{
-    Hole, MacroArg, QuoteHost, Reflected, constructible, element_ip_index, element_names, element_position,
-    embedded_content, embedded_resources, exit_immediately, is_load, may_build_throwable, provider_error,
-    provider_names,
+    Hole, MacroArg, QuoteHost, Reflected, Written, constructible, element_ip_index, element_names,
+    element_position, embedded_content, embedded_resources, exit_immediately, is_load, may_build_throwable,
+    provider_error, provider_names,
 };
 pub use rtti::{GC_RTTI_FIELDS, PRIMITIVES, interfaces, java_name};
 pub use snapshot::{INIT_PORTED_FROM, Snapshot, Target, Walk};
@@ -72,6 +72,7 @@ pub struct Vm {
     junit: Option<Vec<String>>,
     variadics: FxHashMap<GlobalId, (usize, usize)>,
     /// The message `dlerror` last returned to the program.
+    #[cfg(not(portable))]
     dlerror: std::ffi::CString,
     scratch: Vec<usize>,
     /// The macro expansions run, and the frontend's side of the one running.
@@ -80,6 +81,8 @@ pub struct Vm {
     snapshot_to: Option<std::path::PathBuf>,
     /// Set when the VM was restored from a snapshot: where `init`'s own effects go.
     restored: Option<snapshot::ExecInfo>,
+    /// What the program wrote to stdout and stderr in portable mode, not yet taken.
+    output: Vec<natives::Written>,
 }
 
 impl Vm {
@@ -132,11 +135,13 @@ impl Vm {
             linktime: linktime::Linktime::default(),
             junit: None,
             variadics: FxHashMap::default(),
+            #[cfg(not(portable))]
             dlerror: std::ffi::CString::default(),
             scratch: Vec::new(),
             quotes: natives::Expansions::default(),
             snapshot_to: None,
             restored: None,
+            output: Vec::new(),
         };
         vm.funcs.trace = std::env::var_os("SCIVOLO_TRACE").is_some();
         vm.funcs.no_inline = std::env::var_os("SCIVOLO_NO_INLINE").is_some();
@@ -167,6 +172,7 @@ impl Vm {
 
     /// Exits the process with `code` from a main green thread, on which the exit handlers C
     /// registered (`Runtime`'s shutdown hooks) run with the VM and its threads.
+    #[cfg(not(portable))]
     pub fn exit(&mut self, code: i32) -> ! {
         let _ = self.run_main_thread(move |_| -> interp::Flow<()> { std::process::exit(code) });
         std::process::exit(code)

@@ -734,7 +734,7 @@ dist-check:
     python3 scripts/dist.py check
 
 # Everything a pipeline job runs; the cache it leaves holds only the entries it used.
-ci: cache-mark fetch-libs native-stale gates check cache-prune
+ci: cache-mark fetch-libs native-stale gates test-portable check cache-prune
 
 # Mark the time from which `cache-prune` counts cache entries as used.
 cache-mark:
@@ -778,6 +778,11 @@ test *args:
     else \
         cargo test --workspace {{ locked }} {{ args }}; \
     fi
+
+# Lint the VM's portable mode (ADR 0127) and run the REPL transcripts and its own tests in it.
+test-portable:
+    cargo clippy -p scivolo-repl --features portable --all-targets {{ locked }} -- -D warnings
+    cargo test -p scivolo-repl --features portable {{ locked }} --test scripted --test portable
 
 # Open a merge request of the current branch into `target`, described by tmp/mr.md.
 mr-create title target="main" *flags:

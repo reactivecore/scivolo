@@ -4,7 +4,7 @@
 use super::{ThreadId, Wait};
 use crate::interp::{Flow, FuncId};
 use crate::{Vm, VmError, natives};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 /// The longest the idle scheduler waits before looking for a SIGINT.
 const SIGNAL_SLICE: Duration = Duration::from_millis(100);
@@ -25,7 +25,7 @@ pub struct Interrupts {
 impl Vm {
     /// Blocks the running thread for `why` until another thread wakes it (`true`) or
     /// `deadline` passes (`false`); returns `false` at once outside green threads.
-    pub fn block(&mut self, why: Wait, deadline: Option<Instant>) -> bool {
+    pub fn block(&mut self, why: Wait, deadline: Option<Duration>) -> bool {
         self.threads.sched.block_current(why, deadline);
         let id = self.threads.sched.current;
         if !self.suspend_thread() {
@@ -33,6 +33,16 @@ impl Vm {
             return false;
         }
         self.threads.sched.info[id].woken
+    }
+
+    /// Refuses a wait without `deadline`, which no other thread could end: none runs in
+    /// portable mode.
+    #[cfg(portable)]
+    pub fn refuse_endless_wait(&self, deadline: Option<Duration>) -> Flow<()> {
+        match deadline {
+            Some(_) => Ok(()),
+            None => Err(VmError::Unsupported("deadlock: every thread waits forever".into()).into()),
+        }
     }
 
     /// Lets every other runnable thread run before the running one continues.

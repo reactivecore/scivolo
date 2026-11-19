@@ -6,7 +6,7 @@ use crate::Vm;
 use crate::interp::Flow;
 use rustc_hash::FxHashMap;
 use std::collections::VecDeque;
-use std::time::Instant;
+use std::time::Duration;
 
 #[derive(Default)]
 pub struct Monitors(FxHashMap<usize, Monitor>);
@@ -75,8 +75,10 @@ impl Vm {
     }
 
     /// `obj.wait()` until notified, interrupted or past `deadline`.
-    pub fn monitor_wait(&mut self, obj: usize, deadline: Option<Instant>) -> Flow<()> {
+    pub fn monitor_wait(&mut self, obj: usize, deadline: Option<Duration>) -> Flow<()> {
         self.owned(obj)?;
+        #[cfg(portable)]
+        self.refuse_endless_wait(deadline)?;
         let me = self.threads.sched.current;
         self.threads.sched.info[me].interrupt = false;
         if self.take_interrupt()? {

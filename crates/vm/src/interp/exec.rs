@@ -10,6 +10,10 @@ impl Vm {
         if self.heap.take_weak_refs_collected() {
             self.run_weak_handler()?;
         }
+        #[cfg(portable)]
+        if self.heap.take_over_cap() {
+            return self.throw_new("java.lang.OutOfMemoryError");
+        }
         self.tick()?;
         let mark = self.frames.mark();
         let slots = self.push_frame(code)?;

@@ -52,10 +52,3 @@ pub fn suspend(yielder: usize, vm: *mut Vm) {
     let yielder = unsafe { &*(yielder as *const Yielder<usize, usize>) };
     std::hint::black_box(yielder.suspend(vm as usize));
 }
-
-/// An address near the top of the current native stack.
-#[inline(never)]
-pub fn approximate_sp() -> usize {
-    let marker = 0u8;
-    std::hint::black_box(&raw const marker as usize)
-}
