@@ -156,9 +156,14 @@ pub fn copy(from: usize, to: usize, len: usize) {
 
 /// Sets `len` bytes at `addr` to zero, which the running program vouches for.
 pub fn zero(addr: usize, len: usize) {
-    assert!(addr >= NULL_PAGE, "zeroing address {addr:#x}");
+    fill(addr, len, 0);
+}
+
+/// Sets `len` bytes at `addr` to `byte`, which the running program vouches for.
+pub fn fill(addr: usize, len: usize, byte: u8) {
+    assert!(addr >= NULL_PAGE, "filling address {addr:#x}");
     // SAFETY: as for `read`.
-    unsafe { std::ptr::write_bytes(addr as *mut u8, 0, len) }
+    unsafe { std::ptr::write_bytes(addr as *mut u8, byte, len) }
 }
 
 /// Writes a `T` at `addr`, which the running program vouches for.

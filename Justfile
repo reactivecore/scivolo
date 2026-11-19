@@ -782,7 +782,7 @@ test *args:
 # Lint the VM's portable mode (ADR 0127) and run the REPL transcripts and its own tests in it.
 test-portable:
     cargo clippy -p scivolo-repl --features portable --all-targets {{ locked }} -- -D warnings
-    cargo test -p scivolo-repl --features portable {{ locked }} --test scripted --test portable
+    cargo test -p scivolo-repl --features portable {{ locked }} --test scripted --test portable --test portable_stress
     cargo clippy -p scivolo-web --features portable --all-targets {{ locked }} -- -D warnings
 
 # The browser's module, built by rustup's toolchain, which has the wasm32 target.

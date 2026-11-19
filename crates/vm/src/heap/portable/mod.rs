@@ -41,7 +41,12 @@ pub struct Collector {
     over_cap: bool,
     /// Code running that may hold objects only in Rust locals: no collection then.
     pins: u32,
+    /// Collect at every safepoint and fill freed memory with `POISON`.
+    stress: bool,
 }
+
+/// The byte freed memory is filled with under `stress`: as a word, an address no host maps.
+const POISON: u8 = 0xA5;
 
 impl Collector {
     /// A heap with `HEAP_CAP`; `symbol` is not needed.
@@ -59,6 +64,7 @@ impl Collector {
             raise_at: 0,
             over_cap: false,
             pins: 0,
+            stress: false,
         };
         gc.set_cap(HEAP_CAP);
         Ok(gc)
@@ -176,9 +182,16 @@ impl Heap {
         self.gc.pins -= 1;
     }
 
-    /// Collects if enough was allocated since the last collection and nothing pins the heap.
+    /// Makes every safepoint collect and freed memory hold garbage, so that an object used after
+    /// it was freed shows.
+    pub fn stress(&mut self) {
+        self.gc.stress = true;
+    }
+
+    /// Collects if enough was allocated since the last collection, or under `stress`, and
+    /// nothing pins the heap.
     pub fn collect_if_due(&mut self) {
-        if self.gc.pins == 0 && self.gc.used >= self.gc.next_gc {
+        if self.gc.pins == 0 && (self.gc.stress || self.gc.used >= self.gc.next_gc) {
             self.gc.collect();
         }
     }

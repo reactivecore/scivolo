@@ -1,7 +1,7 @@
 //! A collection: marking from the roots, conservatively, then sweeping what stayed unmarked.
 
-use super::{Collector, MIN_TRIGGER, OUT_OF_MEMORY_STEP, Span};
-use crate::heap::read;
+use super::{Collector, MIN_TRIGGER, OUT_OF_MEMORY_STEP, POISON, Span};
+use crate::heap::{fill, read};
 use std::alloc::{Layout, dealloc};
 
 impl Collector {
@@ -53,10 +53,18 @@ impl Collector {
         self.holes.clear();
         self.cur = Span { addr: 0, len: 0 };
         let mut live = self.chunks.sweep(&mut self.holes);
+        let poison = |span: Span| fill(span.addr, span.len, POISON);
+        if self.stress {
+            self.holes.iter().copied().for_each(poison);
+        }
+        let stress = self.stress;
         self.large.retain(|&addr, (size, marked)| {
             if std::mem::take(marked) {
                 live += *size;
                 return true;
+            }
+            if stress {
+                poison(Span { addr, len: *size });
             }
             let layout =
                 Layout::from_size_align(*size, super::GRANULE).expect("the layout it was allocated with");
