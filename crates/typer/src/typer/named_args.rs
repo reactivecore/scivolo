@@ -11,6 +11,9 @@ use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{NodeId, Tree};
 use tasty::{Binder, NameId, SymbolId, TypeId};
 
+/// A parameter clause: its binder and parameter names, and the method it belongs to.
+type Clause<'a> = ((Binder, &'a [NameId]), Option<SymbolId>);
+
 impl Typer<'_> {
     /// Call `f` of `method` and its arguments `aligned`, typed against `formals`, the types of
     /// `params`, a missing one its default, with the definitions lifted out of them (dotty's
@@ -23,7 +26,7 @@ impl Typer<'_> {
         (mut f, method, varargs): (TNodeId, Option<SymbolId>, Option<&Varargs>),
         (args, aligned, pretyped): (&[NodeId], &Aligned, Option<&[Option<TNodeId>]>),
         (params, formals): (&[(NameId, TypeId)], &[TypeId]),
-        dependent: Option<((Binder, &[NameId]), Option<SymbolId>)>,
+        dependent: Option<Clause>,
         ctx: Ctx,
     ) -> Result<(TNodeId, Vec<TNodeId>, Vec<TNodeId>), &'static str> {
         let pre = |a: NodeId| pretyped.and_then(|p| args.iter().position(|&b| b == a).and_then(|i| p[i]));

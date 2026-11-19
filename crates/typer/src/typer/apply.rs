@@ -197,7 +197,10 @@ impl Typer<'_> {
             v.elem = self.dependent_formal(v.elem, clause, fixed);
         }
         let result = match dependent {
-            true if lifted_result == Some(None) => self.lifted_dependent_result(f, meth, &typed_args),
+            true if lifted_result == Some(None) => {
+                let lifted = self.lifted_dependent_result(f, meth, &typed_args);
+                lifted.filter(|&(r, _)| self.u.method(r).is_none())
+            }
             true => self
                 .dependent_result(result, (binder, &params), meth, &typed_args)
                 .filter(|_| plain)

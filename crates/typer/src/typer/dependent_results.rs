@@ -10,7 +10,7 @@ use super::dependent_params::{
     applied_result, clause_param, has_false_dependency, mentions_clause_params, mentions_params,
     mentions_params_except, singleton_args, substituted,
 };
-use crate::tpd::TNodeId;
+use crate::tpd::{TNodeId, Tree as T};
 use tasty::{Binder, Kind, NameId, SymbolId, Type, TypeId, TypeVars};
 
 impl Typer<'_> {
@@ -124,7 +124,13 @@ impl Typer<'_> {
         let Type::Method { binder, params, result, .. } = *self.u.ty(info) else { return None };
         let params = self.u.params_of(params).to_vec();
         let result = self.without_false_deps(result, (binder, &params), method);
-        self.dependent_result(result, (binder, &params), method, args)
+        let values: Vec<TNodeId> = (args.iter())
+            .map(|&a| match *self.tpd.tree(a) {
+                T::NamedArg { arg, .. } => arg,
+                _ => a,
+            })
+            .collect();
+        self.dependent_result(result, (binder, &params), method, &values)
     }
 
     /// Result `t` of an application whose arguments are not known per parameter, its references
