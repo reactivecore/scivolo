@@ -7,19 +7,20 @@ use super::super::Typer;
 use super::super::type_ops::TypeOps;
 use super::alt_types::prepared;
 use super::candidates::Candidate;
+use super::ranking::Scheme;
 use crate::ctx::Ctx;
 use tasty::{Kind, Type, TypeId};
 
-/// Whether `a` of type `t1` is as good as `b` of type `t2` in `ctx`, the constraint unchanged;
-/// `None` if undecided.
+/// Whether `a` of type `t1` is as good as `b` of type `t2` in `ctx` under `scheme`, the
+/// constraint unchanged; `None` if undecided.
 pub fn is_as_good(
     t: &mut Typer<'_>,
     a: (Candidate, TypeId),
     b: (Candidate, TypeId),
-    ctx: Ctx,
+    (scheme, ctx): (Scheme, Ctx),
 ) -> Option<bool> {
     let before = t.constraint.attempt();
-    let result = as_good_in(t, a, b, ctx);
+    let result = as_good_in(t, a, b, (scheme, ctx));
     t.constraint.abandon(before);
     result
 }
@@ -28,7 +29,7 @@ fn as_good_in(
     t: &mut Typer<'_>,
     (a, t1): (Candidate, TypeId),
     (b, t2): (Candidate, TypeId),
-    ctx: Ctx,
+    (scheme, ctx): (Scheme, Ctx),
 ) -> Option<bool> {
     match *t.u.ty(t1) {
         Type::Method { params, .. } => {
@@ -53,26 +54,31 @@ fn as_good_in(
         }
         Type::Poly { .. } => {
             let t1 = t.poly_instance(t1, a.sym, true);
-            as_good_in(t, (a, t1), (b, t2), ctx)
+            as_good_in(t, (a, t1), (b, t2), (scheme, ctx))
         }
         _ => match *t.u.ty(t2) {
             Type::Method { .. } => Some(true),
             Type::Poly { result, .. } if t.u.method(result).is_some() => Some(true),
             Type::Poly { .. } => {
                 let t2 = t.poly_instance(t2, b.sym, false);
-                as_good_value(t, t1, t2, a)
+                as_good_value(t, t1, t2, (a, scheme))
             }
-            _ => as_good_value(t, t1, t2, a),
+            _ => as_good_value(t, t1, t2, (a, scheme)),
         },
     }
 }
 
-/// dotty's `isAsGoodValueType`: an old-style implicit `a` by subtyping with contravariant
-/// arguments flipped, a given by the other way round.
-fn as_good_value(t: &mut Typer<'_>, t1: TypeId, t2: TypeId, a: Candidate) -> Option<bool> {
+/// dotty's `isAsGoodValueType`: under the intermediate scheme or for an old-style implicit `a`
+/// by subtyping with contravariant arguments flipped, else by the other way round.
+fn as_good_value(
+    t: &mut Typer<'_>,
+    t1: TypeId,
+    t2: TypeId,
+    (a, scheme): (Candidate, Scheme),
+) -> Option<bool> {
     let mut ty = t.types();
     let (p1, p2) = (prepared(&mut ty, t1), prepared(&mut ty, t2));
-    if !ty.u.symbol(a.sym).is_old_implicit() {
+    if scheme == Scheme::New && !ty.u.symbol(a.sym).is_old_implicit() {
         return Some(relaxed_conforms(&mut ty, p2, p1));
     }
     let (f1, f2) = (flipped(t, p1, 1)?, flipped(t, p2, 1)?);

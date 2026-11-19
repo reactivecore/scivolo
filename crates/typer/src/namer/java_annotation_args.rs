@@ -6,6 +6,7 @@ use crate::tpd::{TNodeId, Tree as T};
 use crate::typer::Typer;
 use names::nme;
 use syntax::ast::{NodeId, TName, Tree};
+use syntax::config::Migration;
 use tasty::{NameId, SymbolId, TypeId};
 
 impl Typer<'_> {
@@ -36,7 +37,8 @@ impl Typer<'_> {
         for param in positional {
             let msg = "Named arguments are required for Java defined annotations".to_owned()
                 + &self.rewrite_notice("This", "3.6-migration");
-            self.error(param, msg);
+            let span = self.ast.span(param);
+            self.error_or_migration_warning(span, msg, Migration::NonNamedArgumentInJavaAnnotation);
         }
     }
 
