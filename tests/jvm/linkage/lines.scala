@@ -37,3 +37,9 @@ object Branches:
     case s: String => s
     case _ => array
   } else array
+
+class Handles(x: Int)
+  extends AnyRef
+    with Serializable {
+  lazy val byName: String = "a" + x
+}
