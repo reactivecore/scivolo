@@ -1,5 +1,6 @@
 //! The earlier inputs that ran, as the import statements that bring their definitions into the
-//! scope of a later input; a later definition hides an earlier one of the same name and kind.
+//! scope of a later input; a later definition hides an earlier one of the same name and kind, and
+//! is imported by name if an earlier input imports that name alone, as the two then are ambiguous.
 
 use tasty::tags::PRIVATE;
 use tasty::{Kind, Universe};
@@ -40,10 +41,25 @@ pub fn prelude(lines: &[Earlier]) -> String {
             .map(|(m, _)| m.as_str())
             .collect();
         hidden.dedup();
-        let selectors: Vec<String> =
-            hidden.iter().map(|m| format!("`{m}` as _")).chain(["given".into(), "*".into()]).collect();
+        let earlier_imports: Vec<&String> = lines[..i].iter().flat_map(|l| &l.imports).collect();
+        let mut named: Vec<&str> = (line.members.iter())
+            .map(|(m, _)| m.as_str())
+            .filter(|m| !hidden.contains(m) && earlier_imports.iter().any(|i| imports_only(i, m)))
+            .collect();
+        named.dedup();
+        let selectors: Vec<String> = (hidden.iter().map(|m| format!("`{m}` as _")))
+            .chain(named.iter().map(|m| format!("`{m}`")))
+            .chain(["given".into(), "*".into()])
+            .collect();
         out.push_str(&format!("import {}.{{{}}}\n", line.object, selectors.join(", ")));
         line.imports.iter().for_each(|i| out.push_str(&format!("{i}\n")));
     }
     out
+}
+
+/// Checks whether import statement `import` imports exactly the name `name`, as
+/// `import scala.math.max` does `max`.
+fn imports_only(import: &str, name: &str) -> bool {
+    let last = import.trim_end().rsplit_once('.').map(|(_, last)| last);
+    last.is_some_and(|l| l == name || l.strip_prefix('`').and_then(|l| l.strip_suffix('`')) == Some(name))
 }
