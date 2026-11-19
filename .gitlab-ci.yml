@@ -269,5 +269,6 @@ test:macos:
     - key: scivolo-libs-macos
       paths: *libs_cache_paths
   script:
-    - rustc --version && cargo --version && just --version && clang --version
+    - rustc --version && cargo --version && just --version && clang --version && node --version
+    - rustup target add wasm32-unknown-unknown
     - just ci
