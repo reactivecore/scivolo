@@ -131,7 +131,8 @@ fn member_lines<'a>(text: &'a str, header: &str) -> Vec<&'a str> {
 /// the receiver's line, an array update after its operands, a field initializer's `this` of its
 /// value's line, no line for the `()` ending a secondary constructor, a branch's match marked again
 /// on its scrutinee's line after the cases' line, a lazy value's `VarHandle` set on the line its
-/// class's parents end, and the conversion of an
+/// class's parents end, an `InnerClasses` entry for an object with an operator name, and the
+/// conversion of an
 /// implicit class deprecated for companion methods, the class only if for companion classes.
 #[test]
 fn line_marks_and_deprecations_follow_dotty() {
@@ -156,6 +157,8 @@ fn line_marks_and_deprecations_follow_dotty() {
     );
     let Some(handles) = javap_verbose(&out, "lines.Handles") else { return };
     assert_eq!(member_lines(&handles, "static {}"), ["line 43: 0"], "{handles}");
+    let Some(operators) = javap_verbose(&out, "lines.Operators$") else { return };
+    assert!(operators.contains("// $colon$plus$=class scala/collection/package$$colon$plus$"), "{operators}");
     for (class, deprecated) in [("lines.Calls$Wrapped", false), ("lines.Calls$Both", true)] {
         let Some(text) = javap_verbose(&out, class) else { return };
         assert_eq!(text.lines().any(|l| l == "Deprecated: true"), deprecated, "{text}");

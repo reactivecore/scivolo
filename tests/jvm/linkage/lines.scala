@@ -41,5 +41,9 @@ object Branches:
 class Handles(x: Int)
   extends AnyRef
     with Serializable {
+  self =>
   lazy val byName: String = "a" + x
 }
+
+object Operators:
+  val append = scala.collection.:+

@@ -56,12 +56,11 @@ pub fn define(l: &mut Lower, class: SymbolId, field: SymbolId, defs: LazyVals) -
 }
 
 /// Gives the definitions and initializers of `handles`, first in the body of `template`, the end
-/// of its constructor, parents and self as their span, as copying the template does (dotty's
-/// `Positioned.envelope`).
+/// of its constructor and parents as their span, as copying the template without the self
+/// `FirstTransform` drops does (dotty's `Positioned.envelope`).
 pub fn position(l: &mut Lower, template: TNodeId, handles: &[VarHandle]) {
-    let Tree::Template { constr, parents, self_, .. } = *l.tpd.tree(template) else { return };
-    let heads: Vec<TNodeId> =
-        [constr].into_iter().chain(l.tpd.items(parents).iter().copied()).chain(self_).collect();
+    let Tree::Template { constr, parents, .. } = *l.tpd.tree(template) else { return };
+    let heads: Vec<TNodeId> = [constr].into_iter().chain(l.tpd.items(parents).iter().copied()).collect();
     let span = heads.into_iter().fold(Span::NONE, |s, t| s.union(l.tpd.span(t)));
     if !span.exists() || span.is_in_other_source() {
         return;
