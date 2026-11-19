@@ -89,7 +89,8 @@ impl Gen<'_, '_> {
                 _ => return unsupported(self.l.tpd.span(stat), "statements in an extern object"),
             }
         }
-        self.gen_mirror_class(sym, pos)
+        self.gen_mirror_class(sym, pos);
+        Ok(())
     }
 
     pub fn is_blocking(&mut self, sym: SymbolId) -> bool {

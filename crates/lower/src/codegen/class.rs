@@ -64,7 +64,8 @@ impl Gen<'_, '_> {
         let closures = std::mem::take(&mut self.closures);
         self.defns.extend(closures);
         self.gen_reflective_instantiation(td, sym)?;
-        self.gen_mirror_class(sym, pos)
+        self.gen_mirror_class(sym, pos);
+        Ok(())
     }
 
     /// The superclass of `c`, `java.lang.Object` for none; none for `java.lang.Object` and the
@@ -114,7 +115,7 @@ impl Gen<'_, '_> {
             }
         }
         let existing: Vec<nir::GlobalId> = self.defns[first..].iter().map(|d| d.name).collect();
-        let forwarders = self.static_method_forwarders(&existing)?;
+        let forwarders = self.static_method_forwarders(&existing);
         self.defns.extend(forwarders);
         Ok(())
     }
