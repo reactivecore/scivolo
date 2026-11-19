@@ -42,9 +42,8 @@ read-only-file cases, because the CI container runs as root.
 
 With the scalalib jar `just lib-jar scalalib` builds in place of the published one
 (`just lib-jar-report scalalib`), every test passes, fails and skips as above. That jar holds
-our NIR of the files the frontend lowers (the scalalib row of the table under "Scala Native's library through the Rust frontend"), the published
-NIR of the classes Scala Native takes from Scala 2.13, and Scala Native's build's NIR of the
-files the frontend refuses. It lacks 91 NIR files of the published jar: anonymous classes and
+our NIR of all of scalalib's files lowered as one unit, as Scala Native's build compiles them, and
+the published NIR of the classes Scala Native takes from Scala 2.13. It lacks 91 NIR files of the published jar: anonymous classes and
 lambdas that Scala Native's build of Scala 3.9.0 does not emit and no other class references.
 
 A feature the VM lacks throws `java.lang.InternalError("scivolo: unsupported: …")`, a missing class
@@ -1172,7 +1171,13 @@ not exist yet while a class of the same run is typed. `ToExpr$ArrayOf*ToExpr$` (
 `ToExpr$BigIntToExpr$`, `ToExpr$MapToExpr` and `FromExpr$MapFromExpr` differ in quote type
 sharing (case 1, as in **Quote type sharing** above, types shared across the files of the
 whole-module build); scala-cli's builds of `ToExpr.scala` and `FromExpr.scala` alone have their
-quotes as ours, up to the source path.
+quotes as ours, up to the source path. `lib-jar scalalib` lowers all files as one unit, as Scala
+Native's build does: their quotes are as the oracle's. There, `ProcessImpl`'s `$N$` names of
+pattern definitions (`CompoundProcess`'s `$1$`, `DummyProcess`'s `$3$` in dotty, `$3$` and `$2$`
+in ours) follow the order in which the member classes of `ProcessImpl` are completed: dotty
+completes `CompoundProcess` first while it types `object Process` (`Process.scala`,
+`ProcessBuilderImpl.scala` and `ProcessImpl.scala` alone: dotty `$3$`, ours `$2$` for
+`DummyProcess`; without `Process.scala` both `$2$`); case 1: private names, the same meaning.
 
 ## Native executables
 
