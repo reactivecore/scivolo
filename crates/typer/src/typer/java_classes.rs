@@ -68,7 +68,7 @@ impl Typer<'_> {
         if object_bounded.len() != params.len() || !object_bounded.iter().all(|&b| b) {
             return Err(REFUSED);
         }
-        if !params.iter().all(|&p| self.is_unbounded(p)) {
+        if !params.iter().all(|&p| self.is_bounded_by_object(p)) {
             return Err(REFUSED);
         }
         let l = self.u.lambda(lambda).ok_or(REFUSED)?;
@@ -78,6 +78,14 @@ impl Typer<'_> {
         let bounds = self.u.intern_type(Type::Bounds(tasty::NOTHING, from_java_object));
         let params: Vec<_> = names.into_iter().zip(std::iter::repeat_n(bounds, n)).collect();
         Ok(self.u.intern_lambda(binder, &params, result))
+    }
+
+    /// Whether type parameter `p` has the bounds `>: Nothing <: Any` or `>: Nothing <: AnyRef`.
+    fn is_bounded_by_object(&mut self, p: SymbolId) -> bool {
+        let info = self.u.info(p);
+        let Some((lo, hi)) = self.u.bounds(info) else { return false };
+        let (b, hi) = (self.u.defn(), self.u.class_symbol(hi));
+        self.u.class_symbol(lo) == Some(b.nothing) && (hi == Some(b.any) || hi == Some(b.object))
     }
 
     /// Whether type parameter `p` has the bounds `>: Nothing <: Any`.
