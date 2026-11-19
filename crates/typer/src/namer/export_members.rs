@@ -71,7 +71,11 @@ impl Typer<'_> {
         if !self.is_accessible(m, e.ctx) {
             return Some(false);
         }
-        if name == nme::CONSTRUCTOR || kind == Kind::Class && flags.has(t::OBJECT) || flags.has(t::INVISIBLE)
+        let java_module = flags.has(t::OBJECT) && self.is_java_member(m);
+        if name == nme::CONSTRUCTOR
+            || kind == Kind::Class && flags.has(t::OBJECT)
+            || flags.has(t::INVISIBLE)
+            || java_module
         {
             return None;
         }

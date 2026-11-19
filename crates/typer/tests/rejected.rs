@@ -397,3 +397,11 @@ fn checks_of_single_constructs() {
         ],
     );
 }
+
+#[test]
+fn exports_of_a_java_class_skip_its_statics() {
+    check(
+        &[("export java.util.UUID\ndef foo = println(UUID.randomUUID())\n", "")],
+        &["export java.util.UUID\ndef bar = println(new UUID(1, 2))\n"],
+    );
+}
