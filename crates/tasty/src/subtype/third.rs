@@ -101,8 +101,8 @@ impl Cmp<'_> {
     }
 
     /// `a <: v` for variable `b = v` without instance: through its lower bound, else by
-    /// constraining it with `a`; an applied alias of a union compared by its expansion, one with
-    /// type variables in it expanded unless to a match type.
+    /// constraining it with `a` unexpanded; an applied alias of a union compared by its
+    /// expansion (dotty's `compareTypeParamRef`).
     fn var_above(&mut self, a: TypeId, b: TypeId, v: VarId) -> bool {
         let always = match self.frozen() {
             true => {
@@ -123,7 +123,6 @@ impl Cmp<'_> {
                         let args = self.u.types_of(args).to_vec();
                         match self.applied_alias_expansion(tycon, &args) {
                             Some(e) if matches!(self.u.ty(e), Type::Or(..)) => return self.recur(e, b),
-                            Some(e) if !matches!(self.u.ty(e), Type::Match { .. }) && self.has_var(a) => e,
                             _ => a,
                         }
                     }
@@ -132,16 +131,6 @@ impl Cmp<'_> {
                 self.vars.add_lower(self.u, v, a)
             }
         }
-    }
-
-    /// Whether `t` has a type variable.
-    fn has_var(&mut self, t: TypeId) -> bool {
-        let mut found = false;
-        self.u.map_type(t, &mut |u, part| {
-            found |= u.var(part).is_some();
-            None
-        });
-        found
     }
 
     /// `a <:` recursive type `binder`, `parent`: the parent of recursive `a` against `parent` with
