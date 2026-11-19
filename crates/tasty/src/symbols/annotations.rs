@@ -44,9 +44,12 @@ impl Universe {
         self.annotation_strings.get(&(sym, class)).map_or(&[], Vec::as_slice)
     }
 
-    /// Records meta-annotation class `meta` on the annotation of class `class` on `sym`.
+    /// Records meta-annotation class `meta` on an annotation of class `class` on `sym`.
     pub fn annotate_meta(&mut self, sym: SymbolId, class: SymbolId, meta: SymbolId) {
-        self.annotation_metas.entry((sym, class)).or_default().push(meta);
+        let metas = self.annotation_metas.entry((sym, class)).or_default();
+        if !metas.contains(&meta) {
+            metas.push(meta);
+        }
     }
 
     /// The annotation classes of `sym` meta-annotated `scala.annotation.meta.<target>` for one
@@ -60,14 +63,27 @@ impl Universe {
     ) -> Vec<SymbolId> {
         let mut classes = self.annotations(sym).to_vec();
         classes.retain(|&c| {
-            let mut metas = self.annotation_metas.get(&(sym, c)).cloned().unwrap_or_default();
-            metas.extend(self.tasty_annotations(c));
-            metas.extend_from_slice(self.annotations(c));
-            metas.retain(|&m| self.full_name(m).starts_with("scala.annotation.meta."));
-            let carries = |set: &[&str]| metas.iter().any(|&m| set.contains(&self.symbol(m).name.as_str()));
-            carries(targets) || !none_of.is_empty() && !carries(none_of)
+            let metas = self.annotation_metas.get(&(sym, c)).cloned().unwrap_or_default();
+            self.carries(c, metas, targets, none_of)
         });
         classes
+    }
+
+    /// Determines whether an annotation of class `class` meta-annotated by the classes `metas` is
+    /// meta-annotated `scala.annotation.meta.<target>`, there or on `class`, for one of `targets`,
+    /// or if `none_of` is not empty, for none of `none_of` (dotty's `hasOneOfMetaAnnotation`).
+    pub fn carries(
+        &mut self,
+        class: SymbolId,
+        mut metas: Vec<SymbolId>,
+        targets: &[&str],
+        none_of: &[&str],
+    ) -> bool {
+        metas.extend(self.tasty_annotations(class));
+        metas.extend_from_slice(self.annotations(class));
+        metas.retain(|&m| self.full_name(m).starts_with("scala.annotation.meta."));
+        let carries = |set: &[&str]| metas.iter().any(|&m| set.contains(&self.symbol(m).name.as_str()));
+        carries(targets) || !none_of.is_empty() && !carries(none_of)
     }
 
     /// The first `Int` argument of the annotation of the class with full name `full` on method

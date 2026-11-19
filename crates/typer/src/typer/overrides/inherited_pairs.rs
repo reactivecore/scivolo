@@ -15,6 +15,12 @@ impl OverrideChecks {
     /// `class B extends A with T`. Names the class declares are left to its own members' checks,
     /// pairs of two base classes one parent derives from to that parent's.
     pub fn incompatible_inherited(&self, t: &mut Typer<'_>) -> bool {
+        self.inherited_pairs(t).into_iter().any(|(d, m)| self.incompatible_pair(t, d, m))
+    }
+
+    /// The pairs of inherited members, the overriding one first, that the class's own members and
+    /// its parents do not already check (dotty's `OverridingPairs.Cursor` without own members).
+    pub fn inherited_pairs(&self, t: &mut Typer<'_>) -> Vec<(SymbolId, SymbolId)> {
         let parents: Vec<SymbolId> =
             t.u.parents(self.cls).into_iter().filter_map(|p| t.u.class_symbol(p)).collect();
         let covered = |t: &mut Typer<'_>, a: SymbolId, b: SymbolId| {
@@ -32,6 +38,7 @@ impl OverrideChecks {
                 names.extend(shared.filter(|&n| !names.contains(n)).cloned().collect::<Vec<_>>());
             }
         }
+        let mut pairs = Vec::new();
         for name in names {
             let entries = self.pair_entries(t, &name);
             let mut visited = HashSet::new();
@@ -46,13 +53,13 @@ impl OverrideChecks {
                     }
                     visited.insert(m);
                     let (Some(od), Some(om)) = (od, om) else { continue };
-                    if !covered(t, od, om) && self.incompatible_pair(t, d, m) {
-                        return true;
+                    if !covered(t, od, om) {
+                        pairs.push((d, m));
                     }
                 }
             }
         }
-        false
+        pairs
     }
 
     /// The checked terms named `name` of the base classes, overriding candidates first: the

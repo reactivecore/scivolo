@@ -50,13 +50,13 @@ mod tries;
 
 pub use class_bytes::ClassBytes;
 
+use lower::output::Pickles;
 use lower::{Lower, Result, Unsupported};
 use names::{name_kinds, nme};
 use std::collections::HashMap;
 use syntax::ast::Span;
 use tasty::tags::{ABSTRACT, ARTIFACT, ENUM, FIELDaccessor, FINAL, MUTABLE, PRIVATE, STATIC, TRAIT};
 use tasty::{SymbolId, Universe};
-use typer::pickle::Pickled;
 use typer::tpd::{TNodeId, Tree};
 
 pub struct Gen<'l, 'a> {
@@ -73,9 +73,9 @@ pub struct Gen<'l, 'a> {
 }
 
 /// The class files of lowered unit `root`, `pickles` the TASTy of its top-level classes.
-pub fn unit(l: &mut Lower, root: TNodeId, pickles: Vec<Pickled>) -> Result<Vec<ClassBytes>> {
-    class_bytes::check_super_accessors(l, &pickles)?;
-    let tasty = pickles.into_iter().map(|p| (p.class, p.tasty)).collect();
+pub fn unit(l: &mut Lower, root: TNodeId, pickles: Pickles) -> Result<Vec<ClassBytes>> {
+    class_bytes::check_super_accessors(l, &pickles.classes)?;
+    let tasty = pickles.classes.into_iter().map(|p| (p.class, p.tasty)).collect();
     let (out, lambdas, classes, jdk) = (Vec::new(), Vec::new(), HashMap::new(), classfile::Jdk::default());
     let mut g = Gen { l, out, lambdas, classes, tasty, jdk };
     g.collect_classes(root);

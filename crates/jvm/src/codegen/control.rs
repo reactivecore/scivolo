@@ -28,6 +28,7 @@ impl Gen<'_, '_> {
         if dest == Dest::Fall {
             return self.expr_as(b, t, slots);
         }
+        self.line(b, t);
         match *self.l.tpd.tree(t) {
             Tree::Typed { expr, .. } => return self.expr_to(b, expr, slots, dest),
             Tree::Block { stats, expr } => {
