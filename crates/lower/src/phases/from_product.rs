@@ -67,7 +67,7 @@ pub fn from_product(
             arity = Some(binding);
         }
         for (i, (&binding, &param)) in bindings.iter().zip(&param_types).enumerate() {
-            let repeated = repeated_elem(l, param);
+            let repeated = repeated_param_elem(l, param);
             let product_ref = l.copy_ident(args[0]);
             l.tpd.mark_copy(product_ref, args[0]);
             let index = l.int_literal(i as i32);
@@ -89,8 +89,11 @@ pub fn from_product(
             let arg = l.ident(binding, Span::NONE);
             refs.push(match repeated {
                 Some(_) => {
-                    let tpt = l.type_tree(param, Span::NONE);
-                    l.tpd.node(Tree::Typed { expr: arg, tpt }, Span::NONE, Some(param), None)
+                    let elem = l.u.applied(tpe).map(|(_, a)| a[0]).expect("a `Seq[T]` binding");
+                    let repeated = l.u.class_ref(tasty::defn::REPEATED);
+                    let repeated = l.u.intern_applied(repeated, &[elem]);
+                    let tpt = l.type_tree(repeated, Span::NONE);
+                    l.tpd.node(Tree::Typed { expr: arg, tpt }, Span::NONE, Some(repeated), None)
                 }
                 None => arg,
             });
@@ -104,6 +107,11 @@ pub fn from_product(
     })?;
     l.tpd.get_mut(def).span = Span::NONE;
     Ok(Some(l.with_span(def, focus)))
+}
+
+/// The element type `T` of repeated parameter type `<repeated>[T]` or `Seq[T] @Repeated`.
+fn repeated_param_elem(l: &mut Lower, t: TypeId) -> Option<TypeId> {
+    repeated_elem(l, t).or_else(|| l.u.repeated_elem(t))
 }
 
 /// The synthetic `val name: tpe`, owned by `class` until the caller moves it.
@@ -138,7 +146,7 @@ fn bindings(
     let mut vals = Vec::new();
     let mut originals = Vec::new();
     for (&accessor, &param) in accessors.iter().zip(params) {
-        let tpe = match repeated_elem(l, param) {
+        let tpe = match repeated_param_elem(l, param) {
             Some(elem) => {
                 let seq = l.u.class_ref(tasty::defn::IMMUTABLE_SEQ);
                 l.u.intern_applied(seq, &[elem])

@@ -202,6 +202,29 @@ fn probes_pickle_as_dotty_s() {
     }
 }
 
+/// The trees of `V` of tests/jvm/tastylib/casecaptures.scala, whose repeated parameter has a
+/// capture set naming another parameter, are dotty's: `fromProduct` ascribes its `Seq` value the
+/// repeated type. Needs a JDK (java on the PATH), as dotty's did.
+#[test]
+fn annotated_repeated_case_params_pickle_as_dotty_s() {
+    if Command::new("java").arg("-version").output().is_err() {
+        return;
+    }
+    let out = root().join("tmp/jvm-test/casecaptures-v");
+    let _ = std::fs::remove_dir_all(&out);
+    let run = Command::new(env!("CARGO_BIN_EXE_scivolo-jvm"))
+        .current_dir(root())
+        .arg("-d")
+        .arg(&out)
+        .arg("tests/jvm/tastylib/casecaptures.scala")
+        .output()
+        .expect("running scivolo-jvm");
+    assert!(run.status.success(), "{}", String::from_utf8_lossy(&run.stderr));
+    let ours = std::fs::read(out.join("V.tasty")).expect("our TASTy");
+    let theirs = std::fs::read(root().join("tests/jvm/tastylib/casecaptures-V.tasty")).expect("dotty's");
+    assert!(trees_and_flags(&ours).0 == trees_and_flags(&theirs).0, "V.tasty's trees differ from dotty's");
+}
+
 /// Compiles tests/jvm/basetypes/`name`.scala.
 fn compile_base_types_probe(name: &str) -> std::process::Output {
     let out = root().join("tmp/jvm-test/basetypes").join(name);
