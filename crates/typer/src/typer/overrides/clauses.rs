@@ -4,7 +4,7 @@
 //! `compareMethod` and `comparePoly` do.
 
 use super::super::Typer;
-use tasty::{Binder, NameId, SymbolId, Type, TypeId};
+use tasty::{Binder, Kind, NameId, SymbolId, Type, TypeId};
 
 /// A parameter clause of a method type.
 pub struct Clause {
@@ -25,10 +25,25 @@ pub fn clause(t: &Typer<'_>, info: TypeId) -> Option<Clause> {
     Some(Clause { is_type, implicit, binder, params: t.u.params_of(params).to_vec(), result })
 }
 
+/// The type of member `s` of `prefix`, its references to its own type parameters made references
+/// to the parameters of its polymorphic type before it is seen from `prefix`.
+pub fn own_params_info(t: &mut Typer<'_>, prefix: TypeId, s: SymbolId) -> TypeId {
+    let own = t.u.type_params(s);
+    let owner = t.u.symbol(s).owner.filter(|&o| t.u.symbol(o).kind == Kind::Class);
+    let Some(owner) = owner.filter(|_| !own.is_empty()) else { return t.u.own_member_info(prefix, s) };
+    let mut info = t.u.info(s);
+    let mut offset = 0;
+    for (binder, n) in t.u.poly_binders(info) {
+        info = type_param_refs(t, info, own.get(offset..offset + n).unwrap_or_default(), binder);
+        offset += n;
+    }
+    t.u.as_seen_from(info, prefix, owner)
+}
+
 /// Whether clause `a` of an overriding method may override clause `b`, both of a kind and of a
 /// length: an implicit or `using` clause only by another, type parameters only by ones whose
-/// bounds contain `b`'s; `own` holds the type parameter symbols of `a` and of `b`.
-pub fn clause_overrides(t: &mut Typer<'_>, a: &Clause, b: &Clause, own: (&[SymbolId], &[SymbolId])) -> bool {
+/// bounds contain `b`'s.
+pub fn clause_overrides(t: &mut Typer<'_>, a: &Clause, b: &Clause) -> bool {
     if b.implicit && !a.implicit {
         return false;
     }
@@ -39,8 +54,7 @@ pub fn clause_overrides(t: &mut Typer<'_>, a: &Clause, b: &Clause, own: (&[Symbo
         a.params.iter().zip(&b.params).map(|(&(_, x), &(_, y))| (x, y)).collect();
     pairs.into_iter().all(|(ia, ib)| {
         let ib = t.u.with_binder(ib, (b.binder, &b.params), a.binder);
-        let renamed = (type_param_refs(t, ia, own.0, a.binder), type_param_refs(t, ib, own.1, a.binder));
-        bounds_contain(t, renamed) || bounds_contain(t, (ia, ib))
+        bounds_contain(t, (ia, ib))
     })
 }
 
@@ -70,7 +84,7 @@ pub fn split_bounds(t: &mut Typer<'_>, info: TypeId) -> Option<(TypeId, TypeId)>
 }
 
 /// `ty` with references to type parameters `params` made references to parameters of `binder`.
-pub fn type_param_refs(t: &mut Typer<'_>, ty: TypeId, params: &[SymbolId], binder: Binder) -> TypeId {
+fn type_param_refs(t: &mut Typer<'_>, ty: TypeId, params: &[SymbolId], binder: Binder) -> TypeId {
     t.u.map_type(ty, &mut |u, x| {
         let Some((None, s)) = u.sym_ref(x) else { return None };
         params.iter().position(|&p| p == s).map(|i| u.intern_type(Type::Param(binder, i as u32)))

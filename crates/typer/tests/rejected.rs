@@ -174,6 +174,15 @@ fn implementations_with_other_clauses_access_or_java_parameters() {
             ),
             ("trait A { def f[D[X]]: Int }\nclass B extends A { def f[D[+X]]: Int = 1 }\n", incompatible),
             (
+                "class Q[T](t: T) {
+  def m[E](x: E): T = {
+    val q: Q[E] = new Q[E](x) { override def m[E2](y: E2): E2 = y }
+    t
+  }
+}\n",
+                incompatible,
+            ),
+            (
                 "trait A { def f: Int }\nclass P { protected def f: Int = 1 }\nclass B extends P with A\n",
                 "override with weaker access",
             ),
@@ -204,6 +213,12 @@ class Push[+T] extends L[T] {
   def > (that: T): Boolean = that < this
 }
 class A(val x: String) extends Cmp[A] { def < (that: A) = this.x < that.x }\n",
+            "class P {
+  def m[E <: Comparable[E]](x: E): Int = {
+    val q = new P { override def m[E2 <: Comparable[E2]](x: E2): Int = 2 }
+    1
+  }
+}\n",
         ],
     );
 }

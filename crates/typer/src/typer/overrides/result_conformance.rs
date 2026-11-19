@@ -5,7 +5,7 @@
 //! `Type.overrides` of `checkOverride`, with its `upwardsSelf` retry).
 
 use super::super::Typer;
-use super::clauses::{clause, clause_overrides, type_param_refs};
+use super::clauses::{clause, clause_overrides, own_params_info};
 use crate::symbols::Completion;
 use tasty::{Kind, SymbolId, Type, TypeId, Universe};
 
@@ -21,18 +21,12 @@ pub fn result_conforms(t: &mut Typer<'_>, site: TypeId, d: SymbolId, m: SymbolId
 /// in the class of `site`, else with abstract types replaced by the aliases overriding them and a
 /// type parameter result by its bound; false if a clause of `d` may not override `m`'s.
 fn results_conform(t: &mut Typer<'_>, (site, prefix): (TypeId, TypeId), d: SymbolId, m: SymbolId) -> bool {
-    let (mut rd, mut rm) = (t.u.own_member_info(prefix, d), t.u.own_member_info(prefix, m));
-    let (td, tm) = (t.u.type_params(d), t.u.type_params(m));
-    let (mut offset, mut bounds, mut own_clauses) = (0, Vec::new(), Vec::new());
+    let (mut rd, mut rm) = (own_params_info(t, prefix, d), own_params_info(t, prefix, m));
+    let (mut bounds, mut own_clauses) = (Vec::new(), Vec::new());
     loop {
         match (clause(t, rd), clause(t, rm)) {
             (Some(a), Some(b)) if a.is_type == b.is_type && a.params.len() == b.params.len() => {
-                let n = if a.is_type { a.params.len() } else { 0 };
-                let own = (
-                    td.get(offset..offset + n).unwrap_or_default(),
-                    tm.get(offset..offset + n).unwrap_or_default(),
-                );
-                if !clause_overrides(t, &a, &b, own) {
+                if !clause_overrides(t, &a, &b) {
                     return false;
                 }
                 let rb = t.u.param_syms_as_refs(b.result, &b.params, b.binder);
@@ -42,12 +36,9 @@ fn results_conform(t: &mut Typer<'_>, (site, prefix): (TypeId, TypeId), d: Symbo
                     own_clauses.push((a.binder, a.params.clone()));
                 }
                 if a.is_type {
-                    rd = type_param_refs(t, rd, td.get(offset..offset + n).unwrap_or_default(), a.binder);
-                    rm = type_param_refs(t, rm, tm.get(offset..offset + n).unwrap_or_default(), a.binder);
                     for (i, &(_, info)) in a.params.iter().enumerate() {
                         bounds.push((t.u.intern_type(Type::Param(a.binder, i as u32)), info));
                     }
-                    offset += n;
                 }
             }
             (Some(a), _) if !a.is_type && a.params.is_empty() => rd = a.result,
