@@ -128,6 +128,7 @@ const DOTTY_TASTY: &[(&str, &[&str])] = &[
     ("closurecaptures", &["Closures"]),
     ("fieldcaptures", &["C", "D", "E", "F", "H"]),
     ("casecaptures", &["C", "G", "H", "W", "O"]),
+    ("dependentcases", &["S", "O"]),
     ("wildcardmembers", &["WildcardMembers"]),
     ("newarrays", &["NewArrays"]),
     ("anymembers", &["AnyMembers"]),
@@ -156,7 +157,7 @@ const DOTTY_TASTY: &[(&str, &[&str])] = &[
 /// the argument's set in the type argument (`ByNameArgs` of typercaptures.scala), a field's
 /// written set names the fields for the constructor's parameters (fieldcaptures.scala), and a
 /// case class's `copy`, `apply` and `fromProduct` their own parameters and values for them
-/// (casecaptures.scala);
+/// (casecaptures.scala), also in path-dependent types (dependentcases.scala);
 /// annotated types take the annotation tree of their own
 /// origin in match selectors and patterns, inferred types, super accessors and inline accessors,
 /// in super accessors with their class's type parameters seen from the accessor's class; secondary constructors have their own type parameters and parameters passed on to the
