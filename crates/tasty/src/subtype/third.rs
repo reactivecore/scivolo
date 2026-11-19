@@ -101,7 +101,8 @@ impl Cmp<'_> {
     }
 
     /// `a <: v` for variable `b = v` without instance: through its lower bound, else by
-    /// constraining it with `a`, an applied alias expanded unless to a match type.
+    /// constraining it with `a` unexpanded; an applied alias of a union compared by its
+    /// expansion (dotty's `compareTypeParamRef`).
     fn var_above(&mut self, a: TypeId, b: TypeId, v: VarId) -> bool {
         let always = match self.frozen() {
             true => {
@@ -120,8 +121,10 @@ impl Cmp<'_> {
                     Type::ByName(r) => r,
                     Type::Applied(tycon, args) => {
                         let args = self.u.types_of(args).to_vec();
-                        let expanded = self.applied_alias_expansion(tycon, &args);
-                        expanded.filter(|&e| !matches!(self.u.ty(e), Type::Match { .. })).unwrap_or(a)
+                        match self.applied_alias_expansion(tycon, &args) {
+                            Some(e) if matches!(self.u.ty(e), Type::Or(..)) => return self.recur(e, b),
+                            _ => a,
+                        }
                     }
                     _ => a,
                 };

@@ -86,7 +86,8 @@ impl TypeOps<'_> {
 }
 
 impl Typer<'_> {
-    /// `v`'s lower bound widened below `v`, which may constrain `v`, or its upper bound, simplified
+    /// `v`'s lower bound widened below `v`, which may constrain `v`, or its upper bound unless that
+    /// contains `v` (dotty's `approximation`), simplified
     /// after instantiating the type variables of its match aliases (dotty's `instanceType`); a
     /// member of an instantiated variable reduced through its refinement, dealiased if `forced`
     /// (`isFullyDefined`).
@@ -96,7 +97,8 @@ impl Typer<'_> {
         (from_below, forced): (bool, bool),
     ) -> Result<TypeId, &'static str> {
         let (lo, hi) = self.constraint.bounds(v);
-        let bound = self.with_refined_var_members(if from_below { lo } else { hi }, forced);
+        let use_lower = from_below || self.open_vars(hi).contains(&v);
+        let bound = self.with_refined_var_members(if use_lower { lo } else { hi }, forced);
         let inst = self.zonk(bound);
         let inst = self.with_match_alias_vars_defined(inst);
         let inst = self.simplified_inferred(inst);
@@ -131,12 +133,7 @@ impl Typer<'_> {
         {
             return Err("singleton instance below another type variable");
         }
-        let mut cyclic = false;
-        self.u.map_type(inst, &mut |u, part| {
-            cyclic |= *u.ty(part) == Type::Var(v);
-            None
-        });
-        if cyclic {
+        if self.open_vars(inst).contains(&v) {
             return Err("type variable instantiated to a type containing it");
         }
         if let Type::And(a, b) | Type::Or(a, b, _) = *self.u.ty(inst)
