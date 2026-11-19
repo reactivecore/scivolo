@@ -61,11 +61,28 @@ fn check(rejected: &[(&str, &str)], accepted: &[&str]) {
 #[test]
 fn local_class_vars_in_the_type_of_a_block() {
     check(
-        &[],
-        &["trait Foo extends reflect.Selectable
+        &[(
+            "import scala.language.reflectiveCalls
+trait Foo
+def f: Int =
+  val x = new Foo { var i: Int = 0 }
+  x.i\n",
+            "value i is not a member of Foo",
+        )],
+        &[
+            "trait Foo extends reflect.Selectable
 def f: Unit =
   val x = new Foo { var i: Int = 0 }
-  x.i = 1\n"],
+  x.i = 1\n",
+            "trait Foo extends reflect.Selectable
+def f: Int =
+  val x = new Foo { var i: Int = 0 }
+  x.i\n",
+            "trait Foo extends reflect.Selectable
+def f: Int =
+  val x = new Foo { val i: Int = 0 }
+  x.i\n",
+        ],
     );
 }
 

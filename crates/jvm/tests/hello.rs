@@ -94,6 +94,11 @@ fn partial_applications_take_apply_under_scala_3_3() {
 }
 
 #[test]
+fn blocks_selecting_structural_members_of_local_selectables_run() {
+    runs_on_the_jvm("selectableblock", "Test");
+}
+
+#[test]
 fn several_files_run_on_the_jvm() {
     runs_on_the_jvm("units", "Units");
 }
