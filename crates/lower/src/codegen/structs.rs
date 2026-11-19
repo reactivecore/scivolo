@@ -70,7 +70,7 @@ impl Gen<'_, '_> {
             return unsupported(self.l.tpd.span(td), "lambdas in a `@struct` class");
         }
         let existing: Vec<nir::GlobalId> = self.defns[first..].iter().map(|d| d.name).collect();
-        let forwarders = self.static_method_forwarders(&existing)?;
+        let forwarders = self.static_method_forwarders(&existing);
         self.defns.extend(forwarders);
         Ok(())
     }

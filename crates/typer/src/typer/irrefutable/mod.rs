@@ -9,6 +9,7 @@ mod warnings;
 
 use super::Typer;
 use crate::tpd::{TNodeId, Tree as T};
+use syntax::config::SourceVersion;
 use tasty::{Type, TypeId, Universe};
 
 /// The annotation `(x: @unchecked)` that turns off the checks of a pattern's selector.
@@ -29,8 +30,8 @@ pub enum Refutable {
 impl Typer<'_> {
     /// Ascribes `@RuntimeChecked` to selector `sel` of a pattern definition (`pat_def`), as
     /// `val Some(x) = opt`, or of a generator whose pattern is `pat`, unless annotated so or
-    /// `@unchecked`; warns about a refutable `pat` in a definition. Refuses a refutable pattern
-    /// in a generator and an otherwise annotated selector.
+    /// `@unchecked`; warns about a refutable `pat` in a definition from Scala 3.2. Refuses a
+    /// refutable pattern in a generator and an otherwise annotated selector.
     pub fn runtime_checked(
         &mut self,
         sel: TNodeId,
@@ -45,7 +46,8 @@ impl Typer<'_> {
         if self.u.annotated(sel_tpe).is_some() {
             return Err("annotated selector of a pattern definition");
         }
-        if let Err(reason) = check::check_irrefutable(self, pat, sel_tpe) {
+        let checked = self.source_version.is_at_least(SourceVersion::V3_2);
+        if checked && let Err(reason) = check::check_irrefutable(self, pat, sel_tpe) {
             if !pat_def || matches!(reason, Refutable::Unknown) {
                 return Err(if pat_def {
                     "refutable pattern definition"

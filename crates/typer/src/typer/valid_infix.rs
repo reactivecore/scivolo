@@ -7,6 +7,7 @@
 use super::Typer;
 use names::nme;
 use syntax::ast::{Attrs, NodeId, Span, Tree};
+use syntax::config::{Migration, Severity};
 use syntax::scan::chars::{is_identifier_part, is_operator_part};
 use tasty::SymbolId;
 use tasty::tags::{CASE, INFIX};
@@ -51,8 +52,10 @@ impl Typer<'_> {
 
     /// dotty's `errorOrMigrationWarning` with `MigrationVersion.AlphanumericInfix`.
     fn invalid_infix(&mut self, op: Span, kind: &str, alternative: String, name: &str) -> bool {
-        if self.source_future || self.scala2 {
-            return self.source_future;
+        match Migration::AlphanumericInfix.severity(self.source_version) {
+            Some(Severity::Error) => return true,
+            Some(Severity::Warning) => {}
+            None => return false,
         }
         let rewrite = self.rewrite_notice("The latter", "3.4-migration");
         let msg = format!(
