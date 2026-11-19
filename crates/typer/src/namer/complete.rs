@@ -113,7 +113,7 @@ impl Typer<'_> {
         if !self.u.compiles_scala_library() {
             return;
         }
-        for s in self.pending(|u, s| u.is_static_module(s)) {
+        for s in self.pending(|u, s| u.is_package_object(s)) {
             self.complete(s);
         }
         let aliases = self.pending(|u, s| {
