@@ -678,3 +678,18 @@ fn java_class_constructor_arguments_are_refused_without_the_jdk() {
     let java = "trait Bind[Z[_]]\nobject J { val b = new Bind[java.util.ArrayList] {} }\n";
     check(&[(java, "unsupported Java class type constructor argument")], &[]);
 }
+
+#[test]
+fn recursive_match_type_aliases_used_from_outside_their_object() {
+    let merge = "object Ops:
+  opaque type NT[N <: Tuple, +X <: Tuple] >: X <: Any = X
+  type Merge[N <: Tuple, X <: Tuple, Y <: Tuple] = Y match
+    case y *: ys => Merge[N, y *: X, ys]
+    case EmptyTuple => NT[N, X]
+object Test:
+  import Ops.*
+  def x: Merge[Tuple1[\"a\"], EmptyTuple, Tuple1[1]] = ???
+  def y: NT[Tuple1[\"a\"], Tuple1[1]] = x
+";
+    check(&[], &[merge]);
+}
