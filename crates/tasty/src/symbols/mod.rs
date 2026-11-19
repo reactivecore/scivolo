@@ -226,6 +226,9 @@ pub struct Universe {
     pub reductions_exhausted: bool,
     /// How the cases of match types are matched, by the source version of the code at hand.
     pub match_type_rules: crate::MatchTypeRules,
+    /// Whether an intersection of two applications of one constructor merges their arguments, by
+    /// the source version of the code at hand (dotty's `enablesDistributeAnd`).
+    pub distributes_and: bool,
     /// Whether normalized types keep capture-checking annotations: in a capture-checked file
     /// (ADR 0126).
     pub keeps_captures: bool,

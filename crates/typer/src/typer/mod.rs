@@ -461,6 +461,7 @@ impl<'a> Typer<'a> {
         u.reductions_exhausted = false;
         u.erasure_exhausted = false;
         u.match_type_rules = match_type_rules(v);
+        u.distributes_and = v.enables_distribute_and();
         u.keeps_captures = cfg.features.capture_checking();
         let mut syms = std::mem::take(syms);
         let ops = u.package(nme::OPS_PACKAGE);

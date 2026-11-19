@@ -31,6 +31,7 @@ struct MemoContext {
     /// How many opaque types defined outside TASTy have their aliases.
     opaque_aliases: usize,
     rules: MatchTypeRules,
+    distributes_and: bool,
 }
 
 /// The state a remembered computation leaves as it is: its context, the binders, skolems and
@@ -86,6 +87,7 @@ fn context(u: &Universe) -> Option<MemoContext> {
         opaques_elided: u.opaques_elided,
         opaque_aliases: u.opaque_aliases.len(),
         rules: u.match_type_rules,
+        distributes_and: u.distributes_and,
     })
 }
 
