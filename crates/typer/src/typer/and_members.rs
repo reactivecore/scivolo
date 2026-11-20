@@ -85,8 +85,9 @@ impl Typer<'_> {
         self.u.erased_method_type(ia).0 == self.u.erased_method_type(ib).0
     }
 
-    /// Whether both sides of intersection `t`, or of one nested in it, have members `name`, which
-    /// `and_members` cannot merge into one; `t` a `this` stands for its given self type.
+    /// Whether both sides of intersection `t`, or of one nested in it, have members `name` that
+    /// differ, which `and_members` cannot merge into one; `t` a `this` stands for its given self
+    /// type.
     pub fn needs_joint_member(&mut self, t: TypeId, name: &str) -> bool {
         let t = match *self.u.ty(t) {
             Type::This(c) => {
@@ -104,7 +105,8 @@ impl Typer<'_> {
         };
         let Type::And(a, b) = *self.u.ty(t) else { return false };
         let (ma, mb) = (self.type_members(a, name), self.type_members(b, name));
-        !ma.is_empty() && !mb.is_empty()
+        let same = ma == mb && ma.iter().all(|&s| self.u.member_info(a, s) == self.u.member_info(b, s));
+        !ma.is_empty() && !mb.is_empty() && !same
             || ma.is_empty() && self.needs_joint_member(a, name)
             || mb.is_empty() && self.needs_joint_member(b, name)
     }

@@ -849,3 +849,8 @@ fn self_types_aliased_after_the_inheriting_class_conform() {
 fn members_of_a_self_typed_class_leave_selections_to_conversions() {
     runs_on_the_jvm("selftypeviews", "selftypeviews");
 }
+
+#[test]
+fn members_both_sides_of_a_self_type_share_need_no_joint_member() {
+    runs_on_the_jvm("selftypeproxies", "selftypeproxies");
+}
