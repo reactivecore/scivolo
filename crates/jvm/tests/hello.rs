@@ -844,3 +844,8 @@ fn inline_values_folding_final_values_of_objects_run_on_the_jvm() {
 fn self_types_aliased_after_the_inheriting_class_conform() {
     runs_on_the_jvm("laterselfaliases", "laterselfaliases");
 }
+
+#[test]
+fn members_of_a_self_typed_class_leave_selections_to_conversions() {
+    runs_on_the_jvm("selftypeviews", "selftypeviews");
+}
