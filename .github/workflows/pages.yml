@@ -1,11 +1,10 @@
 name: Pages
 
 # The browser REPL (`just web-dist`) on GitHub Pages: built on pull requests, built and deployed
-# on main, on release tags and when run by hand.
+# on main and when run by hand.
 on:
   push:
     branches: [main]
-    tags: ["v*"]
   pull_request:
   workflow_dispatch:
 
