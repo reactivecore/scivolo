@@ -695,6 +695,27 @@ object Test:
 }
 
 #[test]
+fn ambiguous_givens_of_an_unconstrained_type_variable() {
+    let max = "object B:\n  val x = Nil.max\n";
+    let both = "class C\nobject O:\n  given a: C = C()\n  given b: C = C()\n  val c = summon[C]\n";
+    check(
+        &[
+            (max, "Ambiguous given instances: both object "),
+            (
+                max,
+                " in object Ordering match type Ordering[B] of parameter ord of method max in trait IterableOnceOps",
+            ),
+            (
+                both,
+                "Ambiguous given instances: both given instance a in object O and given instance b in object O \
+                 match type C of parameter x of method summon in object Predef",
+            ),
+        ],
+        &["object B:\n  val x = List(1).max\n"],
+    );
+}
+
+#[test]
 fn applied_aliases_of_nothing_are_arguments_of_any_kind() {
     let bind = "trait Bind[Z[_]]\ntype F[X] = Nothing\nobject O { val b: Bind[F[Int]] = null }\n";
     check(&[], &[bind]);

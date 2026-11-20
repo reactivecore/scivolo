@@ -52,6 +52,13 @@ pub fn missing_given(tpe: &str, place: &str) -> Message {
     message(172, "Type", false, format!("No given instance of type {tpe} was found for {place}"))
 }
 
+/// `MissingImplicitArgument` for candidates `a` and `b`, shown with location, both of the type
+/// shown as `tpe`, searched for `place`, with no `implicitAmbiguous` message.
+pub fn ambiguous_givens(a: &str, b: &str, tpe: &str, place: &str) -> Message {
+    let text = format!("Ambiguous given instances: both {a} and {b} match type {tpe} of {place}");
+    message(172, "Type", false, text)
+}
+
 /// `DuplicateBind` for pattern variable `name`.
 pub fn duplicate_bind(name: &str) -> Message {
     message(5, "Naming", true, format!("duplicate pattern variable: {name}"))
