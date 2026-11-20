@@ -1,7 +1,7 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/core/unpickleScala2/Scala2Unpickler.scala
-//! The order in which a pickle is entered: roots, symbols, classes, type members, the other
-//! members, annotations; and the members refused on the way.
+//! The order in which a pickle is entered: roots, symbols, classes, the private values of value
+//! classes, type members, the other members, annotations; and the members refused on the way.
 
 use super::super::{Kind, SymbolId, Universe};
 use super::{Sym, Unpickler};

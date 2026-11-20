@@ -144,15 +144,15 @@ fn scala2_class_files_are_read() {
 
 /// scivolo-jvm refuses the programs of tests/jvm/scala2 that use what it does not read of the
 /// Scala 2 classes of their jars, by name: refused/nested_refused.scala uses an object whose
-/// parent was entered while a refused class (with an implicit member not read) was and refers to it; refused/existential.scala
-/// calls a method of an existential type dotty approximates, refused/structural.scala one of a
-/// structural type, refused/nested_member.scala one of a nested object of a dependent method
-/// type, which an extension method would answer; refused/private_within.scala a member
-/// `private[refused]`, which dotty
-/// rejects; shapes/case_match.scala matches on a Scala 2 case class; secret.scala extends a
-/// trait with a private `val`, memo.scala one with a private `lazy val`, effect.scala one with a
-/// `val` of type `Unit` whose getter Scala 2 erases to `()V` (dotty's class lacks it:
-/// `NoSuchMethodError`); macros.scala calls a Scala 2 macro, which dotty rejects too; and
+/// parent was entered while a refused class (with an implicit member not read) was and refers to
+/// it; refused/existential.scala calls a method of an existential type dotty approximates,
+/// refused/structural.scala one of a structural type, refused/nested_member.scala one of a nested
+/// object of a dependent method type, which an extension method would answer;
+/// refused/private_within.scala a member `private[refused]`, which dotty rejects;
+/// shapes/case_match.scala matches on a Scala 2 case class; secret.scala extends a trait with a
+/// private `val`, memo.scala one with a private `lazy val`, effect.scala one with a `val` of type
+/// `Unit` whose getter Scala 2 erases to `()V` (dotty's class lacks it: `NoSuchMethodError`);
+/// macros.scala calls a Scala 2 macro, which dotty rejects too; and
 /// guard.scala and value.scala call a method and a value class's extension method whose erasure
 /// its class file lacks (`just scala2-fixture` swaps the objects' class files).
 #[test]
