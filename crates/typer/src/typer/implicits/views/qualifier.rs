@@ -112,11 +112,19 @@ impl Typer<'_> {
     }
 }
 
-/// Tells whether argument `a` is a literal or a path, or an application of one to such.
+/// Tells whether argument `a` is a literal or a path, an application of one to such, a
+/// conditional of such, or a function of declared parameter types.
 pub fn is_plain_arg(ast: &Ast, a: NodeId) -> bool {
     match *ast.tree(a) {
         Tree::Literal { .. } | Tree::Number { .. } | Tree::Ident { .. } => true,
-        Tree::Select { qualifier, .. } => is_plain_arg(ast, qualifier),
+        Tree::Select { qualifier, .. } | Tree::Parens { t: qualifier } => is_plain_arg(ast, qualifier),
+        Tree::Block { stats, expr: Some(expr) } if ast.items(stats).is_empty() => is_plain_arg(ast, expr),
+        Tree::If { cond, thenp, elsep: Some(elsep), .. } => {
+            [cond, thenp, elsep].iter().all(|&t| is_plain_arg(ast, t))
+        }
+        Tree::Function { args, mods: None, .. } => ast.items(args).iter().all(
+            |&p| matches!(*ast.tree(p), Tree::ValDef { tpt, .. } if !matches!(ast.tree(tpt), Tree::TypeTree)),
+        ),
         Tree::TypeApply { fun, .. } => is_plain_arg(ast, fun),
         Tree::Apply { fun, args } => {
             is_plain_arg(ast, fun) && ast.items(args).iter().all(|&a| is_plain_arg(ast, a))

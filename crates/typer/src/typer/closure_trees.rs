@@ -20,9 +20,13 @@ impl Typer<'_> {
         sam: bool,
     ) -> TNodeId {
         let span = self.ast.span(id);
+        let parens = match *self.ast.tree(id) {
+            syntax::ast::Tree::Function { body: written, .. } => self.ast.parens_span(written),
+            _ => None,
+        };
         let result_at = match params.last() {
             Some(&p) => self.tpd.span(p).end_pos(),
-            None => self.tpd.span(body).start_pos(),
+            None => parens.unwrap_or_else(|| self.tpd.span(body)).start_pos(),
         };
         let tpt = self.type_tree(result, result_at, true);
         let def = self.build().def_def(anonfun, &[params], tpt, Some(body), span);

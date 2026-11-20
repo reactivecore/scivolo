@@ -158,9 +158,11 @@ impl<'a> ViewSearch<'a> {
                 })?;
                 widened.retain(|c| !found.contains(c));
             }
-            if matches!(goal, Goal::Call(..) | Goal::Applied(..))
-                && found.len() > 1
-                && most_specific(t, &found, ctx).is_none()
+            let applied = matches!(goal, Goal::Applied(..)) && !found.is_empty();
+            if applied
+                || matches!(goal, Goal::Call(..))
+                    && found.len() > 1
+                    && most_specific(t, &found, ctx).is_none()
             {
                 found = match goal {
                     Goal::Call(name, proto) => self.applying(t, found, name, proto),

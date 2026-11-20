@@ -41,7 +41,10 @@ impl Typer<'_> {
         let t = self.zonk(t);
         let dealiased = self.u.dealias(t);
         let (unrefined, term_refined) = self.u.without_refinements(dealiased);
-        let Some(class) = self.u.class_symbol(unrefined).filter(|_| !term_refined) else { return Ok(None) };
+        if term_refined && !self.only_term_refinements(dealiased, unrefined) {
+            return Ok(None);
+        }
+        let Some(class) = self.u.class_symbol(unrefined) else { return Ok(None) };
         self.ensure_self(class);
         if self.u.given_self_type(class).is_some() {
             return Ok(None);
@@ -58,7 +61,11 @@ impl Typer<'_> {
         let parent = self
             .without_wildcard_args(parent, class, method)
             .ok_or("single abstract method type of a wildcard argument outside the subset")?;
-        let parent = if unrefined != dealiased && parent == unrefined { dealiased } else { parent };
+        if term_refined && !self.u.is_subtype(parent, dealiased) {
+            return Ok(None);
+        }
+        let parent =
+            if !term_refined && unrefined != dealiased && parent == unrefined { dealiased } else { parent };
         self.complete(method);
         let info = self.u.member_info(parent, method);
         let info = self.u.with_refined_aliases(info, parent);
@@ -70,6 +77,18 @@ impl Typer<'_> {
         }
         let (names, params) = params.iter().cloned().unzip();
         Ok(Some(Sam { params, result, parent, clause: (binder, names, method) }))
+    }
+
+    /// Whether the refinements of `refined` over `unrefined` all refine terms.
+    fn only_term_refinements(&mut self, mut refined: TypeId, unrefined: TypeId) -> bool {
+        while refined != unrefined {
+            let Type::Refined(p, _, info) = *self.u.ty(refined) else { return false };
+            if matches!(self.u.ty(info), Type::Alias(_) | Type::Bounds(..)) {
+                return false;
+            }
+            refined = p;
+        }
+        true
     }
 
     /// `parent`, an application of class `c`, its wildcard arguments replaced by their lower
