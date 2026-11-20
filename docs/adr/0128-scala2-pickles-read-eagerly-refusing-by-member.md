@@ -36,6 +36,19 @@ annotation arguments.
   objects, type members, default arguments and their getters, expanded names, macros, package
   objects, extending a class of a pickle.
 
+## Decision: linking and extending
+- **Linking guard**: the class file stays the check, not the source. A call of a member of a
+  Scala 2 class, and every method of a Scala 2 base class of a class compiled, must have its
+  name and erased descriptor in the class file read (the class's, or the object's `C$`), else
+  the program is refused naming member and descriptor. An erasure difference becomes a refusal,
+  never a `NoSuchMethodError` or a missing bridge. Fields of Scala 2 classes are never accessed.
+- **Extending** a Scala 2 class or trait is allowed, as dotty's `Mixin` does it for `Scala2x`:
+  a forwarder for each concrete trait method, the `$init$` call of a trait with one (a pickle
+  without `$init$` is `NoInits`), a field, getter and trait setter `T$_setter_$x_$eq` for each
+  concrete `val` (a pickle has no trait setters), a setter for a `var`, a lazy value calling
+  `T.x$`. Refused, naming the class: one with a member not read, and one whose class file has an
+  abstract method its pickle does not explain (getters of private values, super accessors).
+
 ## Alternatives
 - Lazy completers as dotty: rejected, `Universe` has no completer machinery and components run
   eagerly (ADR 0113).
