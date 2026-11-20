@@ -56,10 +56,12 @@ button:disabled { opacity: 0.5; cursor: progress; }
 body[data-mode="file"] .repl-only, body:not([data-mode="file"]) .file-only { display: none !important; }
 
 #file { padding-top: 0.5rem; font: 14px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
-#toolbar { display: flex; align-items: baseline; gap: 0.6rem; margin-bottom: 0.5rem;
+#toolbar { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.6rem; margin-bottom: 0.5rem;
   font-family: system-ui, sans-serif; }
-#file-status { color: var(--muted); }
-#file-stop[hidden] { display: none; }
+#toolbar button { flex: none; }
+#file-status { flex: 1 0 10rem; min-height: 1.45em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  color: var(--muted); }
+#file-stop[hidden] { display: inline-block; visibility: hidden; }
 #file-editor { display: flex; border: 1px solid var(--line); border-radius: 4px; }
 #gutter { padding: 0.4rem 0.6rem 0.4rem 1.2rem; text-align: right; color: var(--muted);
   border-right: 1px solid var(--line); user-select: none; white-space: pre; }
