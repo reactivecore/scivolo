@@ -167,6 +167,17 @@ impl Typer<'_> {
         found.first().copied().filter(|&m| m != s)
     }
 
+    /// Completes the type members by which the class of `t`'s prefix overrides the type member
+    /// `t` refers to, as `type ThisTree[+T] = DefDef[T]` for `d.ThisTree` of a `d: DefDef[T]`.
+    pub fn complete_overriders(&mut self, t: TypeId) {
+        let Type::Sym(Some(prefix), s) = *self.u.ty(t) else { return };
+        if self.u.is_type_symbol(s) {
+            for (m, _) in self.u.overriders(prefix, s) {
+                self.complete(m);
+            }
+        }
+    }
+
     /// Completes class `c` and the unit's classes among its base classes.
     fn complete_bases(&mut self, c: SymbolId) {
         loop {

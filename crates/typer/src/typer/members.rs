@@ -32,6 +32,9 @@ impl Typer<'_> {
             return self.members_within(hi, name, within);
         }
         let node = *self.u.ty(t);
+        if let Type::Applied(tycon, _) = node {
+            self.complete_overriders(tycon);
+        }
         match node {
             Type::Package(p) => self.package_members(p, name),
             Type::This(c) => {
@@ -43,7 +46,10 @@ impl Typer<'_> {
                     Some(k) => {
                         let self_type = self.u.self_type(k);
                         let found = self.members_within(self_type, name, within);
-                        if found.is_empty() { self.own_type_param_over_self(k, name) } else { found }
+                        if found.is_empty() {
+                            return self.own_type_param_over_self(k, name);
+                        }
+                        self.self_type_members(k, found, name)
                     }
                     None => self.members_within(c, name, within),
                 }
@@ -69,11 +75,7 @@ impl Typer<'_> {
                 }
                 _ => {
                     self.complete(s);
-                    if let Some(p) = prefix.filter(|_| self.u.is_type_symbol(s)) {
-                        for (m, _) in self.u.overriders(p, s) {
-                            self.complete(m);
-                        }
-                    }
+                    self.complete_overriders(t);
                     let info = match prefix {
                         Some(p) if !self.u.is_type_symbol(s) => {
                             let info = self.u.member_info(p, s);
@@ -86,7 +88,10 @@ impl Typer<'_> {
                             .or_else(|| self.u.opaque_underlying(s, prefix))
                             .or_else(|| prefix.and_then(|p| self.u.overriding_alias(p, s)))
                             .or_else(|| prefix.and_then(|p| self.u.overriding_bounds(p, s)))
-                            .unwrap_or_else(|| self.u.info(s)),
+                            .unwrap_or_else(|| match prefix {
+                                Some(p) => self.u.member_info(p, s),
+                                None => self.u.info(s),
+                            }),
                     };
                     let info = self.u.by_name(info).unwrap_or(info);
                     self.members_within(info, name, within)
@@ -128,6 +133,19 @@ impl Typer<'_> {
                 None => self.u.class_symbol(t).map_or_else(Vec::new, |c| self.class_members(c, name)),
             },
         }
+    }
+
+    /// Of members `found` of the self type of class `k`, those not private to another class; if
+    /// none, the non-private members of the self type (dotty's `goThis`).
+    fn self_type_members(&mut self, k: SymbolId, mut found: Vec<SymbolId>, name: &str) -> Vec<SymbolId> {
+        found.retain(|&s| {
+            !self.u.symbol(s).flags.has(tasty::tags::PRIVATE) || self.u.symbol(s).owner == Some(k)
+        });
+        if !found.is_empty() {
+            return found;
+        }
+        let self_type = self.u.self_type(k);
+        self.non_private_members(self_type, name)
     }
 
     /// The upper bound of `t`, `F[args]` for an abstract type `F` bounded by a type lambda, applied

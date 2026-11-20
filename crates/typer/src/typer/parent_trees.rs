@@ -10,7 +10,7 @@ use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
 use names::nme;
 use syntax::ast::{NodeId, Span, TName, Tree};
-use tasty::SymbolId;
+use tasty::{SymbolId, TypeId};
 
 impl Typer<'_> {
     /// The parent trees of class `cls`: those of `parents` typed in `ctx` without the duplicates
@@ -147,5 +147,15 @@ impl Typer<'_> {
         for a in self.tpd.items(args).to_vec() {
             self.tpd.get_mut(a).span = at;
         }
+    }
+
+    /// Whether parent type `tpe`, an alias of `dealiased`, names a class that a proper subclass of
+    /// the alias's class declares, as `Alias` of `trait One { type Op[A]; type Alias = Op[Int] }`
+    /// in `trait Two extends One { trait Op[A] }`.
+    pub fn overridden_in_subclass(&mut self, tpe: TypeId, dealiased: TypeId) -> bool {
+        let alias_owner = self.u.sym_of(tpe).and_then(|s| self.u.symbol(s).owner);
+        let class_owner = self.u.class_symbol(dealiased).and_then(|c| self.u.symbol(c).owner);
+        let (Some(a), Some(c)) = (alias_owner, class_owner) else { return false };
+        tpe != dealiased && a != c && self.u.is_class(a) && self.u.derives_from(c, a)
     }
 }

@@ -98,7 +98,10 @@ impl Typer<'_> {
             let body_tpe = self.tpd.tpe(body);
             types.push(self.types().by_name_result(body_tpe));
         }
-        let tpe = types.iter().fold(NOTHING, |acc, &t| self.u.lub_in(acc, t, &mut self.constraint));
+        let tpe = match typed_cases.is_empty() {
+            true => expr_tpe,
+            false => types.iter().fold(NOTHING, |acc, &t| self.u.lub_in(acc, t, &mut self.constraint)),
+        };
         let unit = crate::defn::type_ref(self.u, self.defn.unit);
         let finalizer_ctx = self.finalizer_ctx(expr, typed_cases, ctx);
         let finalizer = finalizer.map(|f| self.typed(f, Pt::Type(unit), finalizer_ctx));

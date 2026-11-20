@@ -12,7 +12,8 @@ use tasty::{Type, TypeId};
 impl Typer<'_> {
     /// Captures the wildcards of `t`: `List[? <: Number]` becomes `List[x.CAP]` for a fresh
     /// skolem `x` of type `scala.runtime.TypeBox[Nothing, Number]`, each wildcard bounded also by
-    /// its type parameter; `None` if `t` has no top-level wildcard argument.
+    /// its type parameter, as the JDK's class file reads it (`<FromJavaObject>` for `Object`);
+    /// `None` if `t` has no top-level wildcard argument.
     pub fn captured_wildcards(&mut self, t: TypeId) -> Option<TypeId> {
         captured(self, t, true)
     }
@@ -38,6 +39,21 @@ impl Typer<'_> {
         }
         let captured = captured(self, t, true)?;
         self.conforms(captured, pt).then(|| self.cast_to_captured(tree, captured))
+    }
+
+    /// Receiver `qual` of a call of one of extension methods `methods` of an implicit scope, cast
+    /// to its type with wildcards captured unless one of them takes it by name (dotty's
+    /// `captureWildcardsCompat` in `adapt` to the selection, its view search finding the
+    /// extension, then `checkNoWildcardCaptureForCBN`); an extension method in scope is no view.
+    pub fn captured_receiver(&mut self, qual: TNodeId, methods: &[tasty::SymbolId]) -> TNodeId {
+        if methods.iter().any(|&m| by_name_receiver(self, m)) {
+            return qual;
+        }
+        let t = self.zonk(self.tpd.tpe(qual));
+        match captured(self, t, true) {
+            Some(captured) => self.cast_to_captured(qual, captured).unwrap_or(qual),
+            None => qual,
+        }
     }
 
     /// Argument `arg` of a by-name parameter, an error if its wildcards were captured (dotty's
@@ -126,24 +142,46 @@ fn captured(t: &mut Typer<'_>, tpe: TypeId, java_unbounded: bool) -> Option<Type
     t.complete(type_box);
     let cap = t.u.decl(type_box, "CAP").ok()?.first().copied()?;
     t.complete(cap);
-    let java = !java_unbounded && t.u.class_symbol(tycon).is_some_and(|c| t.is_java_class_name(c));
+    let class = t.u.class_symbol(tycon).filter(|&c| t.is_java_class_name(c));
+    let java = !java_unbounded && class.is_some();
+    let object_bounded = class.and_then(|c| t.u.jdk_object_bounded_params(c)).unwrap_or_default();
+    let from_java_object = t.u.defn().from_java_object;
     let mut captured = Vec::new();
-    for (a, &p) in args.into_iter().zip(&params) {
+    for (i, (a, &p)) in args.into_iter().zip(&params).enumerate() {
         let a = t.with_param_bounds(a, Some(p), &params);
-        let Some((lo, hi)) = t.u.bounds(a) else {
+        let Some((lo, mut hi)) = t.u.bounds(a) else {
             captured.push(a);
             continue;
         };
-        let from_java_object = t.u.defn().from_java_object;
         let java_any = hi == tasty::ANY || t.u.sym_of(hi) == Some(from_java_object);
         if java && java_any {
             return None;
+        }
+        if hi == tasty::ANY && object_bounded.get(i) == Some(&true) {
+            hi = t.u.intern_type(Type::Sym(None, from_java_object));
         }
         let boxed = crate::defn::applied(t.u, type_box, vec![lo, hi]);
         let skolem = t.u.fresh_skolem(boxed);
         captured.push(t.u.intern_type(Type::Sym(Some(skolem), cap)));
     }
     Some(t.u.intern_applied(tycon, &captured))
+}
+
+/// Tells whether extension method `m` takes its receiver, the first parameter after its leading
+/// using clauses, by name.
+fn by_name_receiver(t: &mut Typer<'_>, m: tasty::SymbolId) -> bool {
+    t.complete(m);
+    let mut info = t.u.info(m);
+    loop {
+        match *t.u.ty(info) {
+            Type::Poly { result, .. } | Type::Method { result, implicit: true, .. } => info = result,
+            Type::Method { params, .. } => {
+                let Some(&(_, first)) = t.u.params_of(params).first() else { return false };
+                return t.u.by_name(first).is_some();
+            }
+            _ => return false,
+        }
+    }
 }
 
 /// Captures the wildcards of both sides of `&` or `|`, a side without any kept; `None` if

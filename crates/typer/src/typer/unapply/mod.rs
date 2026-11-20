@@ -13,6 +13,8 @@ mod seq_patterns;
 mod transparent;
 mod type_args;
 
+pub use fun::has_errors_since;
+
 use super::{Pt, Typer};
 use crate::ctx::{Ctx, Mode};
 use crate::tpd::{TNodeId, Tree as T};

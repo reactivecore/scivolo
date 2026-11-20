@@ -1,0 +1,11 @@
+scala-3/sbt/testing/Status.scala	ok		9	0	0	0	0
+scala/sbt/testing/Event.scala	ok		1	0	0	0	0
+scala/sbt/testing/EventHandler.scala	ok		1	0	0	0	0
+scala/sbt/testing/Fingerprints.scala	ok		3	0	0	0	0
+scala/sbt/testing/Framework.scala	ok		1	0	0	0	0
+scala/sbt/testing/Logger.scala	ok		1	0	0	0	0
+scala/sbt/testing/OptionalThrowable.scala	ok		1	0	0	0	0
+scala/sbt/testing/Runner.scala	ok		1	0	0	0	0
+scala/sbt/testing/Selectors.scala	ok		6	0	0	0	0
+scala/sbt/testing/Task.scala	ok		1	0	0	0	0
+scala/sbt/testing/TaskDef.scala	ok		1	0	0	0	0

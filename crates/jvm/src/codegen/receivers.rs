@@ -61,7 +61,11 @@ impl Gen<'_, '_> {
                 let c = match self.l.u.binary_name(c) == name {
                     true => c,
                     false => {
-                        self.l.u.linearization(c).into_iter().find(|&b| self.l.u.binary_name(b) == name)?
+                        match self.l.u.linearization(c).into_iter().find(|&b| self.l.u.binary_name(b) == name)
+                        {
+                            Some(b) => b,
+                            None => self.resolve_class(&internal(&name))?,
+                        }
                     }
                 };
                 if !self.l.u.derives_from(c, owner) {
