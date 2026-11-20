@@ -192,7 +192,8 @@ nir-stale:
 
 # The library compiled by the own frontend against Scala Native's build with Scala 3.9.0, the
 # unit tests on its jars and the test programs linked against them (`just ci-lib`): in scheduled
-# pipelines, and on demand in a merge request that touches the library scripts. The oracle is
+# pipelines, and on demand in a merge request that touches the library scripts and in pipelines
+# run by hand. The oracle is
 # cached per version of lib-oracle.sh and of the Scala Native checkout.
 lib:linux:
   stage: test
@@ -208,6 +209,9 @@ lib:linux:
     - if: $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes: [scripts/lib-*, scripts/native_modules.py, scripts/sn-report-compare.py, tests/lib/**/*, ci/Dockerfile, Justfile]
+      when: manual
+      allow_failure: true
+    - if: $CI_PIPELINE_SOURCE =~ /^(web|api)$/
       when: manual
       allow_failure: true
   cache:
