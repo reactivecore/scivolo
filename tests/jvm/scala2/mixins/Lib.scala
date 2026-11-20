@@ -33,6 +33,15 @@ trait Secret {
   def reveal: Int = hidden
 }
 
+trait Memo {
+  private lazy val once: Int = { println("once"); 5 }
+  def twice: Int = once + once
+}
+
+trait Effect {
+  val done: Unit = println("done")
+}
+
 trait Sized {
   def sizes(xs: List[_]): Int = xs.size
 }

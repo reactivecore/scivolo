@@ -128,7 +128,9 @@ fn scala2_class_files_are_read() {
 /// Scala 2 classes of their jars, by name: existential.scala calls a method whose type has an
 /// existential, overload.scala an overload of such a method whose other alternative is read,
 /// defaults.scala and byname.scala methods with a default argument and a by-name parameter;
-/// sized.scala extends a trait with such a method, secret.scala one with a private `val`;
+/// sized.scala extends a trait with such a method, secret.scala one with a private `val`,
+/// memo.scala one with a private `lazy val`, effect.scala one with a `val` of type `Unit`
+/// whose getter Scala 2 erases to `()V` (dotty's class lacks it: `NoSuchMethodError`);
 /// macros.scala calls a Scala 2 macro, which dotty rejects too; and
 /// guard.scala calls a method whose erasure its class file lacks (`just scala2-fixture` swaps
 /// the object's class file).
@@ -146,6 +148,12 @@ fn scala2_constructs_not_read_are_refused_by_name() {
         (
             "mixins/secret",
             "Scala 2 class `mixins.Secret` of a jar: its abstract method `mixins$Secret$_setter_$",
+        ),
+        ("mixins/memo", "Scala 2 class `mixins.Memo` of a jar: its member `once` has a private lazy value"),
+        (
+            "mixins/effect",
+            "Scala 2 member `mixins.Effect.done` of a jar: erased as `done()Lscala/runtime/BoxedUnit;`, \
+             not in the class file `mixins/Effect`",
         ),
         ("macros/macros", "Scala 2 member `macros.M$.one` of a jar: a macro"),
         (
