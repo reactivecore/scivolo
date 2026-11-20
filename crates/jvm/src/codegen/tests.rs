@@ -190,12 +190,20 @@ fn a_block_local_spans_the_athrow_after_the_block_value() {
 #[test]
 fn the_unit_of_a_discarded_value_marks_no_line() {
     let source = "object Disc {\n  def plain(a: Array[Object]): Unit =\n    Iterator[Object](\"x\").copyToArray(a,\n      0, 1\n    )\n}";
-    with_gen(source, |g, root| {
-        let mut pool = Pool::default();
-        let table = with_body(g, root, "plain", &mut pool, |b| b.code.line_table().unwrap_or_default());
-        let lines: Vec<u16> = table[2..].chunks(4).map(|r| u16::from_be_bytes([r[2], r[3]])).collect();
-        assert_eq!(lines, [3, 4]);
-    });
+    with_gen(source, |g, root| assert_eq!(lines(g, root, "plain"), [3, 4]));
+}
+
+#[test]
+fn the_unit_of_an_erased_result_marks_no_line() {
+    let source = "object Disc {\n  def spawn(f: => Unit): Unit = f\n  def call(g: String => Unit, p: String): Unit =\n    spawn {\n      g {\n        try p.trim()\n        catch {\n          case e: Exception => \"\"\n        }\n      }\n    }\n}";
+    with_gen(source, |g, root| assert_eq!(lines(g, root, "call$$anonfun$1"), [5, 6, 8]));
+}
+
+/// The lines of the `LineNumberTable` of instance method `name` as `code` makes it.
+fn lines(g: &mut Gen, root: TNodeId, name: &str) -> Vec<u16> {
+    let mut pool = Pool::default();
+    let table = with_body(g, root, name, &mut pool, |b| b.code.line_table().unwrap_or_default());
+    table[2..].chunks(4).map(|r| u16::from_be_bytes([r[2], r[3]])).collect()
 }
 
 #[test]
