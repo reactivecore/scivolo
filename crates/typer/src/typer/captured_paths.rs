@@ -8,9 +8,8 @@ use tasty::{Type, TypeId};
 
 impl TypeOps<'_> {
     /// Whether stable path `a` conforms to class type `b`, or to each side of intersection `b`,
-    /// through aliases,
-    /// with the wildcard arguments of its base type in `b`'s class replaced by the type
-    /// parameters selected on `a`.
+    /// through aliases, with the wildcard arguments of its base type in `b`'s class replaced by
+    /// the type parameters selected on `a`.
     pub fn conforms_captured_path(&mut self, a: TypeId, b: TypeId) -> bool {
         if !matches!(self.u.ty(a), Type::Sym(..) | Type::TermRef(..))
             || !super::stability::is_stable_path(self.u, a)
