@@ -16,7 +16,7 @@ use super::{Kind, SymbolId, Universe};
 use crate::tags::IMPLICIT;
 use buffer::PickleBuffer;
 use format::{CLASSsym, EXTMODCLASSref, NONEsym, REFINE_CLASS, TERMname, TYPEname, VALsym};
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 
 /// What a symbol entry of the pickle stands for.
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -34,7 +34,8 @@ pub enum Sym {
 }
 
 /// The reading of one pickle: its entries, the package and name of the class file, the symbol
-/// of each symbol entry read, the method type parameters in scope and the members refused.
+/// of each symbol entry read, the method type parameters in scope, the symbols entered by entry
+/// and as a set, and the members refused.
 pub struct Unpickler {
     buf: PickleBuffer,
     index: Vec<usize>,
@@ -43,6 +44,7 @@ pub struct Unpickler {
     syms: FxHashMap<usize, Sym>,
     params: FxHashMap<usize, crate::TypeId>,
     entered: Vec<(usize, SymbolId)>,
+    own: FxHashSet<SymbolId>,
     refused: Vec<(SymbolId, String, String)>,
 }
 
@@ -67,6 +69,7 @@ pub fn enter(u: &mut Universe, pkg: SymbolId, simple: &str, text: &[u8]) -> Resu
         syms: FxHashMap::default(),
         params: FxHashMap::default(),
         entered: Vec::new(),
+        own: FxHashSet::default(),
         refused: Vec::new(),
     };
     let roots = up.run(u);

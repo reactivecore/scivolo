@@ -72,7 +72,7 @@ impl Unpickler {
 
     /// Whether `s` was entered from this pickle.
     fn is_own(&self, s: SymbolId) -> bool {
-        self.entered.iter().any(|&(_, e)| e == s)
+        self.own.contains(&s)
     }
 
     /// Enters the class root, the object's class root or the object root (dotty's `isClassRoot`,
@@ -157,6 +157,7 @@ impl Unpickler {
     /// Records `s` as entered from entry `i` and gives it the access qualifier of `h`.
     fn enter(&mut self, u: &mut Universe, i: usize, h: &Header, s: SymbolId) -> Result<(), String> {
         self.entered.push((i, s));
+        self.own.insert(s);
         self.syms.insert(i, Sym::Known(s));
         if let Some(within) = h.within {
             let Sym::Known(q) = self.sym(u, within)? else { return Ok(()) };

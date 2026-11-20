@@ -23,6 +23,7 @@ impl Unpickler {
             flags.extend((ph.flags & f::CONTRAVARIANT != 0).then_some(CONTRAVARIANT));
             let s = synthetic(u, class, &decode(&ph.name), Kind::TypeParam, &flags);
             self.entered.push((p, s));
+            self.own.insert(s);
             self.syms.insert(p, Sym::Known(s));
         }
         Ok(())
