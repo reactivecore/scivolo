@@ -104,7 +104,7 @@ impl Parser<'_> {
                 self.ast.node(Tree::TypeDef { name: TName { is_type: true, ..name }, rhs: templ, mods: m })
             }
         };
-        let gdef = self.finalize_def(gdef, mods1);
+        let gdef = self.finalize_def(gdef, mods1, start);
         self.at_span2(start, point, gdef)
     }
 

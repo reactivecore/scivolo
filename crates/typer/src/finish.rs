@@ -3,10 +3,12 @@
 
 use crate::Typer;
 use crate::inlining::Lent;
-use crate::pickle::{ERROR_TYPE, FileAttributes, Pickled, QuoteSource, Refusal, pickle_file};
+use crate::pickle::{ERROR_TYPE, FileAttributes, FileFacts, Pickled, QuoteSource, Refusal, pickle_file};
 use crate::tpd::TNodeId;
 use crate::{Fallback, Typed, Units};
+use rustc_hash::FxHashMap;
 use syntax::ast::Span;
+use tasty::SymbolId;
 use syntax::diag::{Diagnostic, Level};
 
 /// Adds the synthetic members of the classes of typed unit `root`, its files starting at the
@@ -142,8 +144,10 @@ impl Units {
     fn pickle_files(&mut self, typer: &mut Typer, files: &[TNodeId], out: &mut Vec<Pickled>) {
         let Some(sources) = &self.tasty_sources else { return };
         let others_fail = typer.diags.has_errors() || !self.refused.is_empty();
+        let documented = typer.ast.doc_comments().filter_map(|(md, c)| Some((*typer.syms.by_tree.get(&md)?, c)));
+        let doc_comments: FxHashMap<SymbolId, Span> = documented.collect();
         for &f in files {
-            let Err((at, what)) = pickle_one(typer, sources, f, out) else { continue };
+            let Err((at, what)) = pickle_one(typer, sources, f, (&doc_comments, out)) else { continue };
             if what == ERROR_TYPE && others_fail {
                 continue;
             }
@@ -156,12 +160,13 @@ impl Units {
     }
 }
 
-/// Pickles the top-level classes of typed source file `f` of `sources` into `out`.
+/// Pickles the top-level classes of typed source file `f` of `sources` into `out`, with the doc
+/// comments of the definitions `doc_comments` has.
 fn pickle_one(
     typer: &mut Typer,
     sources: &[(syntax::source::SourceFile, syntax::source::Offset)],
     f: TNodeId,
-    out: &mut Vec<Pickled>,
+    (doc_comments, out): (&FxHashMap<SymbolId, Span>, &mut Vec<Pickled>),
 ) -> Result<(), (Span, Refusal)> {
     let at = typer.tpd.span(f);
     let index = typer.file_of(at);
@@ -179,7 +184,8 @@ fn pickle_one(
     source.others = sources.iter().filter(|(_, b)| b != base).map(|(f, b)| (f, *b)).collect();
     let annotations = typer.with_child_annotations(f).map_err(|r| (at, r))?;
     let cx = (&mut *typer.u, &mut typer.tpd, &mut *typer.names);
-    let pickled = pickle_file(cx, f, &source, (attributes, &annotations));
+    let facts = FileFacts { attributes, annotations: &annotations, doc_comments };
+    let pickled = pickle_file(cx, f, &source, facts);
     out.extend(pickled.map_err(|(span, r)| (if typer.file_of(span) == index { span } else { at }, r))?);
     Ok(())
 }

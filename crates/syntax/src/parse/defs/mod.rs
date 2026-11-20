@@ -60,8 +60,9 @@ impl ParamOwner {
 }
 
 impl Parser<'_> {
-    /// Give definition `md` its modifiers; warn about a template name ending in `:`.
-    pub fn finalize_def(&mut self, md: NodeId, mods: Modifiers) -> NodeId {
+    /// Give definition `md` its modifiers and the doc comment before its start `start`; warn
+    /// about a template name ending in `:`.
+    pub fn finalize_def(&mut self, md: NodeId, mods: Modifiers, start: Offset) -> NodeId {
         let backquoted = self.ast.get(md).attrs.contains(Attrs::BACKQUOTED);
         let empty_body =
             |p: &Self, t: NodeId| matches!(p.ast.tree(t), Tree::Template { body, .. } if body.is_empty());
@@ -80,7 +81,16 @@ impl Parser<'_> {
         }
         let id = self.ast.mods(mods);
         self.set_mods(md, id);
+        self.keep_doc_comment(md, start);
         md
+    }
+
+    /// Attaches the doc comment right before offset `start` to definition `md` (dotty's
+    /// `setComment(in.getDocComment(start))`).
+    pub fn keep_doc_comment(&mut self, md: NodeId, start: Offset) {
+        if let Some(comment) = self.s.doc_comment(start) {
+            self.ast.set_doc_comment(md, Span::new(comment.start, comment.end, comment.start));
+        }
     }
 
     pub fn set_mods(&mut self, md: NodeId, id: crate::ast::tree::ModsId) {
