@@ -200,7 +200,11 @@ impl TreePickler<'_> {
 
     /// The Comments section and the Attributes section of a file, its source the one of the
     /// Positions section (dotty's `pickleComments`, `pickleAttributes`).
-    pub fn file_sections(&mut self, attributes: &FileAttributes, source: &QuoteSource) -> Result<(), Refusal> {
+    pub fn file_sections(
+        &mut self,
+        attributes: &FileAttributes,
+        source: &QuoteSource,
+    ) -> Result<(), Refusal> {
         self.comments(source)?;
         let section = self.pickler.new_section("Attributes");
         let mut buf = tasty::write::Buffer::default();

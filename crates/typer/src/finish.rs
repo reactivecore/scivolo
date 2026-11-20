@@ -8,8 +8,8 @@ use crate::tpd::TNodeId;
 use crate::{Fallback, Typed, Units};
 use rustc_hash::FxHashMap;
 use syntax::ast::Span;
-use tasty::SymbolId;
 use syntax::diag::{Diagnostic, Level};
+use tasty::SymbolId;
 
 /// Adds the synthetic members of the classes of typed unit `root`, its files starting at the
 /// offsets given but the first (dotty's `SyntheticMembers` as PostTyper runs it), or why it cannot.
@@ -144,7 +144,8 @@ impl Units {
     fn pickle_files(&mut self, typer: &mut Typer, files: &[TNodeId], out: &mut Vec<Pickled>) {
         let Some(sources) = &self.tasty_sources else { return };
         let others_fail = typer.diags.has_errors() || !self.refused.is_empty();
-        let documented = typer.ast.doc_comments().filter_map(|(md, c)| Some((*typer.syms.by_tree.get(&md)?, c)));
+        let documented =
+            typer.ast.doc_comments().filter_map(|(md, c)| Some((*typer.syms.by_tree.get(&md)?, c)));
         let doc_comments: FxHashMap<SymbolId, Span> = documented.collect();
         for &f in files {
             let Err((at, what)) = pickle_one(typer, sources, f, (&doc_comments, out)) else { continue };

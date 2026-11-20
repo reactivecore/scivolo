@@ -69,12 +69,16 @@ impl Ast {
         id
     }
 
-    /// A new node with the tree, span and attributes of `id`.
+    /// A new node with the tree, span, doc comment and attributes of `id`.
     pub fn copy_node(&mut self, id: NodeId) -> NodeId {
         let node = self.get(id);
         let copy = Node { tree: node.tree.clone(), span: node.span, attrs: node.attrs };
         self.nodes.push(copy);
-        NodeId::new(self.nodes.len() - 1)
+        let copy = NodeId::new(self.nodes.len() - 1);
+        if let Some(comment) = self.doc_comment(id) {
+            self.set_doc_comment(copy, comment);
+        }
+        copy
     }
 
     /// The modifiers of definition `id`.

@@ -63,7 +63,8 @@ impl Desugar<'_> {
     fn spread_doc_comment(&mut self, stat: NodeId, expanded: NodeId) {
         let Some(comment) = self.ast.doc_comment(stat) else { return };
         for t in self.flatten(&[expanded]) {
-            let defines = matches!(self.ast.tree(t), Tree::ValDef { .. } | Tree::DefDef { .. } | Tree::TypeDef { .. });
+            let defines =
+                matches!(self.ast.tree(t), Tree::ValDef { .. } | Tree::DefDef { .. } | Tree::TypeDef { .. });
             if defines {
                 self.ast.set_doc_comment(t, comment);
             }
