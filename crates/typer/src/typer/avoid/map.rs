@@ -108,7 +108,7 @@ impl Avoid<'_> {
                 Some(approx::range(t.u, Approx::Exact(NOTHING), hi, v))
             }
             k if k.is_term() => {
-                let info = t.dealias_keep_refining(info);
+                let info = if k == Kind::Param { info } else { t.dealias_keep_refining(info) };
                 let hi = a.at(t, info, v)?;
                 if is_path(t.u, info) {
                     return Some(hi);
