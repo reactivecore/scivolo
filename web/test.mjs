@@ -102,4 +102,11 @@ await expectRun('@main def m(): Unit =\n  val x: Int = "a"\n',
   (r) => r.exit === 1 && r.errorLines.join() === "2" && r.lines.at(-1) === "1 error found");
 await expectRun("@main def m(): Unit = throw RuntimeException(\"boom\")\n",
   (r) => r.exit === 1 && r.lines[0] === "scivolo: uncaught exception: java.lang.RuntimeException: boom");
+const once = await load(module);
+once.loadImage(imageBytes, 80, HEAP_MIB);
+once.runFile("@main def m(): Unit = ()\n");
+const again = once.runFile("@main def m(): Unit = ()\n");
+if (again.exit !== 1 || !again.lines[0]?.includes("an instance runs one file")) {
+  throw new Error(`a second run in one instance: ${JSON.stringify(again)}`);
+}
 console.log(`web-test: ${files.length} transcripts, the browser checks and the file runs pass`);

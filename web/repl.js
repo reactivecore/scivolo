@@ -1,10 +1,11 @@
 // The page: a transcript and an input line. The session runs in a worker; a second instance of
 // the module without the library image highlights the input and decides when it is complete.
 
-import { choicesShown, hideChoices, moveChoice, selectedChoice, showChoices } from "./choices.js";
+import { choicesShown, hideChoices, moveChoice, selectedChoice, showChoices, wordStart } from "./choices.js";
 import { download } from "./download.js";
 import { fileMode, setupFileMode } from "./file.js";
-import { load } from "./scivolo.js";
+import { recall, remember } from "./history.js";
+import { highlight, light, startLight } from "./light.js";
 import { render } from "./sgr.js";
 
 const MODULE = new URL("scivolo.wasm", import.meta.url);
@@ -18,12 +19,9 @@ const [out, input, shade, status, stop, prompt] = ["out", "in", "shade", "status
 let module = null;
 let image = null;
 let ready = false;
-let editor = null;
 let worker = null;
 let pending = null;
 let nextId = 0;
-const history = [];
-let back = 0;
 
 function print(text, kind) {
   const line = document.createElement("div");
@@ -33,20 +31,9 @@ function print(text, kind) {
   line.scrollIntoView({ block: "nearest" });
 }
 
-// Calls `f` on the highlighting instance, made again if it trapped; `fallback` meanwhile.
-function light(f, fallback) {
-  try {
-    return editor ? f(editor) : fallback;
-  } catch {
-    editor = null;
-    load(module).then((r) => (editor = r));
-    return fallback;
-  }
-}
-
 function redraw() {
   const text = input.value;
-  shade.replaceChildren(render(light((r) => r.highlight(text), text)), "\n");
+  shade.replaceChildren(render(highlight(text)), "\n");
   input.rows = text.split("\n").length;
 }
 
@@ -97,7 +84,7 @@ function restart() {
 // Echoes the input highlighted, its first line after the prompt.
 function echo(text) {
   const indent = " ".repeat(prompt.textContent.length);
-  const lit = light((r) => r.highlight(text), text).replaceAll("\n", `\n${indent}`);
+  const lit = highlight(text).replaceAll("\n", `\n${indent}`);
   const line = document.createElement("div");
   const head = document.createElement("span");
   head.className = "prompt";
@@ -113,8 +100,7 @@ async function run(text) {
   input.value = "";
   redraw();
   if (text.trim() === "") return print("");
-  if (history.at(-1) !== text) history.push(text);
-  back = 0;
+  remember(text);
   busy(true);
   const reply = await ask({ type: "eval", text });
   reply?.lines.forEach((l) => print(l));
@@ -123,13 +109,6 @@ async function run(text) {
   print("");
   if (exit !== null) restart();
   else if (reply) busy(false);
-}
-
-// The start of the identifier that ends at `cursor` of `text`.
-function wordStart(text, cursor) {
-  let i = cursor;
-  while (i > 0 && /[\p{L}\p{N}_$]/u.test(text[i - 1])) i--;
-  return i;
 }
 
 function insert(label) {
@@ -151,11 +130,10 @@ async function complete() {
   if (labels.length > 1) showChoices(reply.groups, insert);
 }
 
-function recall(by) {
-  const at = Math.min(Math.max(back + by, 0), history.length);
-  if (at === back) return;
-  back = at;
-  input.value = back === 0 ? "" : history[history.length - back];
+function walk(by) {
+  const text = recall(by);
+  if (text === null) return;
+  input.value = text;
   redraw();
 }
 
@@ -179,10 +157,10 @@ input.addEventListener("keydown", (e) => {
     complete();
   } else if (e.key === "ArrowUp" && !input.value.slice(0, input.selectionStart).includes("\n")) {
     e.preventDefault();
-    recall(1);
+    walk(1);
   } else if (e.key === "ArrowDown" && !input.value.slice(input.selectionEnd).includes("\n")) {
     e.preventDefault();
-    recall(-1);
+    walk(-1);
   }
 });
 document.addEventListener("mouseup", () => {
@@ -196,19 +174,21 @@ stop.onclick = () => {
   restart();
 };
 
+const files = setupFileMode(() => input.focus());
+const note = (text) => (status.textContent = text, files.note(text));
 try {
   module = await WebAssembly.compile(await (await fetch(MODULE)).arrayBuffer());
-  editor = await load(module);
-  const files = setupFileMode((text) => light((r) => r.highlight(text), text), () => input.focus());
+  const editor = await startLight(module);
+  files.redraw();
   prompt.textContent = editor.prompt();
   print(editor.welcome());
   print("");
   const mb = (n) => (n / 1e6).toFixed(1);
   image = await download(IMAGE, (loaded, total) => {
-    status.textContent = `Downloading the Scala libraries: ${mb(loaded)}${total ? ` of ${mb(total)}` : ""} MB`;
+    note(`Downloading the Scala libraries: ${mb(loaded)}${total ? ` of ${mb(total)}` : ""} MB`);
   });
   files.ready(module, image, { width: WIDTH, heapMib: HEAP_MIB });
   restart();
 } catch (e) {
-  if (!window.reloadFresh()) status.textContent = `The REPL could not load: ${e}`;
+  if (!window.reloadFresh()) note(`The page could not load: ${e}`);
 }

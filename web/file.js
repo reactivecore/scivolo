@@ -2,6 +2,7 @@
 // that compiles and runs the file in a worker of its own, its output in a pane below. The mode
 // and the file are kept per browser.
 
+import { highlight } from "./light.js";
 import { render } from "./sgr.js";
 
 const KEYS = { mode: "scivolo.mode", text: "scivolo.file" };
@@ -17,6 +18,8 @@ const [code, shade, gutter, out, run, stop, status] =
 
 let runner = null;
 let errorLines = new Set();
+// Whether the gutter's error marks are older than `errorLines`.
+let marksStale = false;
 
 function stored(key, fallback) {
   try {
@@ -40,6 +43,8 @@ export function fileMode() {
 }
 
 function drawGutter(count) {
+  if (count === gutter.childElementCount && !marksStale) return;
+  marksStale = false;
   const lines = Array.from({ length: count }, (_, i) => {
     const line = document.createElement("div");
     line.textContent = String(i + 1);
@@ -70,17 +75,21 @@ function finish(reply) {
   reply.lines.forEach((l) => print(l));
   if (reply.exit !== null) print(`Exited with code ${reply.exit}.`, "note");
   errorLines = new Set(reply.errorLines);
+  marksStale = true;
   drawGutter(code.value.split("\n").length);
 }
 
-// Sets up the editor and the mode switch; `highlight` colours Scala source with SGR sequences,
-// `toRepl` runs when the REPL mode is chosen. Returns `ready(module, image, options)`, which
-// enables Run once the module and the library image are there.
-export function setupFileMode(highlight, toRepl) {
-  const redraw = () => {
-    shade.replaceChildren(render(highlight(code.value)), "\n");
-    drawGutter(code.value.split("\n").length);
-  };
+function redraw() {
+  shade.replaceChildren(render(highlight(code.value)), "\n");
+  code.scrollTop = code.scrollLeft = 0;
+  drawGutter(code.value.split("\n").length);
+}
+
+// Sets up the editor and the mode switch; `toRepl` runs when the REPL mode is chosen. Returns
+// `ready(module, image, options)`, which enables Run once the module and the library image are
+// there, `note(text)`, which shows the page's loading state until then, and `redraw()`, which
+// colours the file again once the highlighting instance is there.
+export function setupFileMode(toRepl) {
   const choose = (mode) => {
     document.body.dataset.mode = mode;
     document.querySelectorAll("#modes button").forEach((b) => b.setAttribute("aria-pressed", b.dataset.mode === mode));
@@ -92,6 +101,7 @@ export function setupFileMode(highlight, toRepl) {
 
   code.value = stored(KEYS.text, SAMPLE);
   code.addEventListener("input", () => {
+    marksStale ||= errorLines.size > 0;
     errorLines.clear();
     redraw();
     store(KEYS.text, code.value);
@@ -109,6 +119,10 @@ export function setupFileMode(highlight, toRepl) {
   choose(stored(KEYS.mode, "repl") === "file" ? "file" : "repl");
 
   return {
+    redraw,
+    note(text) {
+      if (run.disabled && !runner) status.textContent = text;
+    },
     ready(module, image, options) {
       busy(false);
       run.onclick = () => {

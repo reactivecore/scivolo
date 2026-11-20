@@ -18,7 +18,7 @@ const TIME_LIMIT: Duration = Duration::from_secs(10);
 const RUNNING: i32 = -1;
 
 /// The module's one session or program setup and its buffers, the only state outside `Vm`
-/// /// here. An instance holds one VM: a session (`start`), or a file run (`load_image`, then
+/// here. An instance holds one VM: a session (`start`), or a file run (`load_image`, then
 /// `run_file`).
 #[derive(Default)]
 struct State {
@@ -93,9 +93,7 @@ pub extern "C" fn run_file() -> *const u8 {
     let Some(setup) = STATE.with_borrow_mut(|s| s.setup.take()) else {
         return reply_with(&format!("1\n{NO_IMAGE}\n"));
     };
-    let reply = program::run_file(&setup, &text);
-    STATE.with_borrow_mut(|s| s.setup = Some(setup));
-    reply_with(&reply)
+    reply_with(&program::run_file(&setup, &text))
 }
 
 /// Makes each later input or run stop after `millis` milliseconds of running.
@@ -161,8 +159,8 @@ pub extern "C" fn exit_code() -> i32 {
 /// The reply to calls that need a session before `start`.
 const NOT_STARTED: &str = "The REPL has not started.";
 
-/// What `run_file` prints before `load_image`.
-const NO_IMAGE: &str = "The library image is not loaded.";
+/// What `run_file` prints before `load_image` or after a first run.
+const NO_IMAGE: &str = "The library image is not loaded; an instance runs one file.";
 
 fn argument() -> String {
     STATE.with_borrow_mut(|s| String::from_utf8_lossy(&std::mem::take(&mut s.buffer)).into_owned())
