@@ -85,11 +85,12 @@ fn a_java_jar_on_the_classpath_is_used() {
 /// The programs that use the Scala 2 class files of a jar (`just scala2-fixture`), each its
 /// source, the jar and its main class: tests/jvm/javajar/scala2.scala by the class's path,
 /// scala2_shadow.scala through a wildcard import that shadows `scala.StringBuilder`, and
-/// tests/jvm/scala2/basics.
-const SCALA2_PROGRAMS: [(&str, &str, &str); 3] = [
+/// tests/jvm/scala2/basics and tests/jvm/scala2/members.
+const SCALA2_PROGRAMS: [(&str, &str, &str); 4] = [
     ("tests/jvm/javajar/scala2.scala", "tests/jvm/javajar/legacy/legacy.jar", "Scala2"),
     ("tests/jvm/javajar/scala2_shadow.scala", "tests/jvm/javajar/legacy/legacy.jar", "Scala2Shadow"),
     ("tests/jvm/scala2/basics/basics.scala", "tests/jvm/scala2/basics/basics.jar", "Basics"),
+    ("tests/jvm/scala2/members/members.scala", "tests/jvm/scala2/members/members.jar", "Members"),
 ];
 
 /// scivolo-jvm compiles the `SCALA2_PROGRAMS` against their jars, read from the classes' Scala 2
