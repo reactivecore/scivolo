@@ -146,7 +146,7 @@ impl Avoid<'_> {
                 })
             }
             Kind::Type => {
-                let alias = t.u.dealias(tpe);
+                let alias = t.u.dealias_step(tpe);
                 if alias != tpe {
                     return Some(a.at(t, alias, v));
                 }

@@ -48,6 +48,9 @@ pub struct Scanner<'a> {
     pub strings: Vec<Box<[u16]>>,
     /// The comments read, from their first `/` to the character after them.
     pub comments: Vec<Range<Offset>>,
+    /// The doc comments read, by the offset of the first character after them that is not
+    /// whitespace (dotty's `docstringMap`).
+    doc_comments: rustc_hash::FxHashMap<Offset, Range<Offset>>,
     pub regions: Regions,
     pub region: RegionId,
     reader: Reader<'a>,
@@ -86,6 +89,7 @@ impl<'a> Scanner<'a> {
             prev: TokenData::EMPTY,
             strings: Vec::new(),
             comments: Vec::new(),
+            doc_comments: Default::default(),
             regions,
             region,
             reader: Reader::new(&source.text, from),

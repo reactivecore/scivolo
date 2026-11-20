@@ -5,6 +5,7 @@ pub mod children;
 pub mod constant;
 mod copy;
 mod deep_copy;
+mod doc_comments;
 mod dollar_idents;
 pub mod flags;
 pub mod from_digits;
@@ -102,6 +103,7 @@ pub struct Ast {
     mods: Vec<Modifiers>,
     parens: rustc_hash::FxHashMap<NodeId, Span>,
     dollar_idents: rustc_hash::FxHashMap<crate::source::Offset, crate::names::Name>,
+    doc_comments: rustc_hash::FxHashMap<NodeId, Span>,
 }
 
 impl Ast {
@@ -204,5 +206,7 @@ impl Ast {
         self.nodes[nodes..].iter_mut().for_each(|n| n.span = n.span.shifted(by));
         let written = self.mods[mods..].iter_mut().flat_map(|m| m.mods.iter_mut());
         written.for_each(|m| m.span = m.span.shifted(by));
+        let docs = self.doc_comments.iter_mut().filter(|(id, _)| id.index() >= nodes);
+        docs.for_each(|(_, span)| *span = span.shifted(by));
     }
 }

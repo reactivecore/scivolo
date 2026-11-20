@@ -20,8 +20,9 @@ impl Universe {
     }
 
     /// `expand`, or for `tycon` an abstract type bounded by a type lambda, that lambda's body,
-    /// met with the one a refinement of its prefix's type bounds it by (dotty's `superType` of an
-    /// applied type).
+    /// met with the bounds of the abstract types overriding it in the class of its prefix and with
+    /// the one a refinement of its prefix's type bounds it by (dotty's `superType` of an applied
+    /// type).
     pub fn expand_upper(&mut self, tycon: TypeId, args: &[TypeId]) -> Option<TypeId> {
         self.applied_info(tycon, args, true)
     }
@@ -54,6 +55,7 @@ impl Universe {
         }
 
         let own = match prefix {
+            Some(p) if upper && let Some(met) = self.overriding_bounds(p, alias) => met,
             Some(p) => self.member_info(p, alias),
             None => self.info(alias),
         };

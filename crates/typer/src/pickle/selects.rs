@@ -64,9 +64,9 @@ impl TreePickler<'_> {
             return self.super_accessor_select(id, acc);
         }
         let java_annotation =
-            |u: &tasty::Universe, s| u.symbol(s).owner.and_then(|c| u.classfile_retention(c));
+            |u: &mut tasty::Universe, s| u.symbol(s).owner.is_some_and(|c| is_java_annotation(u, c));
         let method = sym.filter(|&s| !name.is_type && result_sig(self.u, s).is_some());
-        let method = method.filter(|&s| !(self.u.is_constructor(s) && java_annotation(self.u, s).is_some()));
+        let method = method.filter(|&s| !(self.u.is_constructor(s) && java_annotation(self.u, s)));
         let Some(s) = method.filter(|_| !self.holes.contains_key(&qual)) else {
             self.byte(if name.is_type { SELECTtpt } else { SELECT });
             match method {
@@ -86,7 +86,28 @@ impl TreePickler<'_> {
             p.ty(owner, false)
         })
     }
+}
 
+/// Whether class `c` is a Java annotation class: one of a class file, or an annotation class of
+/// the JDK jars, which stands for the JDK's class file.
+fn is_java_annotation(u: &mut tasty::Universe, c: SymbolId) -> bool {
+    if u.classfile_retention(c).is_some() {
+        return true;
+    }
+    if !u.is_from_jdk_jars(c) {
+        return false;
+    }
+    let package = u.package(ANNOTATION_PACKAGE);
+    let decls = package.and_then(|p| u.decl(p, ANNOTATION_CLASS).ok()).unwrap_or_default();
+    let base = decls.into_iter().find(|&d| u.is_class(d));
+    base.is_some_and(|b| u.derives_from(c, b))
+}
+
+/// The package and the name of the class every Scala annotation class extends.
+const ANNOTATION_PACKAGE: &str = "scala.annotation";
+const ANNOTATION_CLASS: &str = "Annotation";
+
+impl TreePickler<'_> {
     /// Qualifier `qual` of term selection `id`, a package selected the package object `id` is a
     /// member of (dotty's `PostTyper.transformSelect`).
     fn qualifier(&mut self, id: TNodeId, qual: TNodeId) -> Result<(), Refusal> {

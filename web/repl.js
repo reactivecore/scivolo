@@ -6,8 +6,8 @@ import { download } from "./download.js";
 import { load } from "./scivolo.js";
 import { render } from "./sgr.js";
 
-const MODULE = "scivolo.wasm";
-const IMAGE = "libs.img.gz";
+const MODULE = new URL("scivolo.wasm", import.meta.url);
+const IMAGE = new URL("libs.img.gz", import.meta.url);
 const WIDTH = 80;
 // MiB of live objects before OutOfMemoryError.
 const HEAP_MIB = 512;
@@ -93,10 +93,17 @@ function restart() {
   worker.postMessage({ type: "start", module, image, width: WIDTH, heapMib: HEAP_MIB });
 }
 
-// Echoes the input, its first line after the prompt.
+// Echoes the input highlighted, its first line after the prompt.
 function echo(text) {
   const indent = " ".repeat(prompt.textContent.length);
-  text.split("\n").forEach((l, i) => print(`${i === 0 ? prompt.textContent : indent}${l}`, "input"));
+  const lit = light((r) => r.highlight(text), text).replaceAll("\n", `\n${indent}`);
+  const line = document.createElement("div");
+  const head = document.createElement("span");
+  head.className = "prompt";
+  head.textContent = prompt.textContent;
+  line.append(head, render(lit));
+  out.append(line);
+  line.scrollIntoView({ block: "nearest" });
 }
 
 // Runs the input; its output and a blank line follow it, as in the native REPL.
@@ -200,5 +207,5 @@ try {
   });
   restart();
 } catch (e) {
-  status.textContent = `The REPL could not load: ${e}`;
+  if (!window.reloadFresh()) status.textContent = `The REPL could not load: ${e}`;
 }

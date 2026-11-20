@@ -22,10 +22,10 @@ impl Cmp<'_> {
         let result = args1.len() == args2.len()
             && (0..args1.len()).all(|i| {
                 let variance = variances.get(i).copied().unwrap_or(0);
-                let wildcards =
-                    self.written_bounds(args1[i]).is_some() && self.written_bounds(args2[i]).is_some();
                 let bounds = match tparams.get(i) {
-                    Some(&p) if wildcards => self.param_bounds(p, tparams, args2),
+                    Some(&p) if self.written_bounds(args1[i]).is_some() => {
+                        self.param_bounds(p, tparams, args2)
+                    }
                     _ => None,
                 };
                 self.sub_arg(args1[i], args2[i], variance, bounds)
@@ -41,11 +41,14 @@ impl Cmp<'_> {
                 self.recur(lo2, lo1) && self.recur(hi1, hi2)
             }
             (None, Some((lo2, hi2))) => self.recur(lo2, x) && self.recur(x, hi2),
-            (Some((lo1, hi1)), None) => match variance {
-                1 => self.recur(hi1, y),
-                -1 => self.recur(y, lo1),
-                _ => false,
-            },
+            (Some(b1), None) => {
+                let (lo1, hi1) = bounds.map_or(b1, |b| self.and_bounds(b1, b));
+                match variance {
+                    1 => self.recur(hi1, y),
+                    -1 => self.recur(y, lo1),
+                    _ => false,
+                }
+            }
             (None, None) => match variance {
                 1 => self.recur(x, y),
                 -1 => self.recur(y, x),
@@ -67,7 +70,8 @@ impl Cmp<'_> {
     }
 
     /// The bounds of type parameter `p` with the parameters `tparams` replaced by `args`
-    /// (dotty's `paramBounds`), `None` if they are empty or refer to a wildcard argument.
+    /// (dotty's `paramBounds`), a bound that is a parameter whose argument is a wildcard by that
+    /// wildcard's bound; `None` if they are empty or refer to a wildcard argument otherwise.
     fn param_bounds(
         &mut self,
         p: SymbolId,
@@ -80,6 +84,12 @@ impl Cmp<'_> {
             return None;
         }
         let class = self.u.symbol(p).owner;
+        let arg_of = |u: &mut crate::Universe, x: TypeId| match u.class_param(x) {
+            Some((owner, i)) if Some(owner) == class && i < tparams.len() => u.bounds(args[i]),
+            _ => None,
+        };
+        let lo = arg_of(self.u, lo).map_or(lo, |(l, _)| l);
+        let hi = arg_of(self.u, hi).map_or(hi, |(_, h)| h);
         let mut wild = false;
         let mut subst = |t: TypeId, u: &mut crate::Universe| {
             u.map_type(t, &mut |u, x| match u.class_param(x) {

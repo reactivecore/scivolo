@@ -44,7 +44,8 @@ impl Ast {
     }
 
     /// `tree` as a copy of `orig` with other fields (dotty's `cpy`): `orig` itself if `tree` is
-    /// the same, else a new node with the span and the sticky attributes of `orig`. A copied
+    /// the same, else a new node with the span, the doc comment and the sticky attributes of
+    /// `orig`. A copied
     /// XML block is a block, a copied placeholder function a function.
     pub fn derived(&mut self, orig: NodeId, mut tree: Tree) -> NodeId {
         if *self.tree(orig) == tree {
@@ -62,15 +63,22 @@ impl Ast {
         node.span = span;
         node.attrs = node.attrs.union(attrs);
         self.remove_attrs(id, Attrs::XML_BLOCK.union(Attrs::DERIVING_COMPANION).union(Attrs::ENUM_LOOKUPS));
+        if let Some(comment) = self.doc_comment(orig) {
+            self.set_doc_comment(id, comment);
+        }
         id
     }
 
-    /// A new node with the tree, span and attributes of `id`.
+    /// A new node with the tree, span, doc comment and attributes of `id`.
     pub fn copy_node(&mut self, id: NodeId) -> NodeId {
         let node = self.get(id);
         let copy = Node { tree: node.tree.clone(), span: node.span, attrs: node.attrs };
         self.nodes.push(copy);
-        NodeId::new(self.nodes.len() - 1)
+        let copy = NodeId::new(self.nodes.len() - 1);
+        if let Some(comment) = self.doc_comment(id) {
+            self.set_doc_comment(copy, comment);
+        }
+        copy
     }
 
     /// The modifiers of definition `id`.

@@ -71,6 +71,13 @@ impl<'a> QuoteSource<'a> {
         Ok(TastySpan { start: self.units(span.start(), own)?, end: self.units(span.end(), own)?, point })
     }
 
+    /// Gets the text of `span` of the quote's file, none if it lies elsewhere.
+    pub fn text(&self, span: Span) -> Option<&'a str> {
+        let (file, base) = self.file?;
+        let (start, end) = (span.start().checked_sub(base)?, span.end().checked_sub(base)?);
+        file.text.get(start as usize..end as usize)
+    }
+
     /// The files of the unit, each at its offset among the sources, the quote's first.
     fn files(&self) -> impl Iterator<Item = (&'a SourceFile, Offset)> + '_ {
         self.file.into_iter().chain(self.others.iter().copied())

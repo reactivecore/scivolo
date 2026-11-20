@@ -69,7 +69,8 @@ impl Typer<'_> {
         };
         let repeated = self.repeated_type(arg);
         let tpt = self.type_tree(repeated, self.ast.span(tpt), false);
-        self.tpd.node(T::Typed { expr, tpt }, self.ast.span(a), Some(repeated), None)
+        let simplified = self.simplified(repeated);
+        self.tpd.node(T::Typed { expr, tpt }, self.ast.span(a), Some(simplified), None)
     }
 
     /// Checks whether `tpe`, its sides of a bottom type dropped, is a union or intersection, as

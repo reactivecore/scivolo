@@ -70,41 +70,9 @@ impl Typer<'_> {
     }
 }
 
-/// The candidates of `group` that `attempt` accepts, each tried with the constraint, the
-/// recorded fallback and the dictionary restored afterwards; `Err` if one fails other than by
-/// not fitting, or if the dictionary depends on which of several candidates dotty tries.
-pub fn fitting<'a>(
-    t: &mut Typer<'a>,
-    group: &[Candidate],
-    mut attempt: impl FnMut(&mut Typer<'a>, Candidate) -> Result<TNodeId, &'static str>,
-) -> Result<Vec<Candidate>, &'static str> {
-    let mut found = Vec::new();
-    let mut linked_any = false;
-    for &c in group {
-        complete_candidate(t, c)?;
-        let (result, clean, linked) = t.speculatively(|t| attempt(t, c));
-        if !clean {
-            return Err(CANDIDATE_OUTSIDE);
-        }
-        match result {
-            Ok(_) => {
-                found.push(c);
-                linked_any |= linked;
-            }
-            Err(what) if is_misfit(what) && linked => return Err(STALE),
-            Err(what) if is_misfit(what) => {}
-            Err(what) => return Err(what),
-        }
-    }
-    if linked_any && found.len() > 1 {
-        return Err(STALE);
-    }
-    Ok(found)
-}
-
 /// Completes the definition of candidate `c` outside any attempt on it (dotty's
 /// `completeInCreationContext`); `Err` if it is being completed.
-fn complete_candidate(t: &mut Typer<'_>, c: Candidate) -> Result<(), &'static str> {
+pub fn complete_candidate(t: &mut Typer<'_>, c: Candidate) -> Result<(), &'static str> {
     if matches!(t.syms.completions.get(&c.sym), Some(Completion::Completing(_))) {
         return Err("implicit candidate whose definition is being completed");
     }

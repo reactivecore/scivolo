@@ -15,7 +15,7 @@ impl Universe {
         if let Some(&t) = self.this_types.get(&c) {
             return t;
         }
-        let class = self.intern_type(Type::Sym(None, c));
+        let class = self.class_ref_in_owner(c);
         let this = self.intern_type(Type::This(class));
         let params: Vec<TypeId> =
             self.type_params(c).into_iter().map(|p| self.intern_type(Type::Sym(Some(this), p))).collect();
@@ -25,6 +25,21 @@ impl Universe {
         };
         self.this_types.insert(c, t);
         t
+    }
+
+    /// Determines the reference to class `c` from inside it: through the `this` of the class or
+    /// trait that owns it, other than an object (dotty's `owner.thisType` as the prefix of
+    /// `c`'s own type), else without a prefix.
+    fn class_ref_in_owner(&mut self, c: SymbolId) -> TypeId {
+        let owner = self.symbol(c).owner.filter(|&o| {
+            let sym = self.symbol(o);
+            sym.kind == Kind::Class && !sym.flags.has(crate::tags::OBJECT)
+        });
+        let prefix = owner.map(|o| {
+            let class = self.class_ref_in_owner(o);
+            self.intern_type(Type::This(class))
+        });
+        self.intern_type(Type::Sym(prefix, c))
     }
 
     /// The class type parameter reference `t` names: its class and index.

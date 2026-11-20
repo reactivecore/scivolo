@@ -4,8 +4,17 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Scivolo REPL</title>
-  <link rel="stylesheet" href="style.css">
-  <script type="module" src="repl.js"></script>
+  <link rel="stylesheet" href="@BUILD@/style.css">
+  <script>
+    // Loads the page once more under a new URL, which bypasses a cached page whose build is gone;
+    // returns whether it does.
+    function reloadFresh() {
+      if (new URLSearchParams(location.search).has("fresh")) return false;
+      location.replace(`?fresh=${Date.now()}`);
+      return true;
+    }
+  </script>
+  <script type="module" src="@BUILD@/repl.js" onerror="reloadFresh()"></script>
 </head>
 <body>
   <header>
@@ -13,6 +22,10 @@
       <h1>Scivolo</h1>
       <p>A Scala 3 REPL, interpreted in your browser. No threads, files or extra libraries.</p>
       <button id="stop" hidden>Stop</button>
+      <nav id="links">
+        <a href="https://github.com/reactivecore/scivolo">Source on GitHub</a> ·
+        <a href="https://reactivecore.de">Reactive Core GmbH</a>
+      </nav>
     </div>
     <p id="keys">Enter runs the input once it is complete, Shift+Enter adds a line, Tab completes,
       ↑ and ↓ walk the history.</p>
