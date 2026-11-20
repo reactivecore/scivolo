@@ -1130,7 +1130,10 @@ own 35 files have no scala-cli oracle (Scala 3.9 reports cyclic references in `A
 ### Scala Native's library through the Rust frontend
 
 `just lib-compile MODULE` lowers each file and compares its NIR with Scala Native's 3.9.0 build
-(`just lib-oracle`); files that differ only in the order of var slots count as `var-order`.
+(`just lib-oracle`); files that differ only in the order of var slots count as `var-order`. The
+scheduled pipeline's `lib:linux` (`just ci-lib`) fails on a file worse than its baseline in
+tests/lib (`just lib-baseline-ci` saves them), a unit test passing on the published jars only, or
+a test program `just lib-link` does not link and run as expected.
 
 | Module | Files lowered | NIR same | var-order | differ |
 |---|---:|---:|---:|---:|
