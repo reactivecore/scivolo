@@ -131,7 +131,9 @@ pub fn member_applies(t: &mut Typer<'_>, q: TNodeId, name: &str, args: &[TypeId]
 /// typed speculatively without diagnostics.
 fn plain_arg_types(t: &mut Typer<'_>, proto: usize) -> Option<Vec<TypeId>> {
     let (args, arg_ctx) = (t.protos[proto].args.clone(), t.protos[proto].ctx);
-    if t.protos[proto].typed.is_some() || !args.iter().all(|&a| is_plain_arg(t.ast, a)) {
+    if t.protos[proto].typed.is_some()
+        || !args.iter().all(|&a| is_plain_arg(t.ast, a) && !t.is_sequence_arg(a))
+    {
         return None;
     }
     let reported = t.diags.items.len();

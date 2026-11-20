@@ -26,6 +26,30 @@ trait Printable:
 extension (p: Printable)
   def pprint(f: () => Int): Unit = p.pprint(() => "extension " + f())
 
+opaque type Position[Buffer] = Int
+object Position:
+  def of[B](c: Char): Position[B] = c.toInt + 1000
+  def show[B](p: Position[B]): String = "position " + p
+
+object Positions:
+  given FromChar: Conversion[Char, Position[CharSequence]] = c => Position.of(c)
+
+abstract class Dim
+object NoDim extends Dim
+object Hour extends Dim:
+  override def toString = "Hour"
+case class Measure(scalar: Double, unit: Dim):
+  def *(newUnit: Dim): Measure = Measure(scalar * 2, newUnit)
+implicit def double2Measure(scalar: Double): Measure = Measure(scalar, NoDim)
+
+class Op[I]:
+  override def toString = "op"
+class IntOp extends Op[Int]
+class Rich(x: Double):
+  def +(op: IntOp): String = s"$x + int $op"
+  def +[I](op: Op[I]): String = s"$x + $op"
+implicit def toRich(x: Double): Rich = new Rich(x)
+
 trait Ctx
 
 class Single:
@@ -70,3 +94,8 @@ object closureviews:
     println(foo(ctx => 1))
     println(foo(ctx ?=> 2))
     println((new Single).m({ case (x, y) => x }: Any => Any))
+    import Positions.given
+    val position: Position[CharSequence] = 'x'
+    println(Position.show(position))
+    println(3.0 * (Hour: Dim))
+    println(1.0 + new Op[Int])

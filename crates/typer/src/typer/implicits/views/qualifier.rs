@@ -41,7 +41,7 @@ impl Typer<'_> {
         let arg_ctx = self.protos[proto].ctx;
         if name == nme::CONSTRUCTOR
             || self.protos[proto].typed.is_some()
-            || !args.iter().all(|&a| is_plain_arg(self.ast, a))
+            || !args.iter().all(|&a| is_plain_arg(self.ast, a) && !self.is_sequence_arg(a))
             || auto_tupled(self, (prefix, syms), args.len(), ctx)
         {
             return None;
@@ -112,9 +112,9 @@ impl Typer<'_> {
     }
 }
 
-/// Tells whether argument `a` is a literal or a path, an application of one to such, a
-/// conditional of such, or, defining no member, a function of declared parameter types or an
-/// ascription to a type other than a named one.
+/// Tells whether argument `a` is a literal, a path or an instance creation without a body, an
+/// application of one to such, a conditional of such, or, defining no member, a function of
+/// declared parameter types or an ascription.
 pub fn is_plain_arg(ast: &Ast, a: NodeId) -> bool {
     match *ast.tree(a) {
         Tree::Literal { .. } | Tree::Number { .. } | Tree::Ident { .. } => true,
@@ -129,7 +129,8 @@ pub fn is_plain_arg(ast: &Ast, a: NodeId) -> bool {
                     matches!(*ast.tree(p), Tree::ValDef { tpt, .. } if !matches!(ast.tree(tpt), Tree::TypeTree))
                 })
         }
-        Tree::Typed { expr, tpt } => !matches!(ast.tree(tpt), Tree::Ident { .. }) && defines_no_member(ast, expr),
+        Tree::Typed { expr, .. } => defines_no_member(ast, expr),
+        Tree::New { tpt } => !matches!(ast.tree(tpt), Tree::Template { .. }),
         Tree::TypeApply { fun, .. } => is_plain_arg(ast, fun),
         Tree::Apply { fun, args } => {
             is_plain_arg(ast, fun) && ast.items(args).iter().all(|&a| is_plain_arg(ast, a))
