@@ -864,3 +864,8 @@ fn ambiguous_imported_extensions_fall_back_to_the_receivers_implicit_scope() {
 fn lambdas_against_generic_java_sams_infer_their_results() {
     runs_on_the_jvm("javagenericsams", "javagenericsams");
 }
+
+#[test]
+fn singleton_types_of_transparent_inline_calls_run_on_the_jvm() {
+    runs_on_the_jvm("inlinedsingletons", "inlinedsingletons");
+}

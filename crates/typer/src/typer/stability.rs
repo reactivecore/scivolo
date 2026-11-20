@@ -58,6 +58,16 @@ impl Typer<'_> {
         }
     }
 
+    /// Whether `tree` is a stable path or an inlined call of a stable path type, as `quotes` of
+    /// `quotes.type` (dotty's `checkStable` in `typedSingletonTypeTree`).
+    pub fn is_stable_reference(&mut self, tree: TNodeId) -> bool {
+        if matches!(self.tpd.tree(tree), T::Inlined { .. }) {
+            let tpe = self.tpd.tpe(tree);
+            return is_stable_path(self.u, tpe);
+        }
+        self.is_stable_path(tree)
+    }
+
     /// Whether term `s` is not a method with parameters and its type is a stable path, as
     /// `def Nil = scala.collection.immutable.Nil` or `var y: x.type` (dotty's `tp.info.isStable`
     /// with its `ExprType` case).
