@@ -41,7 +41,8 @@ header { position: sticky; top: 0; z-index: 1; padding: 0.75rem 0 0.5rem; backgr
 h1 { margin: 0; font-size: 1.3rem; }
 header p { margin: 0; color: var(--muted); }
 #title p { flex: 1; }
-header > p { margin-top: 0.3rem; font-size: 0.85rem; }
+#help { display: grid; margin-top: 0.3rem; font-size: 0.85rem; }
+#help > p { grid-area: 1 / 1; }
 #links { color: var(--muted); font-size: 0.85rem; }
 #links a { color: var(--accent); text-decoration: none; }
 #links a:hover { text-decoration: underline; }
@@ -54,6 +55,9 @@ button:disabled { opacity: 0.5; cursor: progress; }
 #modes button:last-child { border-radius: 0 4px 4px 0; border-left: 0; }
 #modes button[aria-pressed="true"] { background: var(--accent); color: var(--bg); }
 body[data-mode="file"] .repl-only, body:not([data-mode="file"]) .file-only { display: none !important; }
+body[data-mode="file"] #help .repl-only, body:not([data-mode="file"]) #help .file-only {
+  display: block !important; visibility: hidden; }
+body[data-mode="file"] #stop { display: inline-block !important; visibility: hidden; }
 
 #file { padding-top: 0.5rem; font: 14px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
 #toolbar { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.6rem; margin-bottom: 0.5rem;
