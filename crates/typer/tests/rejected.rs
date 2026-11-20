@@ -409,6 +409,34 @@ fn type_selections_on_by_name_parameters_and_variables() {
 }
 
 #[test]
+fn type_selections_through_unstable_prefixes_and_by_name_fields() {
+    check(
+        &[
+            (
+                "trait Box { type T; val v: T }\nclass Outer { val b: Box = new Box { type T = Int; val v = 1 } }\ndef f =\n  var o = new Outer\n  val w: o.b.T = o.b.v\n  w\n",
+                "(Outer#b : Box) is not a valid type prefix, since it is not an immutable path",
+            ),
+            (
+                "trait Box { type T; val v: T }\nclass Outer { val b: Box = new Box { type T = Int; val v = 1 } }\ndef mo: Outer = new Outer\ndef f = { val w: mo.b.T = mo.b.v; w }\n",
+                "(Outer#b : Box) is not a valid type prefix, since it is not an immutable path",
+            ),
+            (
+                "trait Box { type T; val v: T }\nclass K(z: => Box):\n  def g: Any =\n    class Inner:\n      val w: z.T = z.v\n    new Inner().w\n",
+                "(K.this.z : => Box) is not a valid type prefix, since it is not an immutable path",
+            ),
+            (
+                "trait Box { type T; val v: T }\ndef f(z: => Box) =\n  import z.T\n  0\n",
+                "(z : => Box) is not a valid import prefix, since it is not an immutable path",
+            ),
+        ],
+        &[
+            "trait Box { type T; val v: T }\nobject O { val b: Box = new Box { type T = Int; val v = 2 } }\ndef f = { val w: O.b.T = O.b.v; w }\n",
+            "trait Box { type T; val v: T }\nclass D(val z: Box):\n  class Inner:\n    val w: z.T = z.v\n",
+        ],
+    );
+}
+
+#[test]
 fn assignments_through_wildcard_prefixes() {
     check(
         &[("class B[T](var v: T)\ndef f(s: B[String]) =\n  var b: B[?] = s\n  val x = b.v\n  b.v = x\n", "")],

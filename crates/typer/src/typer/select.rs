@@ -157,7 +157,7 @@ impl Typer<'_> {
             converted = true;
         };
         if name.is_type {
-            self.check_type_prefix(qual, ctx);
+            self.check_stable_prefix(qual, super::type_prefix::TYPE_PREFIX, ctx);
         }
         if let Some(projection) = self.refined_projection(id, qual, qual_tpe, name) {
             return projection;
