@@ -229,6 +229,7 @@ The package in `crates/<dir>` is `scivolo-<dir>` (`crates/scivolo` is `scivolo`)
 | `libimage` | The cached image of the libraries. |
 | `snrt` | Builds Scala Native's C runtime. |
 | `nir-dump` | Prints NIR files; a development tool. |
+| `version` | The version the programs report, with the commit outside a release tag. |
 
 Outside the crates:
 

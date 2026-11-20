@@ -27,6 +27,7 @@ snrt.workspace = true
 syntax.workspace = true
 target-lexicon = "0.13"
 tasty.workspace = true
+version.workspace = true
 vm.workspace = true
 
 [lints]

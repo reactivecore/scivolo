@@ -17,7 +17,7 @@ use tasty::Universe;
 /// Environment: SCIVOLO_LIBS holds the library jars (default: the distribution's, else the
 /// Coursier cache).
 #[derive(Parser)]
-#[command(name = "scivolo-jvm")]
+#[command(name = "scivolo-jvm", version = version::VERSION)]
 struct Cli {
     /// A jar or directory of TASTy and Java class files the sources see.
     #[arg(long)]

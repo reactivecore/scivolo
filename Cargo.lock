@@ -646,6 +646,7 @@ dependencies = [
  "scivolo-syntax",
  "scivolo-tasty",
  "scivolo-typer",
+ "scivolo-version",
  "scivolo-vm",
 ]
 
@@ -668,6 +669,7 @@ dependencies = [
  "scivolo-snrt",
  "scivolo-syntax",
  "scivolo-tasty",
+ "scivolo-version",
  "scivolo-vm",
  "target-lexicon",
 ]
@@ -698,6 +700,7 @@ dependencies = [
  "scivolo-syntax",
  "scivolo-tasty",
  "scivolo-typer",
+ "scivolo-version",
  "scivolo-vm",
  "zip",
 ]
@@ -783,6 +786,7 @@ dependencies = [
  "scivolo-syntax",
  "scivolo-tasty",
  "scivolo-typer",
+ "scivolo-version",
  "scivolo-vm",
 ]
 
@@ -829,6 +833,10 @@ dependencies = [
  "scivolo-syntax",
  "scivolo-tasty",
 ]
+
+[[package]]
+name = "scivolo-version"
+version = "0.2.3"
 
 [[package]]
 name = "scivolo-vm"

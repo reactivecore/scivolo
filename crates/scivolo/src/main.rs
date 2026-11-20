@@ -24,7 +24,7 @@ use vm::{Classpath, Vm, VmError};
 /// SCIVOLO_PROFILE prints the most called methods to stderr; RUST_BACKTRACE prints panics in
 /// full. The REPL keeps its history in ~/.dotty_history, as Scala's own REPL does.
 #[derive(Parser)]
-#[command(name = "scivolo", override_usage = "scivolo [OPTIONS] [TARGET] [ARGS]...")]
+#[command(name = "scivolo", version = version::VERSION, override_usage = "scivolo [OPTIONS] [TARGET] [ARGS]...")]
 struct Cli {
     /// A directory or jar of NIR files and resources.
     #[arg(long, value_name = "DIR_OR_JAR")]

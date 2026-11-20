@@ -21,6 +21,7 @@ names.workspace = true
 syntax.workspace = true
 tasty.workspace = true
 typer.workspace = true
+version.workspace = true
 vm.workspace = true
 
 [dev-dependencies]

@@ -213,3 +213,10 @@ fn negative_literals_and_overflowing_division() {
 fn virtual_and_trait_dispatch_type_tests_and_modules() {
     assert_eq!(run("dispatch", "run", "20"), check("dispatch"));
 }
+
+#[test]
+fn version_option_prints_the_version() {
+    let out = Command::new(env!("CARGO_BIN_EXE_scivolo-aot")).arg("--version").output().unwrap();
+    assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
+    assert_eq!(String::from_utf8_lossy(&out.stdout), format!("scivolo-aot {}\n", version::VERSION));
+}
