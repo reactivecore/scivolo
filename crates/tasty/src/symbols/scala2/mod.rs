@@ -159,10 +159,3 @@ impl Unpickler {
         self.tag(i).is_ok_and(|t| (NONEsym..=EXTMODCLASSref).contains(&t))
     }
 }
-
-impl Universe {
-    /// Whether class `c` was entered from a Scala 2 pickle of a jar.
-    pub fn is_pickled(&self, c: SymbolId) -> bool {
-        self.symbol(c).tree.is_none() && self.is_scala2(c)
-    }
-}

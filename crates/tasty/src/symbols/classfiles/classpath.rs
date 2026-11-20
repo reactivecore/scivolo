@@ -1,7 +1,7 @@
 //! The Java classes of the jars' class files, entered on lookup with their nested classes
 //! (ADR 0107).
 
-use super::super::{SymbolId, Universe, module_class_name};
+use super::super::{Kind, SymbolId, Universe, module_class_name};
 use super::class;
 use super::java_sources::JavaSources;
 use crate::types::NameId;
@@ -25,6 +25,8 @@ pub struct JavaClasses {
     pickles: FxHashMap<String, Vec<u8>>,
     /// The refusals of the members of Scala 2 classes not entered, by class and name.
     refused_members: FxHashMap<(SymbolId, NameId), String>,
+    /// The classes entered from Scala 2 pickles.
+    pickled: FxHashSet<SymbolId>,
 }
 
 /// The lookups that found a refused class: how many, and the last one's refusal.
@@ -122,6 +124,11 @@ impl Universe {
             let refusal = format!("Scala 2 package object `{}` of a jar", dotted(&internal));
             refuse(self, &internal, refusal);
         }
+    }
+
+    /// Whether class `c` was entered from a Scala 2 pickle of a jar.
+    pub fn is_pickled(&self, c: SymbolId) -> bool {
+        self.java_classes.as_ref().is_some_and(|classes| classes.pickled.contains(&c))
     }
 
     /// Records that a lookup of `name` in class `owner` of a Scala 2 pickle is refused for `why`.
@@ -260,7 +267,12 @@ fn scala2_class(u: &mut Universe, pkg: SymbolId, class: &str, internal: &str) ->
     let entered = crate::symbols::scala2::enter(u, pkg, class, &pickle);
     u.java_classes.as_mut()?.refused_lookups = before;
     match entered {
-        Ok(entered) => Some(entered),
+        Ok(entered) => {
+            let classes = entered.iter().copied().filter(|&s| u.symbol(s).kind == Kind::Class);
+            let classes: Vec<SymbolId> = classes.collect();
+            u.java_classes.as_mut()?.pickled.extend(classes);
+            Some(entered)
+        }
         Err(why) => {
             refuse(u, internal, format!("Scala 2 class file `{}` of a jar: {why}", dotted(internal)));
             Some(Vec::new())
