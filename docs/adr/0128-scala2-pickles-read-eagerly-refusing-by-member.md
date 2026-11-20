@@ -13,28 +13,47 @@ annotation arguments.
 - **Marks** (dotty's `unpickleOrParseInnerClasses`): a `TASTY` attribute is refused (a Scala 3
   class file without its TASTy file); a `Scala` attribute alone is a compilation artifact, absent
   as dotty's `NoEmbedded` (an object's class `C$`, `$sp` classes); `ScalaSig` is a pickle. Only
-  `p/C.class` (or an object's mirror class) holds it, for the class, its object and nested ones.
-- **Eager**: the first lookup of `C` in package `p` enters the class, its object's class `C$`
-  and its object as ADR 0107 lays out a Java class, then reads every symbol entry, then the types:
-  no completers.
-- **Entries read**: names, `NONEsym`, `CLASSsym`, `MODULEsym`, `VALsym`, class type parameters,
-  `EXTref`, `EXTMODCLASSref`; types `NOPREFIXtpe`, `THIStpe`, `SINGLEtpe` of objects and
-  packages, `TYPEREFtpe` (classes, aliases followed, type parameters, applied), `TYPEBOUNDStpe`,
-  `CONSTANTtpe` with value literals, `CLASSINFOtpe`, `METHODtpe`, `IMPLICITMETHODtpe`, `POLYtpe`;
-  versions 5.0 to 5.2.
-- **Symbols as dotty makes them**: a getter is a value (`FIELDaccessor`, mutable without
+  `p/C.class` (or an object's mirror class, `p/package.class` for a package object) holds it, for
+  the class, its object and nested ones.
+- **Eager**: the first lookup of `C` in package `p` (or of a name `p` lacks, for its package
+  object) enters the class, its object's class `C$` and its object as ADR 0107 lays out a Java
+  class, before anything else of the pickle; then every symbol entry, the classes' parents, the
+  type members, the other members, the symbols' annotations: no completers.
+- **Entries read**: names, all symbol entries, `EXTref`, `EXTMODCLASSref`, `SYMANNOT` (the
+  annotation's class, its arguments left out); types `NOPREFIXtpe`, `THIStpe`, `SINGLEtpe` of
+  objects and packages, `TYPEREFtpe`, `TYPEBOUNDStpe`, `REFINEDtpe` with type members,
+  `CONSTANTtpe` with value literals, `CLASSINFOtpe`, `METHODtpe`, `IMPLICITMETHODtpe`, `POLYtpe`
+  (methods, and type lambdas over the variances the parameters declare), `EXISTENTIALtpe` as
+  `elimExistentials` eliminates it, `ANNOTATEDtpe`; versions 5.0 to 5.2.
+- **Symbols and types as dotty makes them**: a getter is a value (`FIELDaccessor`, mutable without
   `STABLE`), `$init$` is a trait's constructor, a constructor is polymorphic in its class's type
-  parameters; private members, case accessors `x$access$N`, extension methods of objects and stray
-  type parameters are skipped. Classes are Scala 2's (`Universe::set_scala2`), never
-  `is_java_defined`, so their members erase as `Scala2Erasure` says.
+  parameters; a parameter with a default is `HASDEFAULT` and its getter `m$default$N` a member;
+  `<byname>[T]` is `=> T`; classes and objects of objects are entered as nested ones; a type
+  member of a class is selected from its `this`, one of a refinement by name. Private members,
+  case accessors `x$access$N`, extension methods of objects, existential and stray type parameters
+  are skipped. Classes are Scala 2's (`Universe::set_scala2`), never `is_java_defined`, so their
+  members erase as `Scala2Erasure` says.
 - **Refusal granularity**: a member whose type is not read is not entered and its name is
   poisoned in its class: a lookup of it counts as a refused lookup naming the member and the
-  construct. A class is refused whole when its type parameters or parents are not read, when it
-  is a case class or object or a value class, or when an implicit member is refused.
-- **Refused by name**, until ported: refinement, existential, annotated and super types, path
-  dependent and dependent method types, by-name and repeated parameters, nested classes and
-  objects, type members, default arguments and their getters, expanded names, macros, package
-  objects, extending a class of a pickle.
+  construct. A class is refused whole when its type parameters or parents are not read, when it is
+  a value class, or when an implicit member is refused. A pickle entered while another one was and
+  that refers to a symbol of it is refused with it when that one is refused, or when the member it
+  refers to is (eager entering of cyclic pickles binds symbols before their types are read).
+- **Refused by name**, until ported: super types, path-dependent and dependent method types,
+  a structural (term) member of a refinement, a refinement referring to its `this`, an existential
+  dotty cannot eliminate (`FailureToEliminateExistential`), classes and objects of classes,
+  expanded names and super accessors, macros, value classes, the extractor (`unapply`) of a case
+  class, extending a class of a pickle. The last three need lowering (step 3 of #272).
+
+## Differences from dotty
+- An unapplied class type constructor (`Functor[List]`) stays the class reference; dotty
+  eta-expands it to `[X] =>> List[X]`. The two are equivalent, and the reference is what dotty's
+  TASTy holds (case 2).
+- A repeated parameter type `<repeated>[T]` is read as `Seq[T] @Repeated`, the form of TASTy and
+  of the typer's other repeated parameters (case 2).
+- Annotation arguments are left out: the symbols' annotations give warnings and messages only
+  (case 1); the children of sealed classes (`CHILDREN`) are not read: they give exhaustivity
+  warnings, and the typer refuses a sum mirror of a sealed class without TASTy.
 
 ## Alternatives
 - Lazy completers as dotty: rejected, `Universe` has no completer machinery and components run
@@ -42,11 +61,14 @@ annotation arguments.
 - Refusing the whole class on any member not read: rejected, too coarse for real jars.
 - Dropping members not read: rejected, it changes overload resolution and implicit search
   silently.
+- Refusing every pickle entered while a refused one was: rejected, cyclic libraries (cats) lose
+  most classes to one refused value class.
 - Taking the descriptors of the class file as for Java classes: rejected as the source of truth,
   members and methods do not map one to one (getters, expanded names, `$extension`).
 - Reading trees (`readTree`) for annotation arguments: deferred.
 
 ## Consequences
-- A refusal stays a refusal, never a different type: differences from dotty are refusals only.
+- A refusal stays a refusal, never a different type: differences in meaning are refusals only.
+- `just scala2-report JAR...` counts the classes read and the refusals by reason.
 - Scala.js' pseudo-union `js.|` and its erasure (#170) are later work, as are the constructs
   refused above.
