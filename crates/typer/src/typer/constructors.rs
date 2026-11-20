@@ -63,6 +63,10 @@ impl Typer<'_> {
         {
             match self.eta_expanded(c, tpe) {
                 Ok(lambda) => {
+                    let lambda = match self.is_java_class_name(c) {
+                        true => self.java_eta_expanded(c, lambda).unwrap_or(lambda),
+                        false => lambda,
+                    };
                     let node = self.tpd.get_mut(tpt);
                     (node.tpe, node.sym) = (Some(lambda), None);
                 }

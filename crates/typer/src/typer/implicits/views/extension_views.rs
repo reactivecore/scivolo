@@ -30,6 +30,8 @@ impl Typer<'_> {
             Ok(t) => t,
             Err(what) => return self.unsupported(id, what),
         };
+        let methods = extension_members(self, self.tpd.tpe(container), &text).unwrap_or_default();
+        let qual = self.captured_receiver(qual, &methods);
         let qualifier = self.spliced(container);
         let fun = self.ast.node(Tree::Select { qualifier, name });
         self.ext_method_apply(id, fun, qual, pt, ctx)
