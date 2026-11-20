@@ -9,10 +9,7 @@ use super::super::{Kind, SymbolId, Universe, module_class_name};
 use super::flags as f;
 use super::format::{ALIASsym, CLASSsym, EXTMODCLASSref, EXTref, MODULEsym, NONEsym, TYPEsym, VALsym};
 use super::{Sym, Unpickler};
-use crate::tags::{
-    ABSTRACT, CASE, FIELDaccessor, FINAL, IMPLICIT, LAZY, LOCAL, MUTABLE, OBJECT, OVERRIDE, PRIVATE,
-    PRIVATEqualified, PROTECTED, PROTECTEDqualified, SEALED, TRAIT,
-};
+use crate::tags::{FINAL, OBJECT};
 use names::nme;
 
 /// The header of a symbol entry: tag, name, owner, flags, access qualifier and type (dotty's
@@ -89,14 +86,14 @@ impl Unpickler {
         let s = match h.tag {
             CLASSsym if !module => {
                 let mut flags = visible;
-                flags.extend(class_flags(h.flags));
+                flags.extend(f::class_tags(h.flags));
                 let class = synthetic(u, pkg, &self.simple, Kind::Class, &flags);
                 self.enter(u, i, h, class)?;
                 self.type_params(u, h, class)?;
                 return Ok(Sym::Known(class));
             }
             CLASSsym => {
-                let flags = [&[OBJECT, FINAL][..], &visible, &case(h.flags)].concat();
+                let flags = [&[OBJECT, FINAL][..], &visible, &f::case_tag(h.flags)].concat();
                 synthetic(u, pkg, &module_class_name(&self.simple), Kind::Class, &flags)
             }
             MODULEsym => {
@@ -149,13 +146,7 @@ impl Unpickler {
         }
         let getter = flags & f::ACCESSOR != 0 && !name.ends_with("_=");
         let mut tags = visibility(h);
-        tags.extend(member_flags(flags));
-        if getter && flags & f::STABLE == 0 {
-            tags.push(MUTABLE);
-        }
-        if flags & f::ACCESSOR != 0 {
-            tags.push(FIELDaccessor);
-        }
+        tags.extend(f::member_tags(flags, getter));
         let kind = if getter { Kind::Val } else { Kind::Def };
         let s = synthetic(u, owner, &name, kind, &tags);
         u.set_deferred(s, flags & f::DEFERRED != 0);
@@ -175,37 +166,7 @@ impl Unpickler {
     }
 }
 
-/// The visibility tags of header `h`; a qualifier is the access qualifier `enter` gives.
+/// The visibility tags of header `h`.
 fn visibility(h: &Header) -> Vec<u8> {
-    let (flags, qualified) = (h.flags, h.within.is_some());
-    let local = if flags & f::LOCAL != 0 { Some(LOCAL) } else { None };
-    match flags {
-        _ if flags & f::PRIVATE != 0 => [PRIVATE].into_iter().chain(local).collect(),
-        _ if flags & f::PROTECTED != 0 && qualified => vec![PROTECTED, PROTECTEDqualified],
-        _ if flags & f::PROTECTED != 0 => [PROTECTED].into_iter().chain(local).collect(),
-        _ if qualified => vec![PRIVATEqualified],
-        _ => Vec::new(),
-    }
-}
-
-/// The tags of a class's pickled flags `flags`.
-fn class_flags(flags: u64) -> Vec<u8> {
-    let mut tags = case(flags);
-    let pairs = [(f::FINAL, FINAL), (f::SEALED, SEALED), (f::ABSTRACT, ABSTRACT), (f::TRAIT, TRAIT)];
-    tags.extend(pairs.iter().filter(|&&(b, _)| flags & b != 0).map(|&(_, t)| t));
-    if flags & f::TRAIT != 0 && flags & f::ABSTRACT == 0 {
-        tags.push(ABSTRACT);
-    }
-    tags
-}
-
-/// The `case` tag if pickled flags `flags` have it.
-fn case(flags: u64) -> Vec<u8> {
-    if flags & f::CASE != 0 { vec![CASE] } else { Vec::new() }
-}
-
-/// The tags of a member's pickled flags `flags`.
-fn member_flags(flags: u64) -> Vec<u8> {
-    let pairs = [(f::FINAL, FINAL), (f::IMPLICIT, IMPLICIT), (f::OVERRIDE, OVERRIDE), (f::LAZY, LAZY)];
-    pairs.iter().filter(|&&(b, _)| flags & b != 0).map(|&(_, t)| t).collect()
+    f::visibility_tags(h.flags, h.within.is_some())
 }

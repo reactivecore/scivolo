@@ -2,8 +2,53 @@
 //   compiler/src/dotty/tools/dotc/core/unpickleScala2/Scala2Flags.scala
 //   compiler/src/dotty/tools/dotc/core/unpickleScala2/PickleBuffer.scala
 //! The flags of a symbol in a Scala 2 pickle, at the bits the pickle has them (the `*_PKL`
-//! positions for the low twelve).
+//! positions for the low twelve), and the modifier tags they give (dotty's `unpickleScalaFlags`).
 #![allow(dead_code)]
+
+use crate::tags as t;
+
+/// Determines the visibility tags of pickled flags `flags`, `qualified` if the symbol has an
+/// access qualifier.
+pub fn visibility_tags(flags: u64, qualified: bool) -> Vec<u8> {
+    let local = if flags & LOCAL != 0 { Some(t::LOCAL) } else { None };
+    match flags {
+        _ if flags & PRIVATE != 0 => [t::PRIVATE].into_iter().chain(local).collect(),
+        _ if flags & PROTECTED != 0 && qualified => vec![t::PROTECTED, t::PROTECTEDqualified],
+        _ if flags & PROTECTED != 0 => [t::PROTECTED].into_iter().chain(local).collect(),
+        _ if qualified => vec![t::PRIVATEqualified],
+        _ => Vec::new(),
+    }
+}
+
+/// Determines the tags of a class's pickled flags `flags`; a trait is abstract.
+pub fn class_tags(flags: u64) -> Vec<u8> {
+    let mut tags = case_tag(flags);
+    let pairs = [(FINAL, t::FINAL), (SEALED, t::SEALED), (ABSTRACT, t::ABSTRACT), (TRAIT, t::TRAIT)];
+    tags.extend(pairs.iter().filter(|&&(b, _)| flags & b != 0).map(|&(_, tag)| tag));
+    if flags & TRAIT != 0 && flags & ABSTRACT == 0 {
+        tags.push(t::ABSTRACT);
+    }
+    tags
+}
+
+/// Determines the `case` tag if pickled flags `flags` have it.
+pub fn case_tag(flags: u64) -> Vec<u8> {
+    if flags & CASE != 0 { vec![t::CASE] } else { Vec::new() }
+}
+
+/// Determines the tags of a member's pickled flags `flags`: an accessor is a `FIELDaccessor`,
+/// a `getter` without `STABLE` mutable.
+pub fn member_tags(flags: u64, getter: bool) -> Vec<u8> {
+    let pairs = [(FINAL, t::FINAL), (IMPLICIT, t::IMPLICIT), (OVERRIDE, t::OVERRIDE), (LAZY, t::LAZY)];
+    let mut tags: Vec<u8> = pairs.iter().filter(|&&(b, _)| flags & b != 0).map(|&(_, tag)| tag).collect();
+    if getter && flags & STABLE == 0 {
+        tags.push(t::MUTABLE);
+    }
+    if flags & ACCESSOR != 0 {
+        tags.push(t::FIELDaccessor);
+    }
+    tags
+}
 
 pub const IMPLICIT: u64 = 1 << 0;
 pub const FINAL: u64 = 1 << 1;
