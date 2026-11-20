@@ -115,6 +115,7 @@ impl Unpickler {
         let mut name = decode(&h.name);
         if method && name == TRAIT_CONSTRUCTOR {
             name = nme::CONSTRUCTOR.to_owned();
+            u.set_inits(owner);
         }
         let private = flags & f::PRIVATE != 0 && name != nme::CONSTRUCTOR;
         let module_class = u.symbol(owner).flags.has(OBJECT);
