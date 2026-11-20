@@ -5,7 +5,7 @@
 use super::{Refusal, TreePickler};
 use tasty::tags::*;
 use tasty::write::Addr;
-use tasty::{SymbolId, Type, TypeId};
+use tasty::{Kind, NameId, SymbolId, Type, TypeId};
 
 /// The key byte of a reference by name, told from a reference to a symbol (dotty's designators).
 pub const BY_NAME: u8 = 0;
@@ -99,6 +99,34 @@ impl TreePickler<'_> {
             self.byte(TYPEREFpkg);
             self.package_name(p);
         }
+    }
+
+    /// Writes the key of type `prefix.name` if it names a package and returns whether it does:
+    /// nothing for a path of packages from the root, which shares with the package's own type as
+    /// dotty's unique `TermRef`s do, else a reference by name and the prefix.
+    pub fn package_path_key(&mut self, prefix: TypeId, name: NameId, is_type: bool) -> Result<bool, Refusal> {
+        if is_type || !self.names_package(prefix, name) {
+            return Ok(false);
+        }
+        if !self.is_root_path(prefix) {
+            self.byte(BY_NAME);
+            self.ty(prefix, false)?;
+        }
+        Ok(true)
+    }
+
+    /// Whether type `t` is a package selected from the root through packages only.
+    fn is_root_path(&mut self, t: TypeId) -> bool {
+        match *self.u.ty(t) {
+            Type::Package(_) => true,
+            Type::TermRef(prefix, name) => self.names_package(prefix, name) && self.is_root_path(prefix),
+            _ => false,
+        }
+    }
+
+    fn names_package(&mut self, prefix: TypeId, name: NameId) -> bool {
+        let resolved = self.u.resolve(prefix, name, false);
+        resolved.is_some_and(|s| self.u.symbol(s).kind == Kind::Package)
     }
 
     /// Writes a `SHAREDtype` if `key` was pickled before, else records it at the current address.

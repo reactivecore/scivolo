@@ -156,10 +156,11 @@ impl TreePickler<'_> {
     }
 
     /// Pickles type `prefix.name`; a class file's reference, through the `this` of a package,
-    /// shared as the reference to its symbol (dotty's `typeRef` of a class file's class).
+    /// shared as the reference to its symbol (dotty's `typeRef` of a class file's class), and a
+    /// package's as `package_path_key` tells.
     pub fn named_type(&mut self, prefix: TypeId, name: NameId, is_type: bool) -> Result<(), Refusal> {
         let package_this = self.u.this_of(prefix).is_some_and(|c| matches!(self.u.ty(c), Type::Package(_)));
-        if self.keying && !package_this {
+        if self.keying && !self.package_path_key(prefix, name, is_type)? && !package_this {
             self.byte(BY_NAME);
         }
         self.named_ref(prefix, name, is_type)

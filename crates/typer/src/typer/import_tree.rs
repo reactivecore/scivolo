@@ -63,15 +63,25 @@ impl Typer<'_> {
         self.u.intern_type(Type::Sym(Some(prefix), s))
     }
 
-    /// The type of `path`, its packages selected from packages as `TermRef`s of their prefixes.
+    /// The type of `path`, its packages selected from packages as `TermRef`s of their prefixes
+    /// and a package named alone in an enclosing package as a member of that package's `this`
+    /// (dotty's `TermRef`s of `Select`s and of `findRef`).
     fn package_path(&mut self, path: TNodeId) -> TypeId {
         let tpe = self.tpd.tpe(path);
         let Type::Package(p) = *self.u.ty(tpe) else { return tpe };
-        let T::Select { qualifier, .. } = *self.tpd.tree(path) else { return tpe };
-        if !matches!(self.u.ty(self.tpd.tpe(qualifier)), Type::Package(_)) {
-            return tpe;
-        }
-        let prefix = self.package_path(qualifier);
+        let prefix = match *self.tpd.tree(path) {
+            T::Select { qualifier, .. } if matches!(self.u.ty(self.tpd.tpe(qualifier)), Type::Package(_)) => {
+                self.package_path(qualifier)
+            }
+            T::Ident { .. } => match self.u.symbol(p).owner.filter(|&o| o != self.u.root()) {
+                Some(owner) => {
+                    let package = self.u.intern_type(Type::Package(owner));
+                    self.u.intern_type(Type::This(package))
+                }
+                None => return tpe,
+            },
+            _ => return tpe,
+        };
         let name = self.u.interned_name(p);
         self.u.intern_type(Type::TermRef(prefix, name))
     }
