@@ -63,15 +63,24 @@ impl Universe {
         }
     }
 
-    /// The bounds of abstract type member `m` of class `owner`, seen from `prefix`.
+    /// The bounds of abstract type member `m` of class `owner`, seen from `prefix`; of a
+    /// higher-kinded one bounded as `[X] =>> >: L <: H`, the type lambdas `[X] =>> L` and
+    /// `[X] =>> H`.
     fn bounds_seen_from(&mut self, m: SymbolId, owner: SymbolId, prefix: TypeId) -> Option<(TypeId, TypeId)> {
         let info = self.info(m);
-        if !matches!(self.ty(info), Type::Bounds(..)) {
+        let higher_kinded =
+            |u: &Self, t| matches!(*u.ty(t), Type::Lambda { result, .. } if u.bounds(result).is_some());
+        if !matches!(self.ty(info), Type::Bounds(..)) && !higher_kinded(self, info) {
             return None;
         }
         let seen = self.as_seen_from(info, prefix, owner);
         match *self.ty(seen) {
             Type::Bounds(lo, hi) => Some((lo, hi)),
+            Type::Lambda { binder, params, result } => {
+                let (lo, hi) = self.bounds(result)?;
+                let lo = self.intern_type(Type::Lambda { binder, params, result: lo });
+                Some((lo, self.intern_type(Type::Lambda { binder, params, result: hi })))
+            }
             _ => None,
         }
     }

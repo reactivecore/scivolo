@@ -357,6 +357,37 @@ fn exported_match_aliases_reduce_from_tasty() {
     assert_eq!(String::from_utf8_lossy(&run.stdout), "1\n");
 }
 
+/// A higher-kinded type member of tests/jvm/tastylib/prefixmembers/lib.scala that a subclass
+/// bounds anew, read from its TASTy, has both bounds through a prefix of the subclass.
+#[test]
+fn overriding_higher_kinded_bounds_meet_from_tasty() {
+    let out = root().join("tmp/jvm-test/prefixmembers");
+    let _ = std::fs::remove_dir_all(&out);
+    let (lib, user) = (out.join("lib"), out.join("use"));
+    let compile = |dest: &Path, flags: &[&str], source: &str| {
+        let run = Command::new(env!("CARGO_BIN_EXE_scivolo-jvm"))
+            .current_dir(root())
+            .args(flags)
+            .arg("-d")
+            .arg(dest)
+            .arg(format!("tests/jvm/tastylib/prefixmembers/{source}.scala"))
+            .output()
+            .expect("running scivolo-jvm");
+        assert!(run.status.success(), "{}", String::from_utf8_lossy(&run.stderr));
+    };
+    compile(&lib, &[], "lib");
+    compile(&user, &["--cp", lib.to_str().expect("a path")], "use");
+    if Command::new("java").arg("-version").output().is_err() {
+        eprintln!("no java on the PATH: not run");
+        return;
+    }
+    let library = root().join("ref/libs/scala-library-3.9.0.jar");
+    let classpath = format!("{}:{}:{}", user.display(), lib.display(), library.display());
+    let run = Command::new("java").args(["-Xverify:all", "-cp", &classpath, "Use"]).output().expect("java");
+    assert!(run.status.success(), "{}", String::from_utf8_lossy(&run.stderr));
+    assert_eq!(String::from_utf8_lossy(&run.stdout), "Hole(1)\n");
+}
+
 /// scala-cli 3.9.0 compiles tests/jvm/tastylib/user.scala against the jar, and the result runs
 /// on `java -Xverify:all`, when both are on the PATH.
 #[test]
