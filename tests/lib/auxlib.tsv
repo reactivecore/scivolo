@@ -1,0 +1,15 @@
+scala-3/scala/runtime/function/JProcedure.scala	ok		23	0	0	0	0
+scala/scala/collection/concurrent/BasicNode.scala	ok		1	0	0	0	0
+scala/scala/collection/concurrent/CNodeBase.scala	ok		2	0	0	0	0
+scala/scala/collection/concurrent/Gen.scala	ok		1	0	0	0	0
+scala/scala/collection/concurrent/INodeBase.scala	ok		5	0	0	0	0
+scala/scala/collection/concurrent/IntrinsicAtomicFieldUpdaters.scala	ok		2	0	0	0	0
+scala/scala/collection/concurrent/MainNode.scala	ok		3	0	0	0	0
+scala/scala/math/ScalaNumber.scala	ok		1	0	0	0	0
+scala/scala/runtime/ArrayRuntime.scala	ok		2	0	0	0	0
+scala/scala/runtime/BoxedUnit.scala	ok		2	0	0	0	0
+scala/scala/runtime/BoxesRunTime.scala	ok		2	0	0	0	0
+scala/scala/runtime/RefTypes.scala	ok		36	0	0	0	0
+scala/scala/runtime/Statics.scala	ok		3	0	0	0	0
+scala/scala/runtime/TraitSetter.scala	ok		1	0	0	0	0
+scala/scala/scalanative/runtime/BoxedUnit.scala	ok		2	0	0	0	0

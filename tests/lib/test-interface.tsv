@@ -1,0 +1,8 @@
+scala/scala/scalajs/reflect/annotation/package.scala	ok		2	0	0	0	0
+scala/scala/scalanative/runtime/testinterface/signalhandling/SignalConfig.scala	ok		4	0	0	0	0
+scala/scala/scalanative/testinterface/FrameworkLoader.scala	ok		9	0	0	0	0
+scala/scala/scalanative/testinterface/NativeRPC.scala	ok		3	0	0	0	0
+scala/scala/scalanative/testinterface/ScalaNativeClassLoader.scala	ok		1	0	0	0	0
+scala/scala/scalanative/testinterface/TaskInfoBuilder.scala	ok		4	0	0	0	0
+scala/scala/scalanative/testinterface/TestAdapterBridge.scala	ok		17	0	0	0	0
+scala/scala/scalanative/testinterface/TestMain.scala	ok		5	0	0	0	0

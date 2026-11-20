@@ -1,0 +1,13 @@
+scala/scala/scalanative/testinterface/common/Endpoints.scala	ok		9	0	0	0	0
+scala/scala/scalanative/testinterface/common/ExecuteRequest.scala	ok		3	0	0	0	0
+scala/scala/scalanative/testinterface/common/FrameworkInfo.scala	ok		3	0	0	0	0
+scala/scala/scalanative/testinterface/common/FrameworkMessage.scala	ok		3	0	0	0	0
+scala/scala/scalanative/testinterface/common/JVMEndpoints.scala	ok		2	0	0	0	0
+scala/scala/scalanative/testinterface/common/LogElement.scala	ok		3	0	0	0	0
+scala/scala/scalanative/testinterface/common/NativeEndpoints.scala	ok		2	0	0	0	0
+scala/scala/scalanative/testinterface/common/RPCCore.scala	ok		29	0	0	0	0
+scala/scala/scalanative/testinterface/common/RunMux.scala	ok		3	0	0	0	0
+scala/scala/scalanative/testinterface/common/RunMuxRPC.scala	ok		13	0	0	0	0
+scala/scala/scalanative/testinterface/common/RunnerArgs.scala	ok		3	0	0	0	0
+scala/scala/scalanative/testinterface/common/Serializer.scala	ok		33	0	0	0	0
+scala/scala/scalanative/testinterface/common/TaskInfo.scala	ok		3	0	0	0	0
