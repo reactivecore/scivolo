@@ -87,8 +87,9 @@ fn a_java_jar_on_the_classpath_is_used() {
 /// scala2_shadow.scala through a wildcard import that shadows `scala.StringBuilder`, and
 /// tests/jvm/scala2: basics, members, extends.scala and mixins.scala extending Scala 2 classes
 /// and traits with methods, values.scala traits with a `var`, a `val` and a `lazy val`, and
-/// autoapply.scala calling Scala 2 methods with `()` without it.
-const SCALA2_PROGRAMS: [(&str, &str, &str); 8] = [
+/// autoapply.scala calling Scala 2 methods with `()` without it, arrays.scala passing arrays of
+/// generic, reference and primitive elements.
+const SCALA2_PROGRAMS: [(&str, &str, &str); 9] = [
     ("tests/jvm/javajar/scala2.scala", "tests/jvm/javajar/legacy/legacy.jar", "Scala2"),
     ("tests/jvm/javajar/scala2_shadow.scala", "tests/jvm/javajar/legacy/legacy.jar", "Scala2Shadow"),
     ("tests/jvm/scala2/basics/basics.scala", "tests/jvm/scala2/basics/basics.jar", "Basics"),
@@ -97,6 +98,7 @@ const SCALA2_PROGRAMS: [(&str, &str, &str); 8] = [
     ("tests/jvm/scala2/mixins/mixins.scala", "tests/jvm/scala2/mixins/mixins.jar", "Mixins"),
     ("tests/jvm/scala2/mixins/values.scala", "tests/jvm/scala2/mixins/mixins.jar", "Values"),
     ("tests/jvm/scala2/autoapply/autoapply.scala", "tests/jvm/scala2/autoapply/autoapply.jar", "AutoApply"),
+    ("tests/jvm/scala2/arrays/arrays.scala", "tests/jvm/scala2/arrays/arrays.jar", "Arrays"),
 ];
 
 /// scivolo-jvm compiles the `SCALA2_PROGRAMS` against their jars, read from the classes' Scala 2
