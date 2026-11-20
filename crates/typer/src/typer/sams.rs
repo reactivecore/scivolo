@@ -24,12 +24,10 @@ pub type SamParent = (TypeId, SamClause);
 impl Typer<'_> {
     /// The parameter and result types of the single abstract method of `t`, of `n` parameters,
     /// and `t`'s base type of the method's class (dotty's `SAMType`, `samParent`); `Err` for a
-    /// single abstract method type outside the subset: with type variables unless `open` and
-    /// not of a Java class.
+    /// single abstract method type outside the subset: with type variables unless `open`.
     pub fn sam_parts(&mut self, t: TypeId, n: usize, open: bool) -> Result<Option<Sam>, &'static str> {
         let t = self.zonk(t);
         let Some(sam) = self.sam_shape(t, n)? else { return Ok(None) };
-        let open = open && !self.u.class_symbol(sam.parent).is_some_and(|c| self.is_java_class_name(c));
         if !open && !self.is_fully_defined(t) && !self.is_partial_function(t) {
             return Err("single abstract method type outside the subset");
         }

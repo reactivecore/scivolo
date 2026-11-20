@@ -859,3 +859,8 @@ fn members_both_sides_of_a_self_type_share_need_no_joint_member() {
 fn ambiguous_imported_extensions_fall_back_to_the_receivers_implicit_scope() {
     runs_on_the_jvm("ambiguousextensions", "ambiguousextensions");
 }
+
+#[test]
+fn lambdas_against_generic_java_sams_infer_their_results() {
+    runs_on_the_jvm("javagenericsams", "javagenericsams");
+}
