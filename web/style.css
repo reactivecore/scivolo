@@ -42,6 +42,9 @@ h1 { margin: 0; font-size: 1.3rem; }
 header p { margin: 0; color: var(--muted); }
 #title p { flex: 1; }
 #keys { margin-top: 0.3rem; font-size: 0.85rem; }
+#links { color: var(--muted); font-size: 0.85rem; }
+#links a { color: var(--accent); text-decoration: none; }
+#links a:hover { text-decoration: underline; }
 button { font: inherit; padding: 0.2rem 0.9rem; border: 1px solid var(--accent); border-radius: 4px;
   background: none; color: var(--accent); cursor: pointer; }
 

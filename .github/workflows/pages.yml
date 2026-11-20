@@ -1,0 +1,60 @@
+name: Pages
+
+# The browser REPL (`just web-dist`) on GitHub Pages: built on pull requests, built and deployed
+# on main, on release tags and when run by hand.
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: "0"
+
+jobs:
+  build:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/setup
+
+      - name: Cache library image and Coursier downloads
+        uses: actions/cache@v6
+        with:
+          path: |
+            tmp/cache
+            ~/.cache/coursier
+          key: web-${{ github.run_id }}
+          restore-keys: web-
+
+      - name: Build the site
+        run: just fetch-libs web-dist
+
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: tmp/web-dist
+
+  deploy:
+    if: github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-26.04
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5
