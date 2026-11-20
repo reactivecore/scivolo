@@ -1026,23 +1026,20 @@ Results:
 
 | Outcome | tests/run | tests/run-macros |
 |---|---:|---:|
-| passed | 1690 | 320 |
+| passed | 1694 | 320 |
 | wrong output | 0 | 0 |
 | verify error | 0 | 0 |
 | linkage error | 0 | 0 |
 | crashed | 1 | 0 |
 | timeout | 0 | 0 |
-| frontend crashed | 1 | 0 |
+| frontend crashed | 0 | 0 |
 | jvm refused | 0 | 0 |
 | lowering refused | 0 | 0 |
-| typer refused | 5 | 0 |
+| typer refused | 2 | 0 |
 | skipped | 14 | 1 |
 | **total** | **1711** | **321** |
 
-- **Typer refused (run):** `i13332shapeless` and `typeCheckErrors` of the VM's report;
-  `mapConserve` (a nullary overloaded method against an undetermined type);
-  `varargs-extend-java` and `varargs-extend-java-2` (a concrete class with an unimplemented member).
-- **Frontend crashed:** `named-tuples-strawman-2` (a stack overflow).
+- **Typer refused (run):** `i13332shapeless` and `typeCheckErrors`, as in the VM's report.
 - **Tests with Java sources:** all pass.
 - **Crash:** `lambda-serialization-gc` casts the application class loader to `URLClassLoader`,
   which fails for scalac's class files too, as the runner does not load tests through one.
@@ -1089,17 +1086,18 @@ the optimizer (1883 of its 3134 classes dotty also writes differ in code from do
 
 | Outcome | Files | Classes |
 |---|---:|---:|
-| same | 641 | 3254 |
-| attributes differ | 5 | 5 |
+| same | 646 | 3261 |
+| attributes differ | 1 | 1 |
 | code differs | 2 | 11 |
-| refused | 1 | |
+| refused | 0 | |
 
-- **Refused:** `scala/util/Properties.scala`, a nullary overloaded method against an undetermined
-  type.
 - **Code differs:** the pickled quotes of `scala.quoted.FromExpr` and `ToExpr` (strings of
   TASTy).
-- **Attributes differ:** `TrieMap`, `HashSet`, `Vector`, `runtime.Tuples` and
-  `ProcessBuilderImpl`.
+- **Attributes differ (case 1):** `TrieMap`'s `FailedNode.string(int)` bridge names its parameter
+  `x$0` in `MethodParameters` and `LocalVariableTable`, dotty's `lev`: the bridged
+  `BasicNode.string` is Java, read from the published jar's class file without parameter names,
+  where dotty's oracle compiles the Java sources with the library. Dotty compiling `FailedNode`
+  against the jar names it `x$0` too.
 
 `just jvm-lib-jar scalalib` packs those class files and TASTy into a library jar laid out as the
 published one (ADR 0123): the classes scala3's build takes from Scala 2.13 and javac's come from
