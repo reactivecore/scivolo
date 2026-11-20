@@ -12,7 +12,8 @@ use tasty::{Type, TypeId};
 impl Typer<'_> {
     /// Captures the wildcards of `t`: `List[? <: Number]` becomes `List[x.CAP]` for a fresh
     /// skolem `x` of type `scala.runtime.TypeBox[Nothing, Number]`, each wildcard bounded also by
-    /// its type parameter; `None` if `t` has no top-level wildcard argument.
+    /// its type parameter, as the JDK's class file reads it (`<FromJavaObject>` for `Object`);
+    /// `None` if `t` has no top-level wildcard argument.
     pub fn captured_wildcards(&mut self, t: TypeId) -> Option<TypeId> {
         captured(self, t, true)
     }
@@ -126,18 +127,23 @@ fn captured(t: &mut Typer<'_>, tpe: TypeId, java_unbounded: bool) -> Option<Type
     t.complete(type_box);
     let cap = t.u.decl(type_box, "CAP").ok()?.first().copied()?;
     t.complete(cap);
-    let java = !java_unbounded && t.u.class_symbol(tycon).is_some_and(|c| t.is_java_class_name(c));
+    let class = t.u.class_symbol(tycon).filter(|&c| t.is_java_class_name(c));
+    let java = !java_unbounded && class.is_some();
+    let object_bounded = class.and_then(|c| t.u.jdk_object_bounded_params(c)).unwrap_or_default();
+    let from_java_object = t.u.defn().from_java_object;
     let mut captured = Vec::new();
-    for (a, &p) in args.into_iter().zip(&params) {
+    for (i, (a, &p)) in args.into_iter().zip(&params).enumerate() {
         let a = t.with_param_bounds(a, Some(p), &params);
-        let Some((lo, hi)) = t.u.bounds(a) else {
+        let Some((lo, mut hi)) = t.u.bounds(a) else {
             captured.push(a);
             continue;
         };
-        let from_java_object = t.u.defn().from_java_object;
         let java_any = hi == tasty::ANY || t.u.sym_of(hi) == Some(from_java_object);
         if java && java_any {
             return None;
+        }
+        if hi == tasty::ANY && object_bounded.get(i) == Some(&true) {
+            hi = t.u.intern_type(Type::Sym(None, from_java_object));
         }
         let boxed = crate::defn::applied(t.u, type_box, vec![lo, hi]);
         let skolem = t.u.fresh_skolem(boxed);

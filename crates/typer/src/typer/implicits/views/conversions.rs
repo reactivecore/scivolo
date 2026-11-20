@@ -17,7 +17,10 @@ const CONVERSION: &str = "scala.Conversion";
 impl ViewSearch<'_> {
     /// Applies conversion `c` to the tree with `c`'s implicit arguments if the result fits the
     /// goal, as `1` becomes `intToBig(1)`: a constant tree widened to the parameter type first if
-    /// `widen`, the wildcards of its type captured where that makes it fit.
+    /// `widen`, the wildcards of its type captured where that fits, before trying it uncaptured
+    /// unless the parameter is by-name (dotty's `captureWildcardsCompat` before the view search
+    /// in `adapt`, which a by-name parameter fails by `checkNoWildcardCaptureForCBN`); the result
+    /// constrained by the goal first (dotty's `constrainResult`).
     pub fn try_conversion(
         &self,
         t: &mut Typer<'_>,
@@ -50,13 +53,21 @@ impl ViewSearch<'_> {
         let Some(Binding { params, result, implicit: false, .. }) = t.u.method(info) else {
             return Err("not a conversion");
         };
-        let [(_, mut param)] = params[..] else { return Err("not a conversion") };
-        param = t.u.by_name(param).unwrap_or(param);
+        let [(_, param)] = params[..] else { return Err("not a conversion") };
+        let (param, by_name) = t.u.by_name(param).map_or((param, false), |p| (p, true));
+        if let Goal::Conform(pt) = goal
+            && t.u.method(result).is_none()
+            && t.speculatively(|t| t.conforms(result, pt)).0
+        {
+            t.u.is_necessary_subtype_in(result, pt, &mut t.constraint);
+        }
         let arg_tpe = t.tpd.tpe(tree);
-        let arg = if t.conforms(arg_tpe, param) {
+        let arg = if by_name && t.conforms(arg_tpe, param) {
             t.gadt_adapted(tree, param)
         } else if let Some(c) = t.captured_wildcards(arg_tpe).filter(|&c| t.conforms(c, param)) {
             t.cast_to_captured(tree, c)?
+        } else if t.conforms(arg_tpe, param) {
+            t.gadt_adapted(tree, param)
         } else if widen && t.types().widens_to(arg_tpe, param) {
             t.converted_constant(tree, param).ok_or("conversion of another type")?
         } else {
