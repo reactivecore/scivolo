@@ -188,6 +188,17 @@ fn a_block_local_spans_the_athrow_after_the_block_value() {
 }
 
 #[test]
+fn the_unit_of_a_discarded_value_marks_no_line() {
+    let source = "object Disc {\n  def plain(a: Array[Object]): Unit =\n    Iterator[Object](\"x\").copyToArray(a,\n      0, 1\n    )\n}";
+    with_gen(source, |g, root| {
+        let mut pool = Pool::default();
+        let table = with_body(g, root, "plain", &mut pool, |b| b.code.line_table().unwrap_or_default());
+        let lines: Vec<u16> = table[2..].chunks(4).map(|r| u16::from_be_bytes([r[2], r[3]])).collect();
+        assert_eq!(lines, [3, 4]);
+    });
+}
+
+#[test]
 fn explicit_nulls_test_a_pattern_against_a_typed_null() {
     let source = "object Patterns {
         def g(x: CharSequence | Null): Int = x match { case s: CharSequence => 1; case _ => 2 }

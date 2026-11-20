@@ -1068,7 +1068,9 @@ Results:
 
 - **As scalac's class files on the JVM** (platform differences): wrong output `bottomarrays`,
   `universaljoins`, `exprforms` (array class names), `classtags` (`ClassTag` of a nested array),
-  `staticinit` (object initialization order), `unitarrays` (`Array[Unit]` elements); crashes
+  `staticinit` (object initialization order), `unitarrays` (`Array[Unit]` elements),
+  `enumerations` (`Enumeration` names a value by reflection on getters, and a `private val` has
+  none: `<Invalid enum: no field for #20>`); crashes
   `closuretypes` (a package named `java.*`), `matchtypearrays` (`ClassCastException`), `resources`
   (no resource directory on the classpath); linkage error `protectedaccess` (`NoSuchMethodError`
   of `Copies.clone()`, an `invokeinterface` of `Object`'s protected `clone`).

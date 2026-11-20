@@ -37,6 +37,7 @@ pub struct Tpd {
     clauses: Vec<List>,
     trailing_maps: FxHashSet<TNodeId>,
     backquoted: FxHashSet<TNodeId>,
+    synthetic_units: FxHashSet<TNodeId>,
     anon_mirrors: FxHashMap<SymbolId, AnonMirror>,
     quote_tags: FxHashMap<TNodeId, Vec<(SymbolId, TypeId)>>,
     format_views: FxHashMap<TNodeId, Vec<(Target, FormatView)>>,
@@ -146,6 +147,25 @@ impl Tpd {
 
     pub fn is_backquoted(&self, id: TNodeId) -> bool {
         self.backquoted.contains(&id)
+    }
+
+    /// Marks `id`, the `()` of a value discarded to `Unit` (dotty's `SyntheticUnit`).
+    pub fn mark_synthetic_unit(&mut self, id: TNodeId) {
+        self.synthetic_units.insert(id);
+    }
+
+    pub fn is_synthetic_unit(&self, id: TNodeId) -> bool {
+        self.synthetic_units.contains(&id)
+    }
+
+    /// Gives `copy` the marks of tree `t`: back-quoted, synthetic unit.
+    pub fn copy_marks(&mut self, t: TNodeId, copy: TNodeId) {
+        if self.backquoted.contains(&t) {
+            self.backquoted.insert(copy);
+        }
+        if self.synthetic_units.contains(&t) {
+            self.synthetic_units.insert(copy);
+        }
     }
 
     /// Marks anonymous class `class` as a mirror of kind `kind`.
