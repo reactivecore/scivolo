@@ -86,18 +86,23 @@ impl Unpickler {
 
     /// Enters member entry `i` of class `owner`, or refuses its name: a value, variable, method,
     /// type member, or a class or object of an object; a class or object of a class, an expanded
-    /// name, a macro and the extractor of a case class are refused; private members, existential
-    /// and stray type parameters (i12641), case accessors `x$access$N` and extension methods of
-    /// an object are skipped.
+    /// name, a macro, the extractor of a case class and a private lazy value of a trait are
+    /// refused; other private members, existential and stray type parameters (i12641), case
+    /// accessors `x$access$N` and extension methods of an object are skipped.
     fn member(&mut self, u: &mut Universe, i: usize, h: &Header, owner: SymbolId) -> Result<Sym, String> {
         let flags = h.flags;
         let method = flags & f::METHOD != 0;
         let mut name = decode(&h.name);
         if method && name == TRAIT_CONSTRUCTOR {
             name = nme::CONSTRUCTOR.to_owned();
+            u.set_inits(owner);
         }
         let private = flags & f::PRIVATE != 0 && name != nme::CONSTRUCTOR;
         let module_class = u.symbol(owner).flags.has(OBJECT);
+        if private && flags & f::LAZY != 0 && u.is_trait(owner) {
+            self.refused.push((owner, name, "a private lazy value".to_owned()));
+            return Ok(Sym::Skipped);
+        }
         let skipped = private
             || h.tag == TYPEsym && flags & (f::PARAM | f::EXISTENTIAL) != 0
             || flags & f::CASEACCESSOR != 0 && name.contains("$access$")

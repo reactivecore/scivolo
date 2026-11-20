@@ -50,6 +50,11 @@ impl JavaClasses {
         self.jars.contains_key(internal)
     }
 
+    /// Determines the index of the jar that holds class `internal`.
+    pub fn jar_of(&self, internal: &str) -> Option<usize> {
+        self.jars.get(internal).copied()
+    }
+
     /// Determines whether a jar's class file or a Java source declares class `internal`.
     pub fn declares(&self, internal: &str) -> bool {
         self.in_jars(internal) || self.sources.declares(internal)

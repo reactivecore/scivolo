@@ -27,6 +27,10 @@ impl Gen<'_, '_> {
         value: Option<(TNodeId, TNodeId)>,
     ) -> Result<i32> {
         let owner = self.l.u.symbol(f).owner.expect("a field's owner");
+        if self.l.u.is_pickled(owner) {
+            let span = qualifier.map_or(Span::NONE, |q| self.l.tpd.span(q));
+            return unsupported(span, "a field of a Scala 2 class of a jar");
+        }
         let desc = self.storage_descriptor(f);
         let instance = self.receiver(b, (f, false), qualifier, prefix)?;
         let op = match (instance, value) {
@@ -189,7 +193,11 @@ impl Gen<'_, '_> {
             self.expr_expect(b, a, param)?;
             self.cast_to_null(b, a, param);
         }
-        let in_trait = self.l.u.is_trait(owner) && owner_name == self.class_name(owner);
+        let declared_in = self.class_name(owner);
+        if let Err(why) = self.l.u.check_scala2_link(m, &declared_in, &name, &call_desc) {
+            return unsupported(span, why);
+        }
+        let in_trait = self.l.u.is_trait(owner) && owner_name == declared_in;
         let interface = interface || kind == Invoke::Interface || in_trait || jdk_interface;
         b.code.invoke_in(kind, interface, b.pool, (&owner_name, &name, &call_desc));
         if !sent {

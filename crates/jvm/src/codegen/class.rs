@@ -22,6 +22,7 @@ impl Gen<'_, '_> {
             return unsupported(self.l.tpd.span(td), "a type definition that is not a class");
         };
         self.check_annotations(sym, self.l.tpd.span(td))?;
+        self.check_scala2_bases(sym, self.l.tpd.span(td))?;
         let name = internal(&self.l.u.binary_name(sym));
         let targets = self.super_call_targets(body);
         let (superclass, interfaces) = self.parents(sym, &targets);
