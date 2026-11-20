@@ -29,6 +29,23 @@ impl Typer<'_> {
         self.extensions_only(found, ctx)
     }
 
+    /// Whether `syms` has a symbol the source file being typed defines (dotty's
+    /// `isDefinedInCurrentUnit`), or one of the unit without a definition tree.
+    pub fn in_unit(&self, syms: &[SymbolId]) -> bool {
+        syms.iter().filter(|s| self.syms.flags.contains_key(s)).any(|s| match self.syms.def_trees.get(s) {
+            Some(&tree) => self.file_of(self.ast.span(tree)) == self.file,
+            None => true,
+        })
+    }
+
+    /// Whether `classes` are members of package level `l` that other units define, whose
+    /// constructor proxies an inner import's binding precedes (dotty's `PackageClause` precedence).
+    pub fn defined_by_other_units(&self, l: LevelId, classes: &[SymbolId]) -> bool {
+        let package =
+            matches!(*self.levels.get(l), Level::Members(o) if self.u.symbol(o).kind == Kind::Package);
+        package && !self.in_unit(classes)
+    }
+
     /// `found` without its symbols other than extension methods if `ctx` looks for those.
     pub fn extensions_only(&self, mut found: Found, ctx: Ctx) -> Option<Found> {
         if ctx.mode.is(Mode::EXTENSION_METHOD) {

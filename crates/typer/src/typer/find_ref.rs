@@ -90,6 +90,7 @@ impl Typer<'_> {
                         let proxy = classes
                             .iter()
                             .any(|&s| self.needs_constructor_proxies(s) || self.is_exported_class(s));
+                        let proxy = proxy && !(prev.is_some() && self.defined_by_other_units(l, &classes));
                         if !name.is_type
                             && class
                             && !proxy
@@ -123,7 +124,7 @@ impl Typer<'_> {
                         continue;
                     };
                     let package = matches!(*self.levels.get(l), Level::Members(o) if self.u.symbol(o).kind == Kind::Package);
-                    if !package || self.in_unit(&found) {
+                    if !package || self.in_unit(&found.syms) {
                         if self.is_inherited(l, &found) {
                             self.check_no_outer_defs(l, &found, name, ctx)?;
                         }
@@ -259,17 +260,6 @@ impl Typer<'_> {
             Level::Import(_) => false,
         };
         defines && self.defined(s, name, ctx).and_then(|f| self.qualifying(f, s, ctx)).is_some()
-    }
-
-    /// Whether `found` has a symbol the source file being typed defines (dotty's
-    /// `isDefinedInCurrentUnit`), or one of the unit without a definition tree.
-    fn in_unit(&self, found: &Found) -> bool {
-        found.syms.iter().filter(|s| self.syms.flags.contains_key(s)).any(|s| {
-            match self.syms.def_trees.get(s) {
-                Some(&tree) => self.file_of(self.ast.span(tree)) == self.file,
-                None => true,
-            }
-        })
     }
 
     /// The symbols named `name` that scope or members level `l` defines, as selected in `ctx`.

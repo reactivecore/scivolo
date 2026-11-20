@@ -874,3 +874,8 @@ fn singleton_types_of_transparent_inline_calls_run_on_the_jvm() {
 fn top_level_private_opaque_types_run_on_the_jvm() {
     runs_on_the_jvm("privateopaques", "privateopaques");
 }
+
+#[test]
+fn enum_cases_precede_proxies_of_classes_other_files_add_to_the_package() {
+    runs_on_the_jvm("enumcaseproxies", "p.enumcaseproxies");
+}
