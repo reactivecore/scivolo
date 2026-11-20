@@ -21,16 +21,39 @@
     <div id="title">
       <h1>Scivolo</h1>
       <p>A Scala 3 REPL, interpreted in your browser. No threads, files or extra libraries.</p>
-      <button id="stop" hidden>Stop</button>
+      <div id="modes" role="group" aria-label="Mode">
+        <button data-mode="repl" aria-pressed="true">REPL</button><button data-mode="file" aria-pressed="false">File</button>
+      </div>
+      <button id="stop" class="repl-only" hidden>Stop</button>
       <nav id="links">
         <a href="https://github.com/reactivecore/scivolo">Source on GitHub</a> ·
         <a href="https://reactivecore.de">Reactive Core GmbH</a>
       </nav>
     </div>
-    <p id="keys">Enter runs the input once it is complete, Shift+Enter adds a line, Tab completes,
-      ↑ and ↓ walk the history.</p>
+    <p id="keys" class="repl-only">Enter runs the input once it is complete, Shift+Enter adds a
+      line, Tab completes, ↑ and ↓ walk the history.</p>
+    <p class="file-only">Run compiles the file and runs its main method (Ctrl+Enter); Tab indents.
+      The file stays in this browser.</p>
   </header>
-  <main id="terminal">
+  <main id="file" class="file-only">
+    <div id="toolbar">
+      <button id="run" disabled>Run</button>
+      <button id="file-stop" hidden>Stop</button>
+      <span id="file-status">Loading the Scala libraries…</span>
+    </div>
+    <div id="file-editor">
+      <pre id="gutter" aria-hidden="true"></pre>
+      <div id="code-area">
+        <div id="code-box">
+          <pre id="code-shade" aria-hidden="true"></pre>
+          <textarea id="code" wrap="off" spellcheck="false" autocapitalize="off" autocomplete="off"
+            aria-label="Scala file"></textarea>
+        </div>
+      </div>
+    </div>
+    <pre id="file-out" aria-live="polite"></pre>
+  </main>
+  <main id="terminal" class="repl-only">
     <pre id="out" aria-live="polite"></pre>
     <div id="line">
       <span class="prompt" id="prompt"></span>

@@ -46,7 +46,7 @@ pub struct Program {
 /// files with dependencies, directives other than options and the Scala version, constructs the
 /// frontend does not support, and several or no main classes (`@main` methods or objects with
 /// `def main(args: Array[String])`). A program whose compile ran a macro (`vm.macro_expansions`)
-/// runs in a fresh VM, so that the macros' side effects do not reach it (ADR 0029).
+/// must run in another VM, so that the macros' side effects do not reach it (ADR 0029).
 pub fn compile_program(
     (name, text): (&str, &str),
     image: &'static Image,

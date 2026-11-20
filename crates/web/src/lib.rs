@@ -18,8 +18,8 @@ const TIME_LIMIT: Duration = Duration::from_secs(10);
 const RUNNING: i32 = -1;
 
 /// The module's one session or program setup and its buffers, the only state outside `Vm`
-/// here. An instance holds one VM: a session, or a file run (`load_image`, then `run_file` or
-/// `run_compiled`).
+/// /// here. An instance holds one VM: a session (`start`), or a file run (`load_image`, then
+/// `run_file`).
 #[derive(Default)]
 struct State {
     session: Option<Session>,
@@ -70,7 +70,7 @@ fn open(setup: &Setup) -> Result<Session, String> {
     Session::new(program::new_vm(setup)?, setup.image, setup.width).map_err(|e| e.to_string())
 }
 
-/// Takes the library image in the buffer for `run_file` or `run_compiled`, with compiler
+/// Takes the library image in the buffer for `run_file`, with compiler
 /// messages `width` columns wide and at most `heap_mib` MiB of live objects; replies with
 /// nothing, or with why the image is unusable.
 #[unsafe(no_mangle)]
@@ -85,16 +85,17 @@ pub extern "C" fn load_image(width: i32, heap_mib: u32) -> *const u8 {
     reply_with(&reply)
 }
 
-/// Compiles the `.scala` file in the buffer and runs its main method (`program::run_file`).
+/// Compiles the `.scala` file in the buffer and runs its main method (`program::run_file`), once
+/// per instance; replies with the run.
 #[unsafe(no_mangle)]
 pub extern "C" fn run_file() -> *const u8 {
-    with_setup(|setup, text| program::run_file(setup, &String::from_utf8_lossy(text)))
-}
-
-/// Runs the program compiled by `run_file` of another instance, in the buffer.
-#[unsafe(no_mangle)]
-pub extern "C" fn run_compiled() -> *const u8 {
-    with_setup(program::run_compiled)
+    let text = argument();
+    let Some(setup) = STATE.with_borrow_mut(|s| s.setup.take()) else {
+        return reply_with(&format!("1\n{NO_IMAGE}\n"));
+    };
+    let reply = program::run_file(&setup, &text);
+    STATE.with_borrow_mut(|s| s.setup = Some(setup));
+    reply_with(&reply)
 }
 
 /// Makes each later input or run stop after `millis` milliseconds of running.
@@ -160,6 +161,9 @@ pub extern "C" fn exit_code() -> i32 {
 /// The reply to calls that need a session before `start`.
 const NOT_STARTED: &str = "The REPL has not started.";
 
+/// What `run_file` prints before `load_image`.
+const NO_IMAGE: &str = "The library image is not loaded.";
+
 fn argument() -> String {
     STATE.with_borrow_mut(|s| String::from_utf8_lossy(&std::mem::take(&mut s.buffer)).into_owned())
 }
@@ -172,27 +176,12 @@ fn with_session<T>(f: impl FnOnce(&mut Session) -> T) -> Option<T> {
     Some(out)
 }
 
-/// Calls `f` with the program setup and the buffer's bytes; replies with what it returns.
-fn with_setup(f: impl FnOnce(&Setup, &[u8]) -> Vec<u8>) -> *const u8 {
-    let bytes = STATE.with_borrow_mut(|s| std::mem::take(&mut s.buffer));
-    let Some(setup) = STATE.with_borrow_mut(|s| s.setup.take()) else {
-        return reply_with("R1\nThe library image is not loaded.\n");
-    };
-    let reply = f(&setup, &bytes);
-    STATE.with_borrow_mut(|s| s.setup = Some(setup));
-    reply_bytes(&reply)
-}
-
 /// Stores `text` as the reply; its address.
 fn reply_with(text: &str) -> *const u8 {
-    reply_bytes(text.as_bytes())
-}
-
-fn reply_bytes(bytes: &[u8]) -> *const u8 {
     STATE.with_borrow_mut(|s| {
         s.reply.clear();
-        s.reply.extend_from_slice(&(bytes.len() as u32).to_le_bytes());
-        s.reply.extend_from_slice(bytes);
+        s.reply.extend_from_slice(&(text.len() as u32).to_le_bytes());
+        s.reply.extend_from_slice(text.as_bytes());
         s.reply.as_ptr()
     })
 }

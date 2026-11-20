@@ -3,6 +3,7 @@
 
 import { choicesShown, hideChoices, moveChoice, selectedChoice, showChoices } from "./choices.js";
 import { download } from "./download.js";
+import { fileMode, setupFileMode } from "./file.js";
 import { load } from "./scivolo.js";
 import { render } from "./sgr.js";
 
@@ -185,10 +186,10 @@ input.addEventListener("keydown", (e) => {
   }
 });
 document.addEventListener("mouseup", () => {
-  if (document.getSelection().isCollapsed) input.focus();
+  if (!fileMode() && document.getSelection().isCollapsed) input.focus();
 });
 document.addEventListener("keydown", (e) => {
-  if (document.activeElement !== input && !e.ctrlKey && !e.metaKey && !e.altKey) input.focus();
+  if (!fileMode() && document.activeElement !== input && !e.ctrlKey && !e.metaKey && !e.altKey) input.focus();
 });
 stop.onclick = () => {
   print("Stopped; the session is reset.", "note");
@@ -198,6 +199,7 @@ stop.onclick = () => {
 try {
   module = await WebAssembly.compile(await (await fetch(MODULE)).arrayBuffer());
   editor = await load(module);
+  const files = setupFileMode((text) => light((r) => r.highlight(text), text), () => input.focus());
   prompt.textContent = editor.prompt();
   print(editor.welcome());
   print("");
@@ -205,6 +207,7 @@ try {
   image = await download(IMAGE, (loaded, total) => {
     status.textContent = `Downloading the Scala libraries: ${mb(loaded)}${total ? ` of ${mb(total)}` : ""} MB`;
   });
+  files.ready(module, image, { width: WIDTH, heapMib: HEAP_MIB });
   restart();
 } catch (e) {
   if (!window.reloadFresh()) status.textContent = `The REPL could not load: ${e}`;
