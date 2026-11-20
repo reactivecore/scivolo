@@ -221,10 +221,11 @@ fn inaccessible_java_classes_and_native_classes_are_refused() {
     }
 }
 
-/// The `InnerClasses` entry of the class of a nested object of a Scala 2 pickle that
-/// tests/jvm/scala2/shapes/shapes.scala uses is public static, not final, as dotty writes it.
+/// tests/jvm/scala2/shapes/shapes.scala compiles as dotty does: the `InnerClasses` entry of the
+/// class of a nested object of a Scala 2 pickle is public static, not final; the synthetic
+/// `apply` of a Scala 2 case class takes its default from `$lessinit$greater$default$2`.
 #[test]
-fn nested_scala2_objects_are_inner_classes_as_dotty_writes_them() {
+fn scala2_class_files_are_used_as_dotty_uses_them() {
     let source = root().join("tests/jvm/scala2/shapes/shapes.scala");
     let jar = root().join("tests/jvm/scala2/shapes/shapes.jar");
     let out = root().join("tmp/jvm-test/scala2-inner");
@@ -235,7 +236,10 @@ fn nested_scala2_objects_are_inner_classes_as_dotty_writes_them() {
         .arg("-d")
         .arg(&out)
         .arg(&source));
-    let class = classfile::read(&std::fs::read(out.join("Shapes$.class")).unwrap()).unwrap();
+    let bytes = std::fs::read(out.join("Shapes$.class")).unwrap();
+    let text = String::from_utf8_lossy(&bytes);
+    assert!(text.contains("$lessinit$greater$default$2") && !text.contains("apply$default$2"));
+    let class = classfile::read(&bytes).unwrap();
     let nested = class.inner_classes.iter().find(|c| c.inner == "shapes/Tools$Nested$").expect("an entry");
     assert_eq!(nested.flags, classfile::ACC_PUBLIC | classfile::ACC_STATIC);
 }

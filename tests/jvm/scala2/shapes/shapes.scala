@@ -34,5 +34,6 @@ object Shapes {
     println(Dot.area)
     val s: Shape = r
     println(s.area)
+    println(List(1).map(Pt(_)))
   }
 }

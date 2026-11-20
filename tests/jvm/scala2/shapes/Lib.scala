@@ -22,6 +22,7 @@ object Functor {
 sealed trait Shape { def area: Double }
 case class Rect(w: Double, h: Double) extends Shape { def area: Double = w * h }
 case object Dot extends Shape { def area: Double = 0.0 }
+case class Pt(x: Int, y: Int = 7)
 
 class Tools {
   type Pair[A] = (A, A)

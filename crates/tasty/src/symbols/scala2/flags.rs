@@ -39,7 +39,13 @@ pub fn case_tag(flags: u64) -> Vec<u8> {
 /// Determines the tags of a member's pickled flags `flags`: an accessor is a `FIELDaccessor`,
 /// a `getter` without `STABLE` mutable, a parameter accessor a `PARAMsetter`.
 pub fn member_tags(flags: u64, getter: bool) -> Vec<u8> {
-    let pairs = [(FINAL, t::FINAL), (IMPLICIT, t::IMPLICIT), (OVERRIDE, t::OVERRIDE), (LAZY, t::LAZY)];
+    let pairs = [
+        (FINAL, t::FINAL),
+        (IMPLICIT, t::IMPLICIT),
+        (OVERRIDE, t::OVERRIDE),
+        (LAZY, t::LAZY),
+        (SYNTHETIC, t::SYNTHETIC),
+    ];
     let mut tags: Vec<u8> = pairs.iter().filter(|&&(b, _)| flags & b != 0).map(|&(_, tag)| tag).collect();
     if getter && flags & STABLE == 0 {
         tags.push(t::MUTABLE);
