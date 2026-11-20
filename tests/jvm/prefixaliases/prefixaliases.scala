@@ -1,5 +1,20 @@
 import scala.language.implicitConversions
 
+object Forward:
+  def ended(d: Defs.DefDef[AnyRef]): Defs.DefDef[AnyRef] = d.copied.withMods(1).dropEndMarker()
+
+object Defs:
+  abstract class Tree[+T <: AnyRef]:
+    type ThisTree[T <: AnyRef] <: Tree[T]
+    def withMods(mods: Int): ThisTree[AnyRef] = this.asInstanceOf[ThisTree[AnyRef]]
+
+  trait WithEndMarker[+T <: AnyRef] extends Tree[T]:
+    final def dropEndMarker(): this.type = this
+
+  case class DefDef[+T <: AnyRef](name: String) extends Tree[T] with WithEndMarker[T]:
+    type ThisTree[+T <: AnyRef] = DefDef[T]
+    def copied: DefDef[T] = this
+
 abstract class Tree[+T <: AnyRef]:
   type ThisTree[T <: AnyRef] <: Tree[T]
   def withType(tpe: String): ThisTree[String] = this.asInstanceOf[ThisTree[String]]
@@ -85,3 +100,4 @@ object Prefixaliases:
     println(converted(Sym("s")))
     println(Single("s").situated("p."))
     println(Single("t").inherited("q.").signature)
+    println(Forward.ended(Defs.DefDef[AnyRef]("d")))
