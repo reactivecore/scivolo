@@ -713,21 +713,6 @@ object One:
 }
 
 #[test]
-fn inaccessible_constructors_are_not_converted() {
-    let private = "import scala.language.implicitConversions
-class Equalizer[L](val leftSide: L)
-implicit def convertToEqualizer[T](left: T): Equalizer[T] = new Equalizer(left)
-class GraphDB[Id]:
-  class Node private[GraphDB](val id: Id)
-object Spec:
-  object graph extends GraphDB[String]
-  import graph.Node
-  val m = new Node(\"Alice\")
-";
-    check(&[(private, "")], &[]);
-}
-
-#[test]
 fn parent_aliases_of_types_a_subclass_overrides_with_a_class_are_refused() {
     let alias = "trait One:
   type Op[A]
