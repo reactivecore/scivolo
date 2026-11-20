@@ -79,6 +79,7 @@ mod escaping;
 mod eta;
 mod export_closures;
 mod export_trees;
+mod extension_alternatives;
 mod extension_calls;
 mod extension_setters;
 mod extractor_members;
@@ -99,6 +100,7 @@ mod harmonize;
 mod ident_hint;
 mod idents;
 mod implicits;
+mod import_alternatives;
 mod import_paths;
 mod import_selectors;
 mod import_tree;
@@ -322,6 +324,9 @@ pub struct Typer<'a> {
     pub splice_owners: FxHashMap<NodeId, SymbolId>,
     /// The spliced receivers of extension method calls (`TypedSplice.isExtensionReceiver`).
     pub extension_receivers: rustc_hash::FxHashSet<NodeId>,
+    /// Identifiers made for one of several imported extension methods, with what each refers to
+    /// (dotty's `TypedSplice(ref(alt))` in `tryExtension`).
+    pub preset_refs: FxHashMap<NodeId, idents::Found>,
     /// The term member each qualifier being typed is selected for (dotty's `SelectionProto`).
     pub selected_members: FxHashMap<NodeId, syntax::names::Name>,
     /// The `new`s of parent calls (dotty's `noCheckNews`).
@@ -502,6 +507,7 @@ impl<'a> Typer<'a> {
             splices: FxHashMap::default(),
             splice_owners: FxHashMap::default(),
             extension_receivers: Default::default(),
+            preset_refs: FxHashMap::default(),
             selected_members: FxHashMap::default(),
             parent_news: Default::default(),
             annotation_news: Default::default(),

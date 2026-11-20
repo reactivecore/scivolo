@@ -6,12 +6,11 @@
 use super::Typer;
 use super::idents::Found;
 use crate::ctx::{Ctx, Level, LevelId, Mode};
-use crate::defn::ref_type;
 use tasty::{Kind, Type};
 
 /// The precedence of a binding (dotty's `BindingPrec`), lowest first.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
-enum Prec {
+pub enum Prec {
     PackageClause,
     WildImport,
     NamedImport,
@@ -26,10 +25,10 @@ impl Prec {
 }
 
 /// A binding found so far: what, with which precedence, in which scope.
-struct Hit {
-    found: Found,
-    prec: Prec,
-    scope: Option<LevelId>,
+pub struct Hit {
+    pub found: Found,
+    pub prec: Prec,
+    pub scope: Option<LevelId>,
 }
 
 /// The name looked up, as a term or a type.
@@ -54,6 +53,18 @@ impl Typer<'_> {
     /// or a constructor proxy (`C(...)` for a class without `apply`) and the proxy of an exported
     /// class.
     pub fn find_ref(&mut self, name: &str, is_type: bool, ctx: Ctx) -> Result<Option<Found>, &'static str> {
+        self.find_ref_with(name, is_type, ctx, None)
+    }
+
+    /// `find_ref`, collecting into `alts`, if given, the other references of the imports next to
+    /// the one that supplies the name, of the same precedence (dotty's `altImports`).
+    pub fn find_ref_with(
+        &mut self,
+        name: &str,
+        is_type: bool,
+        ctx: Ctx,
+        mut alts: Option<&mut Vec<Found>>,
+    ) -> Result<Option<Found>, &'static str> {
         let name = Name { text: name, is_type };
         let mut prev: Option<Hit> = None;
         let mut unimported = Vec::new();
@@ -157,24 +168,23 @@ impl Typer<'_> {
                         level = self.levels.outer(l);
                         continue;
                     }
-                    let hit = if possible(&prev, Prec::NamedImport)
-                        && let Some(f) = self.named_import_ref(i, name.text, name.is_type)
-                        && let Some(found) = self.extensions_only(f, ctx)
-                    {
-                        Some(Hit { found, prec: Prec::NamedImport, scope })
-                    } else if possible(&prev, Prec::WildImport) {
-                        let found = self.wild_import_ref(i, name.text, name.is_type).and_then(|mut f| {
-                            f.syms.retain(|&s| self.is_accessible_from(s, f.prefix, ctx));
-                            self.extensions_only(f, ctx)
-                        });
-                        found.map(|found| Hit { found, prec: Prec::WildImport, scope })
-                    } else {
-                        None
-                    };
-                    if let Some(hit) = hit {
+                    let named = possible(&prev, Prec::NamedImport);
+                    let wild = possible(&prev, Prec::WildImport);
+                    let hit = self.import_hit(i, name, (named, wild), ctx).map(|(found, prec)| Hit {
+                        found,
+                        prec,
+                        scope,
+                    });
+                    if let Some(mut hit) = hit {
+                        let mut last = l;
+                        if let Some(alts) = alts.as_deref_mut() {
+                            (hit, last) = self.import_alternatives(l, hit, name, alts, ctx);
+                        }
                         let (prec, scope) = (hit.prec, hit.scope);
                         let found = self.new_or_shadowed(prev, hit, l, name)?;
                         prev = Some(Hit { found, prec, scope });
+                        level = self.levels.outer(last);
+                        continue;
                     } else {
                         let types = (!name.is_type && !ctx.mode.is(Mode::EXTENSION_METHOD))
                             .then(|| {
@@ -225,26 +235,6 @@ impl Typer<'_> {
             level = self.levels.outer(i);
         }
         false
-    }
-
-    fn same_ref(&mut self, a: &Found, b: &Found) -> bool {
-        if let ([s], [t]) = (&a.syms[..], &b.syms[..])
-            && s != t
-        {
-            let (p, q) = (ref_type(self.u, a.prefix, *s), ref_type(self.u, b.prefix, *t));
-            return self.u.is_subtype(p, q) && self.u.is_subtype(q, p);
-        }
-        if a.syms != b.syms {
-            return false;
-        }
-        let methods = a.syms.iter().all(|&s| self.u.symbol(s).kind == tasty::Kind::Def);
-        match (a.prefix, b.prefix) {
-            (Some(p), Some(q)) if methods && p != q => {
-                a.syms.iter().all(|&s| self.u.member_info(p, s) == self.u.member_info(q, s))
-            }
-            (Some(p), Some(q)) => p == q || self.u.is_subtype(p, q) && self.u.is_subtype(q, p),
-            (p, q) => p == q,
-        }
     }
 
     /// Whether scope or class members level `s` defines `name`; its definitions are seen before

@@ -5,6 +5,7 @@
 
 use super::super::super::Typer;
 use super::super::super::extension_calls::extension_ctx;
+use super::super::super::idents::Found;
 use super::{Goal, Viewed};
 use crate::ctx::Ctx;
 use crate::tpd::TNodeId;
@@ -17,6 +18,12 @@ impl Typer<'_> {
     /// to one.
     pub fn extensions_reject(&mut self, qual: TNodeId, name: &str, ctx: Ctx) -> bool {
         let Ok(Some(found)) = self.find_ref(name, false, extension_ctx(ctx)) else { return false };
+        self.receivers_reject(qual, found, ctx)
+    }
+
+    /// Tells whether none of the extension methods `found` takes `qual` as its receiver, as
+    /// `extensions_reject` decides.
+    pub fn receivers_reject(&mut self, qual: TNodeId, found: Found, ctx: Ctx) -> bool {
         let qual_tpe = self.zonk(self.tpd.tpe(qual));
         let qual_tpe = self.u.widen(qual_tpe);
         for s in found.syms {

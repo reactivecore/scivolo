@@ -180,6 +180,18 @@ impl Typer<'_> {
             if let Some(dynamic) = self.try_dynamic_inaccessible(id, qual, name, pt, ctx) {
                 return dynamic;
             }
+            match self.viewed(qual, Goal::of_select(&text, pt), ctx) {
+                Ok(Some(Viewed::Extension(c))) => {
+                    return self.implicit_extension_select(id, qual, c, name, pt, ctx);
+                }
+                Ok(Some(Viewed::Converted(q))) => {
+                    let qualifier = self.spliced(q);
+                    let select = self.ast.node(S::Select { qualifier, name });
+                    self.ast.with_span(select, self.ast.span(id));
+                    return self.typed_select(select, qualifier, name, pt, ctx);
+                }
+                _ => {}
+            }
         }
         if let Err(what) = self
             .check_reference(sym, Some(qual_tpe), ctx)
