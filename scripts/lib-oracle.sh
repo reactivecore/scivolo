@@ -7,7 +7,8 @@
 # scalalib/ of ref/scala-native-scalalib, patched to use the published compiler plugin of that
 # Scala version (the plugin's 0.5.12 sources do not compile against it), with the test modules on
 # auxlib and the Scala library of that version instead of scala3lib (which needs scalalib's Scala
-# 2.13 variant compiled, impossible with it) and without -Werror.
+# 2.13 variant compiled, impossible with it) and without -Werror. Writes tmp/lib/sn/.complete
+# last.
 set -euo pipefail
 scala=3.9.0
 root=$(cd "$(dirname "$0")/.." && pwd)
@@ -25,6 +26,7 @@ grep -q "nscplugin_$scala" "$build/project/Build.scala" && ! grep -q 'dependsOn(
   ! grep -q '"-Werror", "-encoding:utf8"' "$build/project/Settings.scala" ||
   { echo "patching the build in $build failed" >&2; exit 1; }
 jars="$root/tmp/lib/sn/jars"
+rm -f "$root/tmp/lib/sn/.complete"
 rm -rf "$jars"
 mkdir -p "$jars"
 modules=(nativelib clib posixlib windowslib javalib auxlib scalalib test-interface test-interface-sbt-defs junit-runtime)
@@ -53,4 +55,5 @@ for m in "${modules[@]}"; do
   (cd "$dirs" && find . -name '*.nir' -o -name '*.tasty' | sed 's|^\./||' | sort | zip -q -X "$jar" -@)
 done
 for j in "$root"/ref/libs/*.jar; do [ -e "$jars/$(basename "$j")" ] || cp -p "$j" "$jars/"; done
+touch "$root/tmp/lib/sn/.complete"
 echo "the modules' NIR and TASTy, with the other library jars, in $jars"
