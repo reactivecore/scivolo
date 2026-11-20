@@ -45,6 +45,8 @@ pub struct History {
     pub names: u32,
     /// How many more candidates the outermost search in progress may try.
     pub budget: u32,
+    /// The two candidates the last outermost search found ambiguous, if it failed so.
+    pub ambiguity: Option<(Candidate, Candidate)>,
 }
 
 /// The dictionary and its name counter, to restore after an attempt.

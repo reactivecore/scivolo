@@ -59,7 +59,7 @@ impl Typer<'_> {
         let package = self.tpd.sym(typed).is_some_and(|s| self.u.symbol(s).kind == tasty::Kind::Package);
         let tpe = self.tpd.tpe(typed);
         if !package && !self.is_stable_path(typed) && !super::stability::is_stable_path(self.u, tpe) {
-            self.unsupported(expr, "import prefix that is not a pure expression");
+            self.check_stable_prefix(typed, super::type_prefix::IMPORT_PREFIX, ctx);
         } else if !package && !self.is_idempotent_expr(typed) && !matches!(self.u.ty(tpe), Type::Error) {
             self.error(expr, "import prefix is not a pure expression");
         }

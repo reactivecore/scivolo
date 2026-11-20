@@ -127,6 +127,10 @@ impl ImplicitClause {
                     return self.unsupplied(t, &name, formal).ok_or(what);
                 }
                 Err(AMBIGUOUS) if self.depth > 0 => ambiguous = true,
+                Err(AMBIGUOUS) => {
+                    let name = t.u.name(name).to_owned();
+                    return self.ambiguous(t, &name, formal).ok_or(AMBIGUOUS);
+                }
                 arg => found.push(Some(arg?)),
             }
         }

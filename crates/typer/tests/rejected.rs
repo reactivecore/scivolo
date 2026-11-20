@@ -254,6 +254,32 @@ class A(val x: String) extends Cmp[A] { def < (that: A) = this.x < that.x }\n",
 }
 
 #[test]
+fn methods_clashing_after_erasure_with_java_generic_members() {
+    let clash = "name clash between defined and inherited member";
+    check(
+        &[
+            (
+                "class C extends Comparable[String] {
+  def compareTo(o: String): Int = 0
+  def compareTo(o: Object): Int = 1
+}\n",
+                clash,
+            ),
+            ("class L extends java.util.ArrayList[String] { def add(o: Object): Boolean = false }\n", clash),
+        ],
+        &[
+            "class L extends java.util.ArrayList[String] { override def add(o: String): Boolean = false }\n",
+            "abstract class C1[E] extends java.util.Collection[E] {
+  override def toArray[T](a: Array[T & Object]): Array[T & Object] = ???
+}
+abstract class C2[E] extends java.util.Collection[E] {
+  override def toArray[T <: Object](a: Array[T]): Array[T] = ???
+}\n",
+        ],
+    );
+}
+
+#[test]
 fn classes_with_self_types_implemented_and_instantiated() {
     check(
         &[("trait T\nclass C { self: T => }\ndef f = new C\n", "not conforming to its self type")],
@@ -377,6 +403,76 @@ fn by_name_function_parameters_are_not_values() {
     check(
         &[("val a: Int => Int = x => x\nval b: (=> Int) => Int = a\n", "")],
         &["val a: (=> Int) => Int = x => x\nval b: (=> Int) => Any = a\nval c: Int => Int = x => x\n"],
+    );
+}
+
+#[test]
+fn by_name_conversions_do_not_capture_wildcards() {
+    let program = |conversion: &str| {
+        format!(
+            "import scala.language.implicitConversions\nclass Inv[T](val v: T)\nclass R\n\
+             implicit def {conversion}: R = R()\ndef i: Inv[?] = Inv(1)\nval r: R = i\n"
+        )
+    };
+    check(
+        &[(&program("c[T](x: => Inv[T])"), "")],
+        &[&program("c[T](x: Inv[T])"), &program("c(x: => Inv[?])")],
+    );
+}
+
+#[test]
+fn type_selections_on_by_name_parameters_and_variables() {
+    check(
+        &[
+            (
+                "trait Box { type T; val v: T }\ndef f(z: => Box) =\n  val w: z.T = z.v\n  w\n",
+                "(z : => Box) is not a valid type prefix, since it is not an immutable path",
+            ),
+            (
+                "trait Box { type T; val v: T }\nvar b: Box = new Box { type T = Int; val v = 1 }\nval w: b.T = b.v\n",
+                "(b : Box) is not a valid type prefix, since it is not an immutable path",
+            ),
+            (
+                "trait Box { type T; val v: T }\nclass C(var c: Box) { def g = { val q: c.T = c.v; q } }\n",
+                "(C.this.c : Box) is not a valid type prefix, since it is not an immutable path",
+            ),
+            (
+                "trait Box { type T; val v: T }\ninline def h(inline y: Box) = { val q: y.T = y.v; q }\n",
+                "(y : Box) is not a valid type prefix, since it is not an immutable path\nInline parameters",
+            ),
+        ],
+        &[
+            "trait Box { type T; val v: T }\ndef f(z: Box) =\n  val w: z.T = z.v\n  w\n",
+            "trait Box { type T; val v: T }\nval b: Box = new Box { type T = Int; val v = 1 }\nval w: b.T = b.v\n",
+        ],
+    );
+}
+
+#[test]
+fn type_selections_through_unstable_prefixes_and_by_name_fields() {
+    check(
+        &[
+            (
+                "trait Box { type T; val v: T }\nclass Outer { val b: Box = new Box { type T = Int; val v = 1 } }\ndef f =\n  var o = new Outer\n  val w: o.b.T = o.b.v\n  w\n",
+                "(Outer#b : Box) is not a valid type prefix, since it is not an immutable path",
+            ),
+            (
+                "trait Box { type T; val v: T }\nclass Outer { val b: Box = new Box { type T = Int; val v = 1 } }\ndef mo: Outer = new Outer\ndef f = { val w: mo.b.T = mo.b.v; w }\n",
+                "(Outer#b : Box) is not a valid type prefix, since it is not an immutable path",
+            ),
+            (
+                "trait Box { type T; val v: T }\nclass K(z: => Box):\n  def g: Any =\n    class Inner:\n      val w: z.T = z.v\n    new Inner().w\n",
+                "(K.this.z : => Box) is not a valid type prefix, since it is not an immutable path",
+            ),
+            (
+                "trait Box { type T; val v: T }\ndef f(z: => Box) =\n  import z.T\n  0\n",
+                "(z : => Box) is not a valid import prefix, since it is not an immutable path",
+            ),
+        ],
+        &[
+            "trait Box { type T; val v: T }\nobject O { val b: Box = new Box { type T = Int; val v = 2 } }\ndef f = { val w: O.b.T = O.b.v; w }\n",
+            "trait Box { type T; val v: T }\nclass D(val z: Box):\n  class Inner:\n    val w: z.T = z.v\n",
+        ],
     );
 }
 
@@ -692,6 +788,33 @@ object Test:
   def y: NT[Tuple1[\"a\"], Tuple1[1]] = x
 ";
     check(&[], &[merge]);
+}
+
+#[test]
+fn ambiguous_givens_of_an_unconstrained_type_variable() {
+    let max = "object B:\n  val x = Nil.max\n";
+    let both = "class C\nobject O:\n  given a: C = C()\n  given b: C = C()\n  val c = summon[C]\n";
+    check(
+        &[
+            (max, "Ambiguous given instances: both object "),
+            (
+                max,
+                " in object Ordering match type Ordering[B] of parameter ord of method max in trait IterableOnceOps",
+            ),
+            (
+                both,
+                "Ambiguous given instances: both given instance a in object O and given instance b in object O \
+                 match type C of parameter x of method summon in object Predef",
+            ),
+        ],
+        &["object B:\n  val x = List(1).max\n"],
+    );
+}
+
+#[test]
+fn givens_of_one_singleton_type_are_not_reported_ambiguous() {
+    let same = "class C\nobject O:\n  val x = C()\n  given a: x.type = x\n  given b: x.type = x\n  val c = summon[C]\n";
+    check(&[(same, "unsupported implicit candidates whose ranking is undecided")], &[]);
 }
 
 #[test]
