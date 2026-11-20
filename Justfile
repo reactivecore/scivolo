@@ -645,9 +645,32 @@ subtype-oracle:
 inline-fixture:
     scala-cli --power package --library --server=false -S 3.9.0 crates/typer/tests/inlined/lib/Lib.scala -o crates/typer/tests/inlined/lib/lib.jar -f
 
-# Compile tests/jvm/javajar/legacy with Scala 2.13 into the jar of Scala 2 class files beside it.
+# Compile tests/jvm/javajar/legacy and each directory of tests/jvm/scala2 with Scala 2.13 into the
+# jar of Scala 2 class files beside its sources; guard.jar gets the object classes of
+# Swapped.scala, whose methods' erasures differ from its pickle's.
 scala2-fixture:
-    scala-cli --power package --library --server=false -S 2.13.16 tests/jvm/javajar/legacy/Old.scala -o tests/jvm/javajar/legacy/legacy.jar -f
+    #!/usr/bin/env bash
+    set -euo pipefail
+    pkg() { scala-cli --power package --library --server=false -S 2.13.16 "$@" -f; }
+    pkg tests/jvm/javajar/legacy/Old.scala -o tests/jvm/javajar/legacy/legacy.jar
+    for dir in tests/jvm/scala2/*/; do
+        name=$(basename "$dir")
+        pkg "$dir"Lib.scala -o "$dir$name.jar"
+    done
+    swap=tmp/scala2-fixture/guard; rm -rf "$swap"; mkdir -p "$swap/classes"
+    pkg tests/jvm/scala2/guard/Swapped.scala -o "$swap/swapped.jar"
+    unzip -q "$swap/swapped.jar" -d "$swap/classes"
+    jar uf tests/jvm/scala2/guard/guard.jar -C "$swap/classes" 'guard/O$.class' 'guard/V$.class'
+
+# Count the classes the Scala 2 pickles of the jars enter and the classes and members they refuse,
+# by reason with names left out.
+scala2-report +jars:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cp=(); for j in {{jars}}; do cp+=(--cp "$j"); done
+    cargo run -q --release -p scivolo-jvm -- --scala2-report "${cp[@]}" -d tmp/scala2-report \
+        | sed -E 's/^(class|member): .*(of a jar|implicit member `[^`]*`): /\1: /; s/`[^`]*`/_/g' \
+        | sort | uniq -c | sort -rn
 
 # Compile crates/lower/tests/<name>/lib into its lib.jar (TASTy) and <name>.scala against it
 # into Scala Native's NIR beside it.

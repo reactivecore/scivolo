@@ -38,6 +38,7 @@ mod owner_seen;
 mod prims;
 mod pure_stats;
 mod receivers;
+mod scala2_bases;
 mod serial;
 mod signatures;
 mod stash;
@@ -134,7 +135,7 @@ fn java_flags(l: &Lower, s: SymbolId) -> u16 {
     let abstract_ = (class && has(ABSTRACT)) || has(TRAIT);
     let in_trait = !class && owner.is_some_and(|o| u.is_trait(o));
     let method = u.symbol(s).kind == tasty::Kind::Def || has(FIELDaccessor);
-    let final_ = (has(FINAL) || u.is_module_class(s) || u.is_module(s))
+    let final_ = (has(FINAL) || u.is_module_class(s) && !u.is_pickled(s) || u.is_module(s))
         && !constructor
         && !(has(MUTABLE) && !method)
         && !in_trait

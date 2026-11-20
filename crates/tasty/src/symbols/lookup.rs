@@ -50,6 +50,9 @@ impl Universe {
             if self.jdk.is_some() && !(constructor && self.enter_jdk_annotation(owner)) {
                 self.jdk_view(owner, name);
             }
+            if self.is_pickled(owner) {
+                self.look_up_refused_member(owner, name);
+            }
             return Ok(self.named(owner, name).to_vec());
         }
         if self.name(name).starts_with('_')

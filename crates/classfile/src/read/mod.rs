@@ -8,7 +8,7 @@ mod var_handle_api;
 
 use attributes::{Attributes, attributes};
 
-pub use attributes::Annotation;
+pub use attributes::{Annotation, Scala};
 pub use jdk::Jdk;
 
 /// A field or method of a class read: its flags, name, descriptor, generic signature and a
@@ -40,8 +40,8 @@ pub struct ClassInfo {
     pub inner_classes: Vec<crate::InnerClass>,
     /// The permitted subclasses of a sealed class, empty for another.
     pub permitted: Vec<String>,
-    /// Whether a `Scala`, `ScalaSig` or `TASTY` attribute marks it as compiled from Scala.
-    pub scala: bool,
+    /// What a `Scala`, `ScalaSig` or `TASTY` attribute marks it as, none for a Java class.
+    pub scala: Option<Scala>,
 }
 
 /// The bytes of a class file after an offset.

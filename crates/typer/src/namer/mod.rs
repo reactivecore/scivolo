@@ -36,6 +36,7 @@ mod params;
 mod private_leaks;
 mod provisional;
 mod replaced_members;
+mod scala2_parents;
 mod split_companions;
 mod value_classes;
 
