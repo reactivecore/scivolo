@@ -27,4 +27,6 @@ class Lib {
   def max[T <: Comparable[T]](a: T, b: T): T = if (a.compareTo(b) >= 0) a else b
   def sum(xs: List[Int]): Int = xs.sum
   def sizes(xs: List[_]): Int = xs.size
+  def size(x: Int): Int = x
+  def size(xs: List[_]): Int = xs.size
 }

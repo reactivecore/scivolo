@@ -117,12 +117,14 @@ fn scala2_class_files_are_read() {
 
 /// scivolo-jvm refuses the programs of tests/jvm/scala2/basics that use what it does not read of
 /// basics.jar's Scala 2 classes, by name: existential.scala calls a method whose type has an
-/// existential, extends.scala extends a Scala 2 trait.
+/// existential, overload.scala an overload of such a method whose other alternative is read,
+/// extends.scala extends a Scala 2 trait.
 #[test]
 fn scala2_constructs_not_read_are_refused_by_name() {
     let jar = root().join("tests/jvm/scala2/basics/basics.jar");
     let refusals = [
         ("existential", "Scala 2 member `basics.Lib.sizes` of a jar: an existential type"),
+        ("overload", "Scala 2 member `basics.Lib.size` of a jar: an existential type"),
         ("extends", "extending a class of a Scala 2 jar"),
     ];
     for (name, message) in refusals {
