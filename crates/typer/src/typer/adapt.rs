@@ -41,6 +41,9 @@ impl Typer<'_> {
             };
         }
         if let Some(Type::Method { implicit: true, .. }) = &method {
+            if ctx.mode.is(Mode::ASSIGNMENT_LHS) {
+                return tree;
+            }
             let info = self.method_info(tpe).unwrap_or(tpe);
             let meth = self.tpd.sym(self.tpd.meth_part(tree));
             let _ = self.constrain_applied_result(meth, info, pt);
@@ -178,6 +181,7 @@ impl Typer<'_> {
     /// `{ tree; () }` (dotty's `Block(tree :: Nil, unitLiteral)`).
     fn discarded(&mut self, tree: TNodeId, span: Span) -> TNodeId {
         let literal = self.build().literal(Constant::Unit, span.end_pos());
+        self.tpd.mark_synthetic_unit(literal);
         let stats = self.tpd.list(&[tree]);
         self.build().block(stats, literal, span.to_synthetic())
     }

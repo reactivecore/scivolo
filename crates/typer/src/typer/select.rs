@@ -130,6 +130,11 @@ impl Typer<'_> {
             if self.extension_visible(&text, ctx)
                 && !(self.extensions_reject(qual, &text, ctx) && self.implicit_member_found(qual, &text, ctx))
             {
+                if self.extension_ambiguous(&text, ctx)
+                    && let Ok(Some(Viewed::Extension(c))) = self.viewed(qual, Goal::of_select(&text, pt), ctx)
+                {
+                    return self.implicit_extension_select(id, qual, c, name, pt, ctx);
+                }
                 return self.extension_select(id, qual, name, pt, ctx);
             }
             match self.viewed(qual, Goal::of_select(&text, pt), ctx) {
@@ -156,6 +161,9 @@ impl Typer<'_> {
             }
             converted = true;
         };
+        if name.is_type {
+            self.check_stable_prefix(qual, super::type_prefix::TYPE_PREFIX, ctx);
+        }
         if let Some(projection) = self.refined_projection(id, qual, qual_tpe, name) {
             return projection;
         }
@@ -179,6 +187,11 @@ impl Typer<'_> {
             }
             if let Some(dynamic) = self.try_dynamic_inaccessible(id, qual, name, pt, ctx) {
                 return dynamic;
+            }
+            match self.view_select(id, qual, name, pt, ctx) {
+                Ok(Some(viewed)) => return viewed,
+                Ok(None) => {}
+                Err(what) => return self.unsupported(id, what),
             }
         }
         if let Err(what) = self

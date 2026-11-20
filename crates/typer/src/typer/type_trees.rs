@@ -7,7 +7,7 @@ use super::{Pt, Typer};
 use crate::ctx::{Ctx, Mode};
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{NodeId, Tree};
-use tasty::{Binding, Kind, Type, TypeId};
+use tasty::{Kind, TypeId};
 
 impl Typer<'_> {
     /// Types type tree `id`, e.g. `List[Int]`, `x.type`, `42` or `A => B` (dotty's `typedType`);
@@ -131,7 +131,7 @@ impl Typer<'_> {
                     return self.typed_annotated_type(id, singleton, annot, ctx);
                 }
                 let reference = self.typed(reference, Pt::Any, ctx.adding(Mode::SINGLETON_REF));
-                if !self.is_stable_path(reference) && !self.is_capability(reference, ctx) {
+                if !self.is_stable_reference(reference) && !self.is_capability(reference, ctx) {
                     return self.unsupported(id, "singleton type of an unstable reference");
                 }
                 let tpe = self.tpd.tpe(reference);
@@ -169,30 +169,6 @@ impl Typer<'_> {
         if self.type_arity(t) > 0 {
             self.unsupported(id, "type constructor without arguments");
         }
-    }
-
-    /// `tycon[args]`; an alias that eta-expands a type constructor, `type F[X] = G[X]`, applied
-    /// as that constructor (dotty's `appliedTo`).
-    pub fn applied_to(&mut self, tycon: TypeId, args: Vec<TypeId>) -> TypeId {
-        if let Some(s) = self.u.sym_of(tycon)
-            && self.u.symbol(s).kind == Kind::Type
-        {
-            self.complete(s);
-            if let Some(alias) = self.u.alias_of(s)
-                && let Some(Binding { binder, params, result, .. }) = self.u.lambda(alias)
-                && let Some((inner, inner_args)) = self.u.applied(result)
-                && inner_args.len() == params.len()
-                && args.len() == params.len()
-                && inner_args.iter().enumerate().all(|(i, &a)| match *self.u.ty(a) {
-                    Type::Param(b, k) => b == binder && k == i as u32,
-                    Type::Local(b, name) => b.0 == binder.0 && name == params[i].0,
-                    _ => false,
-                })
-            {
-                return self.u.intern_applied(inner, &args);
-            }
-        }
-        self.u.intern_applied(tycon, &args)
     }
 
     /// A type tree of type `tpe` that no source tree gave (dotty's `TypeTree(tpe)`).

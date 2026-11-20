@@ -4,9 +4,8 @@
 //! How far evaluating a tree has effects (dotty's `exprPurity`, `statPurity`, `refPurity`).
 
 use super::Typer;
-use super::java_classes::is_java_member;
+use super::pure_applies::is_pure_apply;
 use crate::tpd::{TNodeId, Tpd, Tree as T};
-use names::nme;
 use tasty::{Kind, SymbolId, Type, Universe};
 
 /// dotty's `PurityLevel` bits: evaluating twice gives the same, evaluating has no effect, the
@@ -32,16 +31,10 @@ impl Typer<'_> {
     }
 
     /// Tells whether `rhs` of an inline value of a constant type is pure once `FirstTransform`
-    /// makes it a literal: idempotent if it refers to a final or inline value (dotty's
-    /// `constToLiteral`).
+    /// makes its parts literals, as `Integer.SIZE - 1` (dotty's `constToLiteral` before
+    /// `InlineVals`).
     pub fn is_inline_value_rhs(&mut self, rhs: TNodeId) -> bool {
-        use tasty::tags::{FINAL, INLINE, MUTABLE};
-        let inline_val = matches!(self.tpd.tree(rhs), T::Ident { .. } | T::Select { .. })
-            && self.tpd.sym(rhs).is_some_and(|s| {
-                let s = self.u.symbol(s);
-                s.kind == Kind::Val && (s.flags.has(INLINE) || s.flags.has(FINAL)) && !s.flags.has(MUTABLE)
-            });
-        if inline_val { self.is_idempotent_expr(rhs) } else { self.is_pure_expr(rhs) }
+        purity(self, rhs, true) & PURE == PURE
     }
 
     /// Tells whether evaluating `tree` twice has the effect of evaluating it once, as for a
@@ -58,6 +51,28 @@ impl Typer<'_> {
 }
 
 fn expr_purity(t: &mut Typer, tree: TNodeId) -> u8 {
+    purity(t, tree, false)
+}
+
+/// The purity of `tree`; if `fold`, with each part of a constant type a literal where
+/// `constToLiteral` makes it one: idempotent if it refers to a final or inline value, else pure.
+fn purity(t: &mut Typer, tree: TNodeId, fold: bool) -> u8 {
+    let p = unfolded_purity(t, tree, fold);
+    if !fold || t.constant_of(tree).is_none() {
+        return p;
+    }
+    let inline_val = matches!(t.tpd.tree(tree), T::Ident { .. } | T::Select { .. })
+        && t.tpd.sym(tree).is_some_and(|s| {
+            use tasty::tags::{FINAL, INLINE, MUTABLE};
+            let s = t.u.symbol(s);
+            s.kind == Kind::Val && (s.flags.has(INLINE) || s.flags.has(FINAL)) && !s.flags.has(MUTABLE)
+        });
+    let level = if inline_val { IDEMPOTENT } else { PURE };
+    if p & level == level { PURE_PATH } else { p }
+}
+
+fn unfolded_purity(t: &mut Typer, tree: TNodeId, fold: bool) -> u8 {
+    let expr_purity = |t: &mut Typer, tree| purity(t, tree, fold);
     match t.tpd.tree(tree).clone() {
         T::Literal { .. } | T::ClassLiteral { .. } | T::This { .. } | T::Super { .. } => PURE_PATH,
         T::New { .. } | T::Closure { .. } => PURE,
@@ -149,42 +164,8 @@ fn is_method_typed(t: &mut Typer, tree: TNodeId) -> bool {
     matches!(t.u.ty(info), Type::Method { .. } | Type::Poly { .. })
 }
 
-/// dotty's `isPureApply`: a constant operation of a primitive class, `String` or a pure member
-/// of `Any`, a stable constructor of a class outside the JDK, or the synthetic `apply` of a case
-/// class that initializes nothing.
-fn is_pure_apply(t: &mut Typer, tree: TNodeId, callee: Option<SymbolId>) -> bool {
-    let Some(s) = callee else { return false };
-    if t.u.symbol(s).name == nme::CONSTRUCTOR {
-        return t.is_stable_member(s) && !is_java_member(t.u, s);
-    }
-    if is_pure_case_apply(t, s) {
-        return true;
-    }
-    has_constant_type(&t.tpd, t.u, tree) && t.u.is_known_pure_op(s)
-}
-
-/// dotty's `isPureSyntheticCaseApply`.
-fn is_pure_case_apply(t: &mut Typer, s: SymbolId) -> bool {
-    let sym = t.u.symbol(s);
-    if sym.name != nme::APPLY || !sym.flags.has(tasty::tags::SYNTHETIC) {
-        return false;
-    }
-    let Some(module) = sym.owner else { return false };
-    let Some(name) = tasty::module_name(&t.u.symbol(module).name).map(str::to_owned) else {
-        return false;
-    };
-    let Some(owner) = t.u.symbol(module).owner else { return false };
-    let classes = t.u.decls_named(owner, &name);
-    classes.into_iter().any(|c| {
-        let flags = t.u.symbol(c).flags;
-        t.u.symbol(c).kind == Kind::Class
-            && flags.has(tasty::tags::CASE)
-            && !flags.has(tasty::tags::TRAIT)
-            && (t.is_no_inits(c) || t.u.is_assured_no_inits(c))
-    })
-}
-
-fn has_constant_type(tpd: &Tpd, u: &Universe, tree: TNodeId) -> bool {
+/// Whether `tree` has a constant type itself, not through a reference.
+pub fn has_constant_type(tpd: &Tpd, u: &Universe, tree: TNodeId) -> bool {
     let tpe = tpd.get(tree).tpe;
     tpe.is_some_and(|x| matches!(u.ty(x), Type::Constant(..) | Type::Str(_)))
 }

@@ -17,7 +17,7 @@ use tasty::{Kind, SymbolId, Type, TypeId, Universe};
 impl TreePickler<'_> {
     /// Whether the file being pickled is capture-checked.
     pub fn capture_checked(&self) -> bool {
-        self.file.is_some_and(|f| f.attributes.features.capture_checking())
+        self.file.is_some_and(|f| f.facts.attributes.features.capture_checking())
     }
 
     /// Records the type inferred type tree `tpt` of type `tpe` of a capture-checked file is

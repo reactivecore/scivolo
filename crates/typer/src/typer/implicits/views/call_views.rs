@@ -7,9 +7,9 @@
 use super::super::super::{Pt, Typer};
 use super::super::candidates::Candidate;
 use super::super::divergence::THROUGH_CONVERSION;
+use super::member_fits::{member_applies, member_fits};
 use super::qualifier::is_plain_arg;
 use super::{Goal, ViewProto, ViewSearch};
-use crate::ctx::Ctx;
 use crate::tpd::TNodeId;
 use tasty::{Type, TypeId};
 
@@ -116,22 +116,13 @@ impl ViewSearch<'_> {
     }
 }
 
-/// Tells whether a member `name` of `q` applies to arguments of types `args` without converting
-/// them, as within an implicit search.
-pub fn member_applies(t: &mut Typer<'_>, q: TNodeId, name: &str, args: &[TypeId], ctx: Ctx) -> bool {
-    let tpe = t.tpd.tpe(q);
-    let members = t.type_members(tpe, name);
-    let (applies, _, _) = t.speculatively(|t| {
-        members.iter().any(|&s| t.applicable(s, Some(tpe), args, false, ctx) != Some(false))
-    });
-    applies
-}
-
 /// The types of the arguments of `proto` if all are literals or paths and none is a method,
 /// typed speculatively without diagnostics.
 fn plain_arg_types(t: &mut Typer<'_>, proto: usize) -> Option<Vec<TypeId>> {
     let (args, arg_ctx) = (t.protos[proto].args.clone(), t.protos[proto].ctx);
-    if t.protos[proto].typed.is_some() || !args.iter().all(|&a| is_plain_arg(t.ast, a)) {
+    if t.protos[proto].typed.is_some()
+        || !args.iter().all(|&a| is_plain_arg(t.ast, a) && !t.is_sequence_arg(a))
+    {
         return None;
     }
     let reported = t.diags.items.len();
@@ -151,40 +142,4 @@ fn plain_arg_types(t: &mut Typer<'_>, proto: usize) -> Option<Vec<TypeId>> {
     let diagnosed = t.diags.items.len() > reported;
     t.retract_diags(reported);
     types.filter(|_| !diagnosed)
-}
-
-/// Tells whether a member `name` of `q` applies to arguments of types `args` without converting
-/// them, its result conforming to `pt` if it is a method of one clause; `None` if that is unknown.
-fn member_fits(
-    t: &mut Typer<'_>,
-    q: TNodeId,
-    name: &str,
-    args: &[TypeId],
-    pt: Option<TypeId>,
-    ctx: Ctx,
-) -> Option<bool> {
-    let tpe = t.tpd.tpe(q);
-    let mut known = true;
-    for m in t.type_members(tpe, name) {
-        match t.applicable(m, Some(tpe), args, false, ctx) {
-            Some(true) => {}
-            Some(false) => continue,
-            None => {
-                known = false;
-                continue;
-            }
-        }
-        let r = t.ref_type(Some(tpe), m);
-        let info = t.method_info(r).unwrap_or(r);
-        let Some(pt) = pt else { return Some(true) };
-        match t.u.method(info).map(|m| m.result) {
-            Some(result) if t.u.method(result).is_none() => {
-                if t.conforms(result, pt) {
-                    return Some(true);
-                }
-            }
-            _ => return Some(true),
-        }
-    }
-    known.then_some(false)
 }

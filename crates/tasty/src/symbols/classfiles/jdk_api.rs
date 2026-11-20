@@ -49,10 +49,10 @@ impl Universe {
     }
 
     /// Gives method `m` the type of its declaration `member` in JDK class file `info`
-    /// (`jdk_info`), but a constructor, or where they have different numbers of parameter
-    /// clauses (javalib's `def pattern: String` stays parameterless).
+    /// (`jdk_info`), but where they have different numbers of parameter clauses (javalib's
+    /// `def pattern: String` stays parameterless).
     fn take_jdk_type(&mut self, m: SymbolId, member: &MemberInfo, info: &ClassInfo) {
-        if self.symbol(m).kind != Kind::Def || member.name == nme::CONSTRUCTOR {
+        if self.symbol(m).kind != Kind::Def {
             return;
         }
         let Some(t) = jdk_type(self, m, member, info) else { return };

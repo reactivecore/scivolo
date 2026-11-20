@@ -52,13 +52,25 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | \
     rm -rf /root/.cargo/registry /root/.cargo/git
 
 # The builder plus what compiles Scala Native's unit tests (`just ci-suite`), and the `ping`
-# and `en_US.UTF-8` locale the tests use.
+# and `en_US.UTF-8` locale the tests use; rsync, zip and sbt build the library oracle and
+# `coursier` runs Scala Native's linker (`just ci-lib`).
 FROM builder AS suite
 
 RUN apt-get update -yqq && apt-get install -yqq --no-install-recommends \
-        openjdk-17-jdk-headless cpio iputils-ping locales \
+        openjdk-17-jdk-headless cpio iputils-ping locales rsync zip unzip \
     && localedef -i en_US -f UTF-8 en_US.UTF-8 \
-    && apt-get clean && rm -rf /var/lib/apt/lists/*
+    && apt-get clean && rm -rf /var/lib/apt/lists/* \
+    && ln -s /usr/local/bin/cs /usr/local/bin/coursier
+
+ARG SBT_VERSION=1.12.9
+ARG SBT_SHA256=94d2eda5486d343aebb24c675368c2d220880bbe540457917b65a844d7cb061c
+RUN curl --proto '=https' --tlsv1.2 -sSfL \
+        "https://github.com/sbt/sbt/releases/download/v${SBT_VERSION}/sbt-${SBT_VERSION}.tgz" \
+        -o /tmp/sbt.tgz && \
+    echo "${SBT_SHA256}  /tmp/sbt.tgz" | sha256sum -c - && \
+    tar -xzf /tmp/sbt.tgz -C /opt && \
+    ln -s /opt/sbt/bin/sbt /usr/local/bin/sbt && \
+    rm /tmp/sbt.tgz
 
 ARG SCALA_CLI_VERSION=1.14.0
 ARG SCALA_CLI_SHA256=7a55547894ecbc9cbf8682c5b2eb3680df0a305dc490e80a491ab873601baaa7

@@ -78,12 +78,14 @@ impl Typer<'_> {
         report: bool,
         ctx: Ctx,
     ) -> Result<(), &'static str> {
-        let (a, b) = (self.fully_defined(a)?, self.fully_defined(b)?);
-        let (a, b) = (self.u.widen(a), self.u.widen(b));
         let ctx = ctx.with_mode(Mode::EXISTENCE);
+        let (a, b) = (self.zonk(a), self.zonk(b));
+        let (a, b) = (self.u.widen(a), self.u.widen(b));
         if !self.is_strict_equality(ctx) && self.assumed_can_equal(a, b) {
             return Ok(());
         }
+
+        let (a, b) = (self.fully_defined(a)?, self.fully_defined(b)?);
         let pt = self.can_equal_type(a, b).ok_or("CanEqual")?;
         match self.implicit_arg(pt, at, ctx, 0) {
             Ok(_) => Ok(()),
@@ -128,10 +130,11 @@ impl Typer<'_> {
         })
     }
 
-    /// Whether one of `a` and `b` conforms to the other lifted (dotty's `assumedCanEqual`).
+    /// Whether one of `a` and `b` conforms to the other lifted, constraining the type variables
+    /// in them (dotty's `assumedCanEqual`).
     pub fn assumed_can_equal(&mut self, a: TypeId, b: TypeId) -> bool {
         let (lifted_a, lifted_b) = (self.lifted(a, 8), self.lifted(b, 8));
-        self.u.is_subtype(a, lifted_b) || self.u.is_subtype(b, lifted_a)
+        self.conforms(a, lifted_b) || self.conforms(b, lifted_a)
     }
 
     /// Builds the type `CanEqual[l, r]`; `None` if the class path has no `scala.CanEqual`.
@@ -149,7 +152,7 @@ impl Typer<'_> {
     }
 
     /// `t` with abstract types replaced by their upper bounds, singletons widened and refinements
-    /// dropped, in covariant positions (dotty's `lift` in `assumedCanEqual`).
+    /// dropped, in covariant positions and under annotations (dotty's `lift` in `assumedCanEqual`).
     fn lifted(&mut self, t: TypeId, depth: u32) -> TypeId {
         let Some(depth) = depth.checked_sub(1) else { return t };
         let node = *self.u.ty(t);
@@ -180,6 +183,10 @@ impl Typer<'_> {
                 self.lifted(widened, depth)
             }
             Type::Refined(parent, ..) => self.lifted(parent, depth),
+            Type::Annotated(inner, annot) => {
+                let inner = self.lifted(inner, depth);
+                self.u.intern_type(Type::Annotated(inner, annot))
+            }
             Type::Applied(tycon, args) => {
                 let variances = self.u.class_symbol(tycon).map(|c| self.u.variances(c)).unwrap_or_default();
                 let args: Vec<_> = (0..self.u.types_of(args).len())

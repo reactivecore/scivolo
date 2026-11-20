@@ -41,7 +41,7 @@ impl TreePickler<'_> {
     pub fn annotation_trees(&mut self, s: SymbolId) -> Vec<TNodeId> {
         let own = self.tpd.annotations(s).to_vec();
         let Some(file) = self.file else { return own };
-        let mut trees = file.annotations.get(&s).cloned().unwrap_or_else(|| own.clone());
+        let mut trees = file.facts.annotations.get(&s).cloned().unwrap_or_else(|| own.clone());
         let at: Vec<usize> = (0..trees.len()).filter(|&i| own.contains(&trees[i])).collect();
         for (&i, &a) in at.iter().zip(own.iter().rev()) {
             trees[i] = a;

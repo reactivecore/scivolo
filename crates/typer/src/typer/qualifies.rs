@@ -8,6 +8,7 @@ use super::Typer;
 use super::find_ref::Name;
 use super::idents::Found;
 use crate::ctx::{Ctx, Level, LevelId, Mode};
+use crate::defn::ref_type;
 use syntax::ast::Tree;
 use tasty::{Kind, SymbolId, Type};
 
@@ -27,6 +28,23 @@ impl Typer<'_> {
             return None;
         }
         self.extensions_only(found, ctx)
+    }
+
+    /// Whether `syms` has a symbol the source file being typed defines (dotty's
+    /// `isDefinedInCurrentUnit`), or one of the unit without a definition tree.
+    pub fn in_unit(&self, syms: &[SymbolId]) -> bool {
+        syms.iter().filter(|s| self.syms.flags.contains_key(s)).any(|s| match self.syms.def_trees.get(s) {
+            Some(&tree) => self.file_of(self.ast.span(tree)) == self.file,
+            None => true,
+        })
+    }
+
+    /// Whether `classes` are members of package level `l` that other units define, whose
+    /// constructor proxies an inner import's binding precedes (dotty's `PackageClause` precedence).
+    pub fn defined_by_other_units(&self, l: LevelId, classes: &[SymbolId]) -> bool {
+        let package =
+            matches!(*self.levels.get(l), Level::Members(o) if self.u.symbol(o).kind == Kind::Package);
+        package && !self.in_unit(classes)
     }
 
     /// `found` without its symbols other than extension methods if `ctx` looks for those.
@@ -120,15 +138,41 @@ impl Typer<'_> {
                 Level::Members(c) if self.u.symbol(c).kind == Kind::Class => Some(c),
                 _ => None,
             };
-            if let Some(outer) = self.defined(o, name, ctx)
-                && outer.syms.iter().any(|&s| {
-                    !found.syms.contains(&s) && cls.is_none_or(|c| self.u.symbol(s).owner == Some(c))
-                })
-            {
-                return Err("ambiguous reference: inherited and defined outside");
+            if let Some(outer) = self.defined(o, name, ctx) {
+                let competing: Vec<SymbolId> = outer
+                    .syms
+                    .iter()
+                    .copied()
+                    .filter(|&s| cls.is_none_or(|c| self.u.symbol(s).owner == Some(c)))
+                    .collect();
+                let outer = Found { prefix: outer.prefix, syms: competing };
+                if !outer.syms.is_empty() && !self.same_term_or_type(&outer, found) {
+                    return Err("ambiguous reference: inherited and defined outside");
+                }
             }
             level = self.levels.outer(o);
         }
         Ok(())
+    }
+
+    /// Whether one of `outer` is among `found`, or refers to what `found`'s only symbol does: the
+    /// same stable path, or an equal type with one of them an alias (dotty's `sameTermOrType`).
+    fn same_term_or_type(&mut self, outer: &Found, found: &Found) -> bool {
+        outer.syms.iter().any(|&s| {
+            if found.syms.contains(&s) {
+                return true;
+            }
+            let [t] = found.syms[..] else { return false };
+            let (p, q) = (ref_type(self.u, outer.prefix, s), ref_type(self.u, found.prefix, t));
+            let equal = |t: &mut Self, a, b| t.u.is_subtype(a, b) && t.u.is_subtype(b, a);
+            if !self.u.is_type_symbol(s) {
+                return self.is_stable_member(s) && self.is_stable_member(t) && equal(self, p, q);
+            }
+            let aliases = self.u.alias_of(s).is_some() || self.u.alias_of(t).is_some();
+            aliases && {
+                let (a, b) = (self.u.dealias(p), self.u.dealias(q));
+                equal(self, a, b)
+            }
+        })
     }
 }

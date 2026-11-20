@@ -41,25 +41,32 @@ pub struct Pickled {
     pub super_accessors: super::Accessors,
 }
 
-/// What pickling a file's top-level class knows besides the trees.
-pub struct File<'a> {
+/// What pickling a file knows besides the trees.
+#[derive(Clone, Copy)]
+pub struct FileFacts<'a> {
     pub attributes: FileAttributes,
     /// The annotation trees of each definition, in order.
     pub annotations: &'a FxHashMap<SymbolId, Vec<TNodeId>>,
+    /// The span of the doc comment of each definition that has one (dotty's `docCtx`).
+    pub doc_comments: &'a FxHashMap<SymbolId, Span>,
+}
+
+/// What pickling a file's top-level class knows besides the trees.
+pub struct File<'a> {
+    pub facts: FileFacts<'a>,
     /// The top-level class pickled (dotty's `rootCls`).
     pub root_class: SymbolId,
 }
 
 /// The TASTy of the top-level classes of package clause `root` of `source`, but of the
-/// object classes whose companion class is among them; `annotations` holds the annotation
-/// trees of each definition, in order. The library annotation trees of annotated types pickled
-/// are read on demand, the class pickled again after each. A refusal carries the span of the tree
-/// refused.
+/// object classes whose companion class is among them. The library annotation trees of
+/// annotated types pickled are read on demand, the class pickled again after each. A refusal
+/// carries the span of the tree refused.
 pub fn pickle_file(
     (u, tpd, names): (&mut Universe, &mut Tpd, &mut Names),
     root: TNodeId,
     source: &QuoteSource,
-    (attributes, annotations): (FileAttributes, &FxHashMap<SymbolId, Vec<TNodeId>>),
+    facts: FileFacts,
 ) -> Result<Vec<Pickled>, (Span, Refusal)> {
     if !matches!(tpd.tree(root), T::PackageDef { .. }) {
         return Err((tpd.span(root), "a source file that is not one package clause"));
@@ -73,7 +80,7 @@ pub fn pickle_file(
     for class in classes {
         let Some(sliced) = slice(u, tpd, root, class) else { continue };
         let unread = Cell::new(None);
-        let file = File { attributes, annotations, root_class: class };
+        let file = File { facts, root_class: class };
         let (tasty, super_accessors) = loop {
             let pickled = pickle((u, &*tpd, &*names), sliced, &[], (Some(source), Some(&file)), &unread);
             let Some(tree) = unread.take() else { break pickled? };
@@ -191,11 +198,14 @@ impl TreePickler<'_> {
         })
     }
 
-    /// The Comments section, empty, and the Attributes section of a file, its source the one of
-    /// the Positions section (dotty's `pickleComments`, `pickleAttributes`).
-    pub fn file_sections(&mut self, attributes: &FileAttributes, source: &str) {
-        let comments = self.pickler.new_section("Comments");
-        self.pickler.set_section(comments, Vec::new());
+    /// The Comments section and the Attributes section of a file, its source the one of the
+    /// Positions section (dotty's `pickleComments`, `pickleAttributes`).
+    pub fn file_sections(
+        &mut self,
+        attributes: &FileAttributes,
+        source: &QuoteSource,
+    ) -> Result<(), Refusal> {
+        self.comments(source)?;
         let section = self.pickler.new_section("Attributes");
         let mut buf = tasty::write::Buffer::default();
         let flags = [
@@ -205,9 +215,10 @@ impl TreePickler<'_> {
             (attributes.features.pure_functions(), WITHPUREFUNS),
         ];
         flags.iter().filter(|(on, _)| *on).for_each(|&(_, tag)| buf.write_byte(tag));
-        let source = self.pickler.names.utf8(source);
+        let path = self.pickler.names.utf8(&source.path);
         buf.write_byte(SOURCEFILE);
-        buf.write_nat(source.0 as u64);
+        buf.write_nat(path.0 as u64);
         self.pickler.set_section(section, buf.bytes);
+        Ok(())
     }
 }

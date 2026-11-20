@@ -241,3 +241,4 @@ reflectiveinstantiation
 refinedendpoints
 overloadrefs
 implicitchoice
+closureviews

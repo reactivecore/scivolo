@@ -13,10 +13,30 @@ impl Typer<'_> {
             .unwrap_or_default()
     }
 
+    /// Finds the parameter types of `t` if it is a function or context function type (dotty's
+    /// `FunctionOf`), else none.
+    pub fn any_function_params(&mut self, t: TypeId) -> Vec<TypeId> {
+        match self.context_function_parts(t) {
+            Some((ps, _)) => ps,
+            None => self.function_params(t),
+        }
+    }
+
     /// Builds `FunctionN[parts]`, the last of `parts` the result type.
-    pub fn function_of(&mut self, mut parts: Vec<TypeId>) -> Result<TypeId, &'static str> {
+    pub fn function_of(&mut self, parts: Vec<TypeId>) -> Result<TypeId, &'static str> {
+        self.function_of_kind(parts, false)
+    }
+
+    /// Builds `FunctionN[parts]`, or `ContextFunctionN[parts]` if `contextual`.
+    pub fn function_of_kind(
+        &mut self,
+        mut parts: Vec<TypeId>,
+        contextual: bool,
+    ) -> Result<TypeId, &'static str> {
         let result = parts.pop().ok_or("function type")?;
-        let class = self.function_class(parts.len()).ok_or("function of that many parameters")?;
+        let n = parts.len();
+        let class = if contextual { self.context_function_class(n) } else { self.function_class(n) };
+        let class = class.ok_or("function of that many parameters")?;
         parts.push(result);
         Ok(self.u.intern_applied(class, &parts))
     }

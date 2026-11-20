@@ -331,6 +331,11 @@ fn arrays_of_overridden_higher_kinded_members_erase_as_dotty_on_the_jvm() {
 }
 
 #[test]
+fn members_aliased_by_the_class_of_a_prefix_run_as_dotty_on_the_jvm() {
+    runs_on_the_jvm("prefixaliases", "Prefixaliases");
+}
+
+#[test]
 fn private_objects_keep_their_names_on_the_jvm() {
     runs_on_the_jvm("privateobjects", "Privateobjects");
 }
@@ -823,4 +828,64 @@ fn a_refused_file_refuses_the_unit() {
         .expect("running scivolo-jvm");
     assert!(!left_out.status.success());
     assert!(out.join("run.class").exists(), "{}", String::from_utf8_lossy(&left_out.stderr));
+}
+
+#[test]
+fn null_comparisons_of_annotated_type_parameters_run_on_the_jvm() {
+    runs_on_the_jvm("annotatedequality", "annotatedequality");
+}
+
+#[test]
+fn assignments_to_getters_with_using_clauses_call_their_setters() {
+    runs_on_the_jvm("usingsetters", "usingsetters");
+}
+
+#[test]
+fn inline_values_folding_final_values_of_objects_run_on_the_jvm() {
+    runs_on_the_jvm("foldedinlinevals", "foldedinlinevals");
+}
+
+#[test]
+fn self_types_aliased_after_the_inheriting_class_conform() {
+    runs_on_the_jvm("laterselfaliases", "laterselfaliases");
+}
+
+#[test]
+fn members_of_a_self_typed_class_leave_selections_to_conversions() {
+    runs_on_the_jvm("selftypeviews", "selftypeviews");
+}
+
+#[test]
+fn members_both_sides_of_a_self_type_share_need_no_joint_member() {
+    runs_on_the_jvm("selftypeproxies", "selftypeproxies");
+}
+
+#[test]
+fn ambiguous_imported_extensions_fall_back_to_the_receivers_implicit_scope() {
+    runs_on_the_jvm("ambiguousextensions", "ambiguousextensions");
+}
+
+#[test]
+fn imported_extension_alternatives_precede_the_receivers_implicit_scope() {
+    runs_on_the_jvm("extensionalternatives", "extensionalternatives");
+}
+
+#[test]
+fn lambdas_against_generic_java_sams_infer_their_results() {
+    runs_on_the_jvm("javagenericsams", "javagenericsams");
+}
+
+#[test]
+fn singleton_types_of_transparent_inline_calls_run_on_the_jvm() {
+    runs_on_the_jvm("inlinedsingletons", "inlinedsingletons");
+}
+
+#[test]
+fn top_level_private_opaque_types_run_on_the_jvm() {
+    runs_on_the_jvm("privateopaques", "privateopaques");
+}
+
+#[test]
+fn enum_cases_precede_proxies_of_classes_other_files_add_to_the_package() {
+    runs_on_the_jvm("enumcaseproxies", "p.enumcaseproxies");
 }

@@ -54,6 +54,14 @@ impl Parser<'_> {
                 Vec::new()
             }
         };
+        let undocumented = |p: &Self, m: NodeId| {
+            matches!(p.ast.tree(m), Tree::DefDef { .. }) && p.ast.doc_comment(m).is_none()
+        };
+        for &m in &methods {
+            if undocumented(self, m) {
+                self.keep_doc_comment(m, start);
+            }
+        }
         let paramss = self.join_params(&tparams, lead);
         let paramss = self.ast.clauses(&paramss);
         let methods = self.ast.list(&methods);

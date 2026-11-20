@@ -12,6 +12,7 @@ use tasty::{Kind, SymbolId, Type, TypeId};
 
 /// What a name refers to: its prefix (`None` for a local) and the symbols it denotes, several
 /// for an overloaded method.
+#[derive(Clone)]
 pub struct Found {
     pub prefix: Option<TypeId>,
     pub syms: Vec<SymbolId>,
@@ -53,7 +54,10 @@ impl Typer<'_> {
             return self.tpd.node(T::Ident { name }, self.ast.span(id), Some(tpe), Some(root));
         }
         let before = self.u.refused_lookups();
-        let found = self.find_ref(&text, name.is_type, ctx);
+        let found = match self.preset_refs.remove(&id) {
+            Some(found) => Ok(Some(found)),
+            None => self.find_ref(&text, name.is_type, ctx),
+        };
         if let Some(refused) = self.lookup_refusal(id, before) {
             return refused;
         }

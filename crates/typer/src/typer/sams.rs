@@ -24,12 +24,10 @@ pub type SamParent = (TypeId, SamClause);
 impl Typer<'_> {
     /// The parameter and result types of the single abstract method of `t`, of `n` parameters,
     /// and `t`'s base type of the method's class (dotty's `SAMType`, `samParent`); `Err` for a
-    /// single abstract method type outside the subset: with type variables unless `open` and
-    /// not of a Java class.
+    /// single abstract method type outside the subset: with type variables unless `open`.
     pub fn sam_parts(&mut self, t: TypeId, n: usize, open: bool) -> Result<Option<Sam>, &'static str> {
         let t = self.zonk(t);
         let Some(sam) = self.sam_shape(t, n)? else { return Ok(None) };
-        let open = open && !self.u.class_symbol(sam.parent).is_some_and(|c| self.is_java_class_name(c));
         if !open && !self.is_fully_defined(t) && !self.is_partial_function(t) {
             return Err("single abstract method type outside the subset");
         }
@@ -42,7 +40,10 @@ impl Typer<'_> {
         let t = self.zonk(t);
         let dealiased = self.u.dealias(t);
         let (unrefined, term_refined) = self.u.without_refinements(dealiased);
-        let Some(class) = self.u.class_symbol(unrefined).filter(|_| !term_refined) else { return Ok(None) };
+        if term_refined && !self.only_term_refinements(dealiased, unrefined) {
+            return Ok(None);
+        }
+        let Some(class) = self.u.class_symbol(unrefined) else { return Ok(None) };
         self.ensure_self(class);
         if self.u.given_self_type(class).is_some() {
             return Ok(None);
@@ -59,7 +60,11 @@ impl Typer<'_> {
         let parent = self
             .without_wildcard_args(parent, class, method)
             .ok_or("single abstract method type of a wildcard argument outside the subset")?;
-        let parent = if unrefined != dealiased && parent == unrefined { dealiased } else { parent };
+        if term_refined && !self.u.is_subtype(parent, dealiased) {
+            return Ok(None);
+        }
+        let parent =
+            if !term_refined && unrefined != dealiased && parent == unrefined { dealiased } else { parent };
         self.complete(method);
         let info = self.u.member_info(parent, method);
         let info = self.u.with_refined_aliases(info, parent);
@@ -71,67 +76,6 @@ impl Typer<'_> {
         }
         let (names, params) = params.iter().cloned().unzip();
         Ok(Some(Sam { params, result, parent, clause: (binder, names, method) }))
-    }
-
-    /// `parent`, an application of class `c`, its wildcard arguments replaced by their lower
-    /// bound where the type parameter is a parameter type of `method` and occurs nowhere else,
-    /// by their upper bound where it occurs at most as the result type (dotty's `samParent`);
-    /// `None` otherwise or if `method` is not declared in `c`.
-    fn without_wildcard_args(&mut self, parent: TypeId, c: SymbolId, method: SymbolId) -> Option<TypeId> {
-        let Some((tycon, args)) = self.u.applied(parent).map(|(tycon, args)| (tycon, args.to_vec())) else {
-            return Some(parent);
-        };
-        if !args.iter().any(|&a| self.u.bounds(a).is_some()) {
-            return Some(parent);
-        }
-        if self.u.symbol(method).owner != Some(c) {
-            return None;
-        }
-        let tparams = self.u.type_params(c);
-        let info = self.u.info(method);
-        let mut new_args = Vec::new();
-        for (i, &a) in args.iter().enumerate() {
-            let Some((lo, hi)) = self.u.bounds(a) else {
-                new_args.push(a);
-                continue;
-            };
-            let p = tparams.get(i).copied()?;
-            let mut seen = (false, false);
-            self.occurrences(info, p, 1, &mut seen).then_some(())?;
-            new_args.push(if seen == (false, true) { lo } else { hi });
-        }
-        Some(self.u.intern_applied(tycon, &new_args))
-    }
-
-    /// Records in `seen` whether type parameter `p` occurs in `t` at variance `v` covariantly and
-    /// whether contravariantly, an invariant occurrence as both; `false` for a form not followed.
-    fn occurrences(&mut self, t: TypeId, p: SymbolId, v: i8, seen: &mut (bool, bool)) -> bool {
-        match *self.u.ty(t) {
-            Type::Sym(_, s) if s == p => {
-                seen.0 |= v >= 0;
-                seen.1 |= v <= 0;
-                true
-            }
-            Type::Applied(tycon, args) => {
-                let Some(class) = self.u.class_symbol(tycon) else { return !self.refers_to(t, &[p]) };
-                let variances = self.u.variances(class);
-                (0..self.u.types_of(args).len()).all(|i| {
-                    let w = variances.get(i).copied().unwrap_or(0);
-                    self.occurrences(self.u.types_of(args)[i], p, v * w, seen)
-                })
-            }
-            Type::Method { params, result, .. } => {
-                (0..self.u.params_of(params).len())
-                    .all(|i| self.occurrences(self.u.params_of(params)[i].1, p, -v, seen))
-                    && self.occurrences(result, p, v, seen)
-            }
-            Type::Bounds(lo, hi) => self.occurrences(lo, p, -v, seen) && self.occurrences(hi, p, v, seen),
-            Type::ByName(r) | Type::Flexible(r) => self.occurrences(r, p, v, seen),
-            Type::And(a, b) | Type::Or(a, b, _) => {
-                self.occurrences(a, p, v, seen) && self.occurrences(b, p, v, seen)
-            }
-            _ => !self.refers_to(t, &[p]),
-        }
     }
 
     /// The single abstract method of class `c`, a trait or abstract class neither final nor

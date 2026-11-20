@@ -102,6 +102,7 @@ impl Typer<'_> {
             if own_parts {
                 return Err("class not conforming to a parent's self type");
             }
+            self.complete_named_type_members(own, s);
             let outer = self.u.set_checks_bounds_or_self_type(true);
             let conforms = self.u.is_subtype(own, s);
             self.u.set_checks_bounds_or_self_type(outer);

@@ -60,6 +60,9 @@ pub fn typed_branches(
     pt: Option<&Erased>,
 ) -> Result<Vec<TNodeId>> {
     let reference = |p: &Erased| matches!(p, Erased::Class(_) | Erased::Array(_));
+    if let Some(result) = by_name_result(l, l.tpd.tpe(t)) {
+        l.tpd.get_mut(t).tpe = Some(result);
+    }
     let own = l.u.erase_value(l.tpd.tpe(t));
     let nothing = own == Erased::Nothing;
     let expected = match pt.filter(|p| reference(p) || nothing) {
@@ -105,4 +108,12 @@ pub fn typed_branches(
         }
     }
     Ok(out)
+}
+
+/// The result type of `tpe` if it is a reference to a by-name parameter, as `try x` has: the
+/// type the branch has once `x` is evaluated (dotty's `Erasure` retyping the `try` from its parts).
+fn by_name_result(l: &mut Lower, tpe: tasty::TypeId) -> Option<tasty::TypeId> {
+    let s = l.u.sym_of(tpe).filter(|&s| l.u.symbol(s).kind.is_term())?;
+    let info = l.u.info(s);
+    l.u.by_name(info)
 }

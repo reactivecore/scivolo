@@ -57,9 +57,7 @@ impl Typer<'_> {
         if elems.len() != params.len() {
             return None;
         }
-        if formal != tuple {
-            return Some(self.unsupported(id, "untupled parameters of a tuple alias"));
-        }
+        let generic = generic || formal != tuple;
         let at = |s: Span| Span::synthetic(s.start(), s.start());
         for (&q, &elem) in params.iter().zip(&elems) {
             let Tree::ValDef { tpt, .. } = *self.ast.tree(q) else { return None };

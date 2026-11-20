@@ -2,7 +2,7 @@
 //   compiler/src/dotty/tools/backend/jvm/BCodeBodyBuilder.scala
 //! A value fitted to the slots its context takes (dotty's `adapt`).
 
-use super::body::Body;
+use super::body::{Body, Operand};
 use super::descriptors::{NOTHING, NULL, class_descriptor};
 use super::{Gen, unsupported};
 use lower::Result;
@@ -29,6 +29,9 @@ impl Gen<'_, '_> {
     /// type `Nothing` ends with an `athrow` after its last label, which no jump reaches.
     fn expr_adapted(&mut self, b: &mut Body, t: TNodeId, slots: i32, adapt: bool) -> Result<()> {
         let depth = b.code.stack();
+        if let Tree::Block { stats, expr } = *self.l.tpd.tree(t) {
+            return self.block_adapted(b, t, (stats, expr), slots, adapt);
+        }
         let got = self.expr(b, t)?;
         let nothing = got == 1 && self.desc_of(t) == NOTHING;
         match got - slots {
@@ -52,6 +55,33 @@ impl Gen<'_, '_> {
             _ => return unsupported(self.l.tpd.span(t), "a value of another size than its context's"),
         }
         b.forget(depth + slots);
+        Ok(())
+    }
+
+    /// Generates block `t` of `stats` and `expr` with `expr` adapted as `expr_adapted` does within
+    /// the scope of the block's locals (dotty's `genBlockTo`).
+    fn block_adapted(
+        &mut self,
+        b: &mut Body,
+        t: TNodeId,
+        (stats, expr): (List, TNodeId),
+        slots: i32,
+        adapt: bool,
+    ) -> Result<()> {
+        let depth = b.code.stack();
+        self.line(b, t);
+        b.code.open_block();
+        for s in self.l.tpd.items(stats).to_vec() {
+            self.block_stat(b, s)?;
+        }
+        self.expr_adapted(b, expr, slots, adapt)?;
+        b.code.close_block();
+
+        if let Some(top) =
+            b.operands.last_mut().filter(|o| o.0 == depth && matches!(o.2, Operand::Of(e) if e == expr))
+        {
+            top.2 = Operand::Of(t);
+        }
         Ok(())
     }
 

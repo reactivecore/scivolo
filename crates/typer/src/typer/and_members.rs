@@ -5,7 +5,7 @@
 //! with `mergeSingleDenot`).
 
 use super::Typer;
-use crate::ctx::Ctx;
+use crate::ctx::{Ctx, Mode};
 use tasty::tags::{PRIVATE, PRIVATEqualified, PROTECTED, PROTECTEDqualified, TRAIT};
 use tasty::{Kind, SymbolId, Type, TypeId};
 
@@ -85,8 +85,27 @@ impl Typer<'_> {
         self.u.erased_method_type(ia).0 == self.u.erased_method_type(ib).0
     }
 
-    /// Whether both sides of intersection `t`, or of one nested in it, have members `name`, which
-    /// `and_members` cannot merge into one; `t` a `this` stands for its given self type.
+    /// Whether a reference to member `name` of `prefix` in `ctx` needs a joint member
+    /// (`needs_joint_member`), unless `ctx` looks up extension methods and none of the members of
+    /// `prefix`, the self type for a class's `this`, is one.
+    pub fn needs_joint_ref(&mut self, prefix: TypeId, name: &str, ctx: Ctx) -> bool {
+        if !self.needs_joint_member(prefix, name) {
+            return false;
+        }
+        if !ctx.mode.is(Mode::EXTENSION_METHOD) {
+            return true;
+        }
+        let site = match *self.u.ty(prefix) {
+            Type::This(c) => self.u.class_symbol(c).map_or(prefix, |k| self.u.self_type(k)),
+            _ => prefix,
+        };
+        let members = self.type_members(site, name);
+        members.into_iter().any(|s| self.u.symbol(s).is_extension())
+    }
+
+    /// Whether both sides of intersection `t`, or of one nested in it, have members `name` that
+    /// differ, which `and_members` cannot merge into one; `t` a `this` stands for its given self
+    /// type.
     pub fn needs_joint_member(&mut self, t: TypeId, name: &str) -> bool {
         let t = match *self.u.ty(t) {
             Type::This(c) => {
@@ -104,7 +123,8 @@ impl Typer<'_> {
         };
         let Type::And(a, b) = *self.u.ty(t) else { return false };
         let (ma, mb) = (self.type_members(a, name), self.type_members(b, name));
-        !ma.is_empty() && !mb.is_empty()
+        let same = ma == mb && ma.iter().all(|&s| self.u.member_info(a, s) == self.u.member_info(b, s));
+        !ma.is_empty() && !mb.is_empty() && !same
             || ma.is_empty() && self.needs_joint_member(a, name)
             || mb.is_empty() && self.needs_joint_member(b, name)
     }

@@ -31,7 +31,8 @@ impl Typer<'_> {
         if self.protos[proto].typed.is_some() {
             return Err("auto-tupled arguments typed before tupling");
         }
-        let (first, last) = (self.ast.span(args[0]), self.ast.span(args[args.len() - 1]));
+        let written = |t: &Self, a: NodeId| t.ast.parens_span(a).unwrap_or_else(|| t.ast.span(a));
+        let (first, last) = (written(self, args[0]), written(self, args[args.len() - 1]));
         let span = Span::synthetic(first.start(), last.end());
         let trees = self.ast.list(&args);
         let named = args.iter().any(|&a| matches!(self.ast.tree(a), Tree::NamedArg { .. }));

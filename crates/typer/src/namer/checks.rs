@@ -45,6 +45,7 @@ impl Typer<'_> {
             (f::LAZY, f::PARAM_ACCESSOR),
         ];
         let flags = if is_type { flags.to_type_flags() } else { flags.to_term_flags() };
+        let flags = if self.is_package_level(owner) { flags.and_not(f::PRIVATE_LOCAL) } else { flags };
         let problem = if !applicable && !flags.is_empty() {
             "modifier incompatible with the definition"
         } else if combinations.iter().any(|&(a, b)| flags.is_all_of(a.or(b))) {
