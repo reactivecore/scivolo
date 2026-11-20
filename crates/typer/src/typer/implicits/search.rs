@@ -6,11 +6,11 @@
 //! any other failure of a candidate fails the search.
 
 use super::super::Typer;
-use super::attempts::{BestFirst, fitting};
+use super::attempts::BestFirst;
 use super::candidates::Candidate;
 use super::history::emitted;
 use super::not_given::not_given_arg;
-use super::ranking::most_specific;
+use super::rank::fitting;
 use super::unsettled::{
     any_open_constructor, constructor_vars, determined, has_unbounded_var, is_underspecified, var_upper_bound,
 };
@@ -26,6 +26,8 @@ const MAX_DEPTH: u32 = 16;
 pub const MAX_TRIES: u32 = 4000;
 /// The failure of a search that finds several candidates, none ranking above the others.
 pub const AMBIGUOUS: &str = "ambiguous implicit arguments";
+/// The refusal of a sole success beside a candidate lacking a nested argument, with type variables.
+const REJECTED_WITH_VARS: &str = "implicit candidate rejected by a search with type variables";
 
 /// The failures that only mean a candidate does not fit.
 pub const MISFITS: [&str; 9] = [
@@ -92,6 +94,9 @@ impl ImplicitSearch {
     fn run(mut self, t: &mut Typer<'_>) -> Result<TNodeId, &'static str> {
         let (formal, at, ctx) = (self.pt, self.at, self.ctx);
         let outermost = t.history.open.is_empty();
+        if outermost {
+            t.history.ambiguity = None;
+        }
         t.constraint.enter_search();
         let constructors = constructor_vars(t.u, formal);
         let found = match var_upper_bound(&mut t.types(), formal) {
@@ -166,26 +171,30 @@ impl ImplicitSearch {
             BestFirst::Failed if group.len() == 1 => return Ok(None),
             _ => {}
         }
-        let mut nested_failure = false;
-        let found = fitting(t, &group, |t, c| {
-            let tried = self.tried(t, c, false);
-            nested_failure |= tried == Err("no implicit argument");
-            tried
-        })?;
-        let winner = match found.as_slice() {
-            [] => return Ok(None),
-            [_] if nested_failure && has_unbounded_var(&mut t.types(), pt) => {
-                return Err("implicit candidate rejected by a search with type variables");
+        if coherent {
+            let mut nested_failure = false;
+            let found = fitting(t, &group, |t, c| {
+                let tried = self.tried(t, c, false);
+                nested_failure |= tried == Err("no implicit argument");
+                tried
+            })?;
+            let Some(&first) = found.first() else { return Ok(None) };
+            if found.len() == 1 && nested_failure && has_unbounded_var(&mut t.types(), pt) {
+                return Err(REJECTED_WITH_VARS);
             }
-            [c] => *c,
-            [c, ..] if coherent => {
-                if !existence && (!t.types().is_fully_defined(pt) || !self.found_one_type(t, &found)?) {
-                    return Err("several CanEqual instances, tried in an order of a hash table");
-                }
-                *c
+            if found.len() > 1
+                && !existence
+                && (!t.types().is_fully_defined(pt) || !self.found_one_type(t, &found)?)
+            {
+                return Err("several CanEqual instances, tried in an order of a hash table");
             }
-            _ => most_specific(t, &found, self.ctx).ok_or(AMBIGUOUS)?,
-        };
+            return self.tried(t, first, false).map(Some);
+        }
+        let ranked = self.ranked(t, &group)?;
+        let Some(winner) = ranked.winner else { return Ok(None) };
+        if ranked.successes == 1 && ranked.nested_failure && has_unbounded_var(&mut t.types(), pt) {
+            return Err(REJECTED_WITH_VARS);
+        }
         self.tried(t, winner, false).map(Some)
     }
 }

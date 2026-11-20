@@ -5,11 +5,14 @@
 
 use super::super::super::{Typer, errors};
 use super::ImplicitClause;
-use crate::tpd::TNodeId;
+use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::flags as f;
 use syntax::ast::{Ast, NodeId, Tree};
+use syntax::diag::Message;
 use tasty::tags::{EXTENSION, GIVEN, HASDEFAULT, IMPLICIT};
-use tasty::{Kind, TypeId};
+use tasty::{ANY, Kind, SymbolId, Type, TypeId, Universe};
+
+const IMPLICIT_AMBIGUOUS: &str = "scala.annotation.implicitAmbiguous";
 
 impl ImplicitClause {
     /// Reports that no implicit argument was found for parameter `param` of type `formal` of an
@@ -33,8 +36,68 @@ impl ImplicitClause {
     /// anywhere, and returns an error tree; `None` where dotty may find a candidate, add an
     /// addendum or word the message otherwise.
     fn missing_given(&self, t: &mut Typer<'_>, param: &str, formal: TypeId) -> Option<TNodeId> {
+        if !surely_unsupplied(t, formal) {
+            return None;
+        }
+        let place = self.place(t, param)?;
+        let shown = t.plain_text(formal)?;
+        self.reported(t, errors::missing_given(&shown, &place))
+    }
+
+    /// Reports the ambiguity of the two candidates the outermost search for parameter `param` of
+    /// type `formal` found, as `Nil.max` finds `Ordering.Short` and `Ordering.Int`, and returns
+    /// an error tree; `None` where dotty may word the message otherwise.
+    pub fn ambiguous(&self, t: &mut Typer<'_>, param: &str, formal: TypeId) -> Option<TNodeId> {
+        let (a, b) = t.history.ambiguity.take()?;
+        let place = self.place(t, param)?;
+        let (a, b) = (candidate_shown(t, a.sym)?, candidate_shown(t, b.sym)?);
+        let shown = self.formal_shown(t, formal)?;
+        self.reported(t, errors::ambiguous_givens(&a, &b, &shown, &place))
+    }
+
+    /// `formal` as dotty's message shows it, the type variables of the method's type parameters
+    /// that are still open shown by those parameters' names: `Ordering[B]`.
+    fn formal_shown(&self, t: &mut Typer<'_>, formal: TypeId) -> Option<String> {
+        let formal = t.types().zonk(formal);
+        if t.types().open_vars(formal).is_empty() {
+            return t.plain_text(formal);
+        }
+        let fun = t.tpd.strip_apply(self.tree);
+        let T::TypeApply { args, .. } = *t.tpd.tree(fun) else { return None };
+        let targs: Vec<TypeId> = t.tpd.items(args).iter().map(|&a| t.tpd.tpe(a)).collect();
+        let targs: Vec<TypeId> = targs.into_iter().map(|a| t.types().zonk(a)).collect();
+        let tparams = t.u.type_params(self.meth?);
+        if targs.len() != tparams.len() {
+            return None;
+        }
+        let named = |u: &mut Universe, any: bool| {
+            u.map_type(formal, &mut |u, part| {
+                let i = targs.iter().position(|&a| a == part && u.var(a).is_some())?;
+                Some(if any { ANY } else { u.intern_type(Type::Sym(None, tparams[i])) })
+            })
+        };
+        let (checked, shown) = (named(t.u, true), named(t.u, false));
+        if !t.types().open_vars(checked).is_empty() {
+            return None;
+        }
+        t.plain_text(checked)?;
+        Some(t.u.show_user(shown)).filter(|text| !text.contains(['<', '?']))
+    }
+
+    /// Reports `msg` and returns an error tree if dotty reports it in this context.
+    fn reported(&self, t: &mut Typer<'_>, msg: Message) -> Option<TNodeId> {
         let span = t.tpd.span(self.tree);
-        if !t.history.open.is_empty() || param.contains('$') || !surely_unsupplied(t, formal) {
+        if !t.certain_context(span, self.ctx) {
+            return None;
+        }
+        t.error_at(self.at, msg);
+        Some(t.error_tree(span))
+    }
+
+    /// Where dotty's message places parameter `param` of the outermost search:
+    /// `parameter ord of method max in trait IterableOnceOps`.
+    fn place(&self, t: &mut Typer<'_>, param: &str) -> Option<String> {
+        if !t.history.open.is_empty() || param.contains('$') {
             return None;
         }
         let m = t.tpd.sym(t.tpd.meth_part(self.tree))?;
@@ -48,14 +111,24 @@ impl ImplicitClause {
             return None;
         }
         let location = t.location(owner)?;
-        let shown = t.plain_text(formal)?;
-        if !t.certain_context(span, self.ctx) {
-            return None;
-        }
-        let msg = errors::missing_given(&shown, &format!("parameter {param} of method {name}{location}"));
-        t.error_at(self.at, msg);
-        Some(t.error_tree(span))
+        Some(format!("parameter {param} of method {name}{location}"))
     }
+}
+
+/// Candidate `sym` as dotty's `showLocated` shows it: `object Short in object Ordering`; `None`
+/// if it carries an `implicitAmbiguous` message or its owner is shown otherwise.
+fn candidate_shown(t: &mut Typer<'_>, sym: SymbolId) -> Option<String> {
+    if t.u.is_annotated(sym, IMPLICIT_AMBIGUOUS) {
+        return None;
+    }
+    let s = t.u.symbol(sym);
+    let (name, owner) = (s.name.clone(), s.owner?);
+    let shown = match t.u.is_module(sym) {
+        true => format!("object {name}"),
+        false => t.syms.described(t.u, sym),
+    };
+    let location = t.location(owner).filter(|l| !l.is_empty())?;
+    Some(format!("{shown}{location}"))
 }
 
 /// Whether no implicit can have type `formal`: a fully defined class type of the unit, in a

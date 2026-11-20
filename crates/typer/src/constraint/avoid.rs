@@ -20,7 +20,8 @@ impl Constraint {
     /// its type, a class member of a local value selected on the value's type, a variable nested
     /// more deeply than `at` whose bounds refer to one by a new variable above it made `at` (dotty's
     /// `legalVar`); a type member of a local value by its alias, or by its bound where not
-    /// invariant; an invariant argument by the wildcard of its avoided bounds where covariant.
+    /// invariant, an application of one by its alias, or by its upper bound applied where
+    /// covariant; an invariant argument by the wildcard of its avoided bounds where covariant.
     /// `None` if another such symbol remains.
     pub fn avoided(&mut self, u: &mut Universe, t: TypeId, at: At, v: i32) -> Option<TypeId> {
         if !self.refers_to_local(u, t, at, LOCAL_REF_DEPTH) {
@@ -37,9 +38,17 @@ impl Constraint {
                 None if v == 0 => self.unified_at(u, x, at),
                 None => None,
             },
-            Type::Applied(tycon, _) if u.class_symbol(tycon).is_none() => {
+            Type::Applied(tycon, _) if u.class_symbol(tycon).is_none() || u.dealias(t) != t => {
                 let dealiased = u.dealias(t);
                 if dealiased == t { None } else { self.avoided(u, dealiased, at, v) }
+            }
+            Type::Applied(tycon, args)
+                if v > 0
+                    && self.refers_to_local(u, tycon, at, LOCAL_REF_DEPTH)
+                    && let args = u.types_of(args).to_vec()
+                    && let Some(upper) = u.expand_upper(tycon, &args) =>
+            {
+                self.avoided(u, upper, at, v)
             }
             Type::Sym(Some(pre), s) if !self.is_local_since(u, s, at.born) => match u.symbol(s).kind {
                 Kind::Class if v > 0 => {

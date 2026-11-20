@@ -4,8 +4,8 @@
 //! selection (dotty's `rank` and `disambiguate` of extension candidates).
 
 use super::super::super::Typer;
-use super::super::attempts::fitting;
 use super::super::candidates::{Candidate, candidate_ref};
+use super::super::rank::fitting;
 use super::super::ranking::most_specific;
 use super::view_kinds::extension_members;
 use super::{Goal, ViewSearch};

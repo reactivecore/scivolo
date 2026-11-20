@@ -63,6 +63,7 @@ pub fn boxed_unit(l: &mut Lower, t: TNodeId) -> TNodeId {
 pub fn discarded(l: &mut Lower, t: TNodeId) -> TNodeId {
     let span = l.tpd.span(t);
     let unit = l.unit_literal(span);
+    l.tpd.mark_synthetic_unit(unit);
     if is_pure(l, t) { unit } else { l.block(&[t], unit, span) }
 }
 

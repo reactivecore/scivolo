@@ -60,6 +60,22 @@ fn code(g: &mut Gen, root: TNodeId, name: &str) -> Vec<u8> {
 
 /// Generates the code of instance method `name` as `code` does, its constants in `pool`.
 fn code_in(g: &mut Gen, root: TNodeId, name: &str, pool: &mut Pool) -> Vec<u8> {
+    with_body(g, root, name, pool, |b| b.code.bytes.clone())
+}
+
+/// The `LocalVariableTable` rows (start, length, slot) of instance method `name` as `code` makes it.
+fn local_ranges(g: &mut Gen, root: TNodeId, name: &str) -> Vec<[u16; 3]> {
+    let mut pool = Pool::default();
+    let table = with_body(g, root, name, &mut pool, |b| {
+        let names = vec![[0, 0]; b.code.local_var_names(&mut Pool::default()).len()];
+        b.code.local_var_table(&names).unwrap_or_default()
+    });
+    let rows = table.get(2..).unwrap_or_default().chunks(10);
+    rows.map(|r| [0, 2, 8].map(|i| u16::from_be_bytes([r[i], r[i + 1]]))).collect()
+}
+
+/// Runs `f` on the body of instance method `name` generated as `code` does, its constants in `pool`.
+fn with_body<R>(g: &mut Gen, root: TNodeId, name: &str, pool: &mut Pool, f: impl FnOnce(&Body) -> R) -> R {
     let dd = definition(g, root, name);
     let Tree::DefDef { paramss, rhs: Some(rhs), .. } = *g.l.tpd.tree(dd) else {
         panic!("{name} has no body")
@@ -74,7 +90,7 @@ fn code_in(g: &mut Gen, root: TNodeId, name: &str, pool: &mut Pool) -> Vec<u8> {
     let result = b.result.clone();
     g.method_body(&mut b, rhs, &result).unwrap_or_else(|e| panic!("{name}: {}", e.what));
     assert!(b.code.problem().is_none(), "{name}");
-    b.code.bytes
+    f(&b)
 }
 
 const LONG_A: &str = "Aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
@@ -154,6 +170,40 @@ fn conditions_loops_and_iinc_as_dotty_generates_them() {
             assert_eq!(code(g, root, name), bytes, "{name}");
         }
     });
+}
+
+#[test]
+fn a_block_local_spans_the_athrow_after_the_block_value() {
+    let source = "object Scopes {
+        def first(n: Int): Int = {
+          var i = 0
+          while (i < n) { if (i > 2) { val k = i + 1; if (k > 5) return k else return 0 }; i += 1 }
+          i
+        }
+    }";
+    with_gen(source, |g, root| {
+        let k = local_ranges(g, root, "first").into_iter().find(|r| r[2] == 3);
+        assert_eq!(k, Some([16, 10, 3]));
+    });
+}
+
+#[test]
+fn the_unit_of_a_discarded_value_marks_no_line() {
+    let source = "object Disc {\n  def plain(a: Array[Object]): Unit =\n    Iterator[Object](\"x\").copyToArray(a,\n      0, 1\n    )\n}";
+    with_gen(source, |g, root| assert_eq!(lines(g, root, "plain"), [3, 4]));
+}
+
+#[test]
+fn the_unit_of_an_erased_result_marks_no_line() {
+    let source = "object Disc {\n  def spawn(f: => Unit): Unit = f\n  def call(g: String => Unit, p: String): Unit =\n    spawn {\n      g {\n        try p.trim()\n        catch {\n          case e: Exception => \"\"\n        }\n      }\n    }\n}";
+    with_gen(source, |g, root| assert_eq!(lines(g, root, "call$$anonfun$1"), [5, 6, 8]));
+}
+
+/// The lines of the `LineNumberTable` of instance method `name` as `code` makes it.
+fn lines(g: &mut Gen, root: TNodeId, name: &str) -> Vec<u16> {
+    let mut pool = Pool::default();
+    let table = with_body(g, root, name, &mut pool, |b| b.code.line_table().unwrap_or_default());
+    table[2..].chunks(4).map(|r| u16::from_be_bytes([r[2], r[3]])).collect()
 }
 
 #[test]

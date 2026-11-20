@@ -798,20 +798,24 @@ web-build:
     RUSTC="$(rustup which --toolchain "$tc" rustc)" "$(rustup which --toolchain "$tc" cargo)" \
         build -p scivolo-web --lib --profile web --target wasm32-unknown-unknown {{ locked }}
 
-# Build the library image of the standard libraries if needed and gzip it into `dir`.
-web-image dir="tmp/web-dist":
-    mkdir -p {{ dir }}
-    gzip -9 -c "$(cargo run -q -p scivolo-web --bin scivolo-web-image {{ locked }})" > {{ dir }}/libs.img.gz
-
 # Run the REPL transcripts, the time limit and the refusals in the browser's module under node.
 web-test: web-build
     node web/test.mjs {{ web_wasm }} "$(cargo run -q -p scivolo-web --bin scivolo-web-image {{ locked }})" tests/repl
 
-# Build the browser REPL into `dir`; `python3 -m http.server -d tmp/web-dist 8000` serves it
-# at http://localhost:8000.
-web-dist dir="tmp/web-dist": web-build (web-image dir)
-    cp web/index.html web/style.css web/*.js {{ dir }}/
-    cp {{ web_wasm }} {{ dir }}/scivolo.wasm
+# Build the browser REPL into `dir`: `index.html` and a directory named by the hash of the other
+# files (module, gzipped library image, scripts, style), which `index.html` loads.
+# `python3 -m http.server -d tmp/web-dist 8000` serves it at http://localhost:8000.
+web-dist dir="tmp/web-dist": web-build
+    #!/usr/bin/env bash
+    set -euo pipefail
+    rm -rf {{ dir }}
+    mkdir -p {{ dir }}/build
+    gzip -9 -n -c "$(cargo run -q -p scivolo-web --bin scivolo-web-image {{ locked }})" > {{ dir }}/build/libs.img.gz
+    cp web/style.css web/*.js {{ dir }}/build/
+    cp {{ web_wasm }} {{ dir }}/build/scivolo.wasm
+    hash="$(cat {{ dir }}/build/* | shasum -a 256 | cut -c1-12)"
+    mv {{ dir }}/build {{ dir }}/"$hash"
+    sed "s|@BUILD@|$hash|g" web/index.html > {{ dir }}/index.html
 
 # Open a merge request of the current branch into `target`, described by tmp/mr.md.
 mr-create title target="main" *flags:

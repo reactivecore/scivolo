@@ -79,6 +79,7 @@ impl TreePickler<'_> {
     pub fn definition(&mut self, id: TNodeId) -> Result<(), Refusal> {
         let sym = self.tpd.sym(id).ok_or("a definition without a symbol")?;
         self.def_span = self.tpd.span(id);
+        self.note_doc_comment(id, sym);
         match self.tpd.tree(id).clone() {
             T::ValDef { tpt, rhs, .. } => self.def(VALDEF, sym, None, tpt, rhs),
             T::DefDef { paramss, tpt, rhs, .. } => self.def(DEFDEF, sym, Some(paramss), tpt, rhs),

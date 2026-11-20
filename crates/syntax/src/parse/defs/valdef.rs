@@ -53,7 +53,7 @@ impl Parser<'_> {
                 if self.ast.get(id).attrs.contains(Attrs::BACKQUOTED) {
                     self.ast.add_attrs(v, Attrs::BACKQUOTED);
                 }
-                self.finalize_def(v, mods)
+                self.finalize_def(v, mods, start)
             }
             _ => {
                 let all_ids = lhs
