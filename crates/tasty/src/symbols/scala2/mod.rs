@@ -6,18 +6,20 @@
 mod annotations;
 mod buffer;
 mod class_info;
+mod classes;
+mod constants;
 mod existentials;
 mod ext;
 mod flags;
 mod format;
 mod methods;
 mod refinements;
+mod run;
 mod symbols;
 mod type_members;
 mod types;
 
-use super::{Kind, SymbolId, Universe};
-use crate::tags::IMPLICIT;
+use super::{SymbolId, Universe};
 use buffer::PickleBuffer;
 use format::{
     CLASSsym, EXTMODCLASSref, EXTref, MODULEsym, NONEsym, REFINE_CLASS, TERMname, TYPEname, VALsym,
@@ -129,70 +131,6 @@ pub fn enter(
 }
 
 impl Unpickler {
-    /// Enters the symbols of the pickle, then reads their types: the roots entered.
-    fn run(&mut self, u: &mut Universe) -> Result<Vec<SymbolId>, String> {
-        for i in 0..self.index.len() {
-            if self.is_root_entry(i)? {
-                self.sym(u, i)?;
-            }
-        }
-        for i in 0..self.index.len() {
-            if self.is_symbol_entry(i)? {
-                self.sym(u, i)?;
-            }
-        }
-        let entered = self.entered.clone();
-        let pkg = Some(self.pkg);
-        let roots = entered.iter().map(|&(_, s)| s).filter(|&s| u.symbol(s).owner == pkg).collect();
-        for &(i, s) in &entered {
-            if u.symbol(s).kind == Kind::Class {
-                self.class_info(u, i, s)?;
-            }
-        }
-        for &(_, s) in &entered {
-            if u.symbol(s).kind == Kind::Type {
-                self.ensure_type_info(u, s)?;
-            }
-        }
-        for &(i, s) in &entered {
-            if matches!(u.symbol(s).kind, Kind::Type | Kind::Class | Kind::TypeParam) || !self.is_own(s) {
-                continue;
-            }
-            if let Err(why) = self.member_info(u, i, s) {
-                self.refuse(u, i, s, why)?;
-            }
-        }
-        self.symbol_annotations(u)?;
-        Ok(roots)
-    }
-
-    /// Reads the type of type member `s` of this pickle unless it is read or being read.
-    fn ensure_type_info(&mut self, u: &mut Universe, s: SymbolId) -> Result<(), String> {
-        if u.infos.contains_key(&s) || !self.reading.insert(s) {
-            return Ok(());
-        }
-        let Some(&(i, _)) = self.entered.iter().find(|&&(_, e)| e == s) else { return Ok(()) };
-        if let Err(why) = self.type_member_info(u, i, s) {
-            self.refuse(u, i, s, why)?;
-        }
-        Ok(())
-    }
-
-    /// Unenters member `s` of entry `i` whose type is refused for `why` and poisons its name;
-    /// refuses the pickle if `s` is implicit.
-    fn refuse(&mut self, u: &mut Universe, i: usize, s: SymbolId, why: String) -> Result<(), String> {
-        if u.symbol(s).flags.has(IMPLICIT) {
-            return Err(format!("implicit member `{}`: {why}", u.symbol(s).name));
-        }
-        let (owner, name) = (u.symbol(s).owner.expect("a member has an owner"), u.symbol(s).name.clone());
-        u.unenter(s);
-        self.unentered.push(s);
-        self.own.remove(&s);
-        self.syms.insert(i, Sym::Skipped);
-        self.refused.push((owner, name, why));
-        Ok(())
-    }
-
     /// The tag of entry `i` and the end of its body, the buffer at the body's start.
     fn seek(&mut self, i: usize) -> Result<(u8, usize), String> {
         self.buf.at = *self.index.get(i).ok_or_else(|| format!("pickle entry {i}"))?;

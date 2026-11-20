@@ -1,21 +1,19 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/core/unpickleScala2/Scala2Unpickler.scala
-//! The value types of a pickle (dotty's `readType`, `readConstant`): references to classes,
-//! type parameters, aliases and objects, applied types, bounds and constants.
+//! The types of a pickle (dotty's `readType`): references to classes, type parameters, type
+//! members, objects and the parameter classes, applied types, bounds and constants, dispatching
+//! lambdas, refinements, existentials and annotated types.
 
 use super::super::defn::{IMMUTABLE_SEQ, REPEATED_ANNOT};
 use super::super::{Kind, SymbolId, Universe};
 use super::format::*;
 use super::{Sym, Unpickler};
-use crate::tags::{
-    BYTEconst, CHARconst, DOUBLEconst, FALSEconst, FLOATconst, INTconst, LONGconst, NULLconst, OBJECT,
-    SHORTconst, TRUEconst, UNITconst,
-};
+use crate::tags::OBJECT;
 use crate::types::{Type, TypeId};
 
 impl Unpickler {
-    /// Reads type entry `i`; refuses refinement, existential, annotated and super types, path
-    /// dependent and dependent method types and unapplied type constructors.
+    /// Reads type entry `i`; refuses super types, path-dependent and dependent method types and
+    /// a type constructor applied to fewer or more arguments than it takes.
     pub fn ty(&mut self, u: &mut Universe, i: usize) -> Result<TypeId, String> {
         let saved = self.buf.at;
         let (tag, end) = self.seek(i)?;
@@ -171,33 +169,5 @@ impl Unpickler {
             }
             _ => Ok(None),
         }
-    }
-
-    /// The constant type of constant entry `i`; class and enum literals are refused.
-    fn constant(&mut self, u: &mut Universe, i: usize) -> Result<Type, String> {
-        let saved = self.buf.at;
-        let (tag, end) = self.seek(i)?;
-        let len = end - self.buf.at;
-        let t = match tag {
-            LITERALunit => Type::Constant(UNITconst, 0),
-            LITERALnull => Type::Constant(NULLconst, 0),
-            LITERALboolean => {
-                Type::Constant(if self.buf.long(len)? != 0 { TRUEconst } else { FALSEconst }, 0)
-            }
-            LITERALbyte => Type::Constant(BYTEconst, i64::from(self.buf.long(len)? as i8)),
-            LITERALshort => Type::Constant(SHORTconst, i64::from(self.buf.long(len)? as i16)),
-            LITERALchar => Type::Constant(CHARconst, i64::from(self.buf.long(len)? as u16)),
-            LITERALint => Type::Constant(INTconst, i64::from(self.buf.long(len)? as i32)),
-            LITERALlong => Type::Constant(LONGconst, self.buf.long(len)?),
-            LITERALfloat => Type::Constant(FLOATconst, i64::from(self.buf.long(len)? as u32)),
-            LITERALdouble => Type::Constant(DOUBLEconst, self.buf.long(len)?),
-            LITERALstring => {
-                let name = self.buf.nat()?;
-                Type::Str(u.types.intern_name(&self.name(name)?.0))
-            }
-            _ => return Err(format!("a constant of tag {tag}")),
-        };
-        self.buf.at = saved;
-        Ok(t)
     }
 }

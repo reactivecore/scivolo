@@ -1,17 +1,18 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/core/unpickleScala2/Scala2Unpickler.scala
 //! The symbol entries of a pickle (dotty's `readDisambiguatedSymbol`, `finishSym`): the roots
-//! and the members of the roots entered, nested classes, objects and type members refused.
+//! and the members of classes entered, those this reader does not read refused.
 
 use super::super::builtin::synthetic;
 use super::super::encoded_names::decode;
-use super::super::{Kind, SymbolId, Universe, module_class_name};
+use super::super::{Kind, SymbolId, Universe};
+use super::classes::is_case_companion;
 use super::flags as f;
 use super::format::{
     ALIASsym, CLASSsym, EXTMODCLASSref, EXTref, MODULEsym, NONEsym, REFINE_CLASS, TYPEsym, VALsym,
 };
 use super::{Sym, Unpickler};
-use crate::tags::{CASE, FINAL, OBJECT};
+use crate::tags::OBJECT;
 use names::nme;
 
 /// The header of a symbol entry: tag, name, owner, flags, access qualifier and type (dotty's
@@ -83,57 +84,11 @@ impl Unpickler {
         self.own.contains(&s)
     }
 
-    /// Enters the class root, the object's class root or the object root (dotty's `isClassRoot`,
-    /// `isModuleClassRoot`, `isModuleRoot`); skips another symbol of the package.
-    fn root(&mut self, u: &mut Universe, i: usize, h: &Header, pkg: SymbolId) -> Result<Sym, String> {
-        if pkg != self.pkg || decode(&h.name) != self.simple {
-            return Ok(Sym::Skipped);
-        }
-        let simple = self.simple.clone();
-        self.class_or_object(u, i, h, pkg, &simple)
-    }
-
-    /// Enters class, object's class or object entry `i` of header `h` into `owner` as `simple`
-    /// (dotty's `adjustIfModuleClass` names the object's class), a class with its type
-    /// parameters.
-    fn class_or_object(
-        &mut self,
-        u: &mut Universe,
-        i: usize,
-        h: &Header,
-        owner: SymbolId,
-        simple: &str,
-    ) -> Result<Sym, String> {
-        let module = h.flags & f::MODULE != 0;
-        let visible = visibility(h);
-        let s = match h.tag {
-            CLASSsym if !module => {
-                let mut flags = visible;
-                flags.extend(f::class_tags(h.flags));
-                let class = synthetic(u, owner, simple, Kind::Class, &flags);
-                self.enter(u, i, h, class)?;
-                self.type_params(u, h, class)?;
-                return Ok(Sym::Known(class));
-            }
-            CLASSsym => {
-                let flags = [&[OBJECT, FINAL][..], &visible, &f::case_tag(h.flags)].concat();
-                synthetic(u, owner, &module_class_name(simple), Kind::Class, &flags)
-            }
-            MODULEsym => {
-                let implicit = f::member_tags(h.flags & f::IMPLICIT, false);
-                let flags = [&[OBJECT, FINAL][..], &visible, &implicit].concat();
-                synthetic(u, owner, simple, Kind::Val, &flags)
-            }
-            _ => return Ok(Sym::Skipped),
-        };
-        self.enter(u, i, h, s)?;
-        Ok(Sym::Known(s))
-    }
-
-    /// Enters member entry `i` of class `owner`, or refuses its name: a value, variable or
-    /// method; a nested class or object, a type member and a macro are refused, private
-    /// members, stray type parameters (i12641), case accessors `x$access$N` and extension methods
-    /// of an object are skipped.
+    /// Enters member entry `i` of class `owner`, or refuses its name: a value, variable, method,
+    /// type member, or a class or object of an object; a class or object of a class, an expanded
+    /// name, a macro and the extractor of a case class are refused; private members, existential
+    /// and stray type parameters (i12641), case accessors `x$access$N` and extension methods of
+    /// an object are skipped.
     fn member(&mut self, u: &mut Universe, i: usize, h: &Header, owner: SymbolId) -> Result<Sym, String> {
         let flags = h.flags;
         let method = flags & f::METHOD != 0;
@@ -171,7 +126,7 @@ impl Unpickler {
             return Ok(Sym::Skipped);
         }
         let getter = flags & f::ACCESSOR != 0 && !name.ends_with("_=");
-        let mut tags = visibility(h);
+        let mut tags = f::visibility_tags(h.flags, h.within.is_some());
         tags.extend(f::member_tags(flags, getter));
         let kind = match h.tag {
             TYPEsym | ALIASsym => Kind::Type,
@@ -185,7 +140,7 @@ impl Unpickler {
     }
 
     /// Records `s` as entered from entry `i` and gives it the access qualifier of `h`.
-    fn enter(&mut self, u: &mut Universe, i: usize, h: &Header, s: SymbolId) -> Result<(), String> {
+    pub fn enter(&mut self, u: &mut Universe, i: usize, h: &Header, s: SymbolId) -> Result<(), String> {
         self.entered.push((i, s));
         self.own.insert(s);
         self.syms.insert(i, Sym::Known(s));
@@ -195,20 +150,4 @@ impl Unpickler {
         }
         Ok(())
     }
-}
-
-/// Whether class `c` is the class of the companion object of a case class.
-fn is_case_companion(u: &Universe, c: SymbolId) -> bool {
-    let (Some(owner), Some(class)) = (u.symbol(c).owner, u.symbol(c).name.strip_suffix('$')) else {
-        return false;
-    };
-    let decls = &u.symbol(owner).decls;
-    decls
-        .iter()
-        .any(|&d| u.symbol(d).name == class && u.symbol(d).kind == Kind::Class && u.symbol(d).flags.has(CASE))
-}
-
-/// The visibility tags of header `h`.
-fn visibility(h: &Header) -> Vec<u8> {
-    f::visibility_tags(h.flags, h.within.is_some())
 }
