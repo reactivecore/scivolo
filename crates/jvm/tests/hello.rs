@@ -824,3 +824,23 @@ fn a_refused_file_refuses_the_unit() {
     assert!(!left_out.status.success());
     assert!(out.join("run.class").exists(), "{}", String::from_utf8_lossy(&left_out.stderr));
 }
+
+#[test]
+fn null_comparisons_of_annotated_type_parameters_run_on_the_jvm() {
+    runs_on_the_jvm("annotatedequality", "annotatedequality");
+}
+
+#[test]
+fn assignments_to_getters_with_using_clauses_call_their_setters() {
+    runs_on_the_jvm("usingsetters", "usingsetters");
+}
+
+#[test]
+fn inline_values_folding_final_values_of_objects_run_on_the_jvm() {
+    runs_on_the_jvm("foldedinlinevals", "foldedinlinevals");
+}
+
+#[test]
+fn self_types_aliased_after_the_inheriting_class_conform() {
+    runs_on_the_jvm("laterselfaliases", "laterselfaliases");
+}

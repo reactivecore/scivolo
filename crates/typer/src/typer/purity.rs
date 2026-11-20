@@ -32,16 +32,10 @@ impl Typer<'_> {
     }
 
     /// Tells whether `rhs` of an inline value of a constant type is pure once `FirstTransform`
-    /// makes it a literal: idempotent if it refers to a final or inline value (dotty's
-    /// `constToLiteral`).
+    /// makes its parts literals, as `Integer.SIZE - 1` (dotty's `constToLiteral` before
+    /// `InlineVals`).
     pub fn is_inline_value_rhs(&mut self, rhs: TNodeId) -> bool {
-        use tasty::tags::{FINAL, INLINE, MUTABLE};
-        let inline_val = matches!(self.tpd.tree(rhs), T::Ident { .. } | T::Select { .. })
-            && self.tpd.sym(rhs).is_some_and(|s| {
-                let s = self.u.symbol(s);
-                s.kind == Kind::Val && (s.flags.has(INLINE) || s.flags.has(FINAL)) && !s.flags.has(MUTABLE)
-            });
-        if inline_val { self.is_idempotent_expr(rhs) } else { self.is_pure_expr(rhs) }
+        purity(self, rhs, true) & PURE == PURE
     }
 
     /// Tells whether evaluating `tree` twice has the effect of evaluating it once, as for a
@@ -58,6 +52,28 @@ impl Typer<'_> {
 }
 
 fn expr_purity(t: &mut Typer, tree: TNodeId) -> u8 {
+    purity(t, tree, false)
+}
+
+/// The purity of `tree`; if `fold`, with each part of a constant type a literal where
+/// `constToLiteral` makes it one: idempotent if it refers to a final or inline value, else pure.
+fn purity(t: &mut Typer, tree: TNodeId, fold: bool) -> u8 {
+    let p = unfolded_purity(t, tree, fold);
+    if !fold || t.constant_of(tree).is_none() {
+        return p;
+    }
+    let inline_val = matches!(t.tpd.tree(tree), T::Ident { .. } | T::Select { .. })
+        && t.tpd.sym(tree).is_some_and(|s| {
+            use tasty::tags::{FINAL, INLINE, MUTABLE};
+            let s = t.u.symbol(s);
+            s.kind == Kind::Val && (s.flags.has(INLINE) || s.flags.has(FINAL)) && !s.flags.has(MUTABLE)
+        });
+    let level = if inline_val { IDEMPOTENT } else { PURE };
+    if p & level == level { PURE_PATH } else { p }
+}
+
+fn unfolded_purity(t: &mut Typer, tree: TNodeId, fold: bool) -> u8 {
+    let expr_purity = |t: &mut Typer, tree| purity(t, tree, fold);
     match t.tpd.tree(tree).clone() {
         T::Literal { .. } | T::ClassLiteral { .. } | T::This { .. } | T::Super { .. } => PURE_PATH,
         T::New { .. } | T::Closure { .. } => PURE,

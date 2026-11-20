@@ -149,7 +149,7 @@ impl Typer<'_> {
     }
 
     /// `t` with abstract types replaced by their upper bounds, singletons widened and refinements
-    /// dropped, in covariant positions (dotty's `lift` in `assumedCanEqual`).
+    /// dropped, in covariant positions and under annotations (dotty's `lift` in `assumedCanEqual`).
     fn lifted(&mut self, t: TypeId, depth: u32) -> TypeId {
         let Some(depth) = depth.checked_sub(1) else { return t };
         let node = *self.u.ty(t);
@@ -180,6 +180,10 @@ impl Typer<'_> {
                 self.lifted(widened, depth)
             }
             Type::Refined(parent, ..) => self.lifted(parent, depth),
+            Type::Annotated(inner, annot) => {
+                let inner = self.lifted(inner, depth);
+                self.u.intern_type(Type::Annotated(inner, annot))
+            }
             Type::Applied(tycon, args) => {
                 let variances = self.u.class_symbol(tycon).map(|c| self.u.variances(c)).unwrap_or_default();
                 let args: Vec<_> = (0..self.u.types_of(args).len())
