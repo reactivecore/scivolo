@@ -153,6 +153,32 @@ impl Universe {
         classes.refused_lookups.last = refusal;
     }
 
+    /// Enters the class of every Scala 2 pickle of the jars and lists the refusals, one line per
+    /// class (`class: why`) and per member (`member: why`) refused, and the count of classes
+    /// read (`read: N`); for measurements only.
+    pub fn scala2_report(&mut self) -> Vec<String> {
+        let Some(classes) = self.java_classes.as_ref() else { return Vec::new() };
+        let mut names: Vec<String> = classes.jars.keys().cloned().collect();
+        names.sort();
+        for internal in &names {
+            java_class(self, internal);
+        }
+        let Some(classes) = self.java_classes.as_ref() else { return Vec::new() };
+        let mut pickles: Vec<String> = classes.pickles.keys().cloned().collect();
+        pickles.sort();
+        for internal in &pickles {
+            let (pkg, simple) = internal.rsplit_once('/').unwrap_or(("", internal));
+            let pkg = self.package(&pkg.replace('/', ".")).unwrap_or(self.root());
+            scala2_class(self, pkg, simple, internal);
+        }
+        let Some(classes) = self.java_classes.as_ref() else { return Vec::new() };
+        let mut lines = vec![format!("pickles: {}", pickles.len()), format!("read: {}", classes.pickled.len())];
+        let refused = pickles.iter().filter_map(|p| classes.refused.get(p));
+        lines.extend(refused.map(|why| format!("class: {why}")));
+        lines.extend(classes.refused_members.values().map(|why| format!("member: {why}")));
+        lines
+    }
+
     /// Reads the class of internal name `internal` from the Java sources, the jars' class files,
     /// else the JDK.
     pub fn java_class_info(&mut self, internal: &str) -> Option<Rc<ClassInfo>> {

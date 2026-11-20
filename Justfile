@@ -657,6 +657,15 @@ scala2-fixture:
         pkg "$dir"Lib.scala -o "$dir$name.jar"
     done
 
+# Count the classes the Scala 2 pickles of jar JAR enter and the classes and members they refuse,
+# by reason with names left out.
+scala2-report jar:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cargo run -q --release -p scivolo-jvm -- --scala2-report --cp {{jar}} -d tmp/scala2-report \
+        | sed -E 's/^(class|member): .*(of a jar|implicit member `[^`]*`): /\1: /; s/`[^`]*`/_/g' \
+        | sort | uniq -c | sort -rn
+
 # Compile crates/lower/tests/<name>/lib into its lib.jar (TASTy) and <name>.scala against it
 # into Scala Native's NIR beside it.
 split-fixture name:

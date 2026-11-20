@@ -43,8 +43,12 @@ struct Cli {
     /// files that need them, then fails; for measurements only.
     #[arg(long)]
     leave_out_refused: bool,
+    /// Prints what the Scala 2 pickles of the `--cp` jars enter and refuse instead of compiling;
+    /// for measurements only.
+    #[arg(long)]
+    scala2_report: bool,
     /// The Scala and Java files.
-    #[arg(required = true)]
+    #[arg(required_unless_present = "scala2_report")]
     files: Vec<String>,
 }
 
@@ -57,6 +61,7 @@ fn main() {
         scalalib,
         scalac_options: mut options,
         leave_out_refused,
+        scala2_report,
         files,
     } = Cli::parse();
     let library = library_jars().unwrap_or_else(|e| fail(&e));
@@ -76,6 +81,10 @@ fn main() {
         }
         u
     };
+    if scala2_report {
+        open().scala2_report().iter().for_each(|line| println!("{line}"));
+        return;
+    }
     let sources: Vec<SourceFile> = files
         .iter()
         .map(|f| {
