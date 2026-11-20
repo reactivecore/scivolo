@@ -869,3 +869,8 @@ fn lambdas_against_generic_java_sams_infer_their_results() {
 fn singleton_types_of_transparent_inline_calls_run_on_the_jvm() {
     runs_on_the_jvm("inlinedsingletons", "inlinedsingletons");
 }
+
+#[test]
+fn top_level_private_opaque_types_run_on_the_jvm() {
+    runs_on_the_jvm("privateopaques", "privateopaques");
+}
