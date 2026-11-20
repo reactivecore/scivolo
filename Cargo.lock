@@ -845,7 +845,7 @@ dependencies = [
 
 [[package]]
 name = "scivolo-web"
-version = "0.2.2"
+version = "0.2.3"
 dependencies = [
  "scivolo-libimage",
  "scivolo-libs",
