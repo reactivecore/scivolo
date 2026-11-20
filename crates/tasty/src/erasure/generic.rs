@@ -137,6 +137,7 @@ impl Universe {
                 if let Some(c) = self.class_name(t) {
                     return match self.special_class(&c) {
                         _ if UNBOUNDED.contains(&c.as_str()) => Holder::None,
+                        _ if self.scala2_erasure() && !self.holds_references(t, &c) => Holder::None,
                         Some(Erased::Prim(p)) => Holder::Prim(p),
                         _ => Holder::Object,
                     };
@@ -150,6 +151,14 @@ impl Universe {
             }
             _ => Holder::None,
         }
+    }
+
+    /// Whether class reference `t` of full name `name` derives from `Object` or is `Null` or
+    /// `Nothing`.
+    fn holds_references(&mut self, t: TypeId, name: &str) -> bool {
+        let object = self.defn().object;
+        let derives = self.class_symbol(t).is_some_and(|c| self.derives_from(c, object));
+        derives || name == "scala.Null" || name == "scala.Nothing"
     }
 
     /// The info of type `s` that reference `t` names: an opaque type's alias, a type member's bounds
