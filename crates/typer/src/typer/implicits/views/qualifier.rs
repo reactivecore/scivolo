@@ -113,7 +113,8 @@ impl Typer<'_> {
 }
 
 /// Tells whether argument `a` is a literal or a path, an application of one to such, a
-/// conditional of such, or a function of declared parameter types.
+/// conditional of such, or, defining no member, a function of declared parameter types or an
+/// ascription to a type other than a named one.
 pub fn is_plain_arg(ast: &Ast, a: NodeId) -> bool {
     match *ast.tree(a) {
         Tree::Literal { .. } | Tree::Number { .. } | Tree::Ident { .. } => true,
@@ -122,15 +123,29 @@ pub fn is_plain_arg(ast: &Ast, a: NodeId) -> bool {
         Tree::If { cond, thenp, elsep: Some(elsep), .. } => {
             [cond, thenp, elsep].iter().all(|&t| is_plain_arg(ast, t))
         }
-        Tree::Function { args, mods: None, .. } => ast.items(args).iter().all(
-            |&p| matches!(*ast.tree(p), Tree::ValDef { tpt, .. } if !matches!(ast.tree(tpt), Tree::TypeTree)),
-        ),
+        Tree::Function { args, body, mods: None, .. } => {
+            defines_no_member(ast, body)
+                && ast.items(args).iter().all(|&p| {
+                    matches!(*ast.tree(p), Tree::ValDef { tpt, .. } if !matches!(ast.tree(tpt), Tree::TypeTree))
+                })
+        }
+        Tree::Typed { expr, tpt } => !matches!(ast.tree(tpt), Tree::Ident { .. }) && defines_no_member(ast, expr),
         Tree::TypeApply { fun, .. } => is_plain_arg(ast, fun),
         Tree::Apply { fun, args } => {
             is_plain_arg(ast, fun) && ast.items(args).iter().all(|&a| is_plain_arg(ast, a))
         }
         _ => false,
     }
+}
+
+/// Tells whether `t` defines no class, object, type or method.
+fn defines_no_member(ast: &Ast, t: NodeId) -> bool {
+    !ast.exists_subtree(t, &|ast, n| {
+        matches!(
+            ast.tree(n),
+            Tree::Template { .. } | Tree::TypeDef { .. } | Tree::ModuleDef { .. } | Tree::DefDef { .. }
+        )
+    })
 }
 
 /// Tells whether `n` arguments are passed to the only one of `syms` as a tuple of their arity.

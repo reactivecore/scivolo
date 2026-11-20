@@ -7,6 +7,7 @@
 use super::applicability::{applicable, rigid_param_types};
 use super::{MODIFIED_FUNCTION, Resolution, UNDECIDED};
 use crate::typer::Typer;
+use syntax::ast::flags;
 use syntax::ast::{Ast, NodeId, Tree};
 use tasty::{ANY, NOTHING, SymbolId, TypeId};
 
@@ -145,15 +146,31 @@ pub fn unblocked_all(ast: &Ast, mut arg: NodeId) -> NodeId {
 /// tuple if `tupled` (dotty's `typeShape`).
 fn type_shape(t: &mut Typer, arg: NodeId, tupled: bool) -> Result<TypeId, &'static str> {
     match *t.ast.tree(arg) {
-        Tree::Function { mods: Some(_), .. } => Err(MODIFIED_FUNCTION),
         Tree::Function { args, body, .. } => {
+            let contextual = closure_kind(t, arg)?;
             let n = if tupled { 1 } else { t.ast.items(args).len() };
             let mut parts = vec![ANY; n];
             parts.push(type_shape(t, body, false)?);
-            t.function_of(parts)
+            t.function_of_kind(parts, contextual)
         }
         Tree::Match { selector: None, .. } => t.partial_function_of(ANY, NOTHING),
         _ => Ok(NOTHING),
+    }
+}
+
+/// Tells whether function `f` is a context closure `x ?=> e` (dotty's `isContextualClosure`);
+/// refuses other modifiers.
+pub fn closure_kind(t: &Typer, f: NodeId) -> Result<bool, &'static str> {
+    match *t.ast.tree(f) {
+        Tree::Function { mods: None, .. } => Ok(false),
+        Tree::Function { mods: Some((m, ref erased)), .. }
+            if !erased.contains(&true)
+                && t.ast.modifiers(m).flags.is(flags::GIVEN)
+                && !t.ast.modifiers(m).flags.is(flags::IMPURE) =>
+        {
+            Ok(true)
+        }
+        _ => Err(MODIFIED_FUNCTION),
     }
 }
 
