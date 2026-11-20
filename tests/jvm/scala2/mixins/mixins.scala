@@ -14,6 +14,14 @@ class Plain extends Named {
   def name: String = "plain"
 }
 
+trait Loud extends Greeter {
+  override def shout: String = super.shout + "!!"
+}
+
+object Obj extends Loud {
+  def name: String = "obj"
+}
+
 object Mixins {
   def main(args: Array[String]): Unit = {
     val p = new Person(3)
@@ -27,5 +35,6 @@ object Mixins {
     println(g.greet("x"))
     println(g.shout)
     println(new Plain().name)
+    println(Obj.shout)
   }
 }
