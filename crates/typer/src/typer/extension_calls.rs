@@ -26,9 +26,11 @@ impl Typer<'_> {
         !found.syms.is_empty()
     }
 
-    /// Whether the extension methods named `name` that `ctx` sees are ambiguous.
+    /// Whether the extension methods named `name` that `ctx` sees are ambiguous, also when the
+    /// imports next to the one that supplies the name are tried as alternatives.
     pub fn extension_ambiguous(&mut self, name: &str, ctx: Ctx) -> bool {
-        matches!(self.find_ref(name, false, extension_ctx(ctx)), Err(AMBIGUOUS_REFERENCE))
+        let found = self.find_ref_with(name, false, extension_ctx(ctx), Some(&mut Vec::new()));
+        matches!(found, Err(AMBIGUOUS_REFERENCE))
     }
 
     /// Selection `id` of `name` from typed qualifier `qual`, which has no such member, as a call

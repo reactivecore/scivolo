@@ -866,6 +866,11 @@ fn ambiguous_imported_extensions_fall_back_to_the_receivers_implicit_scope() {
 }
 
 #[test]
+fn imported_extension_alternatives_precede_the_receivers_implicit_scope() {
+    runs_on_the_jvm("extensionalternatives", "extensionalternatives");
+}
+
+#[test]
 fn lambdas_against_generic_java_sams_infer_their_results() {
     runs_on_the_jvm("javagenericsams", "javagenericsams");
 }
