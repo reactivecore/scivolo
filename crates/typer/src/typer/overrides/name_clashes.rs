@@ -42,14 +42,14 @@ impl OverrideChecks {
                 for &d in &own {
                     let same_name = t.u.symbol(m).name == t.u.symbol(d).name;
                     let defs = [m, d].iter().all(|&s| t.u.symbol(s).kind == Kind::Def);
-                    let loose = !defs || b == t.u.defn().any || t.is_java_member(m);
+                    let loose = !defs || b == t.u.defn().any;
                     if same_name && loose || t.u.symbol(m).run_name() != t.u.symbol(d).run_name() {
                         continue;
                     }
                     t.complete(m);
                     t.complete_erased_classes(m);
                     if t.u.erased_method(m) == t.u.erased_method(d)
-                        && (!same_name || !t.u.info_matches_in_refchecks(self.site, d, m, (false, false)))
+                        && (!same_name || !self.matches_after_elim_repeated(t, d, m))
                     {
                         return Some("name clash between defined and inherited member");
                     }
@@ -57,6 +57,15 @@ impl OverrideChecks {
             }
         }
         None
+    }
+
+    /// Whether member `d` of the class matches inherited member `m` with a repeated parameter
+    /// `T*` read as `Seq[T]`, as both are seen after `ElimRepeated`; a Java method's `Object`
+    /// parameter matches `Any`, and its generic array parameter `T[]` matches `Array[T & Object]`.
+    fn matches_after_elim_repeated(&self, t: &mut Typer<'_>, d: SymbolId, m: SymbolId) -> bool {
+        let java = t.is_java_method(m);
+        t.u.info_matches_in_refchecks(self.site, d, m, (false, java))
+            || java && t.same_member(self.site, d, m)
     }
 }
 
