@@ -46,7 +46,15 @@ impl Typer<'_> {
         }
         let mut target = self.u.intern_type(Type::Sym(Some(e.path), m));
         if self.refers_to_private(e.path) {
-            let dealiased = self.u.dealias(target);
+            let mut dealiased = self.u.dealias_step(target);
+            let mut through_path = false;
+            self.u.map_type(dealiased, &mut |_, x| {
+                through_path |= x == e.path;
+                None
+            });
+            if through_path {
+                dealiased = self.u.dealias(dealiased);
+            }
             if dealiased == target {
                 self.unsupported_at(span, "export of a type through a private path");
                 return;
