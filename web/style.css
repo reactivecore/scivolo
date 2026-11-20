@@ -47,12 +47,12 @@ header p { margin: 0; color: var(--muted); }
 #links a:hover { text-decoration: underline; }
 button { font: inherit; padding: 0.2rem 0.9rem; border: 1px solid var(--accent); border-radius: 4px;
   background: none; color: var(--accent); cursor: pointer; }
+#stop[hidden] { display: inline-block; visibility: hidden; }
 
 #terminal { padding-top: 0.5rem;
   font: 14px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
 pre, textarea { font: inherit; margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 #out > div { min-height: 1.4em; }
-#out .input { color: var(--muted); }
 #out .note { color: var(--accent); }
 
 #line { display: flex; }

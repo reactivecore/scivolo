@@ -93,10 +93,17 @@ function restart() {
   worker.postMessage({ type: "start", module, image, width: WIDTH, heapMib: HEAP_MIB });
 }
 
-// Echoes the input, its first line after the prompt.
+// Echoes the input highlighted, its first line after the prompt.
 function echo(text) {
   const indent = " ".repeat(prompt.textContent.length);
-  text.split("\n").forEach((l, i) => print(`${i === 0 ? prompt.textContent : indent}${l}`, "input"));
+  const lit = light((r) => r.highlight(text), text).replaceAll("\n", `\n${indent}`);
+  const line = document.createElement("div");
+  const head = document.createElement("span");
+  head.className = "prompt";
+  head.textContent = prompt.textContent;
+  line.append(head, render(lit));
+  out.append(line);
+  line.scrollIntoView({ block: "nearest" });
 }
 
 // Runs the input; its output and a blank line follow it, as in the native REPL.
