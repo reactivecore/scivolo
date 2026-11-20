@@ -17,9 +17,9 @@ const CONVERSION: &str = "scala.Conversion";
 impl ViewSearch<'_> {
     /// Applies conversion `c` to the tree with `c`'s implicit arguments if the result fits the
     /// goal, as `1` becomes `intToBig(1)`: a constant tree widened to the parameter type first if
-    /// `widen`, the wildcards of its type captured where that fits, before trying it uncaptured
-    /// unless the parameter is by-name (dotty's `captureWildcardsCompat` before the view search
-    /// in `adapt`, which a by-name parameter fails by `checkNoWildcardCaptureForCBN`); the result
+    /// `widen`, the wildcards of its type captured where that fits, before trying it uncaptured;
+    /// never captured for a by-name parameter (dotty's `captureWildcardsCompat` before the view
+    /// search in `adapt`, which a by-name parameter fails by `checkNoWildcardCaptureForCBN`); the result
     /// constrained by the goal first (dotty's `constrainResult`).
     pub fn try_conversion(
         &self,
@@ -62,9 +62,8 @@ impl ViewSearch<'_> {
             t.u.is_necessary_subtype_in(result, pt, &mut t.constraint);
         }
         let arg_tpe = t.tpd.tpe(tree);
-        let arg = if by_name && t.conforms(arg_tpe, param) {
-            t.gadt_adapted(tree, param)
-        } else if let Some(c) = t.captured_wildcards(arg_tpe).filter(|&c| t.conforms(c, param)) {
+        let arg = if !by_name && let Some(c) = t.captured_wildcards(arg_tpe).filter(|&c| t.conforms(c, param))
+        {
             t.cast_to_captured(tree, c)?
         } else if t.conforms(arg_tpe, param) {
             t.gadt_adapted(tree, param)

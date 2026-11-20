@@ -381,6 +381,20 @@ fn by_name_function_parameters_are_not_values() {
 }
 
 #[test]
+fn by_name_conversions_do_not_capture_wildcards() {
+    let program = |conversion: &str| {
+        format!(
+            "import scala.language.implicitConversions\nclass Inv[T](val v: T)\nclass R\n\
+             implicit def {conversion}: R = R()\ndef i: Inv[?] = Inv(1)\nval r: R = i\n"
+        )
+    };
+    check(
+        &[(&program("c[T](x: => Inv[T])"), "")],
+        &[&program("c[T](x: Inv[T])"), &program("c(x: => Inv[?])")],
+    );
+}
+
+#[test]
 fn assignments_through_wildcard_prefixes() {
     check(
         &[("class B[T](var v: T)\ndef f(s: B[String]) =\n  var b: B[?] = s\n  val x = b.v\n  b.v = x\n", "")],
