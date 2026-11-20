@@ -74,12 +74,12 @@ impl Typer<'_> {
         let default = raw_default.filter(|&d| !self.mentions_own_type_params(d, sym));
         self.check_context_default(rhs, raw_default.filter(|_| default.is_none()));
         let lambda = matches!(self.ast.tree(rhs), Tree::Function { .. });
-        let approx = raw_default.filter(|_| lambda && default.is_none()).and_then(|d| {
+        let approx = raw_default.filter(|_| default.is_none()).and_then(|d| {
             let a = self.own_type_params_approximated(d, sym);
-            if a.is_none() {
+            if a.is_none() && lambda {
                 self.unsupported(rhs, "function default of a bounded type parameter");
             }
-            a
+            a.filter(|&a| lambda || !self.applies_wildcard(a))
         });
         let pt = inherited.or(default).or(approx).map_or(Pt::Any, Pt::Type);
         let typed = self.typed(rhs, pt, ctx);
@@ -126,6 +126,17 @@ impl Typer<'_> {
             self.unsupported(rhs, "skolem in an inferred type");
             widened
         })
+    }
+
+    /// Whether `t` applies a wildcard, as a higher-kinded type parameter approximated does.
+    fn applies_wildcard(&mut self, t: TypeId) -> bool {
+        let mut found = false;
+        self.u.map_type(t, &mut |u, x| {
+            let tycon = u.applied(x).map(|(tycon, _)| tycon);
+            found |= tycon.is_some_and(|c| matches!(u.ty(c), Type::Wildcard(_)));
+            None
+        });
+        found
     }
 
     /// `t` with its type variables instantiated (dotty's `fullyDefinedType`); `t` and a refusal

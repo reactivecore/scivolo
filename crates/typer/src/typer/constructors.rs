@@ -63,6 +63,10 @@ impl Typer<'_> {
         {
             match self.eta_expanded(c, tpe) {
                 Ok(lambda) => {
+                    let lambda = match self.is_java_class_name(c) {
+                        true => self.java_eta_expanded(c, lambda).unwrap_or(lambda),
+                        false => lambda,
+                    };
                     let node = self.tpd.get_mut(tpt);
                     (node.tpe, node.sym) = (Some(lambda), None);
                 }
@@ -94,8 +98,12 @@ impl Typer<'_> {
         let mut params = Vec::new();
         for &p in &tparams {
             self.complete(p);
+            let owner = self.u.symbol(c).owner.filter(|&o| self.u.symbol(o).kind == Kind::Class);
             let info = match prefix {
-                Some(prefix) => self.u.member_info(prefix, p),
+                Some(prefix) => {
+                    let info = self.u.member_info(prefix, p);
+                    owner.map_or(info, |o| self.u.as_seen_from(info, prefix, o))
+                }
                 None => self.u.info(p),
             };
             let info = self.u.map_type(info, &mut |u, part| {

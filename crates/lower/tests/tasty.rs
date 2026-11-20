@@ -10,8 +10,21 @@ use syntax::source::SourceFile;
 use tasty::Universe;
 
 fn lowered(sources: &[SourceFile]) -> Option<Lowered> {
-    let jars = jars()?;
-    let mut open = || Universe::open(&jars).unwrap();
+    lowered_with(sources, false)
+}
+
+/// `sources` lowered with TASTy, the JDK stubs standing for the JDK's class files if `jdk_stubs`.
+fn lowered_with(sources: &[SourceFile], jdk_stubs: bool) -> Option<Lowered> {
+    let mut jars = jars()?;
+    let jdk = jars.len()..jars.len() + usize::from(jdk_stubs);
+    if jdk_stubs {
+        jars.push(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../libs/jdk-stubs.jar"));
+    }
+    let mut open = || {
+        let mut u = Universe::open(&jars).unwrap();
+        u.set_jdk_jars(jdk.clone());
+        u
+    };
     let backend = (Backend::NativeWithTasty, nir_with_tasty);
     let isolated = lower::compile_isolated(&mut open, sources, Config::from_options(&[]), None, backend);
     let isolated = isolated.unwrap_or_else(|r| panic!("{}", r.what));
@@ -51,6 +64,16 @@ fn the_constructor_of_any_val_results_in_object_as_dotty_signs_it() {
     let signed: Vec<String> = tasty.names.iter().map(|(r, _)| tasty.names.show_signed(r)).collect();
     let any_val = signed.iter().find(|n| n.contains("<init>") && n.contains("scala.AnyVal"));
     assert!(any_val.is_none(), "{signed:?}");
+}
+
+#[test]
+fn a_jdk_stub_annotation_is_built_as_a_java_annotation_by_its_constructor_name() {
+    let source = SourceFile::new("d.scala", "class D { @Deprecated def f: Int = 1 }");
+    let Some(out) = lowered_with(&[source], true) else { return };
+    let tasty = tasty::Tasty::parse(&out.tasty[0].bytes).expect("our TASTy");
+    let signed: Vec<String> = tasty.names.iter().map(|(r, _)| tasty.names.show_signed(r)).collect();
+    let deprecated = signed.iter().find(|n| n.contains("<init>") && n.contains("java.lang.Deprecated"));
+    assert!(deprecated.is_none(), "{signed:?}");
 }
 
 #[test]

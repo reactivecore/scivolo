@@ -21,7 +21,9 @@ impl Desugar<'_> {
             .iter()
             .map(|&t| {
                 self.enable_imported_features(t);
-                self.expand_stat(t)
+                let expanded = self.expand_stat(t);
+                self.spread_doc_comment(t, expanded);
+                expanded
             })
             .collect();
         self.cfg.features = outer;
@@ -53,6 +55,19 @@ impl Desugar<'_> {
         match self.owner.is_class() && self.ast.is_term(t) && !import {
             true => self.in_owner(Owner::Term { is_constructor: false }, |d| d.transform(t)),
             false => self.transform(t),
+        }
+    }
+
+    /// Gives each definition of `expanded`, the expansion of `stat`, the doc comment of `stat`
+    /// (dotty's `setDocstring(sym, origStat)` in `indexExpanded`).
+    fn spread_doc_comment(&mut self, stat: NodeId, expanded: NodeId) {
+        let Some(comment) = self.ast.doc_comment(stat) else { return };
+        for t in self.flatten(&[expanded]) {
+            let defines =
+                matches!(self.ast.tree(t), Tree::ValDef { .. } | Tree::DefDef { .. } | Tree::TypeDef { .. });
+            if defines {
+                self.ast.set_doc_comment(t, comment);
+            }
         }
     }
 

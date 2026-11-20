@@ -9,6 +9,7 @@ mod extension_containers;
 mod extension_views;
 mod fallback;
 mod may_view;
+mod member_fits;
 mod open_views;
 mod qualifier;
 mod root_members;
@@ -20,8 +21,8 @@ pub use open_views::ViewProto;
 pub use qualifier::QualifierView;
 
 use super::super::{Pt, Typer};
-use super::attempts::fitting;
 use super::candidates::Candidate;
+use super::rank::fitting;
 use super::ranking::{compare, most_specific};
 use crate::ctx::Ctx;
 use crate::tpd::TNodeId;
@@ -158,16 +159,13 @@ impl<'a> ViewSearch<'a> {
                 })?;
                 widened.retain(|c| !found.contains(c));
             }
-            if matches!(goal, Goal::Call(..) | Goal::Applied(..))
-                && found.len() > 1
-                && most_specific(t, &found, ctx).is_none()
-            {
-                found = match goal {
-                    Goal::Call(name, proto) => self.applying(t, found, name, proto),
-                    Goal::Applied(name, proto) => self.applying_to(t, found, name, proto),
-                    _ => found,
-                };
-            }
+            let ambiguous =
+                |t: &mut Typer, f: &[Candidate]| f.len() > 1 && most_specific(t, f, ctx).is_none();
+            found = match goal {
+                Goal::Call(name, proto) if ambiguous(t, &found) => self.applying(t, found, name, proto),
+                Goal::Applied(name, proto) if !found.is_empty() => self.applying_to(t, found, name, proto),
+                _ => found,
+            };
             if goal.member().is_some() {
                 let extra: Vec<Candidate> = containers.into_iter().filter(|c| !group.contains(c)).collect();
                 group.extend(extra);

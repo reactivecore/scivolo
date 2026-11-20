@@ -331,6 +331,11 @@ fn arrays_of_overridden_higher_kinded_members_erase_as_dotty_on_the_jvm() {
 }
 
 #[test]
+fn members_aliased_by_the_class_of_a_prefix_run_as_dotty_on_the_jvm() {
+    runs_on_the_jvm("prefixaliases", "Prefixaliases");
+}
+
+#[test]
 fn private_objects_keep_their_names_on_the_jvm() {
     runs_on_the_jvm("privateobjects", "Privateobjects");
 }

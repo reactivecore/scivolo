@@ -5,9 +5,9 @@
 //! without parameter types against the parameter types all alternatives agree on (dotty's
 //! `pretypeArgs`, `FunProto.typedArgs`).
 
+use super::Resolution;
 use super::poly_instances::typed_unmapped;
-use super::shapes::{formal_at, unblocked_all, unknown_param_function};
-use super::{MODIFIED_FUNCTION, Resolution};
+use super::shapes::{closure_kind, formal_at, unblocked_all, unknown_param_function};
 use crate::ctx::Ctx;
 use crate::tpd::TNodeId;
 use crate::typer::{Pt, Typer};
@@ -85,9 +85,10 @@ impl Resolution {
         i: usize,
         alts: &[SymbolId],
     ) -> Result<Option<TypeId>, &'static str> {
-        if matches!(t.ast.tree(f), Tree::Function { mods: Some(_), .. }) {
-            return Err(MODIFIED_FUNCTION);
-        }
+        let contextual = match t.ast.tree(f) {
+            Tree::Function { .. } => closure_kind(t, f)?,
+            _ => false,
+        };
 
         let mut common: Option<Vec<TypeId>> = None;
         let mut partial = false;
@@ -95,7 +96,7 @@ impl Resolution {
             let Some(formal) = formal_at(t, alt, i, self.prefix) else { return Ok(None) };
             let pf = partial_function_arg(t, formal);
             partial |= pf.is_some();
-            let ps = pf.map_or_else(|| t.function_params(formal), |a| vec![a]);
+            let ps = pf.map_or_else(|| t.any_function_params(formal), |a| vec![a]);
             match &common {
                 _ if ps.is_empty() => return Ok(None),
                 None => common = Some(ps),
@@ -119,7 +120,7 @@ impl Resolution {
             return t.partial_function_of(params[0], unknown).map(Some);
         }
         params.push(unknown);
-        t.function_of(params).map(Some)
+        t.function_of_kind(params, contextual).map(Some)
     }
 }
 

@@ -36,16 +36,10 @@ impl Typer<'_> {
     pub fn extension_select(&mut self, id: NodeId, qual: TNodeId, name: TName, pt: Pt, ctx: Ctx) -> TNodeId {
         let text = self.text(name.name).to_owned();
         let ctx = extension_ctx(ctx);
-        let found = match self.find_ref(&text, false, ctx) {
-            Ok(Some(found)) => found.syms,
-            _ => Vec::new(),
-        };
-        if found.is_empty() {
+        let mut alts = Vec::new();
+        let Ok(Some(found)) = self.find_ref_with(&text, false, ctx, Some(&mut alts)) else {
             return self.unsupported(id, "extension method among other definitions");
-        }
-        if found.iter().any(|&s| self.u.symbol(s).name != text) {
-            return self.unsupported(id, "extension method through a renaming import");
-        }
+        };
         if self.tpd.sym(qual).is_some_and(|s| self.u.symbol(s).kind == tasty::Kind::Package) {
             return self.unsupported(id, "extension method on a package");
         }
@@ -57,8 +51,11 @@ impl Typer<'_> {
         if java_statics {
             return self.unsupported(id, "extension method on the statics of a Java class");
         }
-        let fun = self.ast.node(Tree::Ident { name });
-        self.ext_method_apply(id, fun, qual, pt, ctx)
+        if alts.is_empty() {
+            return self.preset_ext_apply(id, qual, name, &found, pt, ctx);
+        }
+        alts.insert(0, found);
+        self.ext_alternatives_apply(id, qual, name, alts, pt, ctx)
     }
 
     /// Selection `id` of an extension method from `qual` as `fun(qual)` (dotty's `extMethodApply`),

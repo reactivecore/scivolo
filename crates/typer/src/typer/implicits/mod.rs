@@ -18,6 +18,7 @@ mod measures;
 mod not_given;
 mod parts;
 mod prefilter;
+mod rank;
 pub(super) mod ranking;
 mod scope;
 mod scope_paths;

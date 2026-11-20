@@ -6,7 +6,7 @@
 
 use super::super::super::{Pt, Typer};
 use super::super::divergence::THROUGH_CONVERSION;
-use super::call_views::member_applies;
+use super::member_fits::member_applies;
 use super::{Goal, ViewSearch, Viewed};
 use crate::ctx::Ctx;
 use crate::tpd::TNodeId;
@@ -41,7 +41,7 @@ impl Typer<'_> {
         let arg_ctx = self.protos[proto].ctx;
         if name == nme::CONSTRUCTOR
             || self.protos[proto].typed.is_some()
-            || !args.iter().all(|&a| is_plain_arg(self.ast, a))
+            || !args.iter().all(|&a| is_plain_arg(self.ast, a) && !self.is_sequence_arg(a))
             || auto_tupled(self, (prefix, syms), args.len(), ctx)
         {
             return None;
@@ -85,6 +85,7 @@ impl Typer<'_> {
             return Some(QualifierView::Extension);
         }
         let all_args = args == self.protos[proto].args;
+        let types = tupled_dual(self, syms, types, ctx);
         let view_proto = self.applied_view_proto(proto, types.clone(), all_args);
         let goal = Goal::Applied(name, &view_proto);
         let reported = self.diags.items.len();
@@ -112,17 +113,41 @@ impl Typer<'_> {
     }
 }
 
-/// Tells whether argument `a` is a literal or a path, or an application of one to such.
+/// Tells whether argument `a` is a literal, a path or an instance creation without a body, an
+/// application of one to such, a conditional of such, or, defining no member, a function of
+/// declared parameter types or an ascription.
 pub fn is_plain_arg(ast: &Ast, a: NodeId) -> bool {
     match *ast.tree(a) {
         Tree::Literal { .. } | Tree::Number { .. } | Tree::Ident { .. } => true,
-        Tree::Select { qualifier, .. } => is_plain_arg(ast, qualifier),
+        Tree::Select { qualifier, .. } | Tree::Parens { t: qualifier } => is_plain_arg(ast, qualifier),
+        Tree::Block { stats, expr: Some(expr) } if ast.items(stats).is_empty() => is_plain_arg(ast, expr),
+        Tree::If { cond, thenp, elsep: Some(elsep), .. } => {
+            [cond, thenp, elsep].iter().all(|&t| is_plain_arg(ast, t))
+        }
+        Tree::Function { args, body, mods: None, .. } => {
+            defines_no_member(ast, body)
+                && ast.items(args).iter().all(|&p| {
+                    matches!(*ast.tree(p), Tree::ValDef { tpt, .. } if !matches!(ast.tree(tpt), Tree::TypeTree))
+                })
+        }
+        Tree::Typed { expr, .. } => defines_no_member(ast, expr),
+        Tree::New { tpt } => !matches!(ast.tree(tpt), Tree::Template { .. }),
         Tree::TypeApply { fun, .. } => is_plain_arg(ast, fun),
         Tree::Apply { fun, args } => {
             is_plain_arg(ast, fun) && ast.items(args).iter().all(|&a| is_plain_arg(ast, a))
         }
         _ => false,
     }
+}
+
+/// Tells whether `t` defines no class, object, type or method.
+fn defines_no_member(ast: &Ast, t: NodeId) -> bool {
+    !ast.exists_subtree(t, &|ast, n| {
+        matches!(
+            ast.tree(n),
+            Tree::Template { .. } | Tree::TypeDef { .. } | Tree::ModuleDef { .. } | Tree::DefDef { .. }
+        )
+    })
 }
 
 /// Tells whether `n` arguments are passed to the only one of `syms` as a tuple of their arity.
@@ -137,6 +162,19 @@ fn auto_tupled(t: &mut Typer<'_>, (prefix, syms): (TypeId, &[SymbolId]), n: usiz
         t.param_types(s, Some(prefix), true).is_none_or(|(params, _)| t.conforms(tuple, params[0]))
     });
     fits
+}
+
+/// Gives argument types `types` as the one type of their tuple if the only one of `syms` takes
+/// one parameter and auto-tupling is enabled (dotty's `FunProto.tupledDual`).
+fn tupled_dual(t: &mut Typer<'_>, syms: &[SymbolId], types: Vec<TypeId>, ctx: Ctx) -> Vec<TypeId> {
+    let (&[s], n) = (syms, types.len()) else { return types };
+    if n < 2 || !t.is_unary(s) || t.feature_enabled(Features::NO_AUTO_TUPLING, nme::NO_AUTO_TUPLING, ctx) {
+        return types;
+    }
+    match t.resolve_full_name(&format!("scala.Tuple{n}"), true) {
+        Some(class) => vec![crate::defn::applied(t.u, class, types)],
+        None => types,
+    }
 }
 
 /// Gives `types`, those of constant arguments `args` that convert to their parameter of `alt`

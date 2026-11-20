@@ -29,12 +29,7 @@ impl Typer<'_> {
         let Some(formal) = formal else { return Ok(None) };
         let formal = self.zonk(formal);
         let formal = self.without_erased_param(formal);
-        let lower = self.u.bounds(formal).map(|(lo, _)| lo);
-        let nothing = Some(self.u.defn().nothing);
-        if lower.is_some_and(|lo| self.u.class_symbol(lo) == nothing) {
-            return Err(self.unsupported(p, "parameter type inferred from the target of a wildcard"));
-        }
-        let formal = lower.unwrap_or(formal);
+        let formal = self.u.bounds(formal).map_or(formal, |(lo, _)| lo);
         let formal = match self.fully_defined(formal) {
             Ok(t) if !self.has_proto_wildcard(t) => t,
             Ok(_) => return Err(self.unsupported(p, "parameter type left open by the expected type")),

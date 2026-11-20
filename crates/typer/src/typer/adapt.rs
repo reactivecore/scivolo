@@ -181,6 +181,7 @@ impl Typer<'_> {
     /// `{ tree; () }` (dotty's `Block(tree :: Nil, unitLiteral)`).
     fn discarded(&mut self, tree: TNodeId, span: Span) -> TNodeId {
         let literal = self.build().literal(Constant::Unit, span.end_pos());
+        self.tpd.mark_synthetic_unit(literal);
         let stats = self.tpd.list(&[tree]);
         self.build().block(stats, literal, span.to_synthetic())
     }

@@ -63,6 +63,9 @@ impl Typer<'_> {
             self.typed_ahead(tpt, typed, ctx);
             let mut tpe = self.tpd.tpe(typed);
             let dealiased = self.u.dealias(tpe);
+            if self.overridden_in_subclass(tpe, dealiased) {
+                self.unsupported(p, "parent alias of a type a subclass overrides with a class");
+            }
             let dependent = self
                 .u
                 .class_symbol(dealiased)

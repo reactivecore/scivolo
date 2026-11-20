@@ -37,10 +37,11 @@ impl TypeOps<'_> {
         let pt = self.zonk(pt);
         let pt = self.u.dealias(pt);
         let pt = self.strip_null(pt);
+        let tycon = self.u.applied(pt).map_or(pt, |(tycon, _)| tycon);
         if matches!(self.u.ty(pt), Type::Flexible(_))
             || self
                 .u
-                .sym_of(pt)
+                .sym_of(tycon)
                 .is_some_and(|s| matches!(self.u.symbol(s).kind, Kind::Type | Kind::TypeParam))
         {
             return false;

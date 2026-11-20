@@ -76,7 +76,15 @@ impl Typer<'_> {
                 });
                 found
             };
-            if local(self, p) || self.repeated_elem(p).is_some() || !self.is_fully_defined(p) {
+            let p = match self.repeated_elem(p) {
+                Some(elem) => self.seq_of(elem)?,
+                None => p,
+            };
+            let value = match *self.u.ty(p) {
+                Type::ByName(t) => t,
+                _ => p,
+            };
+            if local(self, value) || !self.is_fully_defined(p) {
                 return None;
             }
             types.push(p);

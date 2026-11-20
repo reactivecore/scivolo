@@ -8,8 +8,8 @@ use tasty::{Type, TypeId};
 
 impl TypeOps<'_> {
     /// Whether stable path `a` conforms to class type `b`, or to each side of intersection `b`,
-    /// with the wildcard arguments of its base type in `b`'s class replaced by the type
-    /// parameters selected on `a`.
+    /// through aliases, with the wildcard arguments of its base type in `b`'s class that face a
+    /// type, not a wildcard, of `b` replaced by the type parameters selected on `a`.
     pub fn conforms_captured_path(&mut self, a: TypeId, b: TypeId) -> bool {
         if !matches!(self.u.ty(a), Type::Sym(..) | Type::TermRef(..))
             || !super::stability::is_stable_path(self.u, a)
@@ -17,10 +17,11 @@ impl TypeOps<'_> {
             return false;
         }
         let b = self.zonk(b);
+        let b = self.u.dealias(b);
         if let Type::And(x, y) = *self.u.ty(b) {
             return self.conforms(a, x) && self.conforms(a, y);
         }
-        let Some((tycon, _)) = self.u.applied(b) else { return false };
+        let Some((tycon, b_args)) = self.u.applied(b).map(|(c, a)| (c, a.to_vec())) else { return false };
         let Some(class) = self.u.class_symbol(tycon) else { return false };
         let widened = self.u.widen(a);
         let Some(base) = self.u.base_type(widened, class) else { return false };
@@ -29,13 +30,17 @@ impl TypeOps<'_> {
         };
         let params = self.u.type_params(class);
         let wildcard = |t: &Self, x: TypeId| t.u.bounds(x).is_some();
-        if params.len() != args.len() || !args.iter().any(|&x| wildcard(self, x)) {
+        if params.len() != args.len()
+            || b_args.len() != args.len()
+            || !args.iter().any(|&x| wildcard(self, x))
+        {
             return false;
         }
         let captured: Vec<TypeId> = args
             .into_iter()
             .zip(params)
-            .map(|(x, p)| match wildcard(self, x) {
+            .zip(b_args)
+            .map(|((x, p), y)| match wildcard(self, x) && !wildcard(self, y) {
                 true => self.u.intern_type(Type::Sym(Some(a), p)),
                 false => x,
             })

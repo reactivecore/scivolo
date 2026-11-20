@@ -190,6 +190,62 @@ nir-stale:
       fi
     - just overlay-stale
 
+# The library compiled by the own frontend against Scala Native's build with Scala 3.9.0, the
+# unit tests on its jars and the test programs linked against them (`just ci-lib`): in scheduled
+# pipelines, and on demand in a merge request that touches the library scripts and in pipelines
+# run by hand. The oracle is cached per version of lib-oracle.sh and of the Scala Native checkout.
+lib:linux:
+  stage: test
+  interruptible: false
+  timeout: 4h
+  image: ${SUITE_IMAGE}
+  needs:
+    - job: build-image
+      artifacts: true
+  variables:
+    XDG_CACHE_HOME: ${CI_PROJECT_DIR}/.cache
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes: [scripts/lib-*, scripts/native_modules.py, scripts/sn-report-compare.py, tests/lib/**/*, ci/Dockerfile, Justfile]
+      when: manual
+      allow_failure: true
+    - if: $CI_PIPELINE_SOURCE =~ /^(web|api)$/
+      when: manual
+      allow_failure: true
+  cache:
+    - key: scivolo-cargo-linux
+      paths: *cargo_cache_paths
+      policy: pull
+    - key:
+        prefix: scivolo-target-linux
+        files: [Cargo.lock, ci/Dockerfile]
+      paths: [target]
+      policy: pull
+    - key: scivolo-suite-linux
+      paths: [.cache/coursier, ref/libs]
+      policy: pull
+    - key:
+        prefix: scivolo-lib-oracle
+        files: [scripts/lib-oracle.sh, scripts/fetch-scala-native.sh]
+      paths: [tmp/lib/sn]
+      when: always
+  artifacts:
+    when: always
+    paths:
+      - tmp/lib/*/results.tsv
+      - tmp/lib/*/refusals.txt
+      - tmp/lib/*/oracle-only.txt
+      - tmp/lib/*/diffs/
+      - tmp/sn-report/
+      - tmp/sn-report-ours/
+      - tmp/lib-link/*/results.tsv
+      - tmp/lib-link/*/logs/
+    expire_in: 4 weeks
+  script:
+    - java -version && sbt --script-version && scala-cli version --cli-version && coursier --version
+    - just ci-lib
+
 # The runner provides a JDK; scala-cli comes from scripts/fetch-scala-cli.sh.
 suite:macos:
   extends: .suite

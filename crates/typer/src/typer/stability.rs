@@ -120,7 +120,11 @@ pub fn is_stable_member(u: &mut Universe, s: SymbolId) -> bool {
             let info = u.info(s);
             u.by_name(info).is_none()
         }
-        Kind::Val => !sym.flags.has(tasty::tags::MUTABLE),
+        Kind::Val if sym.flags.has(tasty::tags::MUTABLE) => false,
+        Kind::Val => {
+            let info = u.info(s);
+            u.by_name(info).is_none()
+        }
         Kind::Def => sym.flags.has(tasty::tags::STABLE),
         _ => true,
     }
@@ -138,10 +142,7 @@ pub fn is_stable_path(u: &mut Universe, t: TypeId) -> bool {
         | Type::Skolem(..) => true,
         Type::Sym(p, s) if u.symbol(s).kind.is_term() => {
             (is_stable_member(u, s) || has_stable_result(u, s))
-                && p.is_none_or(|p| {
-                    matches!(u.ty(p), Type::NoPrefix | Type::Sym(..) if !is_term_ref(u, p))
-                        || is_stable_path(u, p)
-                })
+                && p.is_none_or(|p| is_static_prefix(u, p) || is_stable_path(u, p))
         }
         Type::TermRef(p, _) => {
             u.resolve_ref(t).is_some_and(|s| is_stable_member(u, s)) && is_stable_path(u, p)
@@ -194,6 +195,12 @@ fn is_realizable_class(u: &mut Universe, t: TypeId) -> bool {
     })
 }
 
-fn is_term_ref(u: &Universe, t: TypeId) -> bool {
-    u.sym_of(t).is_some_and(|s| u.symbol(s).kind.is_term())
+/// Whether prefix `p` is no prefix, a package or an object's class, not a class type as the
+/// widened `o` of a `var o` is in `o.b`.
+fn is_static_prefix(u: &Universe, p: TypeId) -> bool {
+    match *u.ty(p) {
+        Type::NoPrefix => true,
+        Type::Sym(_, c) => u.symbol(c).kind == Kind::Package || u.is_module_class(c),
+        _ => false,
+    }
 }

@@ -9,7 +9,8 @@ use tasty::{Type, TypeId, TypeVars};
 
 impl Typer<'_> {
     /// `t` with top-level soft unions joined, hard ones simplified, type variables constrained to
-    /// simplify them, under explicit nulls a top-level `| Null` kept (dotty's `widenUnion`).
+    /// simplify them, under explicit nulls a top-level `| Null` kept (dotty's `widenUnion`); the
+    /// unit's type members the parts name are completed first.
     pub fn widen_union(&mut self, t: TypeId) -> Result<TypeId, &'static str> {
         let w = self.types().widened(t);
         if !self.explicit_nulls || !matches!(self.u.ty(w), Type::Or(..)) {
@@ -54,6 +55,7 @@ impl Typer<'_> {
             }
             Type::Or(a, b, soft) => {
                 let (wa, wb) = (self.widen_union_without_null(a)?, self.widen_union_without_null(b)?);
+                self.complete_named_type_members(wa, wb);
                 let union =
                     if soft { self.types().constraining_lub(wa, wb) } else { self.u.lub_as(wa, wb, false) };
                 match *self.u.ty(union) {
