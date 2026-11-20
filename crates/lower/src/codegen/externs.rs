@@ -48,7 +48,7 @@ impl Gen<'_, '_> {
         let span = self.l.tpd.span(td);
         let blocking = self.is_blocking(sym);
         let attrs = self.class_attrs(sym, Vec::new());
-        let attrs = attrs.into_iter().map(|a| if a.is_extern() { Attr::Extern { blocking } } else { a });
+        let attrs = attrs.into_iter().map(|a| if a.is_extern() { Attr::Extern { blocking: !blocking } } else { a });
         let attrs = attrs.collect();
         let name = self.type_name(sym);
         let traits = self.class_interfaces(sym);
