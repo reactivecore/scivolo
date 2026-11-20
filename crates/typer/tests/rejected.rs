@@ -716,6 +716,12 @@ fn ambiguous_givens_of_an_unconstrained_type_variable() {
 }
 
 #[test]
+fn givens_of_one_singleton_type_are_not_reported_ambiguous() {
+    let same = "class C\nobject O:\n  val x = C()\n  given a: x.type = x\n  given b: x.type = x\n  val c = summon[C]\n";
+    check(&[(same, "unsupported implicit candidates whose ranking is undecided")], &[]);
+}
+
+#[test]
 fn applied_aliases_of_nothing_are_arguments_of_any_kind() {
     let bind = "trait Bind[Z[_]]\ntype F[X] = Nothing\nobject O { val b: Bind[F[Int]] = null }\n";
     check(&[], &[bind]);
