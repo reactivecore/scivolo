@@ -16,6 +16,7 @@ portable = ["repl/portable"]
 
 [dependencies]
 libimage.workspace = true
+lower.workspace = true
 repl.workspace = true
 vm.workspace = true
 

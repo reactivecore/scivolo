@@ -85,13 +85,10 @@ pub fn compile(
             fatal: false,
         })?;
     if !cfg.warnings.nowarn && !warnings.items.is_empty() {
-        let mut lines = repl::compile_errors(&source, &warnings, 80);
+        let lines = repl::compile_errors(&source, &warnings, 80);
         if cfg.warnings.fatal {
-            let count = lines.pop();
-            lines.push("No warnings can be incurred under -Werror (or -Xfatal-warnings)".into());
-            lines.extend(count);
-            lines.push("1 error found".into());
-            return Err(Refused { why: "warnings under -Werror".into(), errors: lines, fatal: true });
+            let errors = repl::fatal_warnings(lines);
+            return Err(Refused { why: "warnings under -Werror".into(), errors, fatal: true });
         }
         lines.iter().for_each(|line| eprintln!("{line}"));
     }

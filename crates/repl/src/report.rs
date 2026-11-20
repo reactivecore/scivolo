@@ -22,6 +22,15 @@ pub fn compile_errors(source: &SourceFile, diags: &Diagnostics, width: usize) ->
     out
 }
 
+/// Turns the `compile_errors` lines of warnings into those of a compile that `-Werror` fails.
+pub fn fatal_warnings(mut lines: Vec<String>) -> Vec<String> {
+    let count = lines.pop();
+    lines.push("No warnings can be incurred under -Werror (or -Xfatal-warnings)".into());
+    lines.extend(count);
+    lines.push("1 error found".into());
+    lines
+}
+
 /// Where an entry of an input's output sorts, as dotty's `ReplDriver` orders definitions and
 /// warnings: by line (-1 without a position), warnings first, then by column.
 pub type Place = (i64, bool, usize);

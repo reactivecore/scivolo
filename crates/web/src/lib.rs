@@ -3,11 +3,13 @@
 //! valid until the next call.
 #![cfg(any(target_arch = "wasm32", feature = "portable"))]
 
+mod program;
+
 use libimage::Image;
+use program::Setup;
 use repl::Session;
 use std::cell::RefCell;
 use std::time::Duration;
-use vm::{Classpath, Vm};
 
 /// How long an input may run before it is stopped, unless the page sets another limit.
 const TIME_LIMIT: Duration = Duration::from_secs(10);
@@ -15,10 +17,13 @@ const TIME_LIMIT: Duration = Duration::from_secs(10);
 /// The exit code `exit_code` returns while the session goes on.
 const RUNNING: i32 = -1;
 
-/// The module's one session and its buffers, the only state outside `Vm` here.
+/// The module's one session or program setup and its buffers, the only state outside `Vm`
+/// here. An instance holds one VM: a session, or a file run (`load_image`, then `run_file` or
+/// `run_compiled`).
 #[derive(Default)]
 struct State {
     session: Option<Session>,
+    setup: Option<Setup>,
     /// The argument of the next call.
     buffer: Vec<u8>,
     /// The reply of the last call.
@@ -43,8 +48,7 @@ pub extern "C" fn buffer(len: usize) -> *mut u8 {
 /// or with why it could not start.
 #[unsafe(no_mangle)]
 pub extern "C" fn start(width: i32, heap_mib: u32) -> *const u8 {
-    let bytes = STATE.with_borrow_mut(|s| std::mem::take(&mut s.buffer));
-    let reply = match open(bytes.leak(), width, (heap_mib as usize) << 20) {
+    let reply = match setup(width, heap_mib).and_then(|setup| open(&setup)) {
         Ok(session) => {
             STATE.with_borrow_mut(|s| s.session = Some(session));
             String::new()
@@ -54,22 +58,51 @@ pub extern "C" fn start(width: i32, heap_mib: u32) -> *const u8 {
     reply_with(&reply)
 }
 
-/// Opens a session over the image `bytes` with a heap cap of `cap` bytes.
-fn open(bytes: &'static [u8], width: i32, cap: usize) -> Result<Session, String> {
+/// What a VM over the image in the buffer runs with.
+fn setup(width: i32, heap_mib: u32) -> Result<Setup, String> {
+    let bytes = STATE.with_borrow_mut(|s| std::mem::take(&mut s.buffer)).leak();
     let image: &'static Image = Box::leak(Box::new(Image::from_bytes(bytes).map_err(|e| e.to_string())?));
-    let classpath = Classpath::with_image(&[], image).map_err(|e| e.to_string())?;
-    let mut vm = Vm::new(classpath).map_err(|e| e.to_string())?;
-    vm.set_heap_cap(cap);
-    let mut session = Session::new(vm, image, width).map_err(|e| e.to_string())?;
-    session.watch_interrupts().map_err(|e| e.to_string())?;
-    session.limit_runs(Some(TIME_LIMIT));
-    Ok(session)
+    Ok(Setup { image, width, cap: (heap_mib as usize) << 20, limit: TIME_LIMIT })
 }
 
-/// Makes each later input stop after `millis` milliseconds of running.
+/// Opens a session as `setup` says.
+fn open(setup: &Setup) -> Result<Session, String> {
+    Session::new(program::new_vm(setup)?, setup.image, setup.width).map_err(|e| e.to_string())
+}
+
+/// Takes the library image in the buffer for `run_file` or `run_compiled`, with compiler
+/// messages `width` columns wide and at most `heap_mib` MiB of live objects; replies with
+/// nothing, or with why the image is unusable.
+#[unsafe(no_mangle)]
+pub extern "C" fn load_image(width: i32, heap_mib: u32) -> *const u8 {
+    let reply = match setup(width, heap_mib) {
+        Ok(setup) => {
+            STATE.with_borrow_mut(|s| s.setup = Some(setup));
+            String::new()
+        }
+        Err(e) => e,
+    };
+    reply_with(&reply)
+}
+
+/// Compiles the `.scala` file in the buffer and runs its main method (`program::run_file`).
+#[unsafe(no_mangle)]
+pub extern "C" fn run_file() -> *const u8 {
+    with_setup(|setup, text| program::run_file(setup, &String::from_utf8_lossy(text)))
+}
+
+/// Runs the program compiled by `run_file` of another instance, in the buffer.
+#[unsafe(no_mangle)]
+pub extern "C" fn run_compiled() -> *const u8 {
+    with_setup(program::run_compiled)
+}
+
+/// Makes each later input or run stop after `millis` milliseconds of running.
 #[unsafe(no_mangle)]
 pub extern "C" fn time_limit(millis: u32) {
-    with_session(|s| s.limit_runs(Some(Duration::from_millis(millis.into()))));
+    let limit = Duration::from_millis(millis.into());
+    with_session(|s| s.limit_runs(Some(limit)));
+    STATE.with_borrow_mut(|s| s.setup.iter_mut().for_each(|setup| setup.limit = limit));
 }
 
 /// Evaluates the input in the buffer; replies with the lines it prints, program output first,
@@ -139,12 +172,27 @@ fn with_session<T>(f: impl FnOnce(&mut Session) -> T) -> Option<T> {
     Some(out)
 }
 
+/// Calls `f` with the program setup and the buffer's bytes; replies with what it returns.
+fn with_setup(f: impl FnOnce(&Setup, &[u8]) -> Vec<u8>) -> *const u8 {
+    let bytes = STATE.with_borrow_mut(|s| std::mem::take(&mut s.buffer));
+    let Some(setup) = STATE.with_borrow_mut(|s| s.setup.take()) else {
+        return reply_with("R1\nThe library image is not loaded.\n");
+    };
+    let reply = f(&setup, &bytes);
+    STATE.with_borrow_mut(|s| s.setup = Some(setup));
+    reply_bytes(&reply)
+}
+
 /// Stores `text` as the reply; its address.
 fn reply_with(text: &str) -> *const u8 {
+    reply_bytes(text.as_bytes())
+}
+
+fn reply_bytes(bytes: &[u8]) -> *const u8 {
     STATE.with_borrow_mut(|s| {
         s.reply.clear();
-        s.reply.extend_from_slice(&(text.len() as u32).to_le_bytes());
-        s.reply.extend_from_slice(text.as_bytes());
+        s.reply.extend_from_slice(&(bytes.len() as u32).to_le_bytes());
+        s.reply.extend_from_slice(bytes);
         s.reply.as_ptr()
     })
 }

@@ -64,15 +64,23 @@ pub fn nir_with_tasty(l: &mut Lower, root: TNodeId, pickles: Pickles) -> Result<
 /// Writes `files` under `classes`, created if missing, and returns the main classes among them,
 /// sorted.
 pub fn write_nir(files: Vec<NirFile>, classes: &Path) -> std::result::Result<Vec<String>, String> {
+    let mains = mains(&files)?;
     std::fs::create_dir_all(classes).map_err(|e| format!("{}: {e}", classes.display()))?;
-    let mut mains = Vec::new();
     for f in files {
         let path = classes.join(format!("{}.nir", f.name.replace('.', "/")));
         let dir = path.parent().unwrap_or(classes);
         std::fs::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
+        std::fs::write(&path, f.bytes).map_err(|e| format!("{}: {e}", path.display()))?;
+    }
+    Ok(mains)
+}
+
+/// Lists the classes among `files` that define `main`, sorted.
+pub fn mains(files: &[NirFile]) -> std::result::Result<Vec<String>, String> {
+    let mut mains = Vec::new();
+    for f in files {
         let main = nir::mains::defined(&f.bytes).map_err(|e| format!("{}: undecodable NIR ({e})", f.name))?;
         mains.extend(main);
-        std::fs::write(&path, f.bytes).map_err(|e| format!("{}: {e}", path.display()))?;
     }
     mains.sort();
     Ok(mains)

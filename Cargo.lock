@@ -857,6 +857,7 @@ version = "0.2.3"
 dependencies = [
  "scivolo-libimage",
  "scivolo-libs",
+ "scivolo-lower",
  "scivolo-repl",
  "scivolo-vm",
 ]

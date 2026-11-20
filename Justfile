@@ -809,6 +809,7 @@ test-portable:
     cargo clippy -p scivolo-repl --features portable --all-targets {{ locked }} -- -D warnings
     cargo test -p scivolo-repl --features portable {{ locked }} --test scripted --test portable --test portable_stress
     cargo clippy -p scivolo-web --features portable --all-targets {{ locked }} -- -D warnings
+    cargo test -p scivolo-web --features portable --lib {{ locked }}
 
 # The browser's module, built by a rustup toolchain, which has the wasm32 target.
 web_wasm := "target/wasm32-unknown-unknown/web/web.wasm"

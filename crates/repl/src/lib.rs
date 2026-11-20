@@ -10,6 +10,7 @@ mod import_text;
 mod imports;
 mod input;
 mod line_names;
+mod program;
 mod render;
 mod report;
 mod session;
@@ -20,7 +21,8 @@ mod wrap;
 pub use completion::{Group, inserts_tab, word};
 pub use highlight::highlight;
 pub use input::is_incomplete;
-pub use report::compile_errors;
+pub use program::{Program, Ran, compile_program, run_program};
+pub use report::{compile_errors, fatal_warnings};
 pub use session::Session;
 
 /// The prompt before each input.
