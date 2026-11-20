@@ -28,7 +28,7 @@ impl Typer<'_> {
         }
         let mut core = lhs;
         while let T::Apply { fun, .. } = *self.tpd.tree(core)
-            && matches!(self.ast.tree(lhs_tree), Tree::Select { .. } | Tree::Ident { .. })
+            && matches!(self.ast.tree(lhs_tree), Tree::Select { .. })
         {
             core = fun;
         }
