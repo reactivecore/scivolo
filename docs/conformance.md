@@ -784,6 +784,30 @@ the release binaries, run from the repository root:
     - **Expected**: `1 x,y`, as with a `Seq` spread.
     - **Observed**: `java.lang.ClassCastException: class [Ljava.lang.String; cannot be cast to class
       scala.collection.immutable.Seq`. `scivolo-jvm`'s program prints `1 x,y`.
+26. **A Scala 2 method on `Array[T]` with `T <: Comparable[...]` is called with the wrong
+    descriptor** (dotty 3.9.0, `compiler/src/dotty/tools/dotc/core/TypeErasure.scala`,
+    `isGenericArrayElement`).
+    - Scala 2.13 erases `Array[T]` to `Object` when `T`'s bound is `java.lang.Comparable[...]`
+      (`T <: java.io.Serializable` too); dotty's Scala 2 erasure takes `Comparable` as deriving from
+      `Object` and calls `([Ljava/lang/Comparable;)I`.
+    - Fix: treat the bound as Scala 2 does. `scivolo-jvm` calls the same descriptor as dotty.
+    - **Reproduce**: `scala-cli --power package --library --server=false -S 2.13.16 Lib.scala -o lib.jar`,
+      then `scala-cli run --server=false --scala 3.9.0 --jar lib.jar bug.scala`
+
+      ```scala
+      // Lib.scala
+      package p
+      class Arrs { def cmp[T <: Comparable[String]](xs: Array[T]): Int = xs.length }
+      ```
+
+      ```scala
+      // bug.scala
+      @main def bug(): Unit = println(new p.Arrs().cmp(Array("s")))
+      ```
+
+    - **Expected**: `1`.
+    - **Observed**: `java.lang.NoSuchMethodError: 'int p.Arrs.cmp(java.lang.Comparable[])'`; the
+      same with `scivolo-jvm`'s program.
 
 ## Own frontend: parser, symbols, typer
 
