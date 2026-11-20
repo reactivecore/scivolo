@@ -162,7 +162,9 @@ fn type_shape(t: &mut Typer, arg: NodeId, tupled: bool) -> Result<TypeId, &'stat
 /// refuses other modifiers.
 pub fn closure_kind(t: &Typer, f: NodeId) -> Result<bool, &'static str> {
     match *t.ast.tree(f) {
-        Tree::Function { mods: None, .. } => Ok(false),
+        Tree::Function { args, mods: None, .. } => {
+            Ok(t.ast.items(args).first().is_some_and(|&p| t.is_given_param(p)))
+        }
         Tree::Function { mods: Some((m, ref erased)), .. }
             if !erased.contains(&true)
                 && t.ast.modifiers(m).flags.is(flags::GIVEN)

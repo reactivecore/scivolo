@@ -10,3 +10,6 @@ true
 true
 member s
 member extension 123
+plain 1
+contextual 2
+1

@@ -26,7 +26,19 @@ trait Printable:
 extension (p: Printable)
   def pprint(f: () => Int): Unit = p.pprint(() => "extension " + f())
 
+trait Ctx
+
+class Single:
+  def m(a: Nothing): Int = 0
+
+implicit class RichAny(a: Any):
+  def m(a: Any): Int = 1
+
 object closureviews:
+  def foo(f: Ctx => Int) = "plain " + f(new Ctx {})
+  @annotation.targetName("fooContextual")
+  def foo(f: Ctx ?=> Int) = "contextual " + f(using new Ctx {})
+
   def sum(x: Int, y: => Int) = x + y + y
   def total(i: Int*) = i.sum
   type T2 = Tuple2[Int, Int]
@@ -55,3 +67,6 @@ object closureviews:
     val p = new Printable {}
     p.pprint(() => "s")
     p.pprint(() => { 123 })
+    println(foo(ctx => 1))
+    println(foo(ctx ?=> 2))
+    println((new Single).m({ case (x, y) => x }: Any => Any))
