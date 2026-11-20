@@ -47,6 +47,9 @@ pub fn member_tags(flags: u64, getter: bool) -> Vec<u8> {
     if flags & ACCESSOR != 0 {
         tags.push(t::FIELDaccessor);
     }
+    if flags & CASEACCESSOR != 0 {
+        tags.push(t::CASEaccessor);
+    }
     tags
 }
 
@@ -87,6 +90,7 @@ pub const MODULEVAR: u64 = 1 << 30;
 pub const LAZY: u64 = 1 << 31;
 /// `EXISTENTIAL` on a type.
 pub const MIXEDIN: u64 = 1 << 35;
+pub const EXISTENTIAL: u64 = 1 << 35;
 pub const EXPANDEDNAME: u64 = 1 << 36;
 pub const SPECIALIZED: u64 = 1 << 40;
 pub const VARARGS: u64 = 1 << 43;

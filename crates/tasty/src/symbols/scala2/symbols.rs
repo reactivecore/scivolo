@@ -7,7 +7,9 @@ use super::super::builtin::synthetic;
 use super::super::encoded_names::decode;
 use super::super::{Kind, SymbolId, Universe, module_class_name};
 use super::flags as f;
-use super::format::{ALIASsym, CLASSsym, EXTMODCLASSref, EXTref, MODULEsym, NONEsym, TYPEsym, VALsym};
+use super::format::{
+    ALIASsym, CLASSsym, EXTMODCLASSref, EXTref, MODULEsym, NONEsym, REFINE_CLASS, TYPEsym, VALsym,
+};
 use super::{Sym, Unpickler};
 use crate::tags::{FINAL, OBJECT};
 use names::nme;
@@ -59,6 +61,9 @@ impl Unpickler {
 
     /// Enters symbol entry `i` of header `h` if it is a root or a member of a root.
     fn local(&mut self, u: &mut Universe, i: usize, h: &Header) -> Result<Sym, String> {
+        if h.tag == CLASSsym && h.name == REFINE_CLASS {
+            return Ok(Sym::Skipped);
+        }
         let Sym::Known(owner) = self.sym(u, h.owner)? else { return Ok(Sym::Skipped) };
         let param = h.flags & f::PARAM != 0;
         match u.symbol(owner).kind {
@@ -81,23 +86,40 @@ impl Unpickler {
         if pkg != self.pkg || decode(&h.name) != self.simple {
             return Ok(Sym::Skipped);
         }
+        let simple = self.simple.clone();
+        self.class_or_object(u, i, h, pkg, &simple)
+    }
+
+    /// Enters class, object's class or object entry `i` of header `h` into `owner` as `simple`
+    /// (dotty's `adjustIfModuleClass` names the object's class), a class with its type
+    /// parameters.
+    fn class_or_object(
+        &mut self,
+        u: &mut Universe,
+        i: usize,
+        h: &Header,
+        owner: SymbolId,
+        simple: &str,
+    ) -> Result<Sym, String> {
         let module = h.flags & f::MODULE != 0;
         let visible = visibility(h);
         let s = match h.tag {
             CLASSsym if !module => {
                 let mut flags = visible;
                 flags.extend(f::class_tags(h.flags));
-                let class = synthetic(u, pkg, &self.simple, Kind::Class, &flags);
+                let class = synthetic(u, owner, simple, Kind::Class, &flags);
                 self.enter(u, i, h, class)?;
                 self.type_params(u, h, class)?;
                 return Ok(Sym::Known(class));
             }
             CLASSsym => {
                 let flags = [&[OBJECT, FINAL][..], &visible, &f::case_tag(h.flags)].concat();
-                synthetic(u, pkg, &module_class_name(&self.simple), Kind::Class, &flags)
+                synthetic(u, owner, &module_class_name(simple), Kind::Class, &flags)
             }
             MODULEsym => {
-                synthetic(u, pkg, &self.simple, Kind::Val, &[&[OBJECT, FINAL][..], &visible].concat())
+                let implicit = f::member_tags(h.flags & f::IMPLICIT, false);
+                let flags = [&[OBJECT, FINAL][..], &visible, &implicit].concat();
+                synthetic(u, owner, simple, Kind::Val, &flags)
             }
             _ => return Ok(Sym::Skipped),
         };
@@ -119,16 +141,16 @@ impl Unpickler {
         let private = flags & f::PRIVATE != 0 && name != nme::CONSTRUCTOR;
         let module_class = u.symbol(owner).flags.has(OBJECT);
         let skipped = private
-            || h.tag == TYPEsym && flags & f::PARAM != 0
+            || h.tag == TYPEsym && flags & (f::PARAM | f::EXISTENTIAL) != 0
             || flags & f::CASEACCESSOR != 0 && name.contains("$access$")
             || module_class && name.ends_with("$extension");
         if skipped {
             return Ok(Sym::Skipped);
         }
         let refusal = match h.tag {
-            CLASSsym if flags & f::MODULE != 0 => Some("a nested object"),
-            CLASSsym => Some("a nested class"),
-            MODULEsym => Some("a nested object"),
+            CLASSsym | MODULEsym if !module_class => Some("a class or object of a class"),
+            CLASSsym | MODULEsym if flags & f::EXPANDEDNAME != 0 => Some("an expanded name"),
+            CLASSsym | MODULEsym => return self.class_or_object(u, i, h, owner, &name),
             _ if flags & f::MACRO != 0 => Some("a macro"),
             _ if flags & (f::EXPANDEDNAME | f::SUPERACCESSOR) != 0 => Some("an expanded name"),
             TYPEsym | ALIASsym => None,

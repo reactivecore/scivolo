@@ -28,6 +28,10 @@ pub struct JavaClasses {
     refused_members: FxHashMap<(SymbolId, NameId), String>,
     /// The classes entered from Scala 2 pickles.
     pickled: FxHashSet<SymbolId>,
+    /// How many Scala 2 pickles are being entered, one entering the next.
+    depth: usize,
+    /// The Scala 2 pickles entered while another was, by internal name with their roots.
+    completed: Vec<(String, Vec<SymbolId>)>,
 }
 
 /// The lookups that found a refused class: how many, and the last one's refusal.
@@ -293,20 +297,49 @@ fn scala2_class(u: &mut Universe, pkg: SymbolId, class: &str, internal: &str) ->
     }
     let pickle = classes.pickles.remove(internal)?;
     let before = std::mem::take(&mut classes.refused_lookups);
+    let mark = classes.completed.len();
+    classes.depth += 1;
     let entered = crate::symbols::scala2::enter(u, pkg, class, &pickle);
-    u.java_classes.as_mut()?.refused_lookups = before;
+    let classes = u.java_classes.as_mut()?;
+    classes.refused_lookups = before;
+    classes.depth -= 1;
     match entered {
         Ok(entered) => {
-            let classes = entered.iter().copied().filter(|&s| u.symbol(s).kind == Kind::Class);
-            let classes: Vec<SymbolId> = classes.collect();
-            u.java_classes.as_mut()?.pickled.extend(classes);
+            let roots = entered.iter().copied().filter(|&s| u.symbol(s).kind == Kind::Class);
+            let roots: Vec<SymbolId> = roots.collect();
+            let classes = u.java_classes.as_mut()?;
+            classes.pickled.extend(roots);
+            match classes.depth {
+                0 => classes.completed.clear(),
+                _ => classes.completed.push((internal.to_owned(), entered.clone())),
+            }
             Some(entered)
         }
         Err(why) => {
+            let nested = u.java_classes.as_mut()?.completed.split_off(mark);
+            for (inner, roots) in nested {
+                unenter_refused(u, &inner, &roots, internal);
+            }
             refuse(u, internal, format!("Scala 2 class file `{}` of a jar: {why}", dotted(internal)));
             Some(Vec::new())
         }
     }
+}
+
+/// Unenters roots `roots` of the Scala 2 class `internal` entered while class `refused` was, and
+/// refuses it: its symbols may refer to those of `refused`.
+fn unenter_refused(u: &mut Universe, internal: &str, roots: &[SymbolId], refused: &str) {
+    for &s in roots.iter().rev() {
+        u.unenter(s);
+    }
+    let Some(classes) = u.java_classes.as_mut() else { return };
+    roots.iter().for_each(|s| _ = classes.pickled.remove(s));
+    let why = format!(
+        "Scala 2 class file `{}` of a jar: entered with the refused `{}`",
+        dotted(internal),
+        dotted(refused)
+    );
+    classes.refused.insert(internal.to_owned(), why);
 }
 
 /// Records that class `internal` is refused for `refusal` and counts a refused lookup.

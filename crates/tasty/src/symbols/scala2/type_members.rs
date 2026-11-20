@@ -9,6 +9,14 @@ use super::format::ALIASsym;
 use super::{Unpickler, flags as f};
 use crate::types::{NameId, Type, TypeId};
 
+/// The parameters of a type lambda named with their bounds, their declared variances, and its
+/// result.
+struct LambdaParts {
+    bounds: Vec<(NameId, TypeId)>,
+    variances: Vec<i8>,
+    result: TypeId,
+}
+
 impl Unpickler {
     /// The type lambda of a `POLYtpe` in a type's position over type parameter entries `params`
     /// and result entry `res` (dotty's `HKTypeLambda.fromParams`): over bounds, the variances its
@@ -24,7 +32,7 @@ impl Unpickler {
         }
         let read = self.lambda_parts(u, res, params);
         params.iter().for_each(|p| _ = self.params.remove(p));
-        let (bounds, variances, result) = read?;
+        let LambdaParts { bounds, variances, result } = read?;
         let lambda = u.intern_lambda(binder, &bounds, result);
         if u.bounds(result).is_some() {
             u.declare_lambda_variances(binder, variances);
@@ -38,7 +46,7 @@ impl Unpickler {
         u: &mut Universe,
         res: usize,
         params: &[usize],
-    ) -> Result<(Vec<(NameId, TypeId)>, Vec<i8>, TypeId), String> {
+    ) -> Result<LambdaParts, String> {
         let mut bounds = Vec::new();
         let mut variances = Vec::new();
         for &p in params {
@@ -52,7 +60,7 @@ impl Unpickler {
             });
         }
         let result = self.ty(u, res)?;
-        Ok((bounds, variances, result))
+        Ok(LambdaParts { bounds, variances, result })
     }
 
     /// Gives type member `s` of entry `i` its type: an alias its right-hand side, an abstract

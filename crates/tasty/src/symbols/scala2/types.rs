@@ -49,6 +49,9 @@ impl Unpickler {
                 let params = self.refs(end)?;
                 return self.type_lambda(u, res, &params).inspect(|_| self.buf.at = saved);
             }
+            REFINEDtpe => return self.refined(u, end).inspect(|_| self.buf.at = saved),
+            EXISTENTIALtpe => return self.existential(u, end).inspect(|_| self.buf.at = saved),
+            ANNOTATEDtpe => return self.annotated(u, end).inspect(|_| self.buf.at = saved),
             _ => return Err(refused_type(tag)),
         };
         self.buf.at = saved;
@@ -72,7 +75,8 @@ impl Unpickler {
         let pre = self.buf.nat()?;
         let sym = self.buf.nat()?;
         let args = self.refs(end)?;
-        let args = args.into_iter().map(|a| self.ty(u, a)).collect::<Result<Vec<_>, _>>()?;
+        let args = args.into_iter().map(|a| self.type_arg(u, a)).collect::<Result<Vec<_>, _>>()?;
+        self.check_not_bound(sym)?;
         if let Some(&t) = self.params.get(&sym) {
             return Ok(if args.is_empty() { t } else { u.types.intern_applied(t, &args) });
         }
@@ -87,6 +91,9 @@ impl Unpickler {
             (Sym::ByName | Sym::Repeated, _) => return Err("a parameter class without its argument".into()),
             _ => {}
         }
+        if self.tag(pre)? == REFINEDtpe {
+            return self.refinement_select(u, pre, sym, &args);
+        }
         let this = self.check_prefix(u, pre)?;
         let mut s = self.known_type(u, sym)?;
         if self.is_own(s) && u.symbol(s).kind == Kind::Type {
@@ -97,6 +104,9 @@ impl Unpickler {
         let tycon = u.types.intern(Type::Sym(prefix, s));
         let t = if args.is_empty() { tycon } else { u.types.intern_applied(tycon, &args) };
         if u.symbol(s).kind == Kind::Type {
+            if args.iter().any(|&a| u.bounds(a).is_some()) {
+                return Err(format!("a wildcard argument of type member `{}`", u.full_name(s)));
+            }
             return Ok(u.dealias(t));
         }
         let arity = u.type_params(s).len();

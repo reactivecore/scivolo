@@ -63,6 +63,8 @@ pub fn refused_type(tag: u8) -> String {
         ANNOTATEDtpe => "an annotated type".into(),
         SUPERtpe => "a super type".into(),
         DEBRUIJNINDEXtpe => "a De Bruijn index type".into(),
+        POLYtpe => "a type lambda".into(),
+        METHODtpe | IMPLICITMETHODtpe => "a method type".into(),
         _ => format!("a type of tag {tag}"),
     }
 }

@@ -3,12 +3,15 @@
 //! The classes of a Scala 2 pickle entered eagerly (ADR 0128): the class, its object's class and
 //! its object, with their type parameters, parents and members.
 
+mod annotations;
 mod buffer;
 mod class_info;
+mod existentials;
 mod ext;
 mod flags;
 mod format;
 mod methods;
+mod refinements;
 mod symbols;
 mod type_members;
 mod types;
@@ -54,6 +57,10 @@ pub struct Unpickler {
     /// The value parameters of the member whose type is read, named and whether they have a
     /// default.
     value_params: Vec<(String, bool)>,
+    /// The symbol entries of the pickle by owner entry, once a refinement needs them.
+    owned: Option<FxHashMap<usize, Vec<usize>>>,
+    /// The bounds of the symbols the enclosing existential types bind, by entry.
+    existentials: FxHashMap<usize, crate::TypeId>,
     refused: Vec<(SymbolId, String, String)>,
 }
 
@@ -81,6 +88,8 @@ pub fn enter(u: &mut Universe, pkg: SymbolId, simple: &str, text: &[u8]) -> Resu
         own: FxHashSet::default(),
         reading: FxHashSet::default(),
         value_params: Vec::new(),
+        owned: None,
+        existentials: FxHashMap::default(),
         refused: Vec::new(),
     };
     let roots = up.run(u);
@@ -121,6 +130,7 @@ impl Unpickler {
                 self.refuse(u, i, s, why)?;
             }
         }
+        self.symbol_annotations(u)?;
         Ok(roots)
     }
 
