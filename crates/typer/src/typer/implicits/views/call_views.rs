@@ -157,6 +157,20 @@ fn plain_arg_types(t: &mut Typer<'_>, proto: usize) -> Option<Vec<TypeId>> {
 
 /// Tells whether a member `name` of `q` applies to arguments of types `args` without converting
 /// them, its result conforming to `pt` if it is a method of one clause; `None` if that is unknown.
+/// Tells whether member `m` of `tpe` is a value or parameterless method whose type has no
+/// `apply` member, so applies to no arguments.
+fn takes_no_arguments(t: &mut Typer<'_>, tpe: TypeId, m: tasty::SymbolId) -> bool {
+    let r = t.ref_type(Some(tpe), m);
+    let info = t.method_info(r).unwrap_or(r);
+    let value = match *t.u.ty(info) {
+        Type::Method { .. } | Type::Poly { .. } => return false,
+        Type::ByName(v) => v,
+        _ => info,
+    };
+    let value = t.u.widen(value);
+    t.u.class_symbol(value).is_some() && t.type_members(value, names::nme::APPLY).is_empty()
+}
+
 fn member_fits(
     t: &mut Typer<'_>,
     q: TNodeId,
@@ -168,6 +182,9 @@ fn member_fits(
     let tpe = t.tpd.tpe(q);
     let mut known = true;
     for m in t.type_members(tpe, name) {
+        if takes_no_arguments(t, tpe, m) {
+            continue;
+        }
         match t.applicable(m, Some(tpe), args, false, ctx) {
             Some(true) => {}
             Some(false) => continue,

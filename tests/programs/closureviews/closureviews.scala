@@ -50,6 +50,12 @@ class Rich(x: Double):
   def +[I](op: Op[I]): String = s"$x + $op"
 implicit def toRich(x: Double): Rich = new Rich(x)
 
+class Target
+implicit class Wrong(t: Target):
+  def right: Any = "wrong"
+implicit class Right(t: Target):
+  def right(node: Any): Any = "right " + node
+
 trait Ctx
 
 class Single:
@@ -99,3 +105,4 @@ object closureviews:
     println(Position.show(position))
     println(3.0 * (Hour: Dim))
     println(1.0 + new Op[Int])
+    println(new Target().right(List(1)))
