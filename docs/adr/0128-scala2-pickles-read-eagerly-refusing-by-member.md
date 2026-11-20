@@ -39,8 +39,8 @@ annotation arguments.
   `Scala2x`, the object's class file has them), boxing, unboxing, arrays, generic underlying
   values, universal traits and implicit value classes as dotty erases them (`TypeErasure` with
   `isScala2` differs only in `isGenericArrayElement`, already ported). The private getter of a
-  value class's parameter (`private val x`) is entered private, with its class file's expanded
-  name `p$C$$x` as run-time name (dotty's `ExpandPrivate`), and called virtually.
+  value class's parameter (`private val x`), pickled as `p$C$$x`, is entered private as `x`
+  (dotty's `unexpandedName`); unboxing it from another class expands it again (`ExpandPrivate`).
 - **Refusal granularity**: a member whose type is not read is not entered and its name is
   poisoned in its class: a lookup of it counts as a refused lookup naming the member and the
   construct. A class is refused whole when its type parameters or parents are not read, or when

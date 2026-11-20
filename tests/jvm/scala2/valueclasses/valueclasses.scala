@@ -51,5 +51,9 @@ object ValueClasses {
       case m: Meter => println("meter " + m.v)
       case _ => println("other")
     }
+    val hidden: Any = new Hidden(3)
+    hidden match {
+      case h: Hidden => println(h.twice)
+    }
   }
 }
