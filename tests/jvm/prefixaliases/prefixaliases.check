@@ -1,6 +1,8 @@
 Select(a)
 Select(b)
 Hole(0)
+List(Ident(i))
+j
 x_=
 x_ab
 n

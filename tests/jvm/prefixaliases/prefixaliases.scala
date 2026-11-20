@@ -27,6 +27,9 @@ case class Select[+T <: AnyRef](name: String) extends Tree[T]:
 case class Hole[+T <: AnyRef](idx: Int) extends Tree[T]:
   type ThisTree[+T <: AnyRef] <: Hole[T]
 
+case class Ident[+T <: AnyRef](name: String) extends Tree[T]:
+  type ThisTree[+T <: AnyRef] <: Ident[T]
+
 abstract class Name:
   type ThisName <: Name
   def exclude(kind: Int): ThisName
@@ -85,6 +88,8 @@ object Prefixaliases:
   def unstable(tp: String): Select[String] = Select[AnyRef]("a").withType(tp)
   def bounded[S <: Select[AnyRef]](s: S): Select[String] = s.withType("t")
   def hole(h: Hole[AnyRef]): Hole[String] = h.withType("t")
+  def typedAll(args: List[Tree[AnyRef]]): List[Tree[String]] = args.map(arg => arg.withType("t"))
+  def idents(args: List[Ident[AnyRef]]) = args.map(arg => arg.withType("t"))
   def setter(name: TermName): TermName = name.exclude(1) ++ "_="
   def chained(name: TermName): TermName =
     val prefix = name ++ "_"
@@ -96,6 +101,8 @@ object Prefixaliases:
     println(unstable("t"))
     println(bounded(Select[AnyRef]("b")))
     println(hole(Hole(0)))
+    println(typedAll(List(Ident("i"))))
+    println(idents(List(Ident("j"))).head.name)
     println(setter(SimpleName("x")))
     println(chained(SimpleName("x")))
     println(widened(Node[String]("n")).label)
