@@ -11,7 +11,7 @@ use super::format::{
     ALIASsym, CLASSsym, EXTMODCLASSref, EXTref, MODULEsym, NONEsym, REFINE_CLASS, TYPEsym, VALsym,
 };
 use super::{Sym, Unpickler};
-use crate::tags::{FINAL, OBJECT};
+use crate::tags::{CASE, FINAL, OBJECT};
 use names::nme;
 
 /// The header of a symbol entry: tag, name, owner, flags, access qualifier and type (dotty's
@@ -24,6 +24,9 @@ pub struct Header {
     pub within: Option<usize>,
     pub info: usize,
 }
+
+/// The names of the extractors of a case class's companion, which pattern matching calls.
+const UNAPPLIES: [&str; 2] = ["unapply", "unapplySeq"];
 
 /// The name of a trait's initializer in pickles (dotty's `nme.TRAIT_CONSTRUCTOR`).
 const TRAIT_CONSTRUCTOR: &str = "$init$";
@@ -152,6 +155,9 @@ impl Unpickler {
             CLASSsym | MODULEsym if flags & f::EXPANDEDNAME != 0 => Some("an expanded name"),
             CLASSsym | MODULEsym => return self.class_or_object(u, i, h, owner, &name),
             _ if flags & f::MACRO != 0 => Some("a macro"),
+            _ if UNAPPLIES.contains(&name.as_str()) && is_case_companion(u, owner) => {
+                Some("the extractor of a case class")
+            }
             _ if flags & (f::EXPANDEDNAME | f::SUPERACCESSOR) != 0 => Some("an expanded name"),
             TYPEsym | ALIASsym => None,
             _ if !method => Some("a field without accessor"),
@@ -189,6 +195,17 @@ impl Unpickler {
         }
         Ok(())
     }
+}
+
+/// Whether class `c` is the class of the companion object of a case class.
+fn is_case_companion(u: &Universe, c: SymbolId) -> bool {
+    let (Some(owner), Some(class)) = (u.symbol(c).owner, u.symbol(c).name.strip_suffix('$')) else {
+        return false;
+    };
+    let decls = &u.symbol(owner).decls;
+    decls
+        .iter()
+        .any(|&d| u.symbol(d).name == class && u.symbol(d).kind == Kind::Class && u.symbol(d).flags.has(CASE))
 }
 
 /// The visibility tags of header `h`.

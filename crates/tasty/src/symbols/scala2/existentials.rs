@@ -16,17 +16,12 @@ impl Unpickler {
     pub fn existential(&mut self, u: &mut Universe, end: usize) -> Result<TypeId, String> {
         let res = self.buf.nat()?;
         let bound = self.refs(end)?;
-        let mut bounds = Vec::new();
-        for &b in &bound {
-            let info = self.symbol_info(u, b)?;
-            if !matches!(u.ty(info), Type::Bounds(..)) {
-                return Err("an existential type of a higher-kinded type".into());
-            }
-            bounds.push(info);
-        }
-        let saved: Vec<_> =
-            bound.iter().zip(&bounds).map(|(&b, &info)| (b, self.existentials.insert(b, info))).collect();
-        let read = self.ty(u, res);
+        let error = u.types.intern(Type::Error);
+        let saved: Vec<_> = bound.iter().map(|&b| (b, self.existentials.insert(b, error))).collect();
+        let read = self.bound_infos(u, &bound).and_then(|bounds| {
+            bound.iter().zip(bounds).for_each(|(&b, info)| _ = self.existentials.insert(b, info));
+            self.ty(u, res)
+        });
         for (b, before) in saved {
             match before {
                 Some(t) => self.existentials.insert(b, t),
@@ -34,6 +29,19 @@ impl Unpickler {
             };
         }
         read
+    }
+
+    /// The bounds of bound symbol entries `bound`, refusing those of a higher-kinded one.
+    fn bound_infos(&mut self, u: &mut Universe, bound: &[usize]) -> Result<Vec<TypeId>, String> {
+        let mut bounds = Vec::new();
+        for &b in bound {
+            let info = self.symbol_info(u, b)?;
+            if !matches!(u.ty(info), Type::Bounds(..)) {
+                return Err("an existential type of a higher-kinded type".into());
+            }
+            bounds.push(info);
+        }
+        Ok(bounds)
     }
 
     /// Reads type argument entry `i`: the bounds of a bound symbol of an enclosing existential
@@ -46,11 +54,44 @@ impl Unpickler {
             let sym = self.buf.nat()?;
             let applied = self.buf.at < end;
             self.buf.at = saved;
-            if let Some(&bounds) = self.existentials.get(&sym).filter(|_| !applied) {
+            let read = self.existentials.get(&sym).filter(|&&b| !applied && !matches!(u.ty(b), Type::Error));
+            if let Some(&bounds) = read {
                 return Ok(bounds);
             }
         }
         self.ty(u, i)
+    }
+
+    /// Dealiases alias `tycon` applied to `args`, some of them wildcards, as dotty's
+    /// `elimExistentials` does: the alias applied to the bound symbols, then those that are type
+    /// arguments of the result replaced by their bounds. Refuses a bound symbol the alias puts
+    /// elsewhere or more than once.
+    pub fn wildcard_alias(
+        &mut self,
+        u: &mut Universe,
+        tycon: TypeId,
+        args: &[TypeId],
+    ) -> Result<TypeId, String> {
+        let binder = u.fresh_binder();
+        let markers: Vec<TypeId> =
+            (0..args.len()).map(|k| u.types.intern(Type::Param(binder, k as u32))).collect();
+        let applied = u.types.intern_applied(tycon, &markers);
+        let dealiased = u.dealias(applied);
+        let top: Vec<TypeId> = u.applied(dealiased).map(|(_, a)| a.to_vec()).unwrap_or_default();
+        for (k, &arg) in args.iter().enumerate() {
+            if u.bounds(arg).is_none() {
+                continue;
+            }
+            let mut count = 0;
+            u.map_type(dealiased, &mut |_, t| {
+                count += usize::from(t == markers[k]);
+                None
+            });
+            if count != 1 || !top.contains(&markers[k]) {
+                return Err("an existential type that is no wildcard".into());
+            }
+        }
+        Ok(u.map_type(dealiased, &mut |_, t| markers.iter().position(|&m| m == t).map(|k| args[k])))
     }
 
     /// Refuses a reference to symbol entry `sym` if it is bound by an enclosing existential type:

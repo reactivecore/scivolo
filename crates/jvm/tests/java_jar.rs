@@ -85,12 +85,16 @@ fn a_java_jar_on_the_classpath_is_used() {
 /// The programs that use the Scala 2 class files of a jar (`just scala2-fixture`), each its
 /// source, the jar and its main class: tests/jvm/javajar/scala2.scala by the class's path,
 /// scala2_shadow.scala through a wildcard import that shadows `scala.StringBuilder`, and
-/// tests/jvm/scala2/basics and tests/jvm/scala2/members.
-const SCALA2_PROGRAMS: [(&str, &str, &str); 4] = [
+/// tests/jvm/scala2/basics, tests/jvm/scala2/members and tests/jvm/scala2/shapes (higher-kinded
+/// type parameters, type lambdas of refinements, type members, default, repeated and by-name
+/// parameters, existentials, annotated types, nested objects, implicit classes, a package object,
+/// case classes).
+const SCALA2_PROGRAMS: [(&str, &str, &str); 5] = [
     ("tests/jvm/javajar/scala2.scala", "tests/jvm/javajar/legacy/legacy.jar", "Scala2"),
     ("tests/jvm/javajar/scala2_shadow.scala", "tests/jvm/javajar/legacy/legacy.jar", "Scala2Shadow"),
     ("tests/jvm/scala2/basics/basics.scala", "tests/jvm/scala2/basics/basics.jar", "Basics"),
     ("tests/jvm/scala2/members/members.scala", "tests/jvm/scala2/members/members.jar", "Members"),
+    ("tests/jvm/scala2/shapes/shapes.scala", "tests/jvm/scala2/shapes/shapes.jar", "Shapes"),
 ];
 
 /// scivolo-jvm compiles the `SCALA2_PROGRAMS` against their jars, read from the classes' Scala 2
@@ -116,23 +120,34 @@ fn scala2_class_files_are_read() {
     }
 }
 
-/// scivolo-jvm refuses the programs of tests/jvm/scala2/basics that use what it does not read of
-/// basics.jar's Scala 2 classes, by name: existential.scala calls a method whose type has an
-/// existential, overload.scala an overload of such a method whose other alternative is read,
-/// defaults.scala and byname.scala methods with a default argument and a by-name parameter,
-/// extends.scala extends a Scala 2 trait.
+/// scivolo-jvm refuses the programs of tests/jvm/scala2 that use what it does not read of their
+/// jars' Scala 2 classes, by name, each its directory, program and message: basics/extends.scala
+/// extends a Scala 2 trait; refused/nested_refused.scala uses an object whose parent was entered
+/// while a refused value class was; refused/existential.scala calls a method of an existential
+/// type dotty approximates, refused/structural.scala one of a structural type;
+/// refused/private_within.scala a member `private[refused]`, which dotty rejects;
+/// shapes/case_match.scala matches on a Scala 2 case class.
 #[test]
 fn scala2_constructs_not_read_are_refused_by_name() {
-    let jar = root().join("tests/jvm/scala2/basics/basics.jar");
     let refusals = [
-        ("existential", "Scala 2 member `basics.Lib.sizes` of a jar: an existential type"),
-        ("overload", "Scala 2 member `basics.Lib.size` of a jar: an existential type"),
-        ("defaults", "Scala 2 member `basics.Lib.greet` of a jar: a parameter with a default argument"),
-        ("byname", "Scala 2 member `basics.Lib.lazily` of a jar: a by-name parameter"),
-        ("extends", "extending a class of a Scala 2 jar"),
+        ("basics", "extends", "extending a class of a Scala 2 jar"),
+        (
+            "refused",
+            "nested_refused",
+            "Scala 2 class file `refused.A` of a jar: entered with the refused `refused.B`",
+        ),
+        (
+            "refused",
+            "existential",
+            "`refused.Lib$.fbounded` of a jar: an existential type that is no wildcard",
+        ),
+        ("refused", "structural", "`refused.Lib$.struct` of a jar: a structural member `size`"),
+        ("refused", "private_within", "inaccessible member"),
+        ("shapes", "case_match", "`shapes.Rect$.unapply` of a jar: the extractor of a case class"),
     ];
-    for (name, message) in refusals {
-        let source = root().join(format!("tests/jvm/scala2/basics/{name}.scala"));
+    for (dir, name, message) in refusals {
+        let jar = root().join(format!("tests/jvm/scala2/{dir}/{dir}.jar"));
+        let source = root().join(format!("tests/jvm/scala2/{dir}/{name}.scala"));
         let out = root().join("tmp/jvm-test/scala2").join(name);
         let scivolo = env!("CARGO_BIN_EXE_scivolo-jvm");
         let refused = output(Command::new(scivolo).arg("--cp").arg(&jar).arg("-d").arg(&out).arg(&source));

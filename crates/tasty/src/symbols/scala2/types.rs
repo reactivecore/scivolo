@@ -105,7 +105,7 @@ impl Unpickler {
         let t = if args.is_empty() { tycon } else { u.types.intern_applied(tycon, &args) };
         if u.symbol(s).kind == Kind::Type {
             if args.iter().any(|&a| u.bounds(a).is_some()) {
-                return Err(format!("a wildcard argument of type member `{}`", u.full_name(s)));
+                return self.wildcard_alias(u, tycon, &args);
             }
             return Ok(u.dealias(t));
         }

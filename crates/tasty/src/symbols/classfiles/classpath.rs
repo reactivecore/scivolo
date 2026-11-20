@@ -34,6 +34,9 @@ pub struct JavaClasses {
     completed: Vec<(String, Vec<SymbolId>)>,
 }
 
+/// The simple name of a package object's class file.
+const PACKAGE_OBJECT: &str = "package";
+
 /// The lookups that found a refused class: how many, and the last one's refusal.
 #[derive(Default)]
 struct RefusedLookups {
@@ -117,19 +120,16 @@ impl Universe {
         (!last.is_empty()).then_some(last.as_str())
     }
 
-    /// Counts a lookup of the package object of package `pkg` if a jar holds it as a Scala 2 class
-    /// file.
+    /// Enters the package object of package `pkg` from its Scala 2 pickle if a jar holds one; a
+    /// refused one counts as a refused lookup.
     pub fn look_up_scala2_package_object(&mut self, pkg: SymbolId) {
         let outer = self.full_name(pkg).replace('.', "/");
         if outer.is_empty() {
             return;
         }
-        let internal = format!("{outer}/package");
+        let internal = format!("{outer}/{PACKAGE_OBJECT}");
         java_class(self, &internal);
-        if self.java_classes.as_mut().and_then(|c| c.pickles.remove(&internal)).is_some() {
-            let refusal = format!("Scala 2 package object `{}` of a jar", dotted(&internal));
-            refuse(self, &internal, refusal);
-        }
+        scala2_class(self, pkg, PACKAGE_OBJECT, &internal);
     }
 
     /// Whether class `c` was entered from a Scala 2 pickle of a jar.
