@@ -381,6 +381,34 @@ fn by_name_function_parameters_are_not_values() {
 }
 
 #[test]
+fn type_selections_on_by_name_parameters_and_variables() {
+    check(
+        &[
+            (
+                "trait Box { type T; val v: T }\ndef f(z: => Box) =\n  val w: z.T = z.v\n  w\n",
+                "(z : => Box) is not a valid type prefix, since it is not an immutable path",
+            ),
+            (
+                "trait Box { type T; val v: T }\nvar b: Box = new Box { type T = Int; val v = 1 }\nval w: b.T = b.v\n",
+                "(b : Box) is not a valid type prefix, since it is not an immutable path",
+            ),
+            (
+                "trait Box { type T; val v: T }\nclass C(var c: Box) { def g = { val q: c.T = c.v; q } }\n",
+                "(C.this.c : Box) is not a valid type prefix, since it is not an immutable path",
+            ),
+            (
+                "trait Box { type T; val v: T }\ninline def h(inline y: Box) = { val q: y.T = y.v; q }\n",
+                "(y : Box) is not a valid type prefix, since it is not an immutable path\nInline parameters",
+            ),
+        ],
+        &[
+            "trait Box { type T; val v: T }\ndef f(z: Box) =\n  val w: z.T = z.v\n  w\n",
+            "trait Box { type T; val v: T }\nval b: Box = new Box { type T = Int; val v = 1 }\nval w: b.T = b.v\n",
+        ],
+    );
+}
+
+#[test]
 fn assignments_through_wildcard_prefixes() {
     check(
         &[("class B[T](var v: T)\ndef f(s: B[String]) =\n  var b: B[?] = s\n  val x = b.v\n  b.v = x\n", "")],

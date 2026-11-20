@@ -229,6 +229,7 @@ mod type_defs;
 mod type_lambdas;
 mod type_mismatch;
 mod type_ops;
+mod type_prefix;
 mod type_reductions;
 mod type_tests;
 mod type_trees;
