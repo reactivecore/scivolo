@@ -408,6 +408,27 @@ fn javalib_names_members_of_jdk_classes_scala_native_renames() {
     assert_eq!(refusal, None, "java.lang.Class is public as the JDK's");
 }
 
+/// In javalib's build, a class whose javalib parents initialize nothing has a stable constructor,
+/// as dotty's `setStableConstructor` gives it from the parents' trees.
+#[test]
+fn javalib_classes_extending_javalib_classes_without_inits_have_stable_constructors() {
+    let Some(mut jars) = jars() else { return };
+    let jdk = jars.len()..jars.len() + 1;
+    jars.push(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../libs/jdk-stubs.jar"));
+    let source = SourceFile::new(
+        "filtered.scala",
+        "package java.io\nclass Filtered(protected var out: OutputStream) extends OutputStream {\n  \
+         override def write(b: Int): Unit = out.write(b)\n}",
+    );
+    let mut u = Universe::open(&jars).unwrap();
+    u.set_jdk_jars(jdk);
+    u.set_javalib_sources();
+    lower::compile(&mut u, &source, &[]).map_err(|r| r.what).unwrap();
+    let class = u.package("java.io").and_then(|p| u.decl(p, "Filtered").ok()).unwrap()[0];
+    let constructor = u.decl(class, "<init>").unwrap()[0];
+    assert!(u.symbol(constructor).flags.has(tasty::tags::STABLE), "Filtered's constructor is stable");
+}
+
 const LEGACY_UNAPPLY: &str = "package legacy
 case class Wrap[T](t: T)
 class Dummy

@@ -6,22 +6,13 @@
 use super::{Refusal, TreePickler};
 use crate::tpd::{List, TNodeId, Tree as T};
 use tasty::tags::{BOUNDED, EXPORT, IMPORT, IMPORTED, PACKAGE, RENAMED, TERMREFpkg};
-use tasty::Type;
 use tasty::write::Name;
 
 impl TreePickler<'_> {
     /// The package clause of `pid` with `stats`, the root package's as the empty package's
-    /// unless written `_root_`, a package named alone in its enclosing package's clause as a
-    /// member of that package's `this` (dotty's `TermRef` of `findRef`).
+    /// unless written `_root_`.
     pub fn package(&mut self, pid: TNodeId, stats: List) -> Result<(), Refusal> {
-        let mut tpe = self.tpd.get(pid).tpe.ok_or("a package clause without a type")?;
-        let owner = self.tpd.sym(pid).and_then(|p| self.u.symbol(p).owner).filter(|&o| o != self.u.root());
-        if let (T::Ident { .. }, Some(owner)) = (self.tpd.tree(pid), owner) {
-            let package = self.u.intern_type(Type::Package(owner));
-            let this = self.u.intern_type(Type::This(package));
-            let name = self.u.interned_name(self.tpd.sym(pid).ok_or("a package clause without a symbol")?);
-            tpe = self.u.intern_type(Type::TermRef(this, name));
-        }
+        let tpe = self.tpd.get(pid).tpe.ok_or("a package clause without a type")?;
         let stats = self.tpd.items(stats).to_vec();
         let root = matches!(*self.tpd.tree(pid), T::Ident { name } if self.names.text(name.name) == names::nme::ROOT_PKG);
         let empty = self.tpd.sym(pid) == Some(self.u.root()) && !root;

@@ -137,7 +137,6 @@ const DOTTY_TASTY: &[(&str, &[&str])] = &[
     ("valueclasses", &["Count", "Name"]),
     ("metatargets", &["MetaTargets"]),
     ("doccomments", &["scala/probe/Documented", "scala/probe/Shape"]),
-    ("packagepaths", &["scala/probe/Paths"]),
 ];
 
 /// The trees, positions and flag attributes of the classes of `DOTTY_TASTY` are dotty's: the
@@ -179,9 +178,7 @@ const DOTTY_TASTY: &[(&str, &[&str])] = &[
 /// by name (valueclasses.scala), and of two annotations of one class a parameter or value keeps
 /// those meant for it (metatargets.scala), and each documented definition, local ones, auxiliary
 /// constructors, both halves of an object and a variable's setter among them, has its doc comment
-/// in the Comments section (doccomments.scala), and a package path written from the root, as in
-/// an import, shares the type of the package clause's path (packagepaths.scala). Needs a JDK
-/// (java on the PATH), as dotty's did.
+/// in the Comments section (doccomments.scala). Needs a JDK (java on the PATH), as dotty's did.
 #[test]
 fn probes_pickle_as_dotty_s() {
     if Command::new("java").arg("-version").output().is_err() {
