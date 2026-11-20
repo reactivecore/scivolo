@@ -29,7 +29,6 @@ impl Typer<'_> {
     pub fn sam_parts(&mut self, t: TypeId, n: usize, open: bool) -> Result<Option<Sam>, &'static str> {
         let t = self.zonk(t);
         let Some(sam) = self.sam_shape(t, n)? else { return Ok(None) };
-        let open = open && !self.u.class_symbol(sam.parent).is_some_and(|c| self.is_java_class_name(c));
         if !open && !self.is_fully_defined(t) && !self.is_partial_function(t) {
             return Err("single abstract method type outside the subset");
         }
@@ -75,8 +74,8 @@ impl Typer<'_> {
 
     /// `parent`, an application of class `c`, its wildcard arguments replaced by their lower
     /// bound where the type parameter is a parameter type of `method` and occurs nowhere else,
-    /// by their upper bound where it occurs at most as the result type (dotty's `samParent`);
-    /// `None` otherwise or if `method` is not declared in `c`.
+    /// by their upper bound otherwise and where `method` is inherited (dotty's `samParent`);
+    /// `None` for an occurrence in a form not followed.
     fn without_wildcard_args(&mut self, parent: TypeId, c: SymbolId, method: SymbolId) -> Option<TypeId> {
         let Some((tycon, args)) = self.u.applied(parent).map(|(tycon, args)| (tycon, args.to_vec())) else {
             return Some(parent);
@@ -84,9 +83,7 @@ impl Typer<'_> {
         if !args.iter().any(|&a| self.u.bounds(a).is_some()) {
             return Some(parent);
         }
-        if self.u.symbol(method).owner != Some(c) {
-            return None;
-        }
+        let declared = self.u.symbol(method).owner == Some(c);
         let tparams = self.u.type_params(c);
         let info = self.u.info(method);
         let mut new_args = Vec::new();
@@ -97,7 +94,9 @@ impl Typer<'_> {
             };
             let p = tparams.get(i).copied()?;
             let mut seen = (false, false);
-            self.occurrences(info, p, 1, &mut seen).then_some(())?;
+            if declared {
+                self.occurrences(info, p, 1, &mut seen).then_some(())?;
+            }
             new_args.push(if seen == (false, true) { lo } else { hi });
         }
         Some(self.u.intern_applied(tycon, &new_args))
