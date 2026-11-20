@@ -713,6 +713,35 @@ object One:
 }
 
 #[test]
+fn inaccessible_constructors_are_not_converted() {
+    let private = "import scala.language.implicitConversions
+class Equalizer[L](val leftSide: L)
+implicit def convertToEqualizer[T](left: T): Equalizer[T] = new Equalizer(left)
+class GraphDB[Id]:
+  class Node private[GraphDB](val id: Id)
+object Spec:
+  object graph extends GraphDB[String]
+  import graph.Node
+  val m = new Node(\"Alice\")
+";
+    check(&[(private, "")], &[]);
+}
+
+#[test]
+fn parent_aliases_of_types_a_subclass_overrides_with_a_class_are_refused() {
+    let alias = "trait One:
+  type Op[A]
+  type Alias = Op[Int]
+trait M[A]:
+  def value: A = ???
+trait Two extends One:
+  trait Op[A] extends M[A]
+  class View2 extends Alias { value.toChar }
+";
+    check(&[(alias, "unsupported parent alias of a type a subclass overrides with a class")], &[]);
+}
+
+#[test]
 fn applied_aliases_of_nothing_are_arguments_of_any_kind() {
     let bind = "trait Bind[Z[_]]\ntype F[X] = Nothing\nobject O { val b: Bind[F[Int]] = null }\n";
     check(&[], &[bind]);

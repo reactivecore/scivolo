@@ -160,9 +160,6 @@ impl Typer<'_> {
             return Ok(true);
         }
         if self.extension_visible(name, ctx) {
-            if !self.extensions_reject(qual, name, ctx) {
-                return Ok(true);
-            }
             return Err("extension method");
         }
         let before = self.constraint.attempt();

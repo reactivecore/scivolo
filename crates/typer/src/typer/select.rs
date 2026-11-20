@@ -180,7 +180,11 @@ impl Typer<'_> {
             if let Some(dynamic) = self.try_dynamic_inaccessible(id, qual, name, pt, ctx) {
                 return dynamic;
             }
-            match self.viewed(qual, Goal::of_select(&text, pt), ctx) {
+            let view = match text == nme::CONSTRUCTOR {
+                true => Ok(None),
+                false => self.viewed(qual, Goal::of_select(&text, pt), ctx),
+            };
+            match view {
                 Ok(Some(Viewed::Extension(c))) => {
                     return self.implicit_extension_select(id, qual, c, name, pt, ctx);
                 }
