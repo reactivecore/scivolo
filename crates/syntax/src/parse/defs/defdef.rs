@@ -18,14 +18,16 @@ impl Parser<'_> {
     pub fn def_def_or_dcl(&mut self, start: Offset, mods: Modifiers, num_lead: usize) -> NodeId {
         let point = self.name_start();
         let t = if self.tok() == Token::This {
-            self.aux_constructor(mods, num_lead)
+            let c = self.aux_constructor(mods, num_lead);
+            self.keep_doc_comment(c, start);
+            c
         } else {
-            self.method_def(mods, num_lead)
+            self.method_def(start, mods, num_lead)
         };
         self.at_span2(start, point, t)
     }
 
-    fn method_def(&mut self, mods: Modifiers, num_lead: usize) -> NodeId {
+    fn method_def(&mut self, start: Offset, mods: Modifiers, num_lead: usize) -> NodeId {
         let mods1 = self.add_flag(mods, flags::METHOD);
         let ident = self.term_ident();
         let Tree::Ident { name } = *self.ast.tree(ident) else { unreachable!("an identifier") };
@@ -72,7 +74,7 @@ impl Parser<'_> {
         if self.ast.get(ident).attrs.contains(Attrs::BACKQUOTED) {
             self.ast.add_attrs(d, Attrs::BACKQUOTED);
         }
-        self.finalize_def(d, mods1)
+        self.finalize_def(d, mods1, start)
     }
 
     /// `tparams :: vparamss`, without an empty type parameter clause (dotty's `joinParams`).

@@ -75,7 +75,7 @@ impl Parser<'_> {
             let m = p.empty_mods();
             p.ast.node(Tree::TypeDef { name: TName { is_type: true, ..name }, rhs: templ, mods: m })
         });
-        self.finalize_def(td, mods)
+        self.finalize_def(td, mods, start)
     }
 
     /// `[ClsTypeParamClause] [ConstrMods] ClsTermParamClauses`.
@@ -104,7 +104,7 @@ impl Parser<'_> {
             let m = p.empty_mods();
             p.ast.node(Tree::ModuleDef { name: TName { is_type: false, ..name }, imp: templ, mods: m })
         });
-        self.finalize_def(md, mods)
+        self.finalize_def(md, mods, start)
     }
 
     /// `mods` without the modifiers an enum (case) does not allow, reporting each.
@@ -129,7 +129,7 @@ impl Parser<'_> {
             let templ = p.template(constr, true);
             let m = p.empty_mods();
             let td = p.ast.node(Tree::TypeDef { name: TName { is_type: true, ..name }, rhs: templ, mods: m });
-            p.finalize_def(td, mods1)
+            p.finalize_def(td, mods1, start)
         })
     }
 
@@ -161,7 +161,7 @@ impl Parser<'_> {
                 let templ = self.case_template(constr);
                 self.ast.node(Tree::ModuleDef { name, imp: templ, mods: m })
             };
-            self.finalize_def(case_def, mods1)
+            self.finalize_def(case_def, mods1, start)
         };
         self.at_span2(start, point, t)
     }

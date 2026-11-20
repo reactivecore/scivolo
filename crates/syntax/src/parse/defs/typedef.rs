@@ -93,7 +93,7 @@ impl Parser<'_> {
             self.ast.add_attrs(td, Attrs::CAPTURE_VAR);
             self.ast.add_attrs(rhs, Attrs::CAPTURE_VAR);
         }
-        let td = self.finalize_def(td, mods);
+        let td = self.finalize_def(td, mods, start);
         self.at_span2(start, point, td)
     }
 

@@ -3,7 +3,9 @@
 //! Line comments and nested block comments.
 
 use super::Scanner;
-use super::reader::{CR, LF, SU};
+use super::reader::{CR, FF, LF, SU};
+use crate::source::Offset;
+use std::ops::Range;
 
 impl Scanner<'_> {
     /// After a `/`: skip a comment, record it and return true, or return false if there is none.
@@ -23,8 +25,33 @@ impl Scanner<'_> {
             }
             _ => return false,
         }
-        self.comments.push(start..self.reader.ch_offset());
+        let comment = start..self.reader.ch_offset();
+        self.keep_doc_comment(comment.clone());
+        self.comments.push(comment);
         true
+    }
+
+    /// Keeps `comment` by the offset of the next non-whitespace character if it is a doc
+    /// comment, else keeps the doc comment right before it there too (dotty's `addComment`).
+    fn keep_doc_comment(&mut self, comment: Range<Offset>) {
+        let text = &self.source.text;
+        let after = &text[comment.end as usize..];
+        let next = after.find(|c| !matches!(c, ' ' | '\t' | CR | LF | FF)).unwrap_or(after.len());
+        let next = comment.end + next as Offset;
+        let doc = match text[comment.start as usize..].starts_with("/**") {
+            true => comment,
+            false => match self.doc_comments.get(&comment.start) {
+                Some(doc) => doc.clone(),
+                None => return,
+            },
+        };
+        self.doc_comments.insert(next, doc);
+    }
+
+    /// Gets the doc comment right before offset `start`, the start of a definition (dotty's
+    /// `getDocComment`).
+    pub fn doc_comment(&self, start: Offset) -> Option<Range<Offset>> {
+        self.doc_comments.get(&start).cloned()
     }
 
     /// Skip to the end of a block comment whose `/*` has been read, with nested comments.

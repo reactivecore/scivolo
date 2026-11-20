@@ -20,8 +20,8 @@ pub use open_views::ViewProto;
 pub use qualifier::QualifierView;
 
 use super::super::{Pt, Typer};
-use super::attempts::fitting;
 use super::candidates::Candidate;
+use super::rank::fitting;
 use super::ranking::{compare, most_specific};
 use crate::ctx::Ctx;
 use crate::tpd::TNodeId;
