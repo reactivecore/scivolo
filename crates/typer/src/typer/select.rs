@@ -180,21 +180,10 @@ impl Typer<'_> {
             if let Some(dynamic) = self.try_dynamic_inaccessible(id, qual, name, pt, ctx) {
                 return dynamic;
             }
-            let view = match text == nme::CONSTRUCTOR {
-                true => Ok(None),
-                false => self.viewed(qual, Goal::of_select(&text, pt), ctx),
-            };
-            match view {
-                Ok(Some(Viewed::Extension(c))) => {
-                    return self.implicit_extension_select(id, qual, c, name, pt, ctx);
-                }
-                Ok(Some(Viewed::Converted(q))) => {
-                    let qualifier = self.spliced(q);
-                    let select = self.ast.node(S::Select { qualifier, name });
-                    self.ast.with_span(select, self.ast.span(id));
-                    return self.typed_select(select, qualifier, name, pt, ctx);
-                }
-                _ => {}
+            match self.view_select(id, qual, name, pt, ctx) {
+                Ok(Some(viewed)) => return viewed,
+                Ok(None) => {}
+                Err(what) => return self.unsupported(id, what),
             }
         }
         if let Err(what) = self

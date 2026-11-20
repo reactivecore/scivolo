@@ -15,7 +15,8 @@ const ALTERNATIVE_OUTSIDE: &str = "imported extension method alternative outside
 
 impl Typer<'_> {
     /// Selection `id` of `name` from `qual` as a call of the extension methods of one of `alts`:
-    /// each tried, the only one that fits kept, else the first; two that fit are ambiguous.
+    /// each tried, the only one that fits kept, else the first; two that fit are ambiguous unless
+    /// a given extension method or an implicit conversion of `qual` supplies `name`.
     /// Refuses alternatives whose attempt meets a construct outside the subset or changes the
     /// dictionary of by-name implicits.
     pub fn ext_alternatives_apply(
@@ -47,6 +48,11 @@ impl Typer<'_> {
         }
 
         if let [a, b, ..] = fits[..] {
+            match self.view_select(id, qual, name, pt, ctx) {
+                Ok(Some(viewed)) => return viewed,
+                Ok(None) => {}
+                Err(what) => return self.unsupported(id, what),
+            }
             let text = self.text(name.name).to_owned();
             let shown = |t: &mut Self, k: usize| match alts[k].prefix {
                 Some(p) => format!("{}.{text}", t.types().show_type(p)),

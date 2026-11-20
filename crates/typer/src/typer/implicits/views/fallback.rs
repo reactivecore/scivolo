@@ -3,12 +3,14 @@
 //! The in-scope extension methods a selection cannot call, so that the implicit scope is searched
 //! as dotty's `tryExtensionOrConversion` does when the in-scope extension method fails.
 
-use super::super::super::Typer;
 use super::super::super::extension_calls::extension_ctx;
 use super::super::super::idents::Found;
+use super::super::super::{Pt, Typer};
 use super::{Goal, Viewed};
 use crate::ctx::Ctx;
 use crate::tpd::TNodeId;
+use names::nme;
+use syntax::ast::{NodeId, TName, Tree};
 use tasty::{SymbolId, Type, TypeId};
 
 impl Typer<'_> {
@@ -46,6 +48,33 @@ impl Typer<'_> {
             }
         }
         true
+    }
+
+    /// Types selection `id` of `name` from `qual` through a given extension method or an implicit
+    /// conversion of `qual`, as `s.hidden` for a private `hidden` of `s` and a conversion of `s`
+    /// to a class with a public one; `Ok(None)` if the view search finds neither.
+    pub fn view_select(
+        &mut self,
+        id: NodeId,
+        qual: TNodeId,
+        name: TName,
+        pt: Pt,
+        ctx: Ctx,
+    ) -> Result<Option<TNodeId>, &'static str> {
+        let text = self.text(name.name).to_owned();
+        if text == nme::CONSTRUCTOR {
+            return Ok(None);
+        }
+        Ok(match self.viewed(qual, Goal::of_select(&text, pt), ctx)? {
+            Some(Viewed::Extension(c)) => Some(self.implicit_extension_select(id, qual, c, name, pt, ctx)),
+            Some(Viewed::Converted(q)) => {
+                let qualifier = self.spliced(q);
+                let select = self.ast.node(Tree::Select { qualifier, name });
+                self.ast.with_span(select, self.ast.span(id));
+                Some(self.typed_select(select, qualifier, name, pt, ctx))
+            }
+            _ => None,
+        })
     }
 
     /// Tells whether a view search finds an extension or a conversion for the selection of `name`
