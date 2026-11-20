@@ -70,7 +70,7 @@ impl ImplicitClause {
         if targs.len() != tparams.len() {
             return None;
         }
-        let mut named = |u: &mut Universe, any: bool| {
+        let named = |u: &mut Universe, any: bool| {
             u.map_type(formal, &mut |u, part| {
                 let i = targs.iter().position(|&a| a == part && u.var(a).is_some())?;
                 Some(if any { ANY } else { u.intern_type(Type::Sym(None, tparams[i])) })
