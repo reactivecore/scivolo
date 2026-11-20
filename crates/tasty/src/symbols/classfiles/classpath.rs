@@ -1,5 +1,5 @@
 //! The Java classes of the jars' class files, entered on lookup with their nested classes
-//! (ADR 0107).
+//! (ADR 0107), and the Scala 2 classes of their pickles (ADR 0128).
 
 use super::super::{Kind, SymbolId, Universe, module_class_name};
 use super::class;
@@ -10,8 +10,9 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use std::rc::Rc;
 
 /// The Java class files of the jars and the Java sources: the jar of each class by internal
-/// name, each class read once, the refusals of the classes read but refused (Scala 2 class files,
-/// Java sources' classes of a name not found), and the lookups that found one.
+/// name, each class read once, the refusals of the classes read but refused (Scala 2 class files
+/// and members refused, Java sources' classes of a name not found), the lookups that found one,
+/// and the Scala 2 pickles (ADR 0128).
 #[derive(Default)]
 pub struct JavaClasses {
     jars: FxHashMap<String, usize>,
@@ -98,9 +99,10 @@ impl Universe {
         self.java_classes.as_ref().map(|c| c.sources.clone())
     }
 
-    /// Counts the lookups that found a refused class: a jar's Scala 2 class file, whose pickle
-    /// this reader does not read (a class `p.C`, or the package object `p.package` of a name `p`
-    /// lacks), or a Java source's class of a name not found.
+    /// Counts the lookups that found a refused class or member: a jar's Scala 2 class file, or
+    /// member of one, whose pickle this reader refuses (a class `p.C`, its member `m`, or the
+    /// package object `p.package` of a name `p` lacks), a Scala 3 class file without TASTy, or a
+    /// Java source's class of a name not found.
     pub fn refused_lookups(&self) -> usize {
         self.java_classes.as_ref().map_or(0, |c| c.refused_lookups.count)
     }
