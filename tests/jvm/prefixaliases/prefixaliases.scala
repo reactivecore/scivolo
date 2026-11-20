@@ -2,6 +2,8 @@ import scala.language.implicitConversions
 
 object Forward:
   def ended(d: Defs.DefDef[AnyRef]): Defs.DefDef[AnyRef] = d.copied.withMods(1).dropEndMarker()
+  def cased(defs: List[Defs.DefDef[AnyRef]]): List[Defs.DefDef[AnyRef]] = defs.map(d => d.withMods(1))
+  def inferred(defs: List[Defs.DefDef[AnyRef]]) = defs.map(d => d.withMods(1))
 
 object Defs:
   abstract class Tree[+T <: AnyRef]:
@@ -101,3 +103,5 @@ object Prefixaliases:
     println(Single("s").situated("p."))
     println(Single("t").inherited("q.").signature)
     println(Forward.ended(Defs.DefDef[AnyRef]("d")))
+    println(Forward.cased(List(Defs.DefDef("e"))))
+    println(Forward.inferred(List(Defs.DefDef("f"))).head.copied.name)

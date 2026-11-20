@@ -37,7 +37,7 @@ impl Constraint {
                 None if v == 0 => self.unified_at(u, x, at),
                 None => None,
             },
-            Type::Applied(tycon, _) if u.class_symbol(tycon).is_none() => {
+            Type::Applied(tycon, _) if u.class_symbol(tycon).is_none() || u.dealias(t) != t => {
                 let dealiased = u.dealias(t);
                 if dealiased == t { None } else { self.avoided(u, dealiased, at, v) }
             }
