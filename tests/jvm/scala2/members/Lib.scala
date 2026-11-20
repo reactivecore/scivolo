@@ -7,6 +7,7 @@ object O {
   protected[members] def hidden: Int = 1
   def arr[T](xs: Array[T]): Int = xs.length
   def prim(xs: Array[Int]): Int = xs.length
+  def boundedByInt[T <: Int](xs: Array[T]): Int = xs.length
   def unit(): Unit = println("unit")
   def curried(a: Int)(b: Int): Int = a + b
   def withOrdering(a: Int)(implicit o: Ordering[String]): Int = o.compare("a", "b") * a

@@ -7,6 +7,7 @@ object Members {
     println(O.c)
     println(O.arr(Array("a", "b")))
     println(O.prim(Array(1)))
+    println(O.boundedByInt(Array(1, 2, 3)))
     O.unit()
     println(O.curried(1)(2))
     println(O.withOrdering(3))
