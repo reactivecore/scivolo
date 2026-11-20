@@ -695,6 +695,24 @@ object Test:
 }
 
 #[test]
+fn extension_methods_of_imports_side_by_side_that_both_fit_are_ambiguous() {
+    let objects = "object Two:
+  extension (i: Int) def wow: Int = 2
+object Three:
+  extension (i: Int) def wow: Int = 3
+object One:
+  extension (s: String) def wow: Int = 1
+";
+    let ambiguous =
+        format!("{objects}object T:\n  import One.*\n  import Two.*\n  import Three.*\n  def t = 5.wow\n");
+    let outer = format!("{objects}object T:\n  import Two.*\n  def t =\n    import Three.*\n    5.wow\n");
+    let fits = format!(
+        "{objects}object T:\n  import One.*\n  import Two.*\n  import Three.*\n  def t = \"five\".wow\n"
+    );
+    check(&[(&ambiguous, "Ambiguous extension methods")], &[&fits, &outer]);
+}
+
+#[test]
 fn applied_aliases_of_nothing_are_arguments_of_any_kind() {
     let bind = "trait Bind[Z[_]]\ntype F[X] = Nothing\nobject O { val b: Bind[F[Int]] = null }\n";
     check(&[], &[bind]);
