@@ -19,7 +19,9 @@ mod types;
 use super::{Kind, SymbolId, Universe};
 use crate::tags::IMPLICIT;
 use buffer::PickleBuffer;
-use format::{CLASSsym, EXTMODCLASSref, NONEsym, REFINE_CLASS, TERMname, TYPEname, VALsym};
+use format::{
+    CLASSsym, EXTMODCLASSref, EXTref, MODULEsym, NONEsym, REFINE_CLASS, TERMname, TYPEname, VALsym,
+};
 use rustc_hash::{FxHashMap, FxHashSet};
 
 /// What a symbol entry of the pickle stands for.
@@ -61,7 +63,20 @@ pub struct Unpickler {
     owned: Option<FxHashMap<usize, Vec<usize>>>,
     /// The bounds of the symbols the enclosing existential types bind, by entry.
     existentials: FxHashMap<usize, crate::TypeId>,
+    /// The symbols the external references resolve to.
+    used: FxHashSet<SymbolId>,
+    /// The members entered, then unentered as refused.
+    unentered: Vec<SymbolId>,
     refused: Vec<(SymbolId, String, String)>,
+}
+
+/// The symbols a pickle entered, those of its members it unentered as refused, and the symbols
+/// of other classes it refers to.
+#[derive(Default)]
+pub struct Footprint {
+    pub own: Vec<SymbolId>,
+    pub refused: Vec<SymbolId>,
+    pub used: Vec<SymbolId>,
 }
 
 /// Enters the class `simple` of package `pkg`, its object's class and its object from the text
@@ -69,8 +84,15 @@ pub struct Unpickler {
 /// entered at the package. A member whose type this reader refuses is not entered; a lookup
 /// of its name in its class counts as a refused lookup. A pickle of another version than 5.0 to
 /// 5.2, a class whose type parameters or parents are refused, and a malformed pickle are refused
-/// whole, with nothing entered.
-pub fn enter(u: &mut Universe, pkg: SymbolId, simple: &str, text: &[u8]) -> Result<Vec<SymbolId>, String> {
+/// whole, with nothing entered. `footprint` receives the symbols entered and those of other
+/// classes the pickle refers to, also when it is refused.
+pub fn enter(
+    u: &mut Universe,
+    pkg: SymbolId,
+    simple: &str,
+    text: &[u8],
+    footprint: &mut Footprint,
+) -> Result<Vec<SymbolId>, String> {
     let mut buf = PickleBuffer { bytes: buffer::decode(text), at: 0 };
     let (major, minor) = (buf.nat()?, buf.nat()?);
     if major != format::MAJOR_VERSION || minor > format::MINOR_VERSION {
@@ -90,9 +112,14 @@ pub fn enter(u: &mut Universe, pkg: SymbolId, simple: &str, text: &[u8]) -> Resu
         value_params: Vec::new(),
         owned: None,
         existentials: FxHashMap::default(),
+        used: FxHashSet::default(),
+        unentered: Vec::new(),
         refused: Vec::new(),
     };
     let roots = up.run(u);
+    footprint.own = up.entered.iter().map(|&(_, s)| s).collect();
+    footprint.used = up.used.iter().copied().collect();
+    footprint.refused = up.unentered.clone();
     let roots = roots.inspect_err(|_| up.entered.iter().rev().for_each(|&(_, s)| u.unenter(s)))?;
     for (owner, name, why) in up.refused {
         let name = u.intern_name(&name);
@@ -104,6 +131,11 @@ pub fn enter(u: &mut Universe, pkg: SymbolId, simple: &str, text: &[u8]) -> Resu
 impl Unpickler {
     /// Enters the symbols of the pickle, then reads their types: the roots entered.
     fn run(&mut self, u: &mut Universe) -> Result<Vec<SymbolId>, String> {
+        for i in 0..self.index.len() {
+            if self.is_root_entry(i)? {
+                self.sym(u, i)?;
+            }
+        }
         for i in 0..self.index.len() {
             if self.is_symbol_entry(i)? {
                 self.sym(u, i)?;
@@ -154,6 +186,7 @@ impl Unpickler {
         }
         let (owner, name) = (u.symbol(s).owner.expect("a member has an owner"), u.symbol(s).name.clone());
         u.unenter(s);
+        self.unentered.push(s);
         self.own.remove(&s);
         self.syms.insert(i, Sym::Skipped);
         self.refused.push((owner, name, why));
@@ -201,6 +234,17 @@ impl Unpickler {
         self.seek(i)?;
         let name = self.buf.nat()?;
         Ok(self.name(name)?.0 != REFINE_CLASS)
+    }
+
+    /// Whether entry `i` is a class or object named as the class file and owned by a package,
+    /// which is entered first so that the pickles it leads to find it.
+    fn is_root_entry(&mut self, i: usize) -> Result<bool, String> {
+        if !matches!(self.tag(i)?, CLASSsym | MODULEsym) {
+            return Ok(false);
+        }
+        let h = self.header(i)?;
+        let package_owner = matches!(self.tag(h.owner)?, EXTref | EXTMODCLASSref);
+        Ok(package_owner && h.name != REFINE_CLASS && super::decode(&h.name) == self.simple)
     }
 
     /// Whether entry `i` is a symbol of the pickle or an external one (dotty's `isSymbolRef`).

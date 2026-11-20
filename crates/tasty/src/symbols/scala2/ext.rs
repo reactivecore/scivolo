@@ -54,7 +54,10 @@ impl Unpickler {
             [] if u.refused_lookups() != before => {
                 Err(u.last_refused_lookup().unwrap_or_default().to_owned())
             }
-            [s] => Ok(Sym::Known(s)),
+            [s] => {
+                self.used.insert(s);
+                Ok(Sym::Known(s))
+            }
             [] => Err(format!("`{}.{name}`, which the classpath lacks", u.full_name(owner))),
             _ => Err(format!("an overloaded reference to `{}.{name}`", u.full_name(owner))),
         }

@@ -123,7 +123,7 @@ fn scala2_class_files_are_read() {
 /// scivolo-jvm refuses the programs of tests/jvm/scala2 that use what it does not read of their
 /// jars' Scala 2 classes, by name, each its directory, program and message: basics/extends.scala
 /// extends a Scala 2 trait; refused/nested_refused.scala uses an object whose parent was entered
-/// while a refused value class was; refused/existential.scala calls a method of an existential
+/// while a refused value class was and refers to it; refused/existential.scala calls a method of an existential
 /// type dotty approximates, refused/structural.scala one of a structural type;
 /// refused/private_within.scala a member `private[refused]`, which dotty rejects;
 /// shapes/case_match.scala matches on a Scala 2 case class.
@@ -134,7 +134,7 @@ fn scala2_constructs_not_read_are_refused_by_name() {
         (
             "refused",
             "nested_refused",
-            "Scala 2 class file `refused.A` of a jar: entered with the refused `refused.B`",
+            "Scala 2 class file `refused.A` of a jar: refers to the refused `refused.B`",
         ),
         (
             "refused",

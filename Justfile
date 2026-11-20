@@ -657,12 +657,13 @@ scala2-fixture:
         pkg "$dir"Lib.scala -o "$dir$name.jar"
     done
 
-# Count the classes the Scala 2 pickles of jar JAR enter and the classes and members they refuse,
+# Count the classes the Scala 2 pickles of the jars enter and the classes and members they refuse,
 # by reason with names left out.
-scala2-report jar:
+scala2-report +jars:
     #!/usr/bin/env bash
     set -euo pipefail
-    cargo run -q --release -p scivolo-jvm -- --scala2-report --cp {{jar}} -d tmp/scala2-report \
+    cp=(); for j in {{jars}}; do cp+=(--cp "$j"); done
+    cargo run -q --release -p scivolo-jvm -- --scala2-report "${cp[@]}" -d tmp/scala2-report \
         | sed -E 's/^(class|member): .*(of a jar|implicit member `[^`]*`): /\1: /; s/`[^`]*`/_/g' \
         | sort | uniq -c | sort -rn
 
