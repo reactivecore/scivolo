@@ -943,12 +943,12 @@ Results:
 
 | Outcome | Tests |
 |---|---:|
-| passed | 1502 |
+| passed | 1504 |
 | wrong output | 0 |
 | crashed | 0 |
 | timeout | 0 |
-| lowering refused | 1 |
-| typer refused | 3 |
+| lowering refused | 0 |
+| typer refused | 2 |
 | parser refused | 0 |
 | macro refused | 0 |
 | frontend crashed | 0 |
@@ -956,10 +956,8 @@ Results:
 | skipped | 173 |
 | **total** | **1711** |
 
-- **Lowering refused:** a boxing, unboxing or primitive conversion (`Parser`).
 - **Typer refused:** an inline expansion of a type referring to a binding (`i13332shapeless`),
-  `Printer.TypeReprStructure` of a type the frontend does not print (`i22649`), `typeChecks` of a
-  non-constant string (`typeCheckErrors`).
+  `typeChecks` of a non-constant string (`typeCheckErrors`).
 - `Runtime.totalMemory`,
   `maxMemory` and `freeMemory`, which Scala Native's javalib lacks and the overlay adds (ADR
   0008), are typed through `libs/jdk-stubs/JdkMemberDeclarations.scala`.
