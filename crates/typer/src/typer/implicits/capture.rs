@@ -41,6 +41,21 @@ impl Typer<'_> {
         self.conforms(captured, pt).then(|| self.cast_to_captured(tree, captured))
     }
 
+    /// Receiver `qual` of a call of one of extension methods `methods` of an implicit scope, cast
+    /// to its type with wildcards captured unless one of them takes it by name (dotty's
+    /// `captureWildcardsCompat` in `adapt` to the selection, its view search finding the
+    /// extension, then `checkNoWildcardCaptureForCBN`); an extension method in scope is no view.
+    pub fn captured_receiver(&mut self, qual: TNodeId, methods: &[tasty::SymbolId]) -> TNodeId {
+        if methods.iter().any(|&m| by_name_receiver(self, m)) {
+            return qual;
+        }
+        let t = self.zonk(self.tpd.tpe(qual));
+        match captured(self, t, true) {
+            Some(captured) => self.cast_to_captured(qual, captured).unwrap_or(qual),
+            None => qual,
+        }
+    }
+
     /// Argument `arg` of a by-name parameter, an error if its wildcards were captured (dotty's
     /// `checkNoWildcardCaptureForCBN`).
     pub fn by_name_uncaptured(&mut self, arg: TNodeId) -> TNodeId {
@@ -150,6 +165,23 @@ fn captured(t: &mut Typer<'_>, tpe: TypeId, java_unbounded: bool) -> Option<Type
         captured.push(t.u.intern_type(Type::Sym(Some(skolem), cap)));
     }
     Some(t.u.intern_applied(tycon, &captured))
+}
+
+/// Tells whether extension method `m` takes its receiver, the first parameter after its leading
+/// using clauses, by name.
+fn by_name_receiver(t: &mut Typer<'_>, m: tasty::SymbolId) -> bool {
+    t.complete(m);
+    let mut info = t.u.info(m);
+    loop {
+        match *t.u.ty(info) {
+            Type::Poly { result, .. } | Type::Method { result, implicit: true, .. } => info = result,
+            Type::Method { params, .. } => {
+                let Some(&(_, first)) = t.u.params_of(params).first() else { return false };
+                return t.u.by_name(first).is_some();
+            }
+            _ => return false,
+        }
+    }
 }
 
 /// Captures the wildcards of both sides of `&` or `|`, a side without any kept; `None` if
