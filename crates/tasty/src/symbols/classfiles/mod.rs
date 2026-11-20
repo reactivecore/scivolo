@@ -105,9 +105,11 @@ impl Universe {
         self.classfile_annotations.get(&c).copied()
     }
 
-    /// Whether `s` is a concrete member or an object entered from a JDK class file.
+    /// Whether `s` is a concrete member or an object entered from a JDK class file or a Scala 2
+    /// pickle.
     pub fn is_concrete_classfile_member(&self, s: SymbolId) -> bool {
-        self.classfile_descriptors.contains_key(&s) && !self.is_deferred(s)
+        let pickled = self.symbol(s).owner.is_some_and(|o| self.is_pickled(o));
+        (self.classfile_descriptors.contains_key(&s) || pickled) && !self.is_deferred(s)
             || self.classfile_classes.contains(&s)
     }
 

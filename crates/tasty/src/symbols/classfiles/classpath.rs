@@ -140,6 +140,15 @@ impl Universe {
         }
     }
 
+    /// Determines a member of class `owner` of a Scala 2 pickle that was refused: its name and
+    /// the refusal, the first by name.
+    pub fn refused_member_of(&self, owner: SymbolId) -> Option<(String, String)> {
+        let refused = &self.java_classes.as_ref()?.refused_members;
+        let mut of_owner: Vec<_> = refused.iter().filter(|((o, _), _)| *o == owner).collect();
+        of_owner.sort_by_key(|((_, n), _)| self.name(*n));
+        of_owner.first().map(|((_, n), why)| (self.name(*n).to_owned(), (*why).clone()))
+    }
+
     /// Counts a lookup of `name` in class `owner` if its Scala 2 pickle's member of that name is
     /// refused.
     pub fn look_up_refused_member(&mut self, owner: SymbolId, name: NameId) {
