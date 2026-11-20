@@ -10,17 +10,18 @@ use super::{Sym, Unpickler};
 /// The names of the root package in pickles (dotty's `nme.ROOT`, `nme.ROOTPKG`).
 const ROOTS: [&str; 2] = ["<root>", "_root_"];
 
-/// The classes Scala 2 types by-name and repeated parameters with, and the refusal of each.
-const PARAM_CLASSES: [(&str, &str); 2] =
-    [("<byname>", "a by-name parameter"), ("<repeated>", "a repeated parameter")];
+/// The classes Scala 2 types by-name and repeated parameters with (dotty's
+/// `ByNameParamClass2x`, `RepeatedParamClass`).
+const PARAM_CLASSES: [(&str, Sym); 2] = [("<byname>", Sym::ByName), ("<repeated>", Sym::Repeated)];
 
 impl Unpickler {
     /// Finds the symbol external reference `i` names: its owner's declaration of its name, of a
     /// type for a type name, else of a term, a package for either; for an object's class
-    /// (`EXTMODCLASSref`), the class of the object or the package. An owner of `Object` that
-    /// lacks the name stands for `Any` (dotty's `fromName`). Refuses a reference this reader does
-    /// not resolve: the parameter classes, an overloaded or missing name, a refused class.
-    pub fn external(&mut self, u: &mut Universe, i: usize, module_class: bool) -> Result<SymbolId, String> {
+    /// (`EXTMODCLASSref`), the class of the object or the package; the parameter classes of
+    /// `scala`. An owner of `Object` that lacks the name stands for `Any` (dotty's `fromName`).
+    /// Refuses a reference this reader does not resolve: an overloaded or missing name, a
+    /// refused class.
+    pub fn external(&mut self, u: &mut Universe, i: usize, module_class: bool) -> Result<Sym, String> {
         let saved = self.buf.at;
         let (_, end) = self.seek(i)?;
         let name = self.buf.nat()?;
@@ -36,12 +37,12 @@ impl Unpickler {
             },
         };
         if ROOTS.contains(&name.as_str()) {
-            return Ok(u.root());
+            return Ok(Sym::Known(u.root()));
         }
         if owner == u.defn().scala
-            && let Some(&(_, why)) = PARAM_CLASSES.iter().find(|(n, _)| *n == name)
+            && let Some(&(_, class)) = PARAM_CLASSES.iter().find(|(n, _)| *n == name)
         {
-            return Err(why.to_owned());
+            return Ok(class);
         }
         let before = u.refused_lookups();
         let found = self.named(u, owner, &name, is_type, module_class);
@@ -53,7 +54,7 @@ impl Unpickler {
             [] if u.refused_lookups() != before => {
                 Err(u.last_refused_lookup().unwrap_or_default().to_owned())
             }
-            [s] => Ok(s),
+            [s] => Ok(Sym::Known(s)),
             [] => Err(format!("`{}.{name}`, which the classpath lacks", u.full_name(owner))),
             _ => Err(format!("an overloaded reference to `{}.{name}`", u.full_name(owner))),
         }

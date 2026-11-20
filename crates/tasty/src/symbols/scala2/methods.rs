@@ -3,11 +3,12 @@
 //! The types of the members of a pickle (dotty's `LocalUnpickler.complete`, the `METHODtpe` and
 //! `POLYtpe` cases of `readType`, `addConstructorTypeParams`).
 
+use super::super::builtin::synthetic;
 use super::super::encoded_names::decode;
 use super::super::{Kind, SymbolId, Universe};
 use super::format::{IMPLICITMETHODtpe, METHODtpe, POLYtpe};
 use super::{Sym, Unpickler, flags as f};
-use crate::tags::OBJECT;
+use crate::tags::{HASDEFAULT, OBJECT};
 use crate::types::{NameId, Type, TypeId};
 use names::nme;
 
@@ -17,6 +18,7 @@ impl Unpickler {
     /// class applied to them as result.
     pub fn member_info(&mut self, u: &mut Universe, i: usize, s: SymbolId) -> Result<(), String> {
         let h = self.header(i)?;
+        self.value_params.clear();
         let info = match u.symbol(s).kind {
             Kind::Val if u.symbol(s).flags.has(OBJECT) => self.ty(u, h.info)?,
             Kind::Val => self.value(u, h.info)?,
@@ -24,6 +26,12 @@ impl Unpickler {
             _ => self.method(u, h.info, None)?,
         };
         u.infos.insert(s, info);
+        if self.value_params.iter().any(|&(_, default)| default) {
+            for (name, default) in std::mem::take(&mut self.value_params) {
+                let flags: &[u8] = if default { &[HASDEFAULT] } else { &[] };
+                synthetic(u, s, &name, Kind::Param, flags);
+            }
+        }
         Ok(())
     }
 
@@ -132,9 +140,7 @@ impl Unpickler {
                 return Err("a parameter of another symbol".into());
             }
             let h = self.header(p)?;
-            if h.flags & f::DEFAULTPARAM != 0 {
-                return Err("a parameter with a default argument".into());
-            }
+            self.value_params.push((decode(&h.name), h.flags & f::DEFAULTPARAM != 0));
             implicit |= k == 0 && h.flags & f::IMPLICIT != 0;
             let t = self.ty(u, h.info)?;
             params.push((u.types.intern_name(&decode(&h.name)), t));

@@ -3,6 +3,7 @@
 //! The value types of a pickle (dotty's `readType`, `readConstant`): references to classes,
 //! type parameters, aliases and objects, applied types, bounds and constants.
 
+use super::super::defn::{IMMUTABLE_SEQ, REPEATED_ANNOT};
 use super::super::{Kind, SymbolId, Universe};
 use super::format::*;
 use super::{Sym, Unpickler};
@@ -74,6 +75,17 @@ impl Unpickler {
         let args = args.into_iter().map(|a| self.ty(u, a)).collect::<Result<Vec<_>, _>>()?;
         if let Some(&t) = self.params.get(&sym) {
             return Ok(if args.is_empty() { t } else { u.types.intern_applied(t, &args) });
+        }
+        match (self.sym(u, sym)?, &args[..]) {
+            (Sym::ByName, &[arg]) => return Ok(u.types.intern(Type::ByName(arg))),
+            (Sym::Repeated, &[arg]) => {
+                let seq = u.class_ref(IMMUTABLE_SEQ);
+                let seq = u.types.intern_applied(seq, &[arg]);
+                let repeated = u.class_ref(REPEATED_ANNOT);
+                return Ok(u.types.intern(Type::Annotated(seq, repeated)));
+            }
+            (Sym::ByName | Sym::Repeated, _) => return Err("a parameter class without its argument".into()),
+            _ => {}
         }
         let this = self.check_prefix(u, pre)?;
         let mut s = self.known_type(u, sym)?;

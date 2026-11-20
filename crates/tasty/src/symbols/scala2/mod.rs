@@ -32,6 +32,10 @@ pub enum Sym {
     Skipped,
     /// The absent symbol (`NONEsym`).
     None,
+    /// The class of by-name parameter types, `<byname>[T]` for `=> T`.
+    ByName,
+    /// The class of repeated parameter types, `<repeated>[T]` for `T*`.
+    Repeated,
 }
 
 /// The reading of one pickle: its entries, the package and name of the class file, the symbol
@@ -47,6 +51,9 @@ pub struct Unpickler {
     entered: Vec<(usize, SymbolId)>,
     own: FxHashSet<SymbolId>,
     reading: FxHashSet<SymbolId>,
+    /// The value parameters of the member whose type is read, named and whether they have a
+    /// default.
+    value_params: Vec<(String, bool)>,
     refused: Vec<(SymbolId, String, String)>,
 }
 
@@ -73,6 +80,7 @@ pub fn enter(u: &mut Universe, pkg: SymbolId, simple: &str, text: &[u8]) -> Resu
         entered: Vec::new(),
         own: FxHashSet::default(),
         reading: FxHashSet::default(),
+        value_params: Vec::new(),
         refused: Vec::new(),
     };
     let roots = up.run(u);

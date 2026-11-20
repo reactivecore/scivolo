@@ -48,7 +48,7 @@ impl Unpickler {
         }
         let s = match self.tag(i)? {
             NONEsym => Sym::None,
-            tag @ (EXTref | EXTMODCLASSref) => Sym::Known(self.external(u, i, tag == EXTMODCLASSref)?),
+            tag @ (EXTref | EXTMODCLASSref) => self.external(u, i, tag == EXTMODCLASSref)?,
             _ => {
                 let h = self.header(i)?;
                 self.local(u, i, &h)?
@@ -131,7 +131,6 @@ impl Unpickler {
             MODULEsym => Some("a nested object"),
             _ if flags & f::MACRO != 0 => Some("a macro"),
             _ if flags & (f::EXPANDEDNAME | f::SUPERACCESSOR) != 0 => Some("an expanded name"),
-            _ if name.contains("$default$") => Some("a default argument"),
             TYPEsym | ALIASsym => None,
             _ if !method => Some("a field without accessor"),
             _ => None,
