@@ -164,6 +164,7 @@ mod poly_context_bounds;
 mod poly_function_values;
 mod poly_functions;
 mod protos;
+mod pure_applies;
 mod purity;
 mod purity_warnings;
 mod qual_skolems;

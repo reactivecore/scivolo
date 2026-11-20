@@ -4,9 +4,8 @@
 //! How far evaluating a tree has effects (dotty's `exprPurity`, `statPurity`, `refPurity`).
 
 use super::Typer;
-use super::java_classes::is_java_member;
+use super::pure_applies::is_pure_apply;
 use crate::tpd::{TNodeId, Tpd, Tree as T};
-use names::nme;
 use tasty::{Kind, SymbolId, Type, Universe};
 
 /// dotty's `PurityLevel` bits: evaluating twice gives the same, evaluating has no effect, the
@@ -165,42 +164,8 @@ fn is_method_typed(t: &mut Typer, tree: TNodeId) -> bool {
     matches!(t.u.ty(info), Type::Method { .. } | Type::Poly { .. })
 }
 
-/// dotty's `isPureApply`: a constant operation of a primitive class, `String` or a pure member
-/// of `Any`, a stable constructor of a class outside the JDK, or the synthetic `apply` of a case
-/// class that initializes nothing.
-fn is_pure_apply(t: &mut Typer, tree: TNodeId, callee: Option<SymbolId>) -> bool {
-    let Some(s) = callee else { return false };
-    if t.u.symbol(s).name == nme::CONSTRUCTOR {
-        return t.is_stable_member(s) && !is_java_member(t.u, s);
-    }
-    if is_pure_case_apply(t, s) {
-        return true;
-    }
-    has_constant_type(&t.tpd, t.u, tree) && t.u.is_known_pure_op(s)
-}
-
-/// dotty's `isPureSyntheticCaseApply`.
-fn is_pure_case_apply(t: &mut Typer, s: SymbolId) -> bool {
-    let sym = t.u.symbol(s);
-    if sym.name != nme::APPLY || !sym.flags.has(tasty::tags::SYNTHETIC) {
-        return false;
-    }
-    let Some(module) = sym.owner else { return false };
-    let Some(name) = tasty::module_name(&t.u.symbol(module).name).map(str::to_owned) else {
-        return false;
-    };
-    let Some(owner) = t.u.symbol(module).owner else { return false };
-    let classes = t.u.decls_named(owner, &name);
-    classes.into_iter().any(|c| {
-        let flags = t.u.symbol(c).flags;
-        t.u.symbol(c).kind == Kind::Class
-            && flags.has(tasty::tags::CASE)
-            && !flags.has(tasty::tags::TRAIT)
-            && (t.is_no_inits(c) || t.u.is_assured_no_inits(c))
-    })
-}
-
-fn has_constant_type(tpd: &Tpd, u: &Universe, tree: TNodeId) -> bool {
+/// Whether `tree` has a constant type itself, not through a reference.
+pub fn has_constant_type(tpd: &Tpd, u: &Universe, tree: TNodeId) -> bool {
     let tpe = tpd.get(tree).tpe;
     tpe.is_some_and(|x| matches!(u.ty(x), Type::Constant(..) | Type::Str(_)))
 }
