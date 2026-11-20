@@ -19,6 +19,15 @@ export async function load(wasm) {
   return new Repl((await WebAssembly.instantiate(module, imports)).exports);
 }
 
+// Compiles and runs the Scala file `text` in a fresh instance of `module`, which holds one VM.
+// Resolves to `{ exit, errorLines, lines }`.
+export async function runFile(module, image, { width, heapMib }, text) {
+  const instance = await load(module);
+  const failed = instance.loadImage(image, width, heapMib);
+  if (failed !== "") throw new Error(failed);
+  return instance.runFile(text);
+}
+
 export class Repl {
   constructor(exports) {
     this.x = exports;
@@ -34,6 +43,19 @@ export class Repl {
     const at = f() >>> 0;
     const len = new DataView(this.x.memory.buffer).getUint32(at, true);
     return decoder.decode(new Uint8Array(this.x.memory.buffer, at + 4, len));
+  }
+
+  // Takes the library image's bytes for `runFile`; "" or why it is unusable.
+  loadImage(image, width, heapMib) {
+    return this.call(image, () => this.x.load_image(width, heapMib));
+  }
+
+  // Compiles and runs a whole file, once per instance: `{ exit, errorLines, lines }`, the lines
+  // with compile errors counted from 1.
+  runFile(text) {
+    const [head, ...lines] = this.call(encoder.encode(text), () => this.x.run_file()).split("\n");
+    const [exit, ...errorLines] = head.split("\t").map(Number);
+    return { exit, errorLines, lines: lines.slice(0, -1) };
   }
 
   // Starts the session on the library image's bytes; "" or why it could not start.

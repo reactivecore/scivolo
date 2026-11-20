@@ -1,7 +1,7 @@
 //! A source file through the whole frontend: parser, desugaring, typer, lowering.
 
 use crate::{NirFile, lower_sources};
-use syntax::ast::Span;
+use syntax::ast::{Ast, NodeId, Span, Tree};
 use syntax::config::Config;
 use syntax::desugar::Desugar;
 use syntax::diag::Diagnostics;
@@ -58,6 +58,9 @@ pub fn compile_with(
     if p.s.diags.has_errors() {
         return Err(Refusal { what: "syntax errors".into(), diags: std::mem::take(&mut p.s.diags) });
     }
+    if is_empty_unit(&p.ast, root) {
+        return Ok((Vec::new(), std::mem::take(&mut p.s.diags)));
+    }
     let mut units = crate::typer_units();
     units.source_names = vec![source.name.clone()];
     let mut typed = match units.type_unit(u, &mut p.ast, (p.s.names, &mut p.fresh), (root, cfg), macros) {
@@ -73,6 +76,16 @@ pub fn compile_with(
         Refusal::new(format!("the lowering does not support {}{}", e.what, at_point(source, e.at)))
     })?;
     Ok((files, typed.diags))
+}
+
+/// Whether `root` is the unit of a file without definitions, which dotty's parser makes
+/// `EmptyTree` and which compiles to no classes.
+fn is_empty_unit(ast: &Ast, root: NodeId) -> bool {
+    match *ast.tree(root) {
+        Tree::Empty => true,
+        Tree::Thicket { trees } => trees.is_empty(),
+        _ => false,
+    }
 }
 
 /// ` at LINE:COLUMN` of span `at` in `source`, if it has a position there.

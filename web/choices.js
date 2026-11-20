@@ -30,6 +30,13 @@ export function selectedChoice() {
   return list.querySelector("[aria-selected=true]")?.textContent ?? null;
 }
 
+// The start of the identifier that ends at `cursor` of `text`, which a chosen label replaces.
+export function wordStart(text, cursor) {
+  let i = cursor;
+  while (i > 0 && /[\p{L}\p{N}_$]/u.test(text[i - 1])) i--;
+  return i;
+}
+
 export function moveChoice(by) {
   const options = [...list.querySelectorAll("[role=option]")];
   const at = options.findIndex((o) => o.ariaSelected === "true");

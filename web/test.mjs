@@ -4,7 +4,7 @@
 
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import { load } from "./scivolo.js";
+import { load, runFile } from "./scivolo.js";
 
 // Transcripts that need what the browser refuses: files.
 const SKIPPED = ["load.check"];
@@ -85,4 +85,34 @@ if (!/^Welcome to Scivolo \S+ \(target Scala 3\.9\.0\)\./.test(repl.welcome())) 
 if (repl.prompt() !== "> ") throw new Error(`prompt: ${repl.prompt()}`);
 expect(":quit", () => true);
 if (repl.exitCode() !== 0) throw new Error(`:quit left exit code ${repl.exitCode()}`);
-console.log(`web-test: ${files.length} transcripts and the browser checks pass`);
+
+// The file mode: each run in a fresh instance.
+const module = await WebAssembly.compile(readFileSync(wasm));
+const imageBytes = readFileSync(image);
+const options = { width: 80, heapMib: HEAP_MIB };
+async function expectRun(text, want) {
+  const ran = await runFile(module, imageBytes, options, text);
+  if (!want(ran)) throw new Error(`${text}\n=> ${JSON.stringify(ran)}`);
+}
+await expectRun('@main def m(): Unit =\n  println(f"${41 + 1}%04d")\n  System.err.println("e")\n',
+  (r) => r.exit === 0 && r.lines.join("|") === "0042|e");
+await expectRun("object Main:\n  def main(args: Array[String]): Unit =\n    println(args.length)\n    sys.exit(3)\n",
+  (r) => r.exit === 3 && r.lines.join("|") === "0");
+await expectRun('@main def m(): Unit =\n  val x: Int = "a"\n',
+  (r) => r.exit === 1 && r.errorLines.join() === "2" && r.lines.at(-1) === "1 error found");
+await expectRun("@main def m(): Unit = throw RuntimeException(\"boom\")\n",
+  (r) => r.exit === 1 && r.lines[0] === "scivolo: uncaught exception: java.lang.RuntimeException: boom");
+await expectRun('def helper(x: Int): Int = {\n  x + 1\n}\n\nprintln("Foo " + helper(3))\n',
+  (r) => r.exit === 0 && r.lines.join("|") === "Foo 4");
+await expectRun('val a = 1\nprintln(a)\nval b: Int = "x"\n',
+  (r) => r.exit === 1 && r.errorLines.join() === "3" && r.lines.some((l) => l.includes('3 |val b: Int = "x"')));
+await expectRun("", (r) => r.exit === 0 && r.lines.length === 0);
+await expectRun("// only a comment\n", (r) => r.exit === 0 && r.lines.length === 0);
+const once = await load(module);
+once.loadImage(imageBytes, 80, HEAP_MIB);
+once.runFile("@main def m(): Unit = ()\n");
+const again = once.runFile("@main def m(): Unit = ()\n");
+if (again.exit !== 1 || !again.lines[0]?.includes("an instance runs one file")) {
+  throw new Error(`a second run in one instance: ${JSON.stringify(again)}`);
+}
+console.log(`web-test: ${files.length} transcripts, the browser checks and the file runs pass`);
