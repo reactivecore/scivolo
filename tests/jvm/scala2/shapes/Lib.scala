@@ -53,6 +53,7 @@ object Tools {
 trait Container {
   type Elem
   def elems: List[Elem]
+  def first: Elem = elems.head
 }
 
 object Strings extends Container {

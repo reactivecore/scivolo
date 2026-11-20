@@ -23,6 +23,9 @@ object Shapes {
     import Tools.RichInt
     println(3.squared)
     println(Strings.elems)
+    println(Strings.first.length)
+    val c: Container = Strings
+    println(c.elems.size)
     val name: Name = "loud"
     println(shout(name))
     val r = Rect(2.0, 3.0)
