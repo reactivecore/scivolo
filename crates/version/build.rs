@@ -68,5 +68,5 @@ fn manifest_dir() -> PathBuf {
 
 /// The workspace's directory: `crates/version/../..`.
 fn workspace_root() -> PathBuf {
-    manifest_dir().ancestors().nth(2).map_or_else(|| manifest_dir(), Path::to_path_buf)
+    manifest_dir().ancestors().nth(2).map_or_else(manifest_dir, Path::to_path_buf)
 }

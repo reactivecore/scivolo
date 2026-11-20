@@ -700,6 +700,7 @@ dependencies = [
  "scivolo-syntax",
  "scivolo-tasty",
  "scivolo-typer",
+ "scivolo-version",
  "scivolo-vm",
  "zip",
 ]
