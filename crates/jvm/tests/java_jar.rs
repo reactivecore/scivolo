@@ -93,8 +93,9 @@ fn a_java_jar_on_the_classpath_is_used() {
 /// autoapply.scala calling Scala 2 methods with `()` without it, arrays.scala passing arrays of
 /// generic, reference and primitive elements, valueclasses.scala using value classes (case,
 /// implicit, generic, of an array, with a private value, with a universal trait) through their
-/// extension methods, boxed in arrays, collections and generic calls, and matched by type.
-const SCALA2_PROGRAMS: [(&str, &str, &str); 12] = [
+/// extension methods, boxed in arrays, collections and generic calls, and matched by type,
+/// universal.scala a class and a value class extending a Scala 2 universal trait.
+const SCALA2_PROGRAMS: [(&str, &str, &str); 13] = [
     ("tests/jvm/javajar/scala2.scala", "tests/jvm/javajar/legacy/legacy.jar", "Scala2"),
     ("tests/jvm/javajar/scala2_shadow.scala", "tests/jvm/javajar/legacy/legacy.jar", "Scala2Shadow"),
     ("tests/jvm/scala2/basics/basics.scala", "tests/jvm/scala2/basics/basics.jar", "Basics"),
@@ -110,6 +111,11 @@ const SCALA2_PROGRAMS: [(&str, &str, &str); 12] = [
         "tests/jvm/scala2/valueclasses/valueclasses.scala",
         "tests/jvm/scala2/valueclasses/valueclasses.jar",
         "ValueClasses",
+    ),
+    (
+        "tests/jvm/scala2/valueclasses/universal.scala",
+        "tests/jvm/scala2/valueclasses/valueclasses.jar",
+        "Universal",
     ),
 ];
 

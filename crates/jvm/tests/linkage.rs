@@ -257,6 +257,25 @@ fn trait_forwarders_of_synthetic_methods_are_not_synthetic() {
     assert_eq!(flags.map(str::trim), Some("flags: (0x0009) ACC_PUBLIC, ACC_STATIC"), "{text}");
 }
 
+/// A call of a generic value class's method on a receiver evaluated once casts its result once;
+/// `new` of a Scala 2 class is not pure (dotty sets `NoInits` on Scala 2 traits only), so its
+/// receiver is evaluated once too.
+#[test]
+fn generic_value_class_calls_on_receivers_evaluated_once() {
+    let out = compile_with("vcevalonce", &[&root().join("tests/jvm/scala2/valueclasses/valueclasses.jar")]);
+    let Some(text) = javap(&out, "VcEvalOnce$") else { return };
+    let method = |name: &str| {
+        let start = text.find(&format!(" {name}();")).unwrap_or_else(|| panic!("{name} in\n{text}"));
+        let end = text[start..].find("\n\n").map_or(text.len(), |e| start + e);
+        text[start..end].to_owned()
+    };
+    let mapped = method("mapped");
+    assert_eq!(mapped.matches("checkcast").count(), 1, "{mapped}");
+    let scala2 = method("scala2");
+    let stored = scala2.find("astore").unwrap_or_else(|| panic!("a stored receiver in\n{scala2}"));
+    assert!(stored < scala2.find("valueclasses/Box$.MODULE$").expect("the extension's object"), "{scala2}");
+}
+
 /// Without Scala Native's library on the class path its API does not exist, as for dotty.
 #[test]
 fn scala_native_api_without_its_jar_is_refused() {
