@@ -9,6 +9,10 @@ use names::nme;
 use syntax::ast::{NodeId, Tree};
 use tasty::{SymbolId, Type};
 
+/// The warning on an inline given alias whose right-hand side is a function literal (dotty's
+/// `InlineGivenShouldNotBeFunction`).
+const INLINE_GIVEN_FUNCTION: &str = "An inline given alias with a function value as right-hand side can significantly increase\ngenerated code size. You should either drop the `inline` or rewrite the given with an\nexplicit `apply` method.";
+
 impl Typer<'_> {
     pub fn typed_val_def(&mut self, id: NodeId, ctx: Ctx) -> TNodeId {
         let Tree::ValDef { name, tpt, rhs, .. } = *self.ast.tree(id) else { unreachable!() };
@@ -110,6 +114,7 @@ impl Typer<'_> {
         }
         let erasure_mark = self.erasure_diags.items.len();
         let linked = self.link_constructor_params(sym, id);
+        let untyped_rhs = rhs;
         let mut rhs = rhs.map(|r| {
             let typed = self.typed_def_rhs((id, sym), r, result, mctx);
             self.without_opaque_ascription(typed)
@@ -135,6 +140,11 @@ impl Typer<'_> {
             if self.u.has_recorded_annotation(sym, crate::defn::TAILREC) {
                 return self.unsupported(id, "tailrec inline method");
             }
+            if flags.has(tasty::tags::GIVEN)
+                && let Some(r) = untyped_rhs.filter(|&r| self.is_function_in_blocks(r))
+            {
+                self.warning_at(self.ast.span(r), INLINE_GIVEN_FUNCTION);
+            }
             if let Some(r) = rhs.filter(|_| flags.has(tasty::tags::MACRO)) {
                 self.check_macro_body(id, r);
             }
@@ -151,6 +161,18 @@ impl Typer<'_> {
             self.inline_defs.insert(sym, super::InlineDef::Typed(def));
         }
         def
+    }
+
+    /// Whether `rhs` is a function literal inside blocks without statements (dotty's
+    /// `stripBlock(rhs).isInstanceOf[Function]`).
+    fn is_function_in_blocks(&self, rhs: NodeId) -> bool {
+        match *self.ast.tree(rhs) {
+            Tree::Function { .. } => true,
+            Tree::Block { stats, expr: Some(e) } if self.ast.items(stats).is_empty() => {
+                self.is_function_in_blocks(e)
+            }
+            _ => false,
+        }
     }
 
     /// Inline method body `rhs` ascribed its result type tree `tpt` (dotty's `wrapRHS`).
