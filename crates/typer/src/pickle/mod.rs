@@ -9,6 +9,7 @@ mod applies;
 mod capture_refs;
 mod cases;
 mod closure_formals;
+mod comments;
 mod defs;
 mod inferred_captures;
 mod kept_annotations;
@@ -36,7 +37,7 @@ mod variances;
 
 pub use quote_source::QuoteSource;
 pub use super_param_aliases::super_param_aliases;
-pub use unit::{FileAttributes, Pickled, pickle_file};
+pub use unit::{FileAttributes, FileFacts, Pickled, pickle_file};
 
 use super_accessors::Accessors;
 use unit::File;
@@ -112,6 +113,8 @@ pub struct TreePickler<'a> {
     file: Option<&'a File<'a>>,
     /// The inline calls pickled as references to a class, without their parts.
     call_traces: FxHashSet<TNodeId>,
+    /// The documented definitions pickled, by tree key, with their doc comment's span.
+    doc_comments: Vec<(u32, Span)>,
     /// The parameters of the methods pickled, by the binder of their method's type.
     method_binders: FxHashMap<Binder, Vec<SymbolId>>,
     /// The binders of the method types and type lambdas being pickled.
@@ -208,7 +211,7 @@ fn pickle<'a>(
 ) -> Result<(Vec<u8>, Accessors), (Span, Refusal)> {
     let outer = u.keeps_captures;
     if let Some(file) = file {
-        u.keeps_captures = file.attributes.features.capture_checking();
+        u.keeps_captures = file.facts.attributes.features.capture_checking();
     }
     let pickled = pickle_trees((&mut *u, tpd, names), root, holes, (source, file), unread);
     u.keeps_captures = outer;
@@ -256,9 +259,10 @@ fn pickle_trees<'a>(
         accessor_seen: None,
         annotation_seen: None,
         compact_annotations: file
-            .map_or(source.is_none_or(|s| s.compact_annotations), |f| f.attributes.compact_annotations),
+            .map_or(source.is_none_or(|s| s.compact_annotations), |f| f.facts.attributes.compact_annotations),
         file,
         call_traces: FxHashSet::default(),
+        doc_comments: Vec::new(),
         method_binders: FxHashMap::default(),
         open: Vec::new(),
         super_calls: FxHashMap::default(),
@@ -305,7 +309,7 @@ fn pickle_trees<'a>(
         p.positions(root, source).map_err(|r| (at(&p), r))?;
     }
     if let (Some(file), Some(source)) = (file, source) {
-        p.file_sections(&file.attributes, &source.path);
+        p.file_sections(&file.facts.attributes, source).map_err(|r| (at(&p), r))?;
     }
     Ok((p.pickler.assemble(), p.accessors))
 }

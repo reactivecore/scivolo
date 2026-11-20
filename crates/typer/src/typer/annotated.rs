@@ -12,6 +12,12 @@ use tasty::{Type, TypeId};
 /// annotation goes to.
 const ACCESSOR_METAS: [&str; 6] = ["field", "getter", "setter", "param", "beanGetter", "beanSetter"];
 
+/// The class whose subclasses' annotations refine the annotated type.
+const REFINING_ANNOTATION: &str = "scala.annotation.RefiningAnnotation";
+
+/// How many dealiasing steps `dealias_keep_refining` takes at most.
+const MAX_DEALIAS_STEPS: usize = 64;
+
 impl Typer<'_> {
     pub fn typed_annotated(&mut self, id: NodeId, arg: NodeId, annot: NodeId, pt: Pt, ctx: Ctx) -> TNodeId {
         let annot = self.typed_annotation(annot, ctx);
@@ -93,5 +99,30 @@ impl Typer<'_> {
         let inner = self.without_annotation(inner, name);
         let without = self.u.intern_type(Type::Annotated(inner, annot));
         self.u.carry_annotation_tree(t, without)
+    }
+
+    /// Dealiases `t`, keeping the annotations whose class derives from `RefiningAnnotation`
+    /// (dotty's `dealiasKeepRefiningAnnots`).
+    pub fn dealias_keep_refining(&mut self, mut t: TypeId) -> TypeId {
+        for _ in 0..MAX_DEALIAS_STEPS {
+            if let Some((inner, annot)) = self.u.annotated(t)
+                && self.is_refining_annotation(annot)
+            {
+                let inner = self.dealias_keep_refining(inner);
+                return self.u.intern_type(Type::Annotated(inner, annot));
+            }
+            let next = self.u.dealias_step(t);
+            if next == t {
+                return t;
+            }
+            t = next;
+        }
+        t
+    }
+
+    /// Whether annotation `annot`'s class derives from `scala.annotation.RefiningAnnotation`.
+    fn is_refining_annotation(&mut self, annot: TypeId) -> bool {
+        let Some(refining) = self.resolve_full_name(REFINING_ANNOTATION, true) else { return false };
+        self.u.class_symbol(annot).is_some_and(|c| self.u.derives_from(c, refining))
     }
 }

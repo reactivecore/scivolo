@@ -52,6 +52,13 @@ pub fn missing_given(tpe: &str, place: &str) -> Message {
     message(172, "Type", false, format!("No given instance of type {tpe} was found for {place}"))
 }
 
+/// `MissingImplicitArgument` for candidates `a` and `b`, shown with location, both of the type
+/// shown as `tpe`, searched for `place`, with no `implicitAmbiguous` message.
+pub fn ambiguous_givens(a: &str, b: &str, tpe: &str, place: &str) -> Message {
+    let text = format!("Ambiguous given instances: both {a} and {b} match type {tpe} of {place}");
+    message(172, "Type", false, text)
+}
+
 /// `DuplicateBind` for pattern variable `name`.
 pub fn duplicate_bind(name: &str) -> Message {
     message(5, "Naming", true, format!("duplicate pattern variable: {name}"))
@@ -109,6 +116,18 @@ pub fn cannot_instantiate(name: &str, is_trait: bool) -> Message {
 pub fn not_a_member(name: &str, is_type: bool, site: &str, hint: &str) -> Message {
     let kind = if is_type { "type" } else { "value" };
     message(8, "Not Found", false, format!("{kind} {name} is not a member of {site}{hint}"))
+}
+
+/// `NotAPath` for the type shown as `tpe`, used as `usage`, e.g. "type prefix", a reference to
+/// inline parameter `inline_param` if any.
+pub fn not_a_path(tpe: &str, usage: &str, inline_param: Option<&str>) -> Message {
+    let addendum = inline_param.map_or(String::new(), |p| {
+        format!(
+            "\nInline parameters are not considered immutable paths and cannot be used as\nsingleton types.\n\nHint: Removing the `inline` qualifier from the `{p}` parameter\nmay help resolve this issue."
+        )
+    });
+    let text = format!("{tpe} is not a valid {usage}, since it is not an immutable path{addendum}");
+    message(83, "Type", true, text)
 }
 
 /// The hint of dotty's `didYouMean` for the best name `first` and the other names at its

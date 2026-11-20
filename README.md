@@ -149,7 +149,8 @@ Welcome to Scivolo 0.2.3 (target Scala 3.9.0). Type in expressions for evaluatio
 val res0: P = P(1)
 ```
 
-In the browser (WebAssembly, without threads, files or extra jars; needs the
+In the browser (WebAssembly, without threads, files or extra jars): try it at
+<https://reactivecore.github.io/scivolo/>, or build it yourself (needs the
 `wasm32-unknown-unknown` target of rustup):
 
 ```sh

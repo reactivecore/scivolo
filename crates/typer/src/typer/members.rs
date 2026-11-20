@@ -32,6 +32,9 @@ impl Typer<'_> {
             return self.members_within(hi, name, within);
         }
         let node = *self.u.ty(t);
+        if let Type::Applied(tycon, _) = node {
+            self.complete_overriders(tycon);
+        }
         match node {
             Type::Package(p) => self.package_members(p, name),
             Type::This(c) => {
@@ -72,11 +75,7 @@ impl Typer<'_> {
                 }
                 _ => {
                     self.complete(s);
-                    if let Some(p) = prefix.filter(|_| self.u.is_type_symbol(s)) {
-                        for (m, _) in self.u.overriders(p, s) {
-                            self.complete(m);
-                        }
-                    }
+                    self.complete_overriders(t);
                     let info = match prefix {
                         Some(p) if !self.u.is_type_symbol(s) => {
                             let info = self.u.member_info(p, s);

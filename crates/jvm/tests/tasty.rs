@@ -67,14 +67,14 @@ fn assert_trees_read_strictly(zip: &mut zip::ZipArchive<std::fs::File>) {
     }
 }
 
-/// The trees, positions and flag attributes of TASTy `bytes`.
-fn trees_and_flags(bytes: &[u8]) -> (Vec<u8>, Vec<u8>, Vec<u8>) {
+/// The trees, positions, doc comments and flag attributes of TASTy `bytes`.
+fn trees_and_flags(bytes: &[u8]) -> [Vec<u8>; 4] {
     let file = tasty::Tasty::parse(bytes).expect("a TASTy file");
     let section = |name| file.section(name).expect(name).bytes.to_vec();
     let attributes = file.attributes().expect("attributes");
     let flags =
         attributes.iter().filter_map(|a| if let tasty::Attribute::Flag(f) = a { Some(*f) } else { None });
-    (section("ASTs"), section("Positions"), flags.collect())
+    [section("ASTs"), section("Positions"), section("Comments"), flags.collect()]
 }
 
 /// The files of tests/jvm/tastylib and the classes of each whose dotty TASTy lies beside them as
@@ -136,6 +136,7 @@ const DOTTY_TASTY: &[(&str, &[&str])] = &[
     ("wildcardselections", &["WildcardSelections"]),
     ("valueclasses", &["Count", "Name"]),
     ("metatargets", &["MetaTargets"]),
+    ("doccomments", &["scala/probe/Documented", "scala/probe/Shape"]),
 ];
 
 /// The trees, positions and flag attributes of the classes of `DOTTY_TASTY` are dotty's: the
@@ -175,7 +176,9 @@ const DOTTY_TASTY: &[(&str, &[&str])] = &[
 /// a prefix with a wildcard argument is approximated (wildcardselections.scala), and a value class
 /// calls `AnyVal`'s constructor signed with result `Object` and its `hashCode` refers to its value
 /// by name (valueclasses.scala), and of two annotations of one class a parameter or value keeps
-/// those meant for it (metatargets.scala). Needs a JDK (java on the PATH), as dotty's did.
+/// those meant for it (metatargets.scala), and each documented definition, local ones, auxiliary
+/// constructors, both halves of an object and a variable's setter among them, has its doc comment
+/// in the Comments section (doccomments.scala). Needs a JDK (java on the PATH), as dotty's did.
 #[test]
 fn probes_pickle_as_dotty_s() {
     if Command::new("java").arg("-version").output().is_err() {
@@ -222,7 +225,7 @@ fn annotated_repeated_case_params_pickle_as_dotty_s() {
     assert!(run.status.success(), "{}", String::from_utf8_lossy(&run.stderr));
     let ours = std::fs::read(out.join("V.tasty")).expect("our TASTy");
     let theirs = std::fs::read(root().join("tests/jvm/tastylib/casecaptures-V.tasty")).expect("dotty's");
-    assert!(trees_and_flags(&ours).0 == trees_and_flags(&theirs).0, "V.tasty's trees differ from dotty's");
+    assert!(trees_and_flags(&ours)[0] == trees_and_flags(&theirs)[0], "V.tasty's trees differ from dotty's");
 }
 
 /// Compiles tests/jvm/basetypes/`name`.scala.
@@ -355,6 +358,37 @@ fn exported_match_aliases_reduce_from_tasty() {
     let run = Command::new("java").args(["-Xverify:all", "-cp", &classpath, "Use"]).output().expect("java");
     assert!(run.status.success(), "{}", String::from_utf8_lossy(&run.stderr));
     assert_eq!(String::from_utf8_lossy(&run.stdout), "1\n");
+}
+
+/// A higher-kinded type member of tests/jvm/tastylib/prefixmembers/lib.scala that a subclass
+/// bounds anew, read from its TASTy, has both bounds through a prefix of the subclass.
+#[test]
+fn overriding_higher_kinded_bounds_meet_from_tasty() {
+    let out = root().join("tmp/jvm-test/prefixmembers");
+    let _ = std::fs::remove_dir_all(&out);
+    let (lib, user) = (out.join("lib"), out.join("use"));
+    let compile = |dest: &Path, flags: &[&str], source: &str| {
+        let run = Command::new(env!("CARGO_BIN_EXE_scivolo-jvm"))
+            .current_dir(root())
+            .args(flags)
+            .arg("-d")
+            .arg(dest)
+            .arg(format!("tests/jvm/tastylib/prefixmembers/{source}.scala"))
+            .output()
+            .expect("running scivolo-jvm");
+        assert!(run.status.success(), "{}", String::from_utf8_lossy(&run.stderr));
+    };
+    compile(&lib, &[], "lib");
+    compile(&user, &["--cp", lib.to_str().expect("a path")], "use");
+    if Command::new("java").arg("-version").output().is_err() {
+        eprintln!("no java on the PATH: not run");
+        return;
+    }
+    let library = root().join("ref/libs/scala-library-3.9.0.jar");
+    let classpath = format!("{}:{}:{}", user.display(), lib.display(), library.display());
+    let run = Command::new("java").args(["-Xverify:all", "-cp", &classpath, "Use"]).output().expect("java");
+    assert!(run.status.success(), "{}", String::from_utf8_lossy(&run.stderr));
+    assert_eq!(String::from_utf8_lossy(&run.stdout), "Hole(1)\n");
 }
 
 /// scala-cli 3.9.0 compiles tests/jvm/tastylib/user.scala against the jar, and the result runs

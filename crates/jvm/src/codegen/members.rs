@@ -138,6 +138,9 @@ impl Gen<'_, '_> {
     /// Marks the code from here as of the source line of `t` (dotty's `lineNumber`); a value
     /// definition inlined from another file at an unknown offset there gets a new mark.
     pub fn line(&mut self, b: &mut Body, t: TNodeId) {
+        if self.l.tpd.is_synthetic_unit(t) {
+            return;
+        }
         match self.line_of(t) {
             Some(0) => b.code.new_line(self.line_at(self.l.tpd.span(t).point())),
             Some(line) => b.code.line(line),

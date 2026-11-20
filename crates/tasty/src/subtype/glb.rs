@@ -14,6 +14,11 @@ impl Universe {
         Cmp::new(self, &mut NoVars).glb(a, b)
     }
 
+    /// Builds `a & b` as `Cmp::and_type` does, over the parameters of two type lambdas.
+    pub fn and_type(&mut self, a: TypeId, b: TypeId) -> TypeId {
+        Cmp::new(self, &mut NoVars).and_type(a, b)
+    }
+
     /// `glb` with the type variables of `vars`, compared frozen.
     pub fn glb_in(&mut self, a: TypeId, b: TypeId, vars: &mut dyn TypeVars) -> TypeId {
         let mut c = Cmp::new(self, vars);

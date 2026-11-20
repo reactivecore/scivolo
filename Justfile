@@ -12,6 +12,9 @@ export SCIVOLO_CACHE := justfile_directory() + "/tmp/cache"
 # The modules of Scala Native's library with a jar of their own, windowslib left out.
 NATIVE_JARS := "nativelib clib posixlib javalib auxlib scalalib test-interface-sbt-defs test-interface junit-runtime"
 
+# The modules of `lib-compile all`.
+LIB_MODULES := "nativelib clib posixlib windowslib javalib auxlib scalalib test-interface-sbt-defs test-interface-common test-interface junit-runtime"
+
 default: gates
 
 # Compile Scala Native's shared unit tests (default: the language tests in `scala`) and run
@@ -293,7 +296,11 @@ lib-oracle: fetch-libs fetch-scala-native
 
 # Save lib-compile's results of `module` as the baseline whose worsened files it lists.
 lib-baseline module:
-    for m in $([ '{{ module }}' = all ] && echo nativelib clib posixlib windowslib javalib auxlib scalalib test-interface-sbt-defs test-interface-common test-interface junit-runtime || echo '{{ module }}'); do cp tmp/lib/$m/results.tsv tmp/lib/$m/baseline.tsv; done
+    for m in {{ if module == "all" { LIB_MODULES } else { module } }}; do cp tmp/lib/$m/results.tsv tmp/lib/$m/baseline.tsv; done
+
+# Save lib-compile's results of all modules as the baselines of `ci-lib` in tests/lib.
+lib-baseline-ci:
+    for m in {{ LIB_MODULES }}; do cp tmp/lib/$m/results.tsv tests/lib/$m.tsv; done
 
 # List the files of native/ that differ from the C resources of Scala Native's jars, the patched
 # ones and native/scivolo left out.
@@ -750,6 +757,24 @@ cache-prune:
 # Scala Native's whole unit-test suite, as the pipeline's suite job runs it.
 ci-suite: fetch-libs fetch-scala-native (sn-build "all") (sn-report "1800")
 
+# The library checks of the scheduled pipeline, all run, then failing if one failed: `lib-oracle`
+# unless tmp/lib/sn is complete, `lib-compile all` against the baselines of tests/lib,
+# `lib-jar-report` against `ci-suite`'s report and `lib-link` of the published jars, then ours.
+ci-lib: fetch-libs fetch-scala-native
+    #!/usr/bin/env bash
+    set -uo pipefail
+    test -f tmp/lib/sn/.complete || just lib-oracle || exit 1
+    failed=()
+    for m in {{ LIB_MODULES }}; do mkdir -p tmp/lib/$m && cp tests/lib/$m.tsv tmp/lib/$m/baseline.tsv; done
+    just lib-compile all || failed+=(lib-compile)
+    just ci-suite || failed+=(ci-suite)
+    just lib-jar-report || failed+=(lib-jar-report)
+    python3 scripts/sn-report-compare.py tmp/sn-report tmp/sn-report-ours || failed+=(sn-report-compare)
+    just lib-jar windowslib || failed+=(lib-jar)
+    just lib-link published || failed+=("lib-link published")
+    just lib-link ours || failed+=("lib-link ours")
+    [ ${#failed[@]} -eq 0 ] || { echo "failed: ${failed[*]}" >&2; exit 1; }
+
 # The three gates that must pass before every commit.
 gates: fmt-check lint test
 
@@ -798,20 +823,24 @@ web-build:
     RUSTC="$(rustup which --toolchain "$tc" rustc)" "$(rustup which --toolchain "$tc" cargo)" \
         build -p scivolo-web --lib --profile web --target wasm32-unknown-unknown {{ locked }}
 
-# Build the library image of the standard libraries if needed and gzip it into `dir`.
-web-image dir="tmp/web-dist":
-    mkdir -p {{ dir }}
-    gzip -9 -c "$(cargo run -q -p scivolo-web --bin scivolo-web-image {{ locked }})" > {{ dir }}/libs.img.gz
-
 # Run the REPL transcripts, the time limit and the refusals in the browser's module under node.
 web-test: web-build
     node web/test.mjs {{ web_wasm }} "$(cargo run -q -p scivolo-web --bin scivolo-web-image {{ locked }})" tests/repl
 
-# Build the browser REPL into `dir`; `python3 -m http.server -d tmp/web-dist 8000` serves it
-# at http://localhost:8000.
-web-dist dir="tmp/web-dist": web-build (web-image dir)
-    cp web/index.html web/style.css web/*.js {{ dir }}/
-    cp {{ web_wasm }} {{ dir }}/scivolo.wasm
+# Build the browser REPL into `dir`: `index.html` and a directory named by the hash of the other
+# files (module, gzipped library image, scripts, style), which `index.html` loads.
+# `python3 -m http.server -d tmp/web-dist 8000` serves it at http://localhost:8000.
+web-dist dir="tmp/web-dist": web-build
+    #!/usr/bin/env bash
+    set -euo pipefail
+    rm -rf {{ dir }}
+    mkdir -p {{ dir }}/build
+    gzip -9 -n -c "$(cargo run -q -p scivolo-web --bin scivolo-web-image {{ locked }})" > {{ dir }}/build/libs.img.gz
+    cp web/style.css web/*.js {{ dir }}/build/
+    cp {{ web_wasm }} {{ dir }}/build/scivolo.wasm
+    hash="$(cat {{ dir }}/build/* | shasum -a 256 | cut -c1-12)"
+    mv {{ dir }}/build {{ dir }}/"$hash"
+    sed "s|@BUILD@|$hash|g" web/index.html > {{ dir }}/index.html
 
 # Open a merge request of the current branch into `target`, described by tmp/mr.md.
 mr-create title target="main" *flags:
