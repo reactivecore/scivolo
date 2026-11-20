@@ -10,7 +10,8 @@ use tasty::{Kind, SymbolId};
 
 impl Typer<'_> {
     /// Checks the parent types of class `cls` with template `rhs`: no final class, no
-    /// sealed class of the library, no case class extending a case class, no cycle.
+    /// sealed class of the library, no case class extending a case class, no cycle, no class of
+    /// a Scala 2 pickle among the base classes.
     pub fn check_parents(&mut self, cls: SymbolId, rhs: NodeId, parents: &[tasty::TypeId]) {
         let case = self.syms.flags.get(&cls).is_some_and(|fl| fl.is(f::CASE));
         for &p in parents {
@@ -52,6 +53,8 @@ impl Typer<'_> {
                 "extending a final class"
             } else if flags.has(SEALED) && !self.syms.flags.contains_key(&c) {
                 "extending a sealed class of the library"
+            } else if self.u.linearization(c).into_iter().any(|b| self.u.is_pickled(b)) {
+                "extending a class of a Scala 2 jar"
             } else {
                 continue;
             };

@@ -115,18 +115,24 @@ fn scala2_class_files_are_read() {
     }
 }
 
-/// scivolo-jvm refuses tests/jvm/scala2/basics/existential.scala, which calls a method of a Scala 2
-/// class whose type has an existential, by the member's name.
+/// scivolo-jvm refuses the programs of tests/jvm/scala2/basics that use what it does not read of
+/// basics.jar's Scala 2 classes, by name: existential.scala calls a method whose type has an
+/// existential, extends.scala extends a Scala 2 trait.
 #[test]
-fn scala2_members_of_types_not_read_are_refused_by_name() {
+fn scala2_constructs_not_read_are_refused_by_name() {
     let jar = root().join("tests/jvm/scala2/basics/basics.jar");
-    let source = root().join("tests/jvm/scala2/basics/existential.scala");
-    let out = root().join("tmp/jvm-test/scala2/existential");
-    let scivolo = env!("CARGO_BIN_EXE_scivolo-jvm");
-    let refused = output(Command::new(scivolo).arg("--cp").arg(&jar).arg("-d").arg(&out).arg(&source));
-    let stderr = String::from_utf8_lossy(&refused.stderr);
-    let message = "Scala 2 member `basics.Lib.sizes` of a jar: an existential type";
-    assert!(!refused.status.success() && stderr.contains(message), "{stderr}");
+    let refusals = [
+        ("existential", "Scala 2 member `basics.Lib.sizes` of a jar: an existential type"),
+        ("extends", "extending a class of a Scala 2 jar"),
+    ];
+    for (name, message) in refusals {
+        let source = root().join(format!("tests/jvm/scala2/basics/{name}.scala"));
+        let out = root().join("tmp/jvm-test/scala2").join(name);
+        let scivolo = env!("CARGO_BIN_EXE_scivolo-jvm");
+        let refused = output(Command::new(scivolo).arg("--cp").arg(&jar).arg("-d").arg(&out).arg(&source));
+        let stderr = String::from_utf8_lossy(&refused.stderr);
+        assert!(!refused.status.success() && stderr.contains(message), "{name}: {stderr}");
+    }
 }
 
 /// tests/jvm/javajar/enumvalues.scala against the jar: the `final val` of a Java enum's constant

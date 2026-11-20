@@ -9,7 +9,7 @@ use super::super::{Kind, SymbolId, Universe};
 use super::format::{CLASSINFOtpe, POLYtpe};
 use super::symbols::Header;
 use super::{Sym, Unpickler, flags as f};
-use crate::tags::{CONTRAVARIANT, COVARIANT, LOCAL, PRIVATE};
+use crate::tags::{CASE, CONTRAVARIANT, COVARIANT, LOCAL, PRIVATE};
 use crate::types::Type;
 
 impl Unpickler {
@@ -44,7 +44,8 @@ impl Unpickler {
     }
 
     /// Gives class `s` of entry `i` the bounds of its type parameters and its parents, `Object`
-    /// for none and aliases followed (dotty's `setClassInfo`); marks it as Scala 2's.
+    /// for none and aliases followed (dotty's `setClassInfo`); marks it as Scala 2's. Refuses a
+    /// case class and a value class.
     pub fn class_info(&mut self, u: &mut Universe, i: usize, s: SymbolId) -> Result<(), String> {
         let h = self.header(i)?;
         let mut info = h.info;
@@ -73,6 +74,13 @@ impl Unpickler {
         }
         if parents.is_empty() {
             parents.push(u.types.intern(Type::Sym(None, u.defn().object)));
+        }
+        if u.symbol(s).flags.has(CASE) {
+            return Err("a case class or object".into());
+        }
+        let any_val = u.defn().any_val;
+        if parents.iter().any(|&p| any_val.is_some() && u.class_symbol(p) == any_val) {
+            return Err("a value class".into());
         }
         u.parents.insert(s, parents);
         u.set_scala2(s);

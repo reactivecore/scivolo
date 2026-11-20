@@ -13,6 +13,7 @@ mod symbols;
 mod types;
 
 use super::{Kind, SymbolId, Universe};
+use crate::tags::IMPLICIT;
 use buffer::PickleBuffer;
 use format::{CLASSsym, EXTMODCLASSref, NONEsym, REFINE_CLASS, TERMname, TYPEname, VALsym};
 use rustc_hash::FxHashMap;
@@ -98,17 +99,16 @@ impl Unpickler {
                 continue;
             }
             if let Err(why) = self.member_info(u, i, s) {
-                self.refuse_entered(u, s, why);
+                if u.symbol(s).flags.has(IMPLICIT) {
+                    return Err(format!("implicit member `{}`: {why}", u.symbol(s).name));
+                }
+                let (owner, name) =
+                    (u.symbol(s).owner.expect("a member has an owner"), u.symbol(s).name.clone());
+                u.unenter(s);
+                self.refused.push((owner, name, why));
             }
         }
         Ok(roots)
-    }
-
-    /// Unenters member `s` and refuses its name in its class.
-    fn refuse_entered(&mut self, u: &mut Universe, s: SymbolId, why: String) {
-        let (owner, name) = (u.symbol(s).owner.expect("a member has an owner"), u.symbol(s).name.clone());
-        u.unenter(s);
-        self.refused.push((owner, name, why));
     }
 
     /// The tag of entry `i` and the end of its body, the buffer at the body's start.

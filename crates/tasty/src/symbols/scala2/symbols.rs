@@ -141,6 +141,9 @@ impl Unpickler {
             _ => None,
         };
         if let Some(why) = refusal {
+            if flags & f::IMPLICIT != 0 {
+                return Err(format!("implicit member `{name}`: {why}"));
+            }
             self.refused.push((owner, name, why.to_owned()));
             return Ok(Sym::Skipped);
         }
