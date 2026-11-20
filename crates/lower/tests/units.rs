@@ -412,21 +412,36 @@ fn javalib_names_members_of_jdk_classes_scala_native_renames() {
 /// as dotty's `setStableConstructor` gives it from the parents' trees.
 #[test]
 fn javalib_classes_extending_javalib_classes_without_inits_have_stable_constructors() {
-    let Some(mut jars) = jars() else { return };
+    let source = "package java.io\nclass Filtered(protected var out: OutputStream) extends OutputStream {\n  \
+                  override def write(b: Int): Unit = out.write(b)\n}";
+    let Some(stable) = javalib_constructor_is_stable(source, "java.io", "Filtered") else { return };
+    assert!(stable, "Filtered's constructor is stable");
+}
+
+/// In javalib's build, a class extending a JDK class javalib does not define, a JDK stub standing
+/// for the JDK's class file, has no stable constructor, as a class file's class is not `NoInits`.
+#[test]
+fn javalib_classes_extending_jdk_stub_classes_have_unstable_constructors() {
+    let source = "package java.lang\nclass Values extends ClassValue[Int] {\n  \
+                  def computeValue(c: Class[?]): Int = 1\n}";
+    let Some(stable) = javalib_constructor_is_stable(source, "java.lang", "Values") else { return };
+    assert!(!stable, "Values's constructor is not stable");
+}
+
+/// Whether class `class` of package `package`, compiled from `source` in javalib's build, has a
+/// stable constructor; none without the library.
+fn javalib_constructor_is_stable(source: &str, package: &str, class: &str) -> Option<bool> {
+    let mut jars = jars()?;
     let jdk = jars.len()..jars.len() + 1;
     jars.push(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../libs/jdk-stubs.jar"));
-    let source = SourceFile::new(
-        "filtered.scala",
-        "package java.io\nclass Filtered(protected var out: OutputStream) extends OutputStream {\n  \
-         override def write(b: Int): Unit = out.write(b)\n}",
-    );
+    let source = SourceFile::new("javalib.scala", source);
     let mut u = Universe::open(&jars).unwrap();
     u.set_jdk_jars(jdk);
     u.set_javalib_sources();
     lower::compile(&mut u, &source, &[]).map_err(|r| r.what).unwrap();
-    let class = u.package("java.io").and_then(|p| u.decl(p, "Filtered").ok()).unwrap()[0];
+    let class = u.package(package).and_then(|p| u.decl(p, class).ok()).unwrap()[0];
     let constructor = u.decl(class, "<init>").unwrap()[0];
-    assert!(u.symbol(constructor).flags.has(tasty::tags::STABLE), "Filtered's constructor is stable");
+    Some(u.symbol(constructor).flags.has(tasty::tags::STABLE))
 }
 
 const LEGACY_UNAPPLY: &str = "package legacy
