@@ -1,5 +1,3 @@
-//! The version the programs report.
-
 /// The workspace version, followed by `+g` and the commit for a build that is not of the commit
 /// tagged `v<version>`, e.g. `0.2.3` or `0.2.3+g1a2b3c4d5`.
 pub const VERSION: &str = env!("SCIVOLO_VERSION");
