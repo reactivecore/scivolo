@@ -29,3 +29,4 @@ object QualifierViews:
   def conditional(c: Clock, b: Boolean) = c.plus(if b then Duration(1) else Duration(2))
   def contains(b: Byte) = "abc" contains b
   def printed(p: Printable) = p.pprint(() => { 123 })
+  def tupled = "".contains("", (_: Int))

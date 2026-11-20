@@ -106,3 +106,5 @@ object closureviews:
     println(3.0 * (Hour: Dim))
     println(1.0 + new Op[Int])
     println(new Target().right(List(1)))
+    val tupledContains = "".contains("", (_: Int))
+    println(tupledContains(0))

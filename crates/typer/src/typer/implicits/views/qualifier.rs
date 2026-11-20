@@ -85,6 +85,7 @@ impl Typer<'_> {
             return Some(QualifierView::Extension);
         }
         let all_args = args == self.protos[proto].args;
+        let types = tupled_dual(self, syms, types, ctx);
         let view_proto = self.applied_view_proto(proto, types.clone(), all_args);
         let goal = Goal::Applied(name, &view_proto);
         let reported = self.diags.items.len();
@@ -161,6 +162,19 @@ fn auto_tupled(t: &mut Typer<'_>, (prefix, syms): (TypeId, &[SymbolId]), n: usiz
         t.param_types(s, Some(prefix), true).is_none_or(|(params, _)| t.conforms(tuple, params[0]))
     });
     fits
+}
+
+/// Gives argument types `types` as the one type of their tuple if the only one of `syms` takes
+/// one parameter and auto-tupling is enabled (dotty's `FunProto.tupledDual`).
+fn tupled_dual(t: &mut Typer<'_>, syms: &[SymbolId], types: Vec<TypeId>, ctx: Ctx) -> Vec<TypeId> {
+    let (&[s], n) = (syms, types.len()) else { return types };
+    if n < 2 || !t.is_unary(s) || t.feature_enabled(Features::NO_AUTO_TUPLING, nme::NO_AUTO_TUPLING, ctx) {
+        return types;
+    }
+    match t.resolve_full_name(&format!("scala.Tuple{n}"), true) {
+        Some(class) => vec![crate::defn::applied(t.u, class, types)],
+        None => types,
+    }
 }
 
 /// Gives `types`, those of constant arguments `args` that convert to their parameter of `alt`
