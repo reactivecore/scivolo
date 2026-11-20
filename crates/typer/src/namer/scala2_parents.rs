@@ -20,7 +20,7 @@ impl Typer<'_> {
             }
             if let Some(m) = self.u.scala2_unexplained_abstract(b) {
                 return Some(format!(
-                    "extending Scala 2 class `{full}` of a jar: its abstract method `{m}` not read"
+                    "extending Scala 2 class `{full}` of a jar: its abstract method `{m}` is not read"
                 ));
             }
         }

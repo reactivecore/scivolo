@@ -808,6 +808,34 @@ the release binaries, run from the repository root:
     - **Expected**: `1`.
     - **Observed**: `java.lang.NoSuchMethodError: 'int p.Arrs.cmp(java.lang.Comparable[])'`; the
       same with `scivolo-jvm`'s program.
+27. **A `val` of type `Unit` of a Scala 2 trait is called with the wrong descriptor** (dotty 3.9.0,
+    `compiler/src/dotty/tools/dotc/core/TypeErasure.scala`).
+    - Scala 2.13 erases the trait's getter to `u()V`; dotty erases it to `u()Lscala/runtime/BoxedUnit;`,
+      implements only that in a class extending the trait and calls it through the trait type.
+    - Fix: erase the getter of a Scala 2 `Unit` value to `()V`. `scivolo-jvm` refuses the program
+      (linking guard, `tests/jvm/scala2/mixins/effect.scala`).
+    - **Reproduce**: `scala-cli --power package --library --server=false -S 2.13.16 Lib.scala -o lib.jar`,
+      then `scala-cli run --server=false --scala 3.9.0 --jar lib.jar bug.scala`
+
+      ```scala
+      // Lib.scala
+      package p
+      trait Units { val u: Unit = println("init") }
+      ```
+
+      ```scala
+      // bug.scala
+      class C extends p.Units
+
+      @main def bug(): Unit =
+        val t: p.Units = new C
+        println(t.u)
+      ```
+
+    - **Expected**: `init`, then `()`.
+    - **Observed**: `init`, then `java.lang.NoSuchMethodError: 'scala.runtime.BoxedUnit p.Units.u()'`;
+      `scivolo-jvm --cp lib.jar` refuses it: "Scala 2 member `p.Units.u` of a jar: erased as
+      `u()Lscala/runtime/BoxedUnit;`, not in the class file `p/Units`".
 
 ## Own frontend: parser, symbols, typer
 

@@ -147,7 +147,8 @@ fn scala2_constructs_not_read_are_refused_by_name() {
         ("mixins/sized", "Scala 2 class `mixins.Sized` of a jar: its member `sizes` has an existential type"),
         (
             "mixins/secret",
-            "Scala 2 class `mixins.Secret` of a jar: its abstract method `mixins$Secret$_setter_$",
+            "Scala 2 class `mixins.Secret` of a jar: its abstract method \
+             `mixins$Secret$_setter_$mixins$Secret$$hidden_$eq` is not read",
         ),
         ("mixins/memo", "Scala 2 class `mixins.Memo` of a jar: its member `once` has a private lazy value"),
         (
