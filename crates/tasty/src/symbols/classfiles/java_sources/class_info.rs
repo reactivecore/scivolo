@@ -85,7 +85,7 @@ pub fn class_info(u: &mut Universe, sources: &JavaSources, at: &Located) -> Resu
         annotations,
         inner_classes: inner_classes(at),
         permitted,
-        scala: false,
+        scala: None,
     })
 }
 

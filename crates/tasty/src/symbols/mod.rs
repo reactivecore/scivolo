@@ -50,6 +50,7 @@ mod repeated;
 mod resolve;
 mod runtime_stubs;
 mod same_run;
+mod scala2;
 mod seen;
 mod selves;
 mod subst_approx;

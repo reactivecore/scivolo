@@ -645,9 +645,17 @@ subtype-oracle:
 inline-fixture:
     scala-cli --power package --library --server=false -S 3.9.0 crates/typer/tests/inlined/lib/Lib.scala -o crates/typer/tests/inlined/lib/lib.jar -f
 
-# Compile tests/jvm/javajar/legacy with Scala 2.13 into the jar of Scala 2 class files beside it.
+# Compile tests/jvm/javajar/legacy and each directory of tests/jvm/scala2 with Scala 2.13 into the
+# jar of Scala 2 class files beside its sources.
 scala2-fixture:
-    scala-cli --power package --library --server=false -S 2.13.16 tests/jvm/javajar/legacy/Old.scala -o tests/jvm/javajar/legacy/legacy.jar -f
+    #!/usr/bin/env bash
+    set -euo pipefail
+    pkg() { scala-cli --power package --library --server=false -S 2.13.16 "$@" -f; }
+    pkg tests/jvm/javajar/legacy/Old.scala -o tests/jvm/javajar/legacy/legacy.jar
+    for dir in tests/jvm/scala2/*/; do
+        name=$(basename "$dir")
+        pkg "$dir"Lib.scala -o "$dir$name.jar"
+    done
 
 # Compile crates/lower/tests/<name>/lib into its lib.jar (TASTy) and <name>.scala against it
 # into Scala Native's NIR beside it.

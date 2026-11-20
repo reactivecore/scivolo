@@ -66,7 +66,7 @@ fn info(access: u16, name: &str) -> ClassInfo {
         annotations: Vec::new(),
         inner_classes: Vec::new(),
         permitted: Vec::new(),
-        scala: false,
+        scala: None,
     }
 }
 

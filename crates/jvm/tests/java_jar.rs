@@ -82,24 +82,51 @@ fn a_java_jar_on_the_classpath_is_used() {
     assert_eq!(stdout, check);
 }
 
-/// scivolo-jvm refuses the programs that use a class of tests/jvm/javajar/legacy/legacy.jar
-/// (`just scala2-fixture`), Scala 2 class files, by the class's name: tests/jvm/javajar/scala2.scala
-/// by its path, scala2_shadow.scala through a wildcard import that shadows `scala.StringBuilder`;
+/// The programs that use the Scala 2 class files of a jar (`just scala2-fixture`), each its
+/// source, the jar and its main class: tests/jvm/javajar/scala2.scala by the class's path,
+/// scala2_shadow.scala through a wildcard import that shadows `scala.StringBuilder`, and
+/// tests/jvm/scala2/basics.
+const SCALA2_PROGRAMS: [(&str, &str, &str); 3] = [
+    ("tests/jvm/javajar/scala2.scala", "tests/jvm/javajar/legacy/legacy.jar", "Scala2"),
+    ("tests/jvm/javajar/scala2_shadow.scala", "tests/jvm/javajar/legacy/legacy.jar", "Scala2Shadow"),
+    ("tests/jvm/scala2/basics/basics.scala", "tests/jvm/scala2/basics/basics.jar", "Basics"),
+];
+
+/// scivolo-jvm compiles the `SCALA2_PROGRAMS` against their jars, read from the classes' Scala 2
+/// pickles, and each prints on `java -Xverify:all` what its `.check` file holds, dotty's output;
 /// skipped without java.
 #[test]
-fn scala2_class_files_are_refused_by_name() {
+fn scala2_class_files_are_read() {
     if Command::new("java").arg("--version").output().is_err() {
         eprintln!("no java on the PATH: skipped");
         return;
     }
-    let jar = root().join("tests/jvm/javajar/legacy/legacy.jar");
-    let out = root().join("tmp/jvm-test/javajar-scala2");
-    for (name, class) in [("scala2", "legacy.Old"), ("scala2_shadow", "legacy.StringBuilder")] {
-        let refused = output(&mut scivolo(&jar, &out.join(name), name));
-        let stderr = String::from_utf8_lossy(&refused.stderr);
-        let message = format!("Scala 2 class file `{class}` of a jar");
-        assert!(!refused.status.success() && stderr.contains(&message), "{name}: {stderr}");
+    let library = root().join("ref/libs/scala-library-3.9.0.jar");
+    for (source, jar, main) in SCALA2_PROGRAMS {
+        let (source, jar) = (root().join(source), root().join(jar));
+        let out = root().join("tmp/jvm-test/scala2").join(main);
+        let _ = std::fs::remove_dir_all(&out);
+        let scivolo = env!("CARGO_BIN_EXE_scivolo-jvm");
+        run(Command::new(scivolo).arg("--cp").arg(&jar).arg("-d").arg(&out).arg(&source));
+        let classpath = format!("{}:{}:{}", out.display(), jar.display(), library.display());
+        let stdout = run(Command::new("java").args(["-Xverify:all", "-cp", &classpath, main]));
+        let check = std::fs::read_to_string(source.with_extension("check")).expect("a .check file");
+        assert_eq!(stdout, check, "{main}");
     }
+}
+
+/// scivolo-jvm refuses tests/jvm/scala2/basics/existential.scala, which calls a method of a Scala 2
+/// class whose type has an existential, by the member's name.
+#[test]
+fn scala2_members_of_types_not_read_are_refused_by_name() {
+    let jar = root().join("tests/jvm/scala2/basics/basics.jar");
+    let source = root().join("tests/jvm/scala2/basics/existential.scala");
+    let out = root().join("tmp/jvm-test/scala2/existential");
+    let scivolo = env!("CARGO_BIN_EXE_scivolo-jvm");
+    let refused = output(Command::new(scivolo).arg("--cp").arg(&jar).arg("-d").arg(&out).arg(&source));
+    let stderr = String::from_utf8_lossy(&refused.stderr);
+    let message = "Scala 2 member `basics.Lib.sizes` of a jar: an existential type";
+    assert!(!refused.status.success() && stderr.contains(message), "{stderr}");
 }
 
 /// tests/jvm/javajar/enumvalues.scala against the jar: the `final val` of a Java enum's constant

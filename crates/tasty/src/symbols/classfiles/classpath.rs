@@ -5,7 +5,7 @@ use super::super::{SymbolId, Universe, module_class_name};
 use super::class;
 use super::java_sources::JavaSources;
 use crate::types::NameId;
-use classfile::{ACC_MODULE, ACC_PRIVATE, ACC_PROTECTED, ACC_PUBLIC, ACC_STATIC, ClassInfo};
+use classfile::{ACC_MODULE, ACC_PRIVATE, ACC_PROTECTED, ACC_PUBLIC, ACC_STATIC, ClassInfo, Scala};
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::rc::Rc;
 
@@ -21,6 +21,10 @@ pub struct JavaClasses {
     read: FxHashMap<String, Option<Rc<ClassInfo>>>,
     refused: FxHashMap<String, String>,
     refused_lookups: RefusedLookups,
+    /// The Scala 2 pickles read and not entered yet, by internal name.
+    pickles: FxHashMap<String, Vec<u8>>,
+    /// The refusals of the members of Scala 2 classes not entered, by class and name.
+    refused_members: FxHashMap<(SymbolId, NameId), String>,
 }
 
 /// The lookups that found a refused class: how many, and the last one's refusal.
@@ -109,9 +113,35 @@ impl Universe {
     /// file.
     pub fn look_up_scala2_package_object(&mut self, pkg: SymbolId) {
         let outer = self.full_name(pkg).replace('.', "/");
-        if !outer.is_empty() {
-            java_class(self, &format!("{outer}/package"));
+        if outer.is_empty() {
+            return;
         }
+        let internal = format!("{outer}/package");
+        java_class(self, &internal);
+        if self.java_classes.as_mut().and_then(|c| c.pickles.remove(&internal)).is_some() {
+            let refusal = format!("Scala 2 package object `{}` of a jar", dotted(&internal));
+            refuse(self, &internal, refusal);
+        }
+    }
+
+    /// Records that a lookup of `name` in class `owner` of a Scala 2 pickle is refused for `why`.
+    pub fn refuse_member(&mut self, owner: SymbolId, name: NameId, why: String) {
+        if let Some(classes) = self.java_classes.as_mut() {
+            classes.refused_members.entry((owner, name)).or_insert(why);
+        }
+    }
+
+    /// Counts a lookup of `name` in class `owner` if its Scala 2 pickle's member of that name is
+    /// refused.
+    pub fn look_up_refused_member(&mut self, owner: SymbolId, name: NameId) {
+        let Some(why) = self.java_classes.as_ref().and_then(|c| c.refused_members.get(&(owner, name))) else {
+            return;
+        };
+        let refusal =
+            format!("Scala 2 member `{}.{}` of a jar: {why}", self.full_name(owner), self.name(name));
+        let classes = self.java_classes.as_mut().expect("a refused member has its classes");
+        classes.refused_lookups.count += 1;
+        classes.refused_lookups.last = refusal;
     }
 
     /// Reads the class of internal name `internal` from the Java sources, the jars' class files,
@@ -142,6 +172,9 @@ impl Universe {
             return Vec::new();
         }
         let Some(info) = java_class(self, &internal) else {
+            if let Some(entered) = scala2_class(self, pkg, class, &internal) {
+                return entered.into_iter().filter(|&d| self.symbol(d).name == name).collect();
+            }
             self.look_up_scala2_package_object(pkg);
             return Vec::new();
         };
@@ -187,9 +220,16 @@ pub fn java_class(u: &mut Universe, internal: &str) -> Option<Rc<ClassInfo>> {
         } else {
             let jar = *classes.jars.get(internal)?;
             let info = u.library.read_class(jar, internal).ok().and_then(|b| classfile::read(&b).ok());
-            match info {
-                Some(i) if i.scala => Err(format!("Scala 2 class file `{}` of a jar", dotted(internal))),
-                info => Ok(info),
+            match info.map(|i| (i.scala.clone(), i)) {
+                Some((Some(Scala::Tasty), _)) => {
+                    Err(format!("Scala 3 class file `{}` of a jar without its TASTy file", dotted(internal)))
+                }
+                Some((Some(Scala::Pickle(pickle)), _)) => {
+                    u.java_classes.as_mut()?.pickles.insert(internal.to_owned(), pickle);
+                    Ok(None)
+                }
+                Some((Some(Scala::Artifact), _)) => Ok(None),
+                info => Ok(info.map(|(_, i)| i)),
             }
         };
         let classes = u.java_classes.as_mut()?;
@@ -205,6 +245,28 @@ pub fn java_class(u: &mut Universe, internal: &str) -> Option<Rc<ClassInfo>> {
         classes.refused_lookups.last.clone_from(refusal);
     }
     classes.read[internal].clone()
+}
+
+/// Enters class `class` of package `pkg` of internal name `internal` from its Scala 2 pickle if a
+/// jar holds one not entered yet: the symbols entered; none if it is refused, which is recorded
+/// and counted as a refused lookup.
+fn scala2_class(u: &mut Universe, pkg: SymbolId, class: &str, internal: &str) -> Option<Vec<SymbolId>> {
+    let pickle = u.java_classes.as_mut()?.pickles.remove(internal)?;
+    match crate::symbols::scala2::enter(u, pkg, class, &pickle) {
+        Ok(entered) => Some(entered),
+        Err(why) => {
+            refuse(u, internal, format!("Scala 2 class file `{}` of a jar: {why}", dotted(internal)));
+            None
+        }
+    }
+}
+
+/// Records that class `internal` is refused for `refusal` and counts a refused lookup.
+fn refuse(u: &mut Universe, internal: &str, refusal: String) {
+    let Some(classes) = u.java_classes.as_mut() else { return };
+    classes.refused_lookups.count += 1;
+    classes.refused_lookups.last.clone_from(&refusal);
+    classes.refused.insert(internal.to_owned(), refusal);
 }
 
 /// Internal name `internal` with dots for its slashes.
