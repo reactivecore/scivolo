@@ -5,7 +5,7 @@
 //! with `mergeSingleDenot`).
 
 use super::Typer;
-use crate::ctx::Ctx;
+use crate::ctx::{Ctx, Mode};
 use tasty::tags::{PRIVATE, PRIVATEqualified, PROTECTED, PROTECTEDqualified, TRAIT};
 use tasty::{Kind, SymbolId, Type, TypeId};
 
@@ -83,6 +83,24 @@ impl Typer<'_> {
     fn same_erased_params(&mut self, site: TypeId, a: SymbolId, b: SymbolId) -> bool {
         let (ia, ib) = (self.u.own_member_info(site, a), self.u.own_member_info(site, b));
         self.u.erased_method_type(ia).0 == self.u.erased_method_type(ib).0
+    }
+
+    /// Whether a reference to member `name` of `prefix` in `ctx` needs a joint member
+    /// (`needs_joint_member`), unless `ctx` looks up extension methods and none of the members of
+    /// `prefix`, the self type for a class's `this`, is one.
+    pub fn needs_joint_ref(&mut self, prefix: TypeId, name: &str, ctx: Ctx) -> bool {
+        if !self.needs_joint_member(prefix, name) {
+            return false;
+        }
+        if !ctx.mode.is(Mode::EXTENSION_METHOD) {
+            return true;
+        }
+        let site = match *self.u.ty(prefix) {
+            Type::This(c) => self.u.class_symbol(c).map_or(prefix, |k| self.u.self_type(k)),
+            _ => prefix,
+        };
+        let members = self.type_members(site, name);
+        members.into_iter().any(|s| self.u.symbol(s).is_extension())
     }
 
     /// Whether both sides of intersection `t`, or of one nested in it, have members `name` that

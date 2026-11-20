@@ -854,3 +854,8 @@ fn members_of_a_self_typed_class_leave_selections_to_conversions() {
 fn members_both_sides_of_a_self_type_share_need_no_joint_member() {
     runs_on_the_jvm("selftypeproxies", "selftypeproxies");
 }
+
+#[test]
+fn ambiguous_imported_extensions_fall_back_to_the_receivers_implicit_scope() {
+    runs_on_the_jvm("ambiguousextensions", "ambiguousextensions");
+}

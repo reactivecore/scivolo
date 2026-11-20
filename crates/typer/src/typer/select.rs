@@ -130,6 +130,11 @@ impl Typer<'_> {
             if self.extension_visible(&text, ctx)
                 && !(self.extensions_reject(qual, &text, ctx) && self.implicit_member_found(qual, &text, ctx))
             {
+                if self.extension_ambiguous(&text, ctx)
+                    && let Ok(Some(Viewed::Extension(c))) = self.viewed(qual, Goal::of_select(&text, pt), ctx)
+                {
+                    return self.implicit_extension_select(id, qual, c, name, pt, ctx);
+                }
                 return self.extension_select(id, qual, name, pt, ctx);
             }
             match self.viewed(qual, Goal::of_select(&text, pt), ctx) {

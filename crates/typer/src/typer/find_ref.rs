@@ -9,6 +9,9 @@ use crate::ctx::{Ctx, Level, LevelId, Mode};
 use crate::defn::ref_type;
 use tasty::{Kind, Type};
 
+/// The refusal of a name two bindings of the same precedence give.
+pub const AMBIGUOUS_REFERENCE: &str = "ambiguous reference";
+
 /// The precedence of a binding (dotty's `BindingPrec`), lowest first.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
 enum Prec {
@@ -77,9 +80,7 @@ impl Typer<'_> {
                             && !name.is_type
                         {
                             let prefix = crate::defn::owner_prefix(self.u, owner);
-                            if self.needs_joint_member(prefix, name.text)
-                                && !self.lacks_extension_member(prefix, name.text, ctx)
-                            {
+                            if self.needs_joint_ref(prefix, name.text, ctx) {
                                 return Err("intersection member of an intersected type");
                             }
                         }
@@ -212,7 +213,7 @@ impl Typer<'_> {
         if hit.prec == Prec::WildImport && self.outer_named_import(l, name) {
             return Ok(hit.found);
         }
-        Err("ambiguous reference")
+        Err(AMBIGUOUS_REFERENCE)
     }
 
     /// Whether an import at `l` or outward imports `name` by name.
@@ -227,20 +228,6 @@ impl Typer<'_> {
             level = self.levels.outer(i);
         }
         false
-    }
-
-    /// Whether `ctx` looks up extension methods and no member `name` of `prefix`, the self type
-    /// for a class's `this`, is one.
-    fn lacks_extension_member(&mut self, prefix: tasty::TypeId, name: &str, ctx: Ctx) -> bool {
-        if !ctx.mode.is(Mode::EXTENSION_METHOD) {
-            return false;
-        }
-        let site = match *self.u.ty(prefix) {
-            Type::This(c) => self.u.class_symbol(c).map_or(prefix, |k| self.u.self_type(k)),
-            _ => prefix,
-        };
-        let members = self.type_members(site, name);
-        members.into_iter().all(|s| !self.u.symbol(s).is_extension())
     }
 
     fn same_ref(&mut self, a: &Found, b: &Found) -> bool {

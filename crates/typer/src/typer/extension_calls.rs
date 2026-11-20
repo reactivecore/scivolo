@@ -4,6 +4,7 @@
 //! Selections that call an extension method (dotty's `tryExtensionOrConversion` with
 //! `extMethodApply`): `qual.name` typed as `name(qual)` for an extension method `name` in scope.
 
+use super::find_ref::AMBIGUOUS_REFERENCE;
 use super::{Pt, Typer};
 use crate::ctx::{Ctx, Mode};
 use crate::symbols::Completion;
@@ -23,6 +24,11 @@ impl Typer<'_> {
         let found = self.find_ref(name, false, extension_ctx(ctx));
         let Ok(Some(found)) = found else { return found.is_err() };
         !found.syms.is_empty()
+    }
+
+    /// Whether the extension methods named `name` that `ctx` sees are ambiguous.
+    pub fn extension_ambiguous(&mut self, name: &str, ctx: Ctx) -> bool {
+        matches!(self.find_ref(name, false, extension_ctx(ctx)), Err(AMBIGUOUS_REFERENCE))
     }
 
     /// Selection `id` of `name` from typed qualifier `qual`, which has no such member, as a call
