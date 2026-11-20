@@ -110,7 +110,11 @@ pub fn is_stable_member(u: &mut Universe, s: SymbolId) -> bool {
             let info = u.info(s);
             u.by_name(info).is_none()
         }
-        Kind::Val => !sym.flags.has(tasty::tags::MUTABLE),
+        Kind::Val if sym.flags.has(tasty::tags::MUTABLE) => false,
+        Kind::Val => {
+            let info = u.info(s);
+            u.by_name(info).is_none()
+        }
         Kind::Def => sym.flags.has(tasty::tags::STABLE),
         _ => true,
     }
