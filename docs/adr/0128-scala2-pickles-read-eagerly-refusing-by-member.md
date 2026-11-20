@@ -33,8 +33,8 @@ annotation arguments.
   is a case class or object or a value class, or when an implicit member is refused.
 - **Refused by name**, until ported: refinement, existential, annotated and super types, path
   dependent and dependent method types, by-name and repeated parameters, nested classes and
-  objects, type members, default getters, expanded names, macros, package objects, extending a
-  class of a pickle.
+  objects, type members, default arguments and their getters, expanded names, macros, package
+  objects, extending a class of a pickle.
 
 ## Alternatives
 - Lazy completers as dotty: rejected, `Universe` has no completer machinery and components run

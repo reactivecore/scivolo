@@ -29,4 +29,6 @@ class Lib {
   def sizes(xs: List[_]): Int = xs.size
   def size(x: Int): Int = x
   def size(xs: List[_]): Int = xs.size
+  def greet(name: String = "you"): String = "hi " + name
+  def lazily(x: => Int): Int = x
 }

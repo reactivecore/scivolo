@@ -76,8 +76,9 @@ pub const SYNTHETIC: u64 = 1 << 21;
 pub const STABLE: u64 = 1 << 22;
 pub const STATIC: u64 = 1 << 23;
 pub const CASEACCESSOR: u64 = 1 << 24;
-/// `DEFAULTPARAM` on a term.
 pub const TRAIT: u64 = 1 << 25;
+/// `TRAIT` on a type.
+pub const DEFAULTPARAM: u64 = 1 << 25;
 pub const BRIDGE: u64 = 1 << 26;
 pub const ACCESSOR: u64 = 1 << 27;
 pub const SUPERACCESSOR: u64 = 1 << 28;

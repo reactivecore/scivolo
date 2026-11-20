@@ -115,7 +115,8 @@ impl Unpickler {
     }
 
     /// The method type of tag `tag`, result entry `res` and parameter entries `refs`, implicit
-    /// if its first parameter is; its last result replaced by `result` if given.
+    /// if its first parameter is; its last result replaced by `result` if given. Refuses a
+    /// parameter with a default argument.
     fn method_type(
         &mut self,
         u: &mut Universe,
@@ -131,6 +132,9 @@ impl Unpickler {
                 return Err("a parameter of another symbol".into());
             }
             let h = self.header(p)?;
+            if h.flags & f::DEFAULTPARAM != 0 {
+                return Err("a parameter with a default argument".into());
+            }
             implicit |= k == 0 && h.flags & f::IMPLICIT != 0;
             let t = self.ty(u, h.info)?;
             params.push((u.types.intern_name(&decode(&h.name)), t));
