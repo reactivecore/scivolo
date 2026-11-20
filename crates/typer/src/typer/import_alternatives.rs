@@ -22,16 +22,41 @@ impl Typer<'_> {
     ) -> Option<(Found, Prec)> {
         if allowed.0
             && let Some(f) = self.named_import_ref(i, name.text, name.is_type)
-            && let Some(found) = self.extensions_only(f, ctx)
         {
-            return Some((found, Prec::NamedImport));
+            let f = self.public_if_private(&f, ctx).unwrap_or(f);
+            if let Some(found) = self.extensions_only(f, ctx) {
+                return Some((found, Prec::NamedImport));
+            }
         }
         if !allowed.1 {
             return None;
         }
-        let mut f = self.wild_import_ref(i, name.text, name.is_type)?;
-        f.syms.retain(|&s| self.is_accessible_from(s, f.prefix, ctx));
+        let f = self.wild_import_ref(i, name.text, name.is_type)?;
+        let f = self.public_if_private(&f, ctx).unwrap_or_else(|| {
+            let syms = f.syms.iter().copied().filter(|&s| self.is_accessible_from(s, f.prefix, ctx));
+            Found { prefix: f.prefix, syms: syms.collect() }
+        });
         Some((self.extensions_only(f, ctx)?, Prec::WildImport))
+    }
+
+    /// The accessible non-private members named as `f`'s symbols of `f`'s prefix if none of them
+    /// is accessible and one is private, as `conf` of `class Foo(conf: Conf) extends Bar` with a
+    /// public `conf` in `Bar` (dotty's `selection` with `excluded | Private`).
+    fn public_if_private(&mut self, f: &Found, ctx: Ctx) -> Option<Found> {
+        let prefix = f.prefix?;
+        let private = f.syms.iter().any(|&s| self.u.symbol(s).flags.has(tasty::tags::PRIVATE));
+        if !private || f.syms.iter().any(|&s| self.is_accessible_from(s, f.prefix, ctx)) {
+            return None;
+        }
+        let is_type = self.u.is_type_symbol(f.syms[0]);
+        let name = self.u.symbol(f.syms[0]).name.clone();
+        let mut syms = self.non_private_members(prefix, &name);
+        syms.retain(|&s| {
+            self.u.is_type_symbol(s) == is_type
+                && !self.u.symbol(s).flags.has(tasty::tags::GIVEN)
+                && self.is_accessible_from(s, f.prefix, ctx)
+        });
+        Some(Found { prefix: f.prefix, syms })
     }
 
     /// The imports right outside import level `l`, which supplies `hit`, searched for other
