@@ -35,6 +35,11 @@ fn run() -> Result<(), String> {
     let program = compile_program((FILE, script), image, 80, vm).map_err(|r| r.lines.join("\n"))?;
     assert_eq!((program.main.as_str(), program.warnings.as_slice()), ("main_sc", &[][..]));
 
+    for empty in ["", "// only a comment\n  \n"] {
+        let program = compile_program((FILE, empty), image, 80, vm).map_err(|r| r.lines.join("\n"))?;
+        assert_eq!(program.main, "main_sc", "{empty:?}");
+    }
+
     let script_error = "val a = 1\nprintln(a)\nval b: Int = \"x\"\n";
     let ran = failed(compile_program((FILE, script_error), image, 80, vm));
     assert_eq!(ran.error_lines, [3], "{:?}", ran.lines);

@@ -13,8 +13,8 @@ const SAMPLE = `@main def hello(): Unit =
 `;
 const INDENT = "  ";
 const $ = (id) => document.getElementById(id);
-const [code, shade, gutter, out, run, stop, status] =
-  ["code", "code-shade", "gutter", "file-out", "run", "file-stop", "file-status"].map($);
+const [code, shade, gutter, out, run, stop, status, clear, sample] =
+  ["code", "code-shade", "gutter", "file-out", "run", "file-stop", "file-status", "clear", "sample"].map($);
 
 let runner = null;
 let errorLines = new Set();
@@ -100,12 +100,27 @@ export function setupFileMode(toRepl) {
   document.querySelectorAll("#modes button").forEach((b) => (b.onclick = () => choose(b.dataset.mode)));
 
   code.value = stored(KEYS.text, SAMPLE);
-  code.addEventListener("input", () => {
+  const edited = () => {
     marksStale ||= errorLines.size > 0;
     errorLines.clear();
     redraw();
     store(KEYS.text, code.value);
-  });
+  };
+  code.addEventListener("input", edited);
+  // Replaces the file with `text`, undoably where the browser can, and empties the output.
+  const replace = (text) => {
+    code.focus();
+    code.select();
+    const done = document.execCommand(text === "" ? "delete" : "insertText", false, text);
+    if (!done || code.value !== text) {
+      code.value = text;
+      edited();
+    }
+    code.setSelectionRange(0, 0);
+    out.replaceChildren();
+  };
+  clear.onclick = () => replace("");
+  sample.onclick = () => replace(SAMPLE);
   code.addEventListener("keydown", (e) => {
     if (e.key === "Tab" && !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
       e.preventDefault();

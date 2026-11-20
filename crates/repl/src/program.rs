@@ -41,8 +41,8 @@ pub struct Program {
 
 /// Compiles `text`, the source of file `name`, as `scivolo FILE.scala` does with its own
 /// frontend: against the library TASTy of `image`, with the options of its `//> using`
-/// directives, its macros run in `vm`. A file with top-level statements is compiled as a `.sc`
-/// script, as scala-cli wraps it (`script`). Compiler messages are drawn `width` columns wide. Fails
+/// directives, its macros run in `vm`. A file with top-level statements or without definitions
+/// is compiled as a `.sc` script, as scala-cli wraps it (`script`). Compiler messages are drawn `width` columns wide. Fails
 /// with what a run prints: syntax and type errors, warnings under `-Werror`, and refusals of
 /// files with dependencies, directives other than options and the Scala version, constructs the
 /// frontend does not support, and several or no main classes (`@main` methods or objects with
@@ -68,7 +68,12 @@ pub fn compile_program(
     let source = SourceFile::new(name, text.clone());
     let mut runner = VmMacros { vm, sources: Vec::new(), settings };
     let mut lowered = lower((name, text.clone()), &mut runner, image, cfg);
-    if matches!(&lowered, Ok(Err(r)) if script::has_statements(&r.diags)) {
+    let script = match &lowered {
+        Ok(Err(r)) => script::has_statements(&r.diags),
+        Ok(Ok((files, _))) => files.is_empty(),
+        Err(_) => false,
+    };
+    if script {
         lowered = lower((name, script::wrap(&text)), &mut runner, image, cfg);
         let diags = match &mut lowered {
             Ok(Ok((_, warnings))) => Some(warnings),

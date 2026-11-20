@@ -106,6 +106,8 @@ await expectRun('def helper(x: Int): Int = {\n  x + 1\n}\n\nprintln("Foo " + hel
   (r) => r.exit === 0 && r.lines.join("|") === "Foo 4");
 await expectRun('val a = 1\nprintln(a)\nval b: Int = "x"\n',
   (r) => r.exit === 1 && r.errorLines.join() === "3" && r.lines.some((l) => l.includes('3 |val b: Int = "x"')));
+await expectRun("", (r) => r.exit === 0 && r.lines.length === 0);
+await expectRun("// only a comment\n", (r) => r.exit === 0 && r.lines.length === 0);
 const once = await load(module);
 once.loadImage(imageBytes, 80, HEAP_MIB);
 once.runFile("@main def m(): Unit = ()\n");
