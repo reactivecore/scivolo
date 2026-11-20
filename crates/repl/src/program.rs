@@ -1,7 +1,7 @@
 //! A whole `.scala` file compiled by the own frontend and its main method run, as
 //! `scivolo FILE.scala` runs it, without its cache and its scala-cli fallback.
 
-use crate::report;
+use crate::{report, script};
 use libimage::Image;
 use lower::NirFile;
 use lower::directives::{directives, without_header};
@@ -41,7 +41,8 @@ pub struct Program {
 
 /// Compiles `text`, the source of file `name`, as `scivolo FILE.scala` does with its own
 /// frontend: against the library TASTy of `image`, with the options of its `//> using`
-/// directives, its macros run in `vm`. Compiler messages are drawn `width` columns wide. Fails
+/// directives, its macros run in `vm`. A file with top-level statements is compiled as a `.sc`
+/// script, as scala-cli wraps it (`script`). Compiler messages are drawn `width` columns wide. Fails
 /// with what a run prints: syntax and type errors, warnings under `-Werror`, and refusals of
 /// files with dependencies, directives other than options and the Scala version, constructs the
 /// frontend does not support, and several or no main classes (`@main` methods or objects with
@@ -63,13 +64,19 @@ pub fn compile_program(
     options.retain(|o| !Settings::reads(o));
     let cfg = Config::checked(&options).map_err(|o| refused(format!("option `{o}`")))?;
 
-    let source = SourceFile::new(name, without_header(text));
-    let sources = vec![SourceFile::new(name, without_header(text))];
-    let mut runner = VmMacros { vm, sources, settings };
-    let lowered = catch_unwind(AssertUnwindSafe(|| {
-        let macros = Some(&mut runner as &mut dyn Macros);
-        lower::compile_with(&mut Universe::open_image(image), &source, cfg, macros)
-    }));
+    let text = without_header(text);
+    let source = SourceFile::new(name, text.clone());
+    let mut runner = VmMacros { vm, sources: Vec::new(), settings };
+    let mut lowered = lower((name, text.clone()), &mut runner, image, cfg);
+    if matches!(&lowered, Ok(Err(r)) if script::has_statements(&r.diags)) {
+        lowered = lower((name, script::wrap(&text)), &mut runner, image, cfg);
+        let diags = match &mut lowered {
+            Ok(Ok((_, warnings))) => Some(warnings),
+            Ok(Err(r)) => Some(&mut r.diags),
+            Err(_) => None,
+        };
+        diags.into_iter().for_each(|d| script::unwrap(d, text.len()));
+    }
     let (files, warnings) = match lowered {
         Err(panic) => return Err(Ran::failed(vec![report::internal(panic.as_ref())], Vec::new())),
         Ok(Err(r)) if r.diags.items.is_empty() => return Err(refused(r.what)),
@@ -90,6 +97,26 @@ pub fn compile_program(
     }
     let main = only_main(name, &files).map_err(|e| Ran::failed(vec![e], Vec::new()))?;
     Ok(Program { files, main, warnings: shown })
+}
+
+/// What compiling a file gives: its NIR files and warnings, why it does not compile, or the
+/// compiler's panic.
+type Lowered = std::thread::Result<Result<(Vec<NirFile>, Diagnostics), lower::Refusal>>;
+
+/// Compiles the file `name` holding `text` against the library TASTy of `image`, its macros run
+/// in `runner`.
+fn lower(
+    (name, text): (&str, String),
+    runner: &mut VmMacros<'_>,
+    image: &'static Image,
+    cfg: Config,
+) -> Lowered {
+    let source = SourceFile::new(name, text.clone());
+    runner.sources = vec![SourceFile::new(name, text)];
+    catch_unwind(AssertUnwindSafe(|| {
+        let macros = Some(runner as &mut dyn Macros);
+        lower::compile_with(&mut Universe::open_image(image), &source, cfg, macros)
+    }))
 }
 
 /// Finds the one main class among `files` compiled from file `name`.

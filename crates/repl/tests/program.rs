@@ -31,6 +31,15 @@ fn run() -> Result<(), String> {
     let ran = failed(compile_program((FILE, "//> using dep a::b:1\nobject A\n"), image, 80, vm));
     assert!(ran.lines[0].starts_with("-- unsupported: dependency a::b:1"), "{:?}", ran.lines);
 
+    let script = "def helper(x: Int): Int = {\n  x + 1\n}\n\nprintln(\"Foo \" + helper(3))\n";
+    let program = compile_program((FILE, script), image, 80, vm).map_err(|r| r.lines.join("\n"))?;
+    assert_eq!((program.main.as_str(), program.warnings.as_slice()), ("main_sc", &[][..]));
+
+    let script_error = "val a = 1\nprintln(a)\nval b: Int = \"x\"\n";
+    let ran = failed(compile_program((FILE, script_error), image, 80, vm));
+    assert_eq!(ran.error_lines, [3], "{:?}", ran.lines);
+    assert!(ran.lines.iter().any(|l| l.contains("3 |val b: Int = \"x\"")), "{:?}", ran.lines);
+
     let throws = "@main def hello(): Unit =\n  throw RuntimeException(\"boom\")\n";
     let program = compile_program((FILE, throws), image, 80, vm).map_err(|r| r.lines.join("\n"))?;
     assert_eq!((program.main.as_str(), vm.macro_expansions()), ("hello", 0));

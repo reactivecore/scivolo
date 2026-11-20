@@ -102,6 +102,10 @@ await expectRun('@main def m(): Unit =\n  val x: Int = "a"\n',
   (r) => r.exit === 1 && r.errorLines.join() === "2" && r.lines.at(-1) === "1 error found");
 await expectRun("@main def m(): Unit = throw RuntimeException(\"boom\")\n",
   (r) => r.exit === 1 && r.lines[0] === "scivolo: uncaught exception: java.lang.RuntimeException: boom");
+await expectRun('def helper(x: Int): Int = {\n  x + 1\n}\n\nprintln("Foo " + helper(3))\n',
+  (r) => r.exit === 0 && r.lines.join("|") === "Foo 4");
+await expectRun('val a = 1\nprintln(a)\nval b: Int = "x"\n',
+  (r) => r.exit === 1 && r.errorLines.join() === "3" && r.lines.some((l) => l.includes('3 |val b: Int = "x"')));
 const once = await load(module);
 once.loadImage(imageBytes, 80, HEAP_MIB);
 once.runFile("@main def m(): Unit = ()\n");

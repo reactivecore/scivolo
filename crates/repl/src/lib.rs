@@ -13,6 +13,7 @@ mod line_names;
 mod program;
 mod render;
 mod report;
+mod script;
 mod session;
 mod show_methods;
 mod trace;

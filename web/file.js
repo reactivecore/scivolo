@@ -7,7 +7,7 @@ import { render } from "./sgr.js";
 
 const KEYS = { mode: "scivolo.mode", text: "scivolo.file" };
 const SAMPLE = `@main def hello(): Unit =
-  val names = List("Ada", "Grace", "Barbara")
+  val names = List("Alice", "Bob", "Charly")
   for (name, i) <- names.zipWithIndex do
     println(f"\${i + 1}%2d. Hello, \$name!")
 `;
