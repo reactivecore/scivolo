@@ -254,6 +254,32 @@ class A(val x: String) extends Cmp[A] { def < (that: A) = this.x < that.x }\n",
 }
 
 #[test]
+fn methods_clashing_after_erasure_with_java_generic_members() {
+    let clash = "name clash between defined and inherited member";
+    check(
+        &[
+            (
+                "class C extends Comparable[String] {
+  def compareTo(o: String): Int = 0
+  def compareTo(o: Object): Int = 1
+}\n",
+                clash,
+            ),
+            ("class L extends java.util.ArrayList[String] { def add(o: Object): Boolean = false }\n", clash),
+        ],
+        &[
+            "class L extends java.util.ArrayList[String] { override def add(o: String): Boolean = false }\n",
+            "abstract class C1[E] extends java.util.Collection[E] {
+  override def toArray[T](a: Array[T & Object]): Array[T & Object] = ???
+}
+abstract class C2[E] extends java.util.Collection[E] {
+  override def toArray[T <: Object](a: Array[T]): Array[T] = ???
+}\n",
+        ],
+    );
+}
+
+#[test]
 fn classes_with_self_types_implemented_and_instantiated() {
     check(
         &[("trait T\nclass C { self: T => }\ndef f = new C\n", "not conforming to its self type")],
