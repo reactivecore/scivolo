@@ -172,7 +172,8 @@ impl Universe {
             scala2_class(self, pkg, simple, internal);
         }
         let Some(classes) = self.java_classes.as_ref() else { return Vec::new() };
-        let mut lines = vec![format!("pickles: {}", pickles.len()), format!("read: {}", classes.pickled.len())];
+        let mut lines =
+            vec![format!("pickles: {}", pickles.len()), format!("read: {}", classes.pickled.len())];
         let refused = pickles.iter().filter_map(|p| classes.refused.get(p));
         lines.extend(refused.map(|why| format!("class: {why}")));
         lines.extend(classes.refused_members.values().map(|why| format!("member: {why}")));

@@ -71,7 +71,7 @@ impl Unpickler {
     }
 
     /// Whether `s` was entered from this pickle.
-    fn is_own(&self, s: SymbolId) -> bool {
+    pub fn is_own(&self, s: SymbolId) -> bool {
         self.own.contains(&s)
     }
 
@@ -129,11 +129,10 @@ impl Unpickler {
             CLASSsym if flags & f::MODULE != 0 => Some("a nested object"),
             CLASSsym => Some("a nested class"),
             MODULEsym => Some("a nested object"),
-            TYPEsym => Some("an abstract type member"),
-            ALIASsym => Some("a type alias member"),
             _ if flags & f::MACRO != 0 => Some("a macro"),
             _ if flags & (f::EXPANDEDNAME | f::SUPERACCESSOR) != 0 => Some("an expanded name"),
             _ if name.contains("$default$") => Some("a default argument"),
+            TYPEsym | ALIASsym => None,
             _ if !method => Some("a field without accessor"),
             _ => None,
         };
@@ -147,7 +146,11 @@ impl Unpickler {
         let getter = flags & f::ACCESSOR != 0 && !name.ends_with("_=");
         let mut tags = visibility(h);
         tags.extend(f::member_tags(flags, getter));
-        let kind = if getter { Kind::Val } else { Kind::Def };
+        let kind = match h.tag {
+            TYPEsym | ALIASsym => Kind::Type,
+            _ if getter => Kind::Val,
+            _ => Kind::Def,
+        };
         let s = synthetic(u, owner, &name, kind, &tags);
         u.set_deferred(s, flags & f::DEFERRED != 0);
         self.enter(u, i, h, s)?;

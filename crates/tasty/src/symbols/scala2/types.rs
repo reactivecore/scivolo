@@ -43,6 +43,11 @@ impl Unpickler {
                 let (lo, hi) = (self.buf.nat()?, self.buf.nat()?);
                 Type::Bounds(self.ty(u, lo)?, self.ty(u, hi)?)
             }
+            POLYtpe => {
+                let res = self.buf.nat()?;
+                let params = self.refs(end)?;
+                return self.type_lambda(u, res, &params).inspect(|_| self.buf.at = saved);
+            }
             _ => return Err(refused_type(tag)),
         };
         self.buf.at = saved;
@@ -65,34 +70,27 @@ impl Unpickler {
     fn type_ref(&mut self, u: &mut Universe, end: usize) -> Result<TypeId, String> {
         let pre = self.buf.nat()?;
         let sym = self.buf.nat()?;
-        let mut args = Vec::new();
-        while self.buf.at < end {
-            args.push(self.buf.nat()?);
-        }
-        if let Some(&t) = self.params.get(&sym) {
-            return if args.is_empty() { Ok(t) } else { Err("a higher-kinded type parameter".into()) };
-        }
-        self.check_prefix(u, pre)?;
-        self.buf.at = end;
-        let s = match self.sym(u, sym)? {
-            Sym::Known(s) => s,
-            Sym::Param => return Err("a dependent method type".into()),
-            _ => return Err("a reference to a symbol not read".into()),
-        };
-        if !matches!(u.symbol(s).kind, Kind::Class | Kind::Type | Kind::TypeParam) {
-            return Err(format!("a type reference to term `{}`", u.full_name(s)));
-        }
+        let args = self.refs(end)?;
         let args = args.into_iter().map(|a| self.ty(u, a)).collect::<Result<Vec<_>, _>>()?;
-        let tycon = u.types.intern(Type::Sym(None, s));
+        if let Some(&t) = self.params.get(&sym) {
+            return Ok(if args.is_empty() { t } else { u.types.intern_applied(t, &args) });
+        }
+        let this = self.check_prefix(u, pre)?;
+        let mut s = self.known_type(u, sym)?;
+        if self.is_own(s) && u.symbol(s).kind == Kind::Type {
+            self.ensure_type_info(u, s)?;
+            s = self.known_type(u, sym)?;
+        }
+        let prefix = this.filter(|_| u.symbol(s).kind == Kind::Type);
+        let tycon = u.types.intern(Type::Sym(prefix, s));
         let t = if args.is_empty() { tycon } else { u.types.intern_applied(tycon, &args) };
         if u.symbol(s).kind == Kind::Type {
-            let dealiased = u.dealias(t);
-            return match dealiased != t || args.is_empty() {
-                true => Ok(dealiased),
-                false => Err(format!("`{}` applied to type arguments", u.full_name(s))),
-            };
+            return Ok(u.dealias(t));
         }
         let arity = u.type_params(s).len();
+        if u.symbol(s).kind == Kind::TypeParam || args.is_empty() {
+            return Ok(t);
+        }
         if arity != args.len() {
             return Err(format!(
                 "`{}` applied to {} of its {arity} type arguments",
@@ -103,9 +101,31 @@ impl Unpickler {
         Ok(t)
     }
 
+    /// The symbol type reference entry `i` names: a class, type member or type parameter.
+    fn known_type(&mut self, u: &mut Universe, i: usize) -> Result<SymbolId, String> {
+        let s = match self.sym(u, i)? {
+            Sym::Known(s) => s,
+            Sym::Param => return Err("a dependent method type".into()),
+            _ => return Err("a reference to a symbol not read".into()),
+        };
+        if !matches!(u.symbol(s).kind, Kind::Class | Kind::Type | Kind::TypeParam) {
+            return Err(format!("a type reference to term `{}`", u.full_name(s)));
+        }
+        Ok(s)
+    }
+
+    /// The entry references from the buffer up to `end`.
+    pub fn refs(&mut self, end: usize) -> Result<Vec<usize>, String> {
+        let mut refs = Vec::new();
+        while self.buf.at < end {
+            refs.push(self.buf.nat()?);
+        }
+        Ok(refs)
+    }
+
     /// Refuses prefix entry `pre` unless it is static: none, a package's or class's `this`, or
-    /// an object.
-    fn check_prefix(&mut self, u: &mut Universe, pre: usize) -> Result<(), String> {
+    /// an object; the `this` type of a class that is no object's.
+    fn check_prefix(&mut self, u: &mut Universe, pre: usize) -> Result<Option<TypeId>, String> {
         let saved = self.buf.at;
         let (tag, _) = self.seek(pre)?;
         let known = match tag {
@@ -119,15 +139,15 @@ impl Unpickler {
             _ => return Err(format!("a type selected from {}", refused_type(tag))),
         };
         self.buf.at = saved;
-        match known {
-            Some(s)
-                if tag == SINGLEtpe
-                    && !u.symbol(s).flags.has(OBJECT)
-                    && u.symbol(s).kind != Kind::Package =>
-            {
-                Err("a path-dependent type".into())
+        let Some(s) = known else { return Ok(None) };
+        let (kind, object) = (u.symbol(s).kind, u.symbol(s).flags.has(OBJECT));
+        match tag {
+            SINGLEtpe if !object && kind != Kind::Package => Err("a path-dependent type".into()),
+            THIStpe if kind == Kind::Class && !object => {
+                let class = u.types.intern(Type::Sym(None, s));
+                Ok(Some(u.types.intern(Type::This(class))))
             }
-            _ => Ok(()),
+            _ => Ok(None),
         }
     }
 
