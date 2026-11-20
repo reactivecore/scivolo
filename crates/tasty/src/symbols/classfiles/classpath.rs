@@ -248,15 +248,22 @@ pub fn java_class(u: &mut Universe, internal: &str) -> Option<Rc<ClassInfo>> {
 }
 
 /// Enters class `class` of package `pkg` of internal name `internal` from its Scala 2 pickle if a
-/// jar holds one not entered yet: the symbols entered; none if it is refused, which is recorded
-/// and counted as a refused lookup.
+/// jar holds one not entered yet: the symbols entered, none if it is refused, which is recorded
+/// and counted as a refused lookup (`java_class` counts the later ones); `None` without a pickle.
 fn scala2_class(u: &mut Universe, pkg: SymbolId, class: &str, internal: &str) -> Option<Vec<SymbolId>> {
-    let pickle = u.java_classes.as_mut()?.pickles.remove(internal)?;
-    match crate::symbols::scala2::enter(u, pkg, class, &pickle) {
+    let classes = u.java_classes.as_mut()?;
+    if classes.refused.contains_key(internal) {
+        return Some(Vec::new());
+    }
+    let pickle = classes.pickles.remove(internal)?;
+    let before = std::mem::take(&mut classes.refused_lookups);
+    let entered = crate::symbols::scala2::enter(u, pkg, class, &pickle);
+    u.java_classes.as_mut()?.refused_lookups = before;
+    match entered {
         Ok(entered) => Some(entered),
         Err(why) => {
             refuse(u, internal, format!("Scala 2 class file `{}` of a jar: {why}", dotted(internal)));
-            None
+            Some(Vec::new())
         }
     }
 }

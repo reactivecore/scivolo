@@ -45,8 +45,9 @@ dotty reads all of them from class files (`ClassfileParser`). ADR 0106 finds the
   `PostTyper.inJavaAnnot`).
 - **Not entered**, so refused as not found: synthetic and bridge members, private ones but
   constructors, native varargs methods outside `MethodHandle` and `VarHandle`, constructors with
-  type parameters of their own, a class of a Scala 2 class file or of a Scala 3 one without its
-  TASTy file (`Scala`, `ScalaSig` or `TASTY` attribute), a top-level class whose name holds a `$`.
+  type parameters of their own, a class of a Scala 3 class file without its TASTy file (`TASTY`
+  attribute) or of a compilation artifact (`Scala` attribute alone), a top-level class whose name
+  holds a `$`. Scala 2 class files (`ScalaSig`) are read from their pickles (ADR 0128).
 - **Not taken:** declaring what javalib lacks by hand, as ADR 0072 declares what it has.
 
 ## Consequences

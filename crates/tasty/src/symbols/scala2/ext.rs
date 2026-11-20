@@ -19,7 +19,7 @@ impl Unpickler {
     /// type for a type name, else of a term, a package for either; for an object's class
     /// (`EXTMODCLASSref`), the class of the object or the package. An owner of `Object` that
     /// lacks the name stands for `Any` (dotty's `fromName`). Refuses a reference this reader does
-    /// not resolve: the parameter classes, an overloaded or missing name.
+    /// not resolve: the parameter classes, an overloaded or missing name, a refused class.
     pub fn external(&mut self, u: &mut Universe, i: usize, module_class: bool) -> Result<SymbolId, String> {
         let saved = self.buf.at;
         let (_, end) = self.seek(i)?;
@@ -43,12 +43,16 @@ impl Unpickler {
         {
             return Err(why.to_owned());
         }
+        let before = u.refused_lookups();
         let found = self.named(u, owner, &name, is_type, module_class);
         let found = match found.is_empty() && owner == u.defn().object {
             true => self.named(u, u.defn().any, &name, is_type, module_class),
             false => found,
         };
         match found[..] {
+            [] if u.refused_lookups() != before => {
+                Err(u.last_refused_lookup().unwrap_or_default().to_owned())
+            }
             [s] => Ok(s),
             [] => Err(format!("`{}.{name}`, which the classpath lacks", u.full_name(owner))),
             _ => Err(format!("an overloaded reference to `{}.{name}`", u.full_name(owner))),
