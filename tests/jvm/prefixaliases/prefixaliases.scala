@@ -7,6 +7,9 @@ abstract class Tree[+T <: AnyRef]:
 case class Select[+T <: AnyRef](name: String) extends Tree[T]:
   type ThisTree[+T <: AnyRef] = Select[T]
 
+case class Hole[+T <: AnyRef](idx: Int) extends Tree[T]:
+  type ThisTree[+T <: AnyRef] <: Hole[T]
+
 abstract class Name:
   type ThisName <: Name
   def exclude(kind: Int): ThisName
@@ -38,18 +41,47 @@ class SymDenotation(val name: String) extends Denotation:
   def asSeenFrom(pre: String): SymDenotation = SymDenotation(s"$pre.$name")
   def info: String = name
 
+trait PreDenot:
+  type Result <: PreDenot
+  def seenFrom(pre: String): Result = computeSeenFrom(pre)
+  protected def computeSeenFrom(pre: String): Result
+  def filtered(n: Int): PreDenot
+
+abstract class Denot extends PreDenot:
+  type Result <: Denot
+
+abstract class SingleDenot(val sig: String) extends Denot:
+  def signature: String = sig
+  def situated(site: String): String =
+    val s = if site == "" then this else seenFrom(site)
+    s.signature
+  def inherited(pre: String): SingleDenot = filtered(0).seenFrom(pre)
+  def filtered(n: Int): SingleDenot = this
+  type Result = SingleDenot
+
+class Single(sig: String) extends SingleDenot(sig):
+  protected def computeSeenFrom(pre: String): SingleDenot = Single(pre + sig)
+
 object Prefixaliases:
   implicit def toDenot(s: Sym): SymDenotation = SymDenotation(s.name)
 
   def unstable(tp: String): Select[String] = Select[AnyRef]("a").withType(tp)
   def bounded[S <: Select[AnyRef]](s: S): Select[String] = s.withType("t")
+  def hole(h: Hole[AnyRef]): Hole[String] = h.withType("t")
   def setter(name: TermName): TermName = name.exclude(1) ++ "_="
+  def chained(name: TermName): TermName =
+    val prefix = name ++ "_"
+    prefix ++ "a" ++ "b"
   def widened(stat: Node[?]): untpd.UNode = stat
   def converted(s: Sym): String = s.asSeenFrom("pre").info
 
   def main(args: Array[String]): Unit =
     println(unstable("t"))
     println(bounded(Select[AnyRef]("b")))
+    println(hole(Hole(0)))
     println(setter(SimpleName("x")))
+    println(chained(SimpleName("x")))
     println(widened(Node[String]("n")).label)
     println(converted(Sym("s")))
+    println(Single("s").situated("p."))
+    println(Single("t").inherited("q.").signature)

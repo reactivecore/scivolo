@@ -52,13 +52,13 @@ impl Universe {
         Some(self.intern_type(Type::Bounds(lo, hi)))
     }
 
-    /// Joins bounds `a` and `b` without comparing them: `a & b` if `and`, else `a | b`; one of
-    /// them if they are equal or the other is `trivial`.
+    /// Joins bounds `a` and `b`: `a & b` if `and`, over the parameters of type lambdas, else
+    /// `a | b`; one of them if they are equal or the other is `trivial`.
     fn met_side(&mut self, a: TypeId, b: TypeId, trivial: TypeId, and: bool) -> TypeId {
         match () {
             _ if a == b || b == trivial => a,
             _ if a == trivial => b,
-            _ if and => self.intern_type(Type::And(a, b)),
+            _ if and => self.and_type(a, b),
             _ => self.intern_type(Type::Or(a, b, false)),
         }
     }
@@ -97,9 +97,9 @@ impl Universe {
         found
     }
 
-    /// The class of term `prefix`'s type, of `prefix` a `this`, or `prefix` a class type (the
-    /// prefix of a projection `C#T`), if it is a proper subclass of type member `s`'s owner, and
-    /// that owner.
+    /// The class of term `prefix`'s type, of `prefix` a `this`, or of type `prefix` (the prefix
+    /// of a projection `C#T` or of a member of an unstable receiver), through aliases and upper
+    /// bounds, if it is a proper subclass of type member `s`'s owner, and that owner.
     fn overriding_class(&mut self, prefix: TypeId, s: SymbolId) -> Option<(SymbolId, SymbolId)> {
         if self.symbol(s).kind != Kind::Type {
             return None;
@@ -114,7 +114,8 @@ impl Universe {
             _ => prefix,
         };
         let base = self.symbol(s).owner?;
-        let declared = self.widen(declared);
+        let widened = self.widen(declared);
+        let declared = self.dealias(widened);
         let cls = self.class_symbol(declared).filter(|&c| c != base && self.derives_from(c, base))?;
         Some((cls, base))
     }
