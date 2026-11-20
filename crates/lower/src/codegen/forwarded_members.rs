@@ -1,7 +1,7 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/core/SymDenotations.scala
 //   compiler/src/dotty/tools/dotc/core/Denotations.scala
-//! The members of an object class its static forwarders call, one per name and erased signature,
+//! The members of an object class its static forwarders call, one per target name and erased signature,
 //! as dotty's `membersBasedOnFlags` finds them after erasure.
 
 use crate::Lower;
@@ -62,7 +62,9 @@ fn collect(
 }
 
 fn signature(l: &mut Lower, m: SymbolId) -> Signature {
-    (l.u.symbol(m).name.clone(), l.u.erased_method(m))
+    let s = l.u.symbol(m);
+    let name = s.target.clone().unwrap_or_else(|| s.name.clone());
+    (name, l.u.erased_method(m))
 }
 
 /// The rank of member `m` among members of one signature, lowest first: not a bridge, concrete,
