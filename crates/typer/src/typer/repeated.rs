@@ -122,10 +122,15 @@ impl Typer<'_> {
         if self.tpd.get(tree).tpe.is_some() {
             return;
         }
-        let Some(seq) = self.resolve_full_name(IMMUTABLE_SEQ, true) else { return };
         let elem = self.tpd.tpe(elemtpt);
+        self.tpd.get_mut(tree).tpe = self.seq_of(elem);
+    }
+
+    /// `scala.collection.immutable.Seq[elem]`.
+    pub fn seq_of(&mut self, elem: TypeId) -> Option<TypeId> {
+        let seq = self.resolve_full_name(IMMUTABLE_SEQ, true)?;
         let seq = crate::defn::type_ref(self.u, seq);
-        self.tpd.get_mut(tree).tpe = Some(self.u.intern_applied(seq, &[elem]));
+        Some(self.u.intern_applied(seq, &[elem]))
     }
 }
 
