@@ -183,6 +183,7 @@ mod report;
 mod right_assoc;
 mod sam_closures;
 mod sam_method_values;
+mod sam_parents;
 mod sams;
 mod scala2_macros;
 mod scope_bindings;

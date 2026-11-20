@@ -9,6 +9,7 @@ mod extension_containers;
 mod extension_views;
 mod fallback;
 mod may_view;
+mod member_fits;
 mod open_views;
 mod qualifier;
 mod root_members;
@@ -158,18 +159,13 @@ impl<'a> ViewSearch<'a> {
                 })?;
                 widened.retain(|c| !found.contains(c));
             }
-            let applied = matches!(goal, Goal::Applied(..)) && !found.is_empty();
-            if applied
-                || matches!(goal, Goal::Call(..))
-                    && found.len() > 1
-                    && most_specific(t, &found, ctx).is_none()
-            {
-                found = match goal {
-                    Goal::Call(name, proto) => self.applying(t, found, name, proto),
-                    Goal::Applied(name, proto) => self.applying_to(t, found, name, proto),
-                    _ => found,
-                };
-            }
+            let ambiguous =
+                |t: &mut Typer, f: &[Candidate]| f.len() > 1 && most_specific(t, f, ctx).is_none();
+            found = match goal {
+                Goal::Call(name, proto) if ambiguous(t, &found) => self.applying(t, found, name, proto),
+                Goal::Applied(name, proto) if !found.is_empty() => self.applying_to(t, found, name, proto),
+                _ => found,
+            };
             if goal.member().is_some() {
                 let extra: Vec<Candidate> = containers.into_iter().filter(|c| !group.contains(c)).collect();
                 group.extend(extra);

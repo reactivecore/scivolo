@@ -6,7 +6,7 @@
 
 use super::super::super::{Pt, Typer};
 use super::super::divergence::THROUGH_CONVERSION;
-use super::call_views::member_applies;
+use super::member_fits::member_applies;
 use super::{Goal, ViewSearch, Viewed};
 use crate::ctx::Ctx;
 use crate::tpd::TNodeId;
