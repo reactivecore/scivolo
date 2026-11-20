@@ -17,3 +17,9 @@ object Lib {
   def struct(x: { def size: Int }): Int = x.size
   private[refused] def secret: Int = 7
 }
+
+object Outer {
+  object Deep {
+    def same(s: String): s.type = s
+  }
+}

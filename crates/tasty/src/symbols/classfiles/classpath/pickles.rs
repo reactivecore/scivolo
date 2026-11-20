@@ -125,7 +125,7 @@ pub fn scala2_class(u: &mut Universe, pkg: SymbolId, class: &str, internal: &str
     match entered {
         Ok(entered) => {
             let pickled: Vec<SymbolId> =
-                entered.iter().copied().filter(|&s| u.symbol(s).kind == Kind::Class).collect();
+                footprint.own.iter().copied().filter(|&s| u.symbol(s).kind == Kind::Class).collect();
             let classes = u.java_classes.as_mut()?;
             classes.pickled.extend(pickled);
             let roots = entered.clone();
@@ -164,7 +164,7 @@ fn refuse_dependents(
                 u.unenter(s);
             }
             let Some(classes) = u.java_classes.as_mut() else { return kept };
-            c.roots.iter().for_each(|s| _ = classes.pickled.remove(s));
+            c.footprint.own.iter().for_each(|s| _ = classes.pickled.remove(s));
             let refusal = format!("Scala 2 class file `{}` of a jar: {why}", dotted(&c.internal));
             classes.refused.insert(c.internal, refusal);
         }

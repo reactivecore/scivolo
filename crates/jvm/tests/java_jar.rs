@@ -133,7 +133,9 @@ fn scala2_class_files_are_read() {
 /// Scala 2 classes of their jars, by name: refused/nested_refused.scala uses an object whose
 /// parent was entered while a refused value class was and refers to it; refused/existential.scala
 /// calls a method of an existential type dotty approximates, refused/structural.scala one of a
-/// structural type; refused/private_within.scala a member `private[refused]`, which dotty
+/// structural type, refused/nested_member.scala one of a nested object of a dependent method
+/// type, which an extension method would answer; refused/private_within.scala a member
+/// `private[refused]`, which dotty
 /// rejects; shapes/case_match.scala matches on a Scala 2 case class; secret.scala extends a
 /// trait with a private `val`, memo.scala one with a private `lazy val`, effect.scala one with a
 /// `val` of type `Unit` whose getter Scala 2 erases to `()V` (dotty's class lacks it:
@@ -149,6 +151,7 @@ fn scala2_constructs_not_read_are_refused_by_name() {
         ),
         ("refused/existential", "`refused.Lib$.fbounded` of a jar: an existential type that is no wildcard"),
         ("refused/structural", "`refused.Lib$.struct` of a jar: a structural member `size`"),
+        ("refused/nested_member", "`refused.Outer$.Deep$.same` of a jar: a dependent method type"),
         ("refused/private_within", "inaccessible member"),
         ("shapes/case_match", "`shapes.Rect$.unapply` of a jar: the extractor of a case class"),
         (
@@ -216,4 +219,23 @@ fn inaccessible_java_classes_and_native_classes_are_refused() {
         let stderr = String::from_utf8_lossy(&out.stderr);
         assert!(!out.status.success() && stderr.contains("does not support"), "{name}: {stderr}");
     }
+}
+
+/// The `InnerClasses` entry of the class of a nested object of a Scala 2 pickle that
+/// tests/jvm/scala2/shapes/shapes.scala uses is public static, not final, as dotty writes it.
+#[test]
+fn nested_scala2_objects_are_inner_classes_as_dotty_writes_them() {
+    let source = root().join("tests/jvm/scala2/shapes/shapes.scala");
+    let jar = root().join("tests/jvm/scala2/shapes/shapes.jar");
+    let out = root().join("tmp/jvm-test/scala2-inner");
+    let _ = std::fs::remove_dir_all(&out);
+    run(Command::new(env!("CARGO_BIN_EXE_scivolo-jvm"))
+        .arg("--cp")
+        .arg(&jar)
+        .arg("-d")
+        .arg(&out)
+        .arg(&source));
+    let class = classfile::read(&std::fs::read(out.join("Shapes$.class")).unwrap()).unwrap();
+    let nested = class.inner_classes.iter().find(|c| c.inner == "shapes/Tools$Nested$").expect("an entry");
+    assert_eq!(nested.flags, classfile::ACC_PUBLIC | classfile::ACC_STATIC);
 }

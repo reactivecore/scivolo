@@ -43,7 +43,7 @@ annotation arguments.
   a structural (term) member of a refinement, a refinement referring to its `this`, an existential
   dotty cannot eliminate (`FailureToEliminateExistential`), classes and objects of classes,
   expanded names and super accessors, macros, value classes, the extractor (`unapply`) of a case
-  class, extending a class of a pickle. The last three need lowering (step 3 of #272).
+  class; extending a class as the next section says. The extractor needs lowering.
 
 ## Differences from dotty
 - An unapplied class type constructor (`Functor[List]`) stays the class reference; dotty
@@ -51,9 +51,12 @@ annotation arguments.
   TASTy holds (case 2).
 - A repeated parameter type `<repeated>[T]` is read as `Seq[T] @Repeated`, the form of TASTy and
   of the typer's other repeated parameters (case 2).
-- Annotation arguments are left out: the symbols' annotations give warnings and messages only
-  (case 1); the children of sealed classes (`CHILDREN`) are not read: they give exhaustivity
-  warnings, and the typer refuses a sum mirror of a sealed class without TASTy.
+- Annotation arguments are left out, and parameters are not annotated: the arguments give
+  dotty's warnings and messages (`@deprecated`, `@implicitNotFound`), which the typer emits for no
+  class, and `@deprecatedName`, whose old names are not found, a refusal (case 1). The children
+  of sealed classes (`CHILDREN`) are not read: they give dotty's exhaustivity warnings, which the
+  typer emits for no class, and the typer refuses a sum mirror of a sealed class without TASTy
+  (case 1). Under `-Werror` dotty fails where this compiler does not.
 
 ## Decision: linking and extending
 - **Linking guard**: the class file stays the check, not the source. A call of a member of a

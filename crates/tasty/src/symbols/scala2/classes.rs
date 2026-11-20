@@ -25,7 +25,7 @@ impl Unpickler {
 
     /// Enters class, object's class or object entry `i` of header `h` into `owner` as `simple`
     /// (dotty's `adjustIfModuleClass` names the object's class), a class with its type
-    /// parameters.
+    /// parameters; the class of a nested object is final only as pickled.
     pub fn class_or_object(
         &mut self,
         u: &mut Universe,
@@ -46,7 +46,9 @@ impl Unpickler {
                 return Ok(Sym::Known(class));
             }
             CLASSsym => {
-                let flags = [&[OBJECT, FINAL][..], &visible, &f::case_tag(h.flags)].concat();
+                let root = u.symbol(owner).kind == Kind::Package;
+                let final_ = if root || h.flags & f::FINAL != 0 { &[FINAL][..] } else { &[] };
+                let flags = [&[OBJECT][..], final_, &visible, &f::case_tag(h.flags)].concat();
                 synthetic(u, owner, &module_class_name(simple), Kind::Class, &flags)
             }
             MODULEsym => {
