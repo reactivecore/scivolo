@@ -126,7 +126,8 @@ fn scala2_class_files_are_read() {
 /// Scala 2 classes of their jars, by name: existential.scala calls a method whose type has an
 /// existential, overload.scala an overload of such a method whose other alternative is read,
 /// defaults.scala and byname.scala methods with a default argument and a by-name parameter;
-/// sized.scala extends a trait with such a method, secret.scala one with a private `val`; and
+/// sized.scala extends a trait with such a method, secret.scala one with a private `val`;
+/// macros.scala calls a Scala 2 macro, which dotty rejects too; and
 /// guard.scala calls a method whose erasure its class file lacks (`just scala2-fixture` swaps
 /// the object's class file).
 #[test]
@@ -144,6 +145,7 @@ fn scala2_constructs_not_read_are_refused_by_name() {
             "mixins/secret",
             "Scala 2 class `mixins.Secret` of a jar: its abstract method `mixins$Secret$_setter_$",
         ),
+        ("macros/macros", "Scala 2 member `macros.M$.one` of a jar: a macro"),
         (
             "guard/guard",
             "Scala 2 member `guard.O$.f` of a jar: erased as `f(I)I`, not in the class file `guard/O$`",

@@ -38,6 +38,7 @@ mod owner_seen;
 mod prims;
 mod pure_stats;
 mod receivers;
+mod scala2_bases;
 mod serial;
 mod signatures;
 mod stash;
