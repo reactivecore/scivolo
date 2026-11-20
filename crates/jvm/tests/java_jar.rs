@@ -91,8 +91,10 @@ fn a_java_jar_on_the_classpath_is_used() {
 /// mixins.scala extending Scala 2 classes and traits with methods, sized.scala one with a
 /// method of an existential type, values.scala traits with a `var`, a `val` and a `lazy val`,
 /// autoapply.scala calling Scala 2 methods with `()` without it, arrays.scala passing arrays of
-/// generic, reference and primitive elements.
-const SCALA2_PROGRAMS: [(&str, &str, &str); 11] = [
+/// generic, reference and primitive elements, valueclasses.scala using value classes (case,
+/// implicit, generic, of an array, with a private value, with a universal trait) through their
+/// extension methods, boxed in arrays, collections and generic calls, and matched by type.
+const SCALA2_PROGRAMS: [(&str, &str, &str); 12] = [
     ("tests/jvm/javajar/scala2.scala", "tests/jvm/javajar/legacy/legacy.jar", "Scala2"),
     ("tests/jvm/javajar/scala2_shadow.scala", "tests/jvm/javajar/legacy/legacy.jar", "Scala2Shadow"),
     ("tests/jvm/scala2/basics/basics.scala", "tests/jvm/scala2/basics/basics.jar", "Basics"),
@@ -104,6 +106,11 @@ const SCALA2_PROGRAMS: [(&str, &str, &str); 11] = [
     ("tests/jvm/scala2/mixins/values.scala", "tests/jvm/scala2/mixins/mixins.jar", "Values"),
     ("tests/jvm/scala2/autoapply/autoapply.scala", "tests/jvm/scala2/autoapply/autoapply.jar", "AutoApply"),
     ("tests/jvm/scala2/arrays/arrays.scala", "tests/jvm/scala2/arrays/arrays.jar", "Arrays"),
+    (
+        "tests/jvm/scala2/valueclasses/valueclasses.scala",
+        "tests/jvm/scala2/valueclasses/valueclasses.jar",
+        "ValueClasses",
+    ),
 ];
 
 /// scivolo-jvm compiles the `SCALA2_PROGRAMS` against their jars, read from the classes' Scala 2
@@ -131,7 +138,7 @@ fn scala2_class_files_are_read() {
 
 /// scivolo-jvm refuses the programs of tests/jvm/scala2 that use what it does not read of the
 /// Scala 2 classes of their jars, by name: refused/nested_refused.scala uses an object whose
-/// parent was entered while a refused value class was and refers to it; refused/existential.scala
+/// parent was entered while a refused class (with an implicit member not read) was and refers to it; refused/existential.scala
 /// calls a method of an existential type dotty approximates, refused/structural.scala one of a
 /// structural type, refused/nested_member.scala one of a nested object of a dependent method
 /// type, which an extension method would answer; refused/private_within.scala a member
@@ -140,8 +147,8 @@ fn scala2_class_files_are_read() {
 /// trait with a private `val`, memo.scala one with a private `lazy val`, effect.scala one with a
 /// `val` of type `Unit` whose getter Scala 2 erases to `()V` (dotty's class lacks it:
 /// `NoSuchMethodError`); macros.scala calls a Scala 2 macro, which dotty rejects too; and
-/// guard.scala calls a method whose erasure its class file lacks (`just scala2-fixture` swaps
-/// the object's class file).
+/// guard.scala and value.scala call a method and a value class's extension method whose erasure
+/// its class file lacks (`just scala2-fixture` swaps the objects' class files).
 #[test]
 fn scala2_constructs_not_read_are_refused_by_name() {
     let refusals = [
@@ -169,6 +176,11 @@ fn scala2_constructs_not_read_are_refused_by_name() {
         (
             "guard/guard",
             "Scala 2 member `guard.O$.f` of a jar: erased as `f(I)I`, not in the class file `guard/O$`",
+        ),
+        (
+            "guard/value",
+            "Scala 2 member `guard.V$.g$extension` of a jar: erased as `g$extension(II)I`, \
+             not in the class file `guard/V$`",
         ),
     ];
     for (name, message) in refusals {

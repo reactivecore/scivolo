@@ -4,7 +4,9 @@ trait A extends Any {
   def b: B = new B(1)
 }
 
-class B(val n: Int) extends AnyVal with A
+class B(val n: Int) extends A {
+  implicit def sized(x: { def size: Int }): Int = 0
+}
 
 class C {
   def b: B = new B(2)
