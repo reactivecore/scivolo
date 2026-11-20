@@ -44,6 +44,26 @@ pub fn prepare(l: &mut Lower, trait_: SymbolId) {
     }
 }
 
+/// Gives each concrete `val` of Scala 2 trait `trait_` of a jar its trait setter, once (dotty's
+/// `Mixin.transformSym` with `needsTraitSetter`): a pickle has getters, not trait setters.
+pub fn prepare_scala2(l: &mut Lower, trait_: SymbolId) {
+    for getter in l.u.decls(trait_).unwrap_or_default() {
+        let stable = l.u.symbol(getter).kind == Kind::Val
+            && has(l.u, getter, FIELDaccessor)
+            && !has(l.u, getter, MUTABLE)
+            && !has(l.u, getter, LAZY)
+            && !l.u.is_deferred(getter);
+        if !stable || is_const_final(l, getter) {
+            continue;
+        }
+        let setter = trait_setter_name(l, trait_, &accessor_name(l, getter));
+        if l.u.decl(trait_, &setter).is_ok_and(|d| d.is_empty()) {
+            let info = l.u.info(getter);
+            define_setter(l, trait_, &setter, info);
+        }
+    }
+}
+
 /// Whether library trait `trait_` has an object or a lazy value with an initializer.
 pub fn has_lazy(l: &mut Lower, trait_: SymbolId) -> bool {
     let decls = l.u.decls(trait_).unwrap_or_default();

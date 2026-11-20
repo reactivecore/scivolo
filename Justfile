@@ -646,7 +646,8 @@ inline-fixture:
     scala-cli --power package --library --server=false -S 3.9.0 crates/typer/tests/inlined/lib/Lib.scala -o crates/typer/tests/inlined/lib/lib.jar -f
 
 # Compile tests/jvm/javajar/legacy and each directory of tests/jvm/scala2 with Scala 2.13 into the
-# jar of Scala 2 class files beside its sources.
+# jar of Scala 2 class files beside its sources; guard.jar gets the object class of Swapped.scala,
+# whose method's erasure differs from its pickle's.
 scala2-fixture:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -656,6 +657,10 @@ scala2-fixture:
         name=$(basename "$dir")
         pkg "$dir"Lib.scala -o "$dir$name.jar"
     done
+    swap=tmp/scala2-fixture/guard; rm -rf "$swap"; mkdir -p "$swap/classes"
+    pkg tests/jvm/scala2/guard/Swapped.scala -o "$swap/swapped.jar"
+    unzip -q "$swap/swapped.jar" -d "$swap/classes"
+    jar uf tests/jvm/scala2/guard/guard.jar -C "$swap/classes" 'guard/O$.class'
 
 # Compile crates/lower/tests/<name>/lib into its lib.jar (TASTy) and <name>.scala against it
 # into Scala Native's NIR beside it.

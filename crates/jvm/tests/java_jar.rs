@@ -85,12 +85,18 @@ fn a_java_jar_on_the_classpath_is_used() {
 /// The programs that use the Scala 2 class files of a jar (`just scala2-fixture`), each its
 /// source, the jar and its main class: tests/jvm/javajar/scala2.scala by the class's path,
 /// scala2_shadow.scala through a wildcard import that shadows `scala.StringBuilder`, and
-/// tests/jvm/scala2/basics and tests/jvm/scala2/members.
-const SCALA2_PROGRAMS: [(&str, &str, &str); 4] = [
+/// tests/jvm/scala2: basics, members, extends.scala and mixins.scala extending Scala 2 classes
+/// and traits with methods, values.scala traits with a `var`, a `val` and a `lazy val`, and
+/// autoapply.scala calling Scala 2 methods with `()` without it.
+const SCALA2_PROGRAMS: [(&str, &str, &str); 8] = [
     ("tests/jvm/javajar/scala2.scala", "tests/jvm/javajar/legacy/legacy.jar", "Scala2"),
     ("tests/jvm/javajar/scala2_shadow.scala", "tests/jvm/javajar/legacy/legacy.jar", "Scala2Shadow"),
     ("tests/jvm/scala2/basics/basics.scala", "tests/jvm/scala2/basics/basics.jar", "Basics"),
     ("tests/jvm/scala2/members/members.scala", "tests/jvm/scala2/members/members.jar", "Members"),
+    ("tests/jvm/scala2/basics/extends.scala", "tests/jvm/scala2/basics/basics.jar", "Extends"),
+    ("tests/jvm/scala2/mixins/mixins.scala", "tests/jvm/scala2/mixins/mixins.jar", "Mixins"),
+    ("tests/jvm/scala2/mixins/values.scala", "tests/jvm/scala2/mixins/mixins.jar", "Values"),
+    ("tests/jvm/scala2/autoapply/autoapply.scala", "tests/jvm/scala2/autoapply/autoapply.jar", "AutoApply"),
 ];
 
 /// scivolo-jvm compiles the `SCALA2_PROGRAMS` against their jars, read from the classes' Scala 2
@@ -116,23 +122,37 @@ fn scala2_class_files_are_read() {
     }
 }
 
-/// scivolo-jvm refuses the programs of tests/jvm/scala2/basics that use what it does not read of
-/// basics.jar's Scala 2 classes, by name: existential.scala calls a method whose type has an
+/// scivolo-jvm refuses the programs of tests/jvm/scala2 that use what it does not read of the
+/// Scala 2 classes of their jars, by name: existential.scala calls a method whose type has an
 /// existential, overload.scala an overload of such a method whose other alternative is read,
-/// defaults.scala and byname.scala methods with a default argument and a by-name parameter,
-/// extends.scala extends a Scala 2 trait.
+/// defaults.scala and byname.scala methods with a default argument and a by-name parameter;
+/// sized.scala extends a trait with such a method, secret.scala one with a private `val`; and
+/// guard.scala calls a method whose erasure its class file lacks (`just scala2-fixture` swaps
+/// the object's class file).
 #[test]
 fn scala2_constructs_not_read_are_refused_by_name() {
-    let jar = root().join("tests/jvm/scala2/basics/basics.jar");
     let refusals = [
-        ("existential", "Scala 2 member `basics.Lib.sizes` of a jar: an existential type"),
-        ("overload", "Scala 2 member `basics.Lib.size` of a jar: an existential type"),
-        ("defaults", "Scala 2 member `basics.Lib.greet` of a jar: a parameter with a default argument"),
-        ("byname", "Scala 2 member `basics.Lib.lazily` of a jar: a by-name parameter"),
-        ("extends", "extending a class of a Scala 2 jar"),
+        ("basics/existential", "Scala 2 member `basics.Lib.sizes` of a jar: an existential type"),
+        ("basics/overload", "Scala 2 member `basics.Lib.size` of a jar: an existential type"),
+        (
+            "basics/defaults",
+            "Scala 2 member `basics.Lib.greet` of a jar: a parameter with a default argument",
+        ),
+        ("basics/byname", "Scala 2 member `basics.Lib.lazily` of a jar: a by-name parameter"),
+        ("mixins/sized", "Scala 2 class `mixins.Sized` of a jar: its member `sizes` has an existential type"),
+        (
+            "mixins/secret",
+            "Scala 2 class `mixins.Secret` of a jar: its abstract method `mixins$Secret$_setter_$",
+        ),
+        (
+            "guard/guard",
+            "Scala 2 member `guard.O$.f` of a jar: erased as `f(I)I`, not in the class file `guard/O$`",
+        ),
     ];
     for (name, message) in refusals {
-        let source = root().join(format!("tests/jvm/scala2/basics/{name}.scala"));
+        let source = root().join(format!("tests/jvm/scala2/{name}.scala"));
+        let dir = name.split('/').next().expect("a directory");
+        let jar = root().join(format!("tests/jvm/scala2/{dir}/{dir}.jar"));
         let out = root().join("tmp/jvm-test/scala2").join(name);
         let scivolo = env!("CARGO_BIN_EXE_scivolo-jvm");
         let refused = output(Command::new(scivolo).arg("--cp").arg(&jar).arg("-d").arg(&out).arg(&source));

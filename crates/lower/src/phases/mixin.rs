@@ -67,6 +67,9 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
         if library && inits {
             super::library_traits::prepare(l, mixin);
         }
+        if l.u.is_pickled(mixin) {
+            super::library_traits::prepare_scala2(l, mixin);
+        }
         if !library || inits {
             forwarders.extend(mixed_in(l, class, mixin, args.remove(&mixin), span)?);
         }

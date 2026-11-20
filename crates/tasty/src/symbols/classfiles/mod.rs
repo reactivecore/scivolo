@@ -10,6 +10,7 @@ mod java_sources;
 mod javalib;
 mod jdk_api;
 mod params;
+mod scala2_links;
 mod signature_polymorphic;
 mod signatures;
 mod visibility;

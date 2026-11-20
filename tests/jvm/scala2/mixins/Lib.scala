@@ -28,6 +28,15 @@ trait Lazy {
   lazy val cached: String = "cached"
 }
 
+trait Secret {
+  private val hidden: Int = 4
+  def reveal: Int = hidden
+}
+
+trait Sized {
+  def sizes(xs: List[_]): Int = xs.size
+}
+
 trait Overriding extends Greeter {
   override def greet(other: String): String = "hi " + other
 }
