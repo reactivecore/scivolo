@@ -6,8 +6,8 @@ import { download } from "./download.js";
 import { load } from "./scivolo.js";
 import { render } from "./sgr.js";
 
-const MODULE = "scivolo.wasm";
-const IMAGE = "libs.img.gz";
+const MODULE = new URL("scivolo.wasm", import.meta.url);
+const IMAGE = new URL("libs.img.gz", import.meta.url);
 const WIDTH = 80;
 // MiB of live objects before OutOfMemoryError.
 const HEAP_MIB = 512;
@@ -207,5 +207,5 @@ try {
   });
   restart();
 } catch (e) {
-  status.textContent = `The REPL could not load: ${e}`;
+  if (!window.reloadFresh()) status.textContent = `The REPL could not load: ${e}`;
 }
