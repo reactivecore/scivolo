@@ -88,16 +88,17 @@ pub fn compile_program(
             return Err(Ran::failed(report::fatal_warnings(shown), at));
         }
     }
-    let mains = lower::output::mains(&files).map_err(|e| Ran::failed(vec![e], Vec::new()))?;
-    let main = match &mains[..] {
-        [main] => main.clone(),
-        [] => return Err(Ran::failed(vec![format!("{name}: no main method")], Vec::new())),
-        several => {
-            let list = several.join(", ");
-            return Err(Ran::failed(vec![format!("{name}: several main classes: {list}")], Vec::new()));
-        }
-    };
+    let main = only_main(name, &files).map_err(|e| Ran::failed(vec![e], Vec::new()))?;
     Ok(Program { files, main, warnings: shown })
+}
+
+/// Finds the one main class among `files` compiled from file `name`.
+fn only_main(name: &str, files: &[NirFile]) -> Result<String, String> {
+    match &lower::output::mains(files)?[..] {
+        [main] => Ok(main.clone()),
+        [] => Err(format!("{name}: no main method")),
+        several => Err(format!("{name}: several main classes: {}", several.join(", "))),
+    }
 }
 
 /// The lines, from 1, of the diagnostics of `level` in `diags`, sorted, each once.
