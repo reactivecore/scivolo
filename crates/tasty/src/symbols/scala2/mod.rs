@@ -18,6 +18,7 @@ mod run;
 mod symbols;
 mod type_members;
 mod types;
+mod value_classes;
 
 use super::{SymbolId, Universe};
 use buffer::PickleBuffer;
@@ -70,6 +71,8 @@ pub struct Unpickler {
     /// The members entered, then unentered as refused.
     unentered: Vec<SymbolId>,
     refused: Vec<(SymbolId, String, String)>,
+    /// The entries of private class parameters' getters, with their classes.
+    private_values: Vec<(usize, SymbolId)>,
 }
 
 /// The symbols a pickle entered, those of its members it unentered as refused, and the symbols
@@ -117,6 +120,7 @@ pub fn enter(
         used: FxHashSet::default(),
         unentered: Vec::new(),
         refused: Vec::new(),
+        private_values: Vec::new(),
     };
     let roots = up.run(u);
     footprint.own = up.entered.iter().map(|&(_, s)| s).collect();

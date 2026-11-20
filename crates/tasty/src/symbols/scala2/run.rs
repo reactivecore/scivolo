@@ -28,6 +28,8 @@ impl Unpickler {
                 self.class_info(u, i, s)?;
             }
         }
+        self.private_values(u)?;
+        let entered = self.entered.clone();
         for &(_, s) in &entered {
             if u.symbol(s).kind == Kind::Type {
                 self.ensure_type_info(u, s)?;

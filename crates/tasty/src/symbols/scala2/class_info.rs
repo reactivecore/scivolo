@@ -45,8 +45,8 @@ impl Unpickler {
     }
 
     /// Gives class `s` of entry `i` the bounds of its type parameters and its parents, `Object`
-    /// for none and aliases followed (dotty's `setClassInfo`); marks it as Scala 2's. Refuses a
-    /// value class.
+    /// for none and aliases followed (dotty's `setClassInfo`); marks it as Scala 2's, and a class
+    /// other than a trait as initializing (dotty sets `NoInits` on Scala 2 traits only).
     pub fn class_info(&mut self, u: &mut Universe, i: usize, s: SymbolId) -> Result<(), String> {
         let h = self.header(i)?;
         let mut info = h.info;
@@ -76,12 +76,11 @@ impl Unpickler {
         if parents.is_empty() {
             parents.push(u.types.intern(Type::Sym(None, u.defn().object)));
         }
-        let any_val = u.defn().any_val;
-        if parents.iter().any(|&p| any_val.is_some() && u.class_symbol(p) == any_val) {
-            return Err("a value class".into());
-        }
         u.parents.insert(s, parents);
         u.set_scala2(s);
+        if !u.is_trait(s) {
+            u.set_inits(s);
+        }
         Ok(())
     }
 

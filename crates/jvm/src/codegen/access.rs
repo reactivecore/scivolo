@@ -169,7 +169,11 @@ impl Gen<'_, '_> {
                 Invoke::Special
             }
             _ if !self.receiver(b, (m, true), qualifier, prefix)? => Invoke::Static,
-            _ if self.l.u.symbol(m).flags.has(PRIVATE) || self.l.u.is_constructor(m) => Invoke::Special,
+            _ if self.l.u.symbol(m).flags.has(PRIVATE) && !self.l.u.is_scala2(owner)
+                || self.l.u.is_constructor(m) =>
+            {
+                Invoke::Special
+            }
             _ => {
                 let receiver = match qualifier {
                     Some(q) => self.receiver_class(q, m),

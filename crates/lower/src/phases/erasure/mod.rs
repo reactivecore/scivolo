@@ -91,7 +91,7 @@ pub fn typed(l: &mut Lower, t: TNodeId, pt: Option<&Erased>) -> Result<TNodeId> 
                 .collect();
             l.tpd.get_mut(t).tree = Tree::Block { stats: l.tpd.list(&kept), expr };
             map_children(l, t, &mut |l, c| typed(l, c, if c == expr { pt } else { None }))?;
-            None
+            return Ok(t);
         }
         Tree::If { cond, thenp, elsep, inline } => {
             let cond = typed(l, cond, Some(&boolean))?;
