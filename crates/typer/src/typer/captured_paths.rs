@@ -8,6 +8,7 @@ use tasty::{Type, TypeId};
 
 impl TypeOps<'_> {
     /// Whether stable path `a` conforms to class type `b`, or to each side of intersection `b`,
+    /// through aliases,
     /// with the wildcard arguments of its base type in `b`'s class replaced by the type
     /// parameters selected on `a`.
     pub fn conforms_captured_path(&mut self, a: TypeId, b: TypeId) -> bool {
@@ -17,6 +18,7 @@ impl TypeOps<'_> {
             return false;
         }
         let b = self.zonk(b);
+        let b = self.u.dealias(b);
         if let Type::And(x, y) = *self.u.ty(b) {
             return self.conforms(a, x) && self.conforms(a, y);
         }

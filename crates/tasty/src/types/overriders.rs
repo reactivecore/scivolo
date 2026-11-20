@@ -111,8 +111,7 @@ impl Universe {
                 self.term_type(Some(p), term)
             }
             Type::This(c) => c,
-            Type::Sym(None, c) if self.symbol(c).kind == Kind::Class => prefix,
-            _ => return None,
+            _ => prefix,
         };
         let base = self.symbol(s).owner?;
         let declared = self.widen(declared);
