@@ -30,7 +30,7 @@ pub const PROMPT: &str = "> ";
 pub fn welcome() -> String {
     format!(
         "Welcome to Scivolo {} (target Scala {}). Type in expressions for evaluation. Or try :help.",
-        env!("CARGO_PKG_VERSION"),
+        version::VERSION,
         libimage::SCALA
     )
 }

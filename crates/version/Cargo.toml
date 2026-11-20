@@ -1,0 +1,13 @@
+[package]
+name = "scivolo-version"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+name = "version"
+
+[lints]
+workspace = true

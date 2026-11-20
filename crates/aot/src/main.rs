@@ -19,7 +19,7 @@ pub type R<T> = Result<T, String>;
 
 /// Compile Scala sources, or the NIR of a classpath, into a native executable.
 #[derive(Parser)]
-#[command(name = "scivolo-aot")]
+#[command(name = "scivolo-aot", version = version::VERSION)]
 struct Args {
     /// Directory of `.nir` files to link, or jar whose TASTy and NIR the sources use.
     #[arg(long = "cp")]

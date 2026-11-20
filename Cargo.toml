@@ -29,6 +29,7 @@ snrt = { package = "scivolo-snrt", path = "crates/snrt" }
 syntax = { package = "scivolo-syntax", path = "crates/syntax" }
 tasty = { package = "scivolo-tasty", path = "crates/tasty" }
 typer = { package = "scivolo-typer", path = "crates/typer" }
+version = { package = "scivolo-version", path = "crates/version" }
 vm = { package = "scivolo-vm", path = "crates/vm" }
 
 [workspace.lints.rust]
