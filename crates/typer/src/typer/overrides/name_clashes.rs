@@ -60,9 +60,11 @@ impl OverrideChecks {
     }
 
     /// Whether member `d` of the class matches inherited member `m` with a repeated parameter
-    /// `T*` read as `Seq[T]`, as both are seen after `ElimRepeated`.
+    /// `T*` read as `Seq[T]`, as both are seen after `ElimRepeated`; a Java method's `Object`
+    /// parameter matches `Any`, and its generic array parameter `T[]` matches `Array[T & Object]`.
     fn matches_after_elim_repeated(&self, t: &mut Typer<'_>, d: SymbolId, m: SymbolId) -> bool {
-        t.same_member(self.site, d, m) || t.u.info_matches_in_refchecks(self.site, d, m, (false, false))
+        let java = t.is_java_method(m);
+        t.u.info_matches_in_refchecks(self.site, d, m, (false, java)) || java && t.same_member(self.site, d, m)
     }
 }
 
